@@ -79,6 +79,21 @@ When modifying the project:
 4. Update documentation when public behavior, requirements, or shader names change.
 5. Do not copy large implementations from other shaders without verifying that every part is necessary.
 
+## Persistent communication
+
+Do not persist temporary orchestration labels in repository artifacts.
+
+* Do not refer to work only as `Phase X`, `Step X`, `Stage X`, or similar plan-relative labels in code comments, commit messages, pull requests, documentation, changelogs, or issue descriptions.
+* Describe the actual change, component, behavior, and reason in terms that remain understandable without access to the original implementation plan.
+* Code comments must explain local behavior, constraints, or rationale rather than the order in which work was performed.
+* Commit messages must summarize the concrete change instead of its position in an orchestration plan.
+* When a numbered sequence is genuinely necessary, give every item a descriptive, self-contained name.
+
+For example, use `Add the minimal BIRP forward pass` instead of `Implement Phase 2`.
+
+This restriction applies to temporary development and orchestration phases. It does not prohibit Shader-Core phase names such as `base`, `light`, `shade`, or `postpixel`, which are part of the technical API.
+
+
 ## Validation
 
 Before completing a change, verify that:
