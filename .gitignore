@@ -104,3 +104,12 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+
+.serena/
+.serena.meta
+.unitypackage-stage/
+unitypackage-stage.meta
+dist/
+dist.meta
+update_trigger.json.meta
