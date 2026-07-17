@@ -40,6 +40,7 @@ void SCInitializeSurface(inout SCShadingData shadingData, out half coverage, SCV
     shadingData.normalMapWithRoughness = false;
     shadingData.maskTexture = _SharedMask;
     shadingData.gradientsTexture = _SharedGradients;
+    SCModelInitializeTangentNormal(shadingData);
 
     __SC_PHASE_base__
 }

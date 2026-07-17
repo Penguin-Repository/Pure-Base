@@ -19,26 +19,25 @@
 #ifndef PUREBASE_BIRP_HOST_INCLUDED
 #define PUREBASE_BIRP_HOST_INCLUDED
 
-#include "../Models/unlit.hlsl"
-
 /// <summary>Accumulates a BIRP light after the Shader-Core per-light phase.</summary>
 void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData shadingData, inout SCCustomData customData, SCVertexData vertex, SCLightData light)
 {
     __SC_PHASE_light__
 
     lightSum.direction += light.direction * dot(light.color, half3(0.333333, 0.333333, 0.333333));
-    lightSum.color += light.color;
+    lightSum.color += light.color * SCModelEvaluateDirectFactor(shadingData, light);
 }
 
-/// <summary>Publishes the aggregate light direction while leaving Unlit host lighting disabled.</summary>
+/// <summary>Publishes the aggregate light direction and applies the selected model's ambient SH response.</summary>
 void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 environment, inout SCShadingData shadingData, inout SCCustomData customData, SCVertexData vertex, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
     shadingData.L = dot(lightSum.direction, lightSum.direction) == 0 ? half3(0, 0, 0) : normalize(lightSum.direction);
+    environment += SCModelEvaluateAmbient(shadingData, shAr, shAg, shAb, shBr, shBg, shBb, shC);
 }
 
 #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp_lighting.hlsl"
 
-/// <summary>Evaluates the ForwardBase or ForwardAdd Unlit result with all standard pixel phase insertion points.</summary>
+/// <summary>Evaluates the selected model's ForwardBase or ForwardAdd result with all standard pixel phase insertion points.</summary>
 half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 {
     UNITY_SETUP_INSTANCE_ID(input);
@@ -57,7 +56,7 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 
     SCLightData lightSum = (SCLightData)0;
     half3 environment = half3(0, 0, 0);
-    SCCalculateAllLights(lightSum, environment, shadingData, customData, vertex, input);
+    SCCalculateAllLights(lightSum, environment, shadingData, customData, vertex, input, SCModelSelectVertexLighting(SCVertexLighting(vertex.position)));
 
     #if defined(UNITY_PASS_FORWARDADD)
         shadingData.lightColor = lightSum.color;
@@ -68,9 +67,9 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     __SC_PHASE_modifylight__
 
     #if defined(UNITY_PASS_FORWARDADD)
-        shadingData.col = half4(0, 0, 0, 1);
+        shadingData.col = SCModelAddSurfaceColor(shadingData);
     #else
-        shadingData.col = SCUnlitSurfaceColor(shadingData);
+        shadingData.col = SCModelBaseSurfaceColor(shadingData);
     #endif
 
     __SC_PHASE_shade__

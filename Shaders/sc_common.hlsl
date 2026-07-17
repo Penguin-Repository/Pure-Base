@@ -19,6 +19,11 @@
 #ifndef PUREBASE_SC_COMMON_INCLUDED
 #define PUREBASE_SC_COMMON_INCLUDED
 
+#ifndef PUREBASE_MODEL_INCLUDE
+#define PUREBASE_MODEL_INCLUDE "Models/unlit.hlsl"
+#endif
+
+#include PUREBASE_MODEL_INCLUDE
 #include "Common/surface.hlsl"
 
 /// <summary>Stores deterministic host-owned data for Shader-Core lighting callbacks.</summary>
