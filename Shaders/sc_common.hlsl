@@ -26,13 +26,6 @@
 #include PUREBASE_MODEL_INCLUDE
 #include "Common/surface.hlsl"
 
-/// <summary>Stores deterministic host-owned data for Shader-Core lighting callbacks.</summary>
-struct SCCustomData
-{
-    /// <summary>Reserves nonempty storage for the Shader-Core callback contract.</summary>
-    half reserved;
-};
-
 /// <summary>Runs the Shader-Core morph phase before vertex varyings are populated.</summary>
 void SCVertexMorph(inout SCVertexData vertex, SCPositionAndDirection camera, SCPositionAndDirection head, SCPositionAndDirection headBone)
 {

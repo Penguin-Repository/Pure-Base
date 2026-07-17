@@ -19,6 +19,19 @@
 #ifndef PUREBASE_UNLIT_MODEL_INCLUDED
 #define PUREBASE_UNLIT_MODEL_INCLUDED
 
+/// <summary>Stores deterministic host-owned data for Shader-Core lighting callbacks.</summary>
+struct SCCustomData
+{
+    /// <summary>Reserves nonempty storage for the Shader-Core callback contract.</summary>
+    half reserved;
+    /// <summary>Stores the Unity wrapper's unattenuated main-light color.</summary>
+    half3 mainLightColor;
+    /// <summary>Stores the Unity wrapper's main-light attenuation and shadow factor.</summary>
+    half mainLightAttenuation;
+    /// <summary>Stores the normalized main-light direction before Shader-Core light-phase modifications.</summary>
+    half3 mainLightDirection;
+};
+
 /// <summary>Initializes the Unlit tangent-space normal without sampling an optional normal map.</summary>
 void SCModelInitializeTangentNormal(inout SCShadingData shadingData)
 {
@@ -30,6 +43,18 @@ void SCModelInitializeTangentNormal(inout SCShadingData shadingData)
 half SCModelEvaluateDirectFactor(SCShadingData shadingData, SCLightData light)
 {
     return 1;
+}
+
+/// <summary>Retains Shader-Core's light color because the Unlit wrapper does not isolate Unity Standard declarations.</summary>
+bool SCModelUsesIsolatedMainLightColor()
+{
+    return false;
+}
+
+/// <summary>Preserves the Shader-Core light direction for the lighting-independent Unlit model.</summary>
+half3 SCModelSelectMainLightDirection(SCVertexData vertex, half3 lightDirection)
+{
+    return lightDirection;
 }
 
 /// <summary>Disables model-specific ambient SH for the lighting-independent Unlit surface.</summary>
@@ -44,6 +69,12 @@ half3 SCModelSelectVertexLighting(half3 vertexLighting)
     return vertexLighting;
 }
 
+/// <summary>Preserves Shader-Core's ambient, baked-light, and vertex-light environment aggregate for Unlit compatibility.</summary>
+half3 SCModelSelectEnvironmentLighting(half3 environment)
+{
+    return environment;
+}
+
 /// <summary>Returns the base-phase albedo without adding direct, baked, or environmental lighting.</summary>
 half4 SCUnlitSurfaceColor(SCShadingData shadingData)
 {
@@ -51,13 +82,13 @@ half4 SCUnlitSurfaceColor(SCShadingData shadingData)
 }
 
 /// <summary>Produces the Unlit ForwardBase result.</summary>
-half4 SCModelBaseSurfaceColor(SCShadingData shadingData)
+half4 SCModelBaseSurfaceColor(SCShadingData shadingData, SCCustomData customData, SCVertexData vertex)
 {
     return SCUnlitSurfaceColor(shadingData);
 }
 
 /// <summary>Produces the black Unlit ForwardAdd result.</summary>
-half4 SCModelAddSurfaceColor(SCShadingData shadingData)
+half4 SCModelAddSurfaceColor(SCShadingData shadingData, SCCustomData customData, SCVertexData vertex)
 {
     return half4(0, 0, 0, 1);
 }

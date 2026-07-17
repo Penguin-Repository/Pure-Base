@@ -19,6 +19,19 @@
 #ifndef PUREBASE_TOON_MODEL_INCLUDED
 #define PUREBASE_TOON_MODEL_INCLUDED
 
+/// <summary>Stores deterministic host-owned data for Shader-Core lighting callbacks.</summary>
+struct SCCustomData
+{
+    /// <summary>Reserves nonempty storage for the Shader-Core callback contract.</summary>
+    half reserved;
+    /// <summary>Stores the Unity wrapper's unattenuated main-light color.</summary>
+    half3 mainLightColor;
+    /// <summary>Stores the Unity wrapper's main-light attenuation and shadow factor.</summary>
+    half mainLightAttenuation;
+    /// <summary>Stores the normalized main-light direction before Shader-Core light-phase modifications.</summary>
+    half3 mainLightDirection;
+};
+
 /// <summary>Samples the Toon normal map before the Shader-Core base phase can alter the tangent-space normal.</summary>
 void SCModelInitializeTangentNormal(inout SCShadingData shadingData)
 {
@@ -30,6 +43,18 @@ void SCModelInitializeTangentNormal(inout SCShadingData shadingData)
 half SCModelEvaluateDirectFactor(SCShadingData shadingData, SCLightData light)
 {
     return step(0, dot(shadingData.N, light.direction));
+}
+
+/// <summary>Retains Shader-Core's light color because the Toon wrapper does not isolate Unity Standard declarations.</summary>
+bool SCModelUsesIsolatedMainLightColor()
+{
+    return false;
+}
+
+/// <summary>Preserves the Shader-Core light direction for the Toon quantization response.</summary>
+half3 SCModelSelectMainLightDirection(SCVertexData vertex, half3 lightDirection)
+{
+    return lightDirection;
 }
 
 /// <summary>Evaluates the supplied Unity spherical-harmonics coefficients with the model world normal.</summary>
@@ -49,14 +74,20 @@ half3 SCModelSelectVertexLighting(half3 vertexLighting)
     return half3(0, 0, 0);
 }
 
+/// <summary>Preserves the existing Toon ambient and baked-light environment aggregate.</summary>
+half3 SCModelSelectEnvironmentLighting(half3 environment)
+{
+    return environment;
+}
+
 /// <summary>Produces the Toon ForwardBase result from aggregate direct, ambient, and baked lighting.</summary>
-half4 SCModelBaseSurfaceColor(SCShadingData shadingData)
+half4 SCModelBaseSurfaceColor(SCShadingData shadingData, SCCustomData customData, SCVertexData vertex)
 {
     return half4(shadingData.albedoAlpha.rgb * shadingData.lightColor, 1);
 }
 
 /// <summary>Produces the Toon ForwardAdd result from the current quantized direct-light contribution.</summary>
-half4 SCModelAddSurfaceColor(SCShadingData shadingData)
+half4 SCModelAddSurfaceColor(SCShadingData shadingData, SCCustomData customData, SCVertexData vertex)
 {
     return half4(shadingData.albedoAlpha.rgb * shadingData.lightColor, 1);
 }

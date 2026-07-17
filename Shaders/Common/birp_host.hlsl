@@ -22,6 +22,11 @@
 /// <summary>Accumulates a BIRP light after the Shader-Core per-light phase.</summary>
 void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData shadingData, inout SCCustomData customData, SCVertexData vertex, SCLightData light)
 {
+    light.direction = SCModelSelectMainLightDirection(vertex, light.direction);
+    customData.mainLightDirection = light.direction;
+    if (SCModelUsesIsolatedMainLightColor())
+        light.color = customData.mainLightColor * customData.mainLightAttenuation;
+
     __SC_PHASE_light__
 
     lightSum.direction += light.direction * dot(light.color, half3(0.333333, 0.333333, 0.333333));
@@ -56,7 +61,12 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 
     SCLightData lightSum = (SCLightData)0;
     half3 environment = half3(0, 0, 0);
+    UNITY_LIGHT_ATTENUATION(mainLightAttenuation, input, vertex.position);
+    customData.mainLightColor = _LightColor0.rgb;
+    customData.mainLightAttenuation = saturate(mainLightAttenuation);
+    customData.mainLightDirection = half3(0, 0, 0);
     SCCalculateAllLights(lightSum, environment, shadingData, customData, vertex, input, SCModelSelectVertexLighting(SCVertexLighting(vertex.position)));
+    environment = SCModelSelectEnvironmentLighting(environment);
 
     #if defined(UNITY_PASS_FORWARDADD)
         shadingData.lightColor = lightSum.color;
@@ -67,9 +77,9 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     __SC_PHASE_modifylight__
 
     #if defined(UNITY_PASS_FORWARDADD)
-        shadingData.col = SCModelAddSurfaceColor(shadingData);
+        shadingData.col = SCModelAddSurfaceColor(shadingData, customData, vertex);
     #else
-        shadingData.col = SCModelBaseSurfaceColor(shadingData);
+        shadingData.col = SCModelBaseSurfaceColor(shadingData, customData, vertex);
     #endif
 
     __SC_PHASE_shade__
