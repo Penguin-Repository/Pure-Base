@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 1,
+  "migration": {
+    "status": "legacy-oracle-captured-awaiting-fixture-migration",
+    "intendedOwner": "package-parity-validator",
+    "intendedLane": "package-parity"
+  },
+  "legacySource": {
+    "packageGitHead": "e905e132380499de7d79d52d3d8a0498470f8d74",
+    "runScope": "Full",
+    "unityVersion": "2022.3.22f1",
+    "graphicsApi": "D3D11",
+    "completionRecordPath": "Completes/pure-base-final-integration-phase-5-complete.md",
+    "legacyRunnerPath": "Tests/PureBase.Integration/Run-PureBaseIntegration.ps1",
+    "legacyFixtureConsumerPath": "Assets/PureBase.Tests"
+  },
+  "artifactLayout": {
+    "artifactRoot": "<integration-artifacts-root>",
+    "nunitXml": "<integration-artifacts-root>/{id}/{id}.NUnit.xml",
+    "validationSceneEvidence": "<integration-artifacts-root>/validation-scene-birp/Artifacts/purebase-validation-scene-birp.json",
+    "validationSceneFeasibility": "<integration-artifacts-root>/validation-scene-birp-feasibility.json",
+    "birpProbeFeasibility": "<integration-artifacts-root>/birp-probe-feasibility.json",
+    "releaseBoundaryAudit": "<integration-artifacts-root>/release-boundary-audit.json"
+  },
+  "expectedAggregate": {
+    "invocationCount": 62,
+    "passed": 62,
+    "failed": 0,
+    "skipped": 0,
+    "inconclusive": 0
+  },
+  "fixedValidationSceneOracle": {
+    "staticLightmapCount": 2,
+    "staticRendererAssignmentCount": 20,
+    "metaReadbackCount": 18,
+    "shadowDeltaPixelCount": 967,
+    "warmedRepresentativeVariantCount": 56,
+    "dynamicLightmapStatus": "NOT_DETERMINISTIC_IN_BATCH_EDITMODE"
+  },
+  "knownLimitations": [
+    {
+      "id": "dynamic-lightmaps-batch-editmode",
+      "status": "NOT_DETERMINISTIC_IN_BATCH_EDITMODE",
+      "parityRequirement": "excluded-from-verified-runtime-parity"
+    }
+  ],
+  "nunitInvocations": [
+    {
+      "id": "all-product-phase-add",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-base",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-customlight",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-light",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-modifylight",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-morph",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-postpixel",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-postvertex",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-reflection",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "all-product-phase-shade",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseAllProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInEveryProductShader",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "baseline-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "baseline-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "birp-BlackProbePathProducesFiniteHdrReadbackWithMeshCoverage",
+      "nunitFullName": "PureBase.Integration.Tests.BirpGiProbeReadbackTests.BlackProbePathProducesFiniteHdrReadbackWithMeshCoverage",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "birp-BoxProjectedReflectionProbePathProducesFiniteHdrReadbackWithMeshCoverage",
+      "nunitFullName": "PureBase.Integration.Tests.BirpGiProbeReadbackTests.BoxProjectedReflectionProbePathProducesFiniteHdrReadbackWithMeshCoverage",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "module-order-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.TwoModuleGeneratedShaderSourcePreservesConfiguredOrder",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "pbr-hybrid-import",
+      "nunitFullName": "PureBase.Integration.Tests.PureBasePbrHybridImportTests.ImportedPbrAndHybridShadersHaveExpectedPassesPropertiesAndModelSource",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "pbr-hybrid-runtime-PbrAndHybridForwardAddContainsOnlyAdditionalDirectLight",
+      "nunitFullName": "PureBase.Integration.Tests.PureBasePbrHybridRuntimeTests.PbrAndHybridForwardAddContainsOnlyAdditionalDirectLight",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "pbr-hybrid-runtime-PbrAndHybridHdrMatrixIsFiniteAcrossDegenerateDirectLightInputs",
+      "nunitFullName": "PureBase.Integration.Tests.PureBasePbrHybridRuntimeTests.PbrAndHybridHdrMatrixIsFiniteAcrossDegenerateDirectLightInputs",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "pbr-hybrid-runtime-PbrAndHybridShareSpecularButDifferInDiffuseResponse",
+      "nunitFullName": "PureBase.Integration.Tests.PureBasePbrHybridRuntimeTests.PbrAndHybridShareSpecularButDifferInDiffuseResponse",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "pbr-hybrid-runtime-PbrAndHybridUseReflectionProbesWhileUnlitAndToonDoNot",
+      "nunitFullName": "PureBase.Integration.Tests.PureBasePbrHybridRuntimeTests.PbrAndHybridUseReflectionProbesWhileUnlitAndToonDoNot",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-add-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-add-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-base-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-base-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-customlight-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-customlight-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-light-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-light-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-modifylight-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-modifylight-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-morph-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-morph-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-postpixel-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-postpixel-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-postvertex-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-postvertex-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-reflection-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-reflection-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-shade-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationRuntimeGateTests.ImportedShaderRuntimeGateMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "probe-shade-source",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseIntegrationGeneratedSourceTests.GeneratedShaderSourceMatchesConfiguredContract",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "toon-import",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseToonImportTests.ImportedToonShaderHasExpectedPassesPropertiesAndModelSource",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "toon-module-free-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseToonModuleFreeRuntimeTests.ModuleFreeToonRuntimePreservesQuantizedForwardAndStaticLightmapContracts",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "toon-phase-base",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseToonProductPhaseTests.SelectedExternalPhaseModuleAppearsInExpectedToonPassesAndAffectsRuntimeOutput",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "toon-phase-light",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseToonProductPhaseTests.SelectedExternalPhaseModuleAppearsInExpectedToonPassesAndAffectsRuntimeOutput",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "toon-phase-modifylight",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseToonProductPhaseTests.SelectedExternalPhaseModuleAppearsInExpectedToonPassesAndAffectsRuntimeOutput",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "toon-phase-shade",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseToonProductPhaseTests.SelectedExternalPhaseModuleAppearsInExpectedToonPassesAndAffectsRuntimeOutput",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-external-module",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitImportTests.ImportedUnlitShaderIncludesSelectedExternalModule",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-forward-add-fog-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitModuleFreeRuntimeTests.SelectedForwardAddFogModuleAttenuatesSignalTowardBlack",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-import",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitImportTests.ImportedUnlitShaderHasExpectedPassesAndGeneratedProperties",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-meta-readback",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitMetaReadbackTests.ActualMetaPassPreservesFixedCutoutAndBaseTextureTransform",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-module-free-runtime",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitModuleFreeRuntimeTests.ModuleFreeUnlitRuntimePreservesForwardAndCoverageContracts",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-add",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-base",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-customlight",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-light",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-modifylight",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-morph",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-postpixel",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-postvertex",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-reflection",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "unlit-phase-shade",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseUnlitProductPhaseTests.SelectedExternalPhaseModuleCompilesAndAppearsInExpectedProductPasses",
+      "expectedResult": "Passed"
+    },
+    {
+      "id": "validation-scene-birp",
+      "nunitFullName": "PureBase.Integration.Tests.PureBaseValidationSceneTests.FixedValidationSceneBakesAndRequestsRepresentativeBirpVariants",
+      "expectedResult": "Passed"
+    }
+  ]
+}
