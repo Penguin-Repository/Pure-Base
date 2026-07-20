@@ -1,7 +1,9 @@
 {
   "name": "PureBase.Tests.Regeneration",
   "rootNamespace": "PureBase.Tests.Regeneration",
-  "references": [],
+  "references": [
+    "PureBase.Tests.Daily"
+  ],
   "includePlatforms": [
     "Editor"
   ],
