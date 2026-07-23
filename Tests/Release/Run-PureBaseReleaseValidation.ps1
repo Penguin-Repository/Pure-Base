@@ -45,6 +45,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $RequiredUnityVersion = '2022.3.22f1'
+$RequiredUnityRevision = '887be4894c44'
 $ConsumerAssembly = 'PureBase.Release.Consumer.Tests'
 $ProductNames = @('PureBase/Unlit', 'PureBase/Toon', 'PureBase/PBR', 'PureBase/Hybrid')
 $ProductPasses = @('ForwardBase', 'ForwardAdd', 'ShadowCaster', 'Meta')
@@ -167,6 +168,53 @@ function Resolve-UnityEditor {
     throw "Unity editor '$editor' cannot be proven to be Unity $RequiredUnityVersion."
 }
 
+function Get-ConsumerUnityProcess {
+    param([Parameter(Mandatory = $true)][string]$ProjectRoot)
+
+    $projectPattern = [regex]::Escape((Get-NormalizedPath -Path $ProjectRoot))
+    try {
+        $unityProcesses = @(Get-CimInstance Win32_Process -Filter "Name = 'Unity.exe'" -ErrorAction Stop)
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            status = 'indeterminate'
+            process = $null
+            reason = "Could not query Unity processes: $($_.Exception.Message)"
+        }
+    }
+
+    $unreadableProcesses = New-Object System.Collections.Generic.List[object]
+    foreach ($unityProcess in $unityProcesses) {
+        $commandLine = if ($null -eq $unityProcess.CommandLine) { '' } else { [string]$unityProcess.CommandLine }
+        if ([string]::IsNullOrWhiteSpace($commandLine)) {
+            [void]$unreadableProcesses.Add($unityProcess)
+            continue
+        }
+        if ($commandLine -match $projectPattern) {
+            return [pscustomobject][ordered]@{
+                status = 'active'
+                process = $unityProcess
+                reason = "Unity process $($unityProcess.ProcessId) is using '$ProjectRoot'."
+            }
+        }
+    }
+
+    if ($unreadableProcesses.Count -ne 0) {
+        $processIds = @($unreadableProcesses | ForEach-Object { [string]$_.ProcessId }) -join ', '
+        return [pscustomobject][ordered]@{
+            status = 'indeterminate'
+            process = $null
+            reason = "Cannot inspect CommandLine for Unity process(es) $processIds; refusing to rule out '$ProjectRoot'."
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        status = 'none'
+        process = $null
+        reason = "No Unity process is using '$ProjectRoot'."
+    }
+}
+
 function Assert-EditorClosed {
     param([Parameter(Mandatory = $true)][string]$ProjectRoot)
 
@@ -175,12 +223,12 @@ function Assert-EditorClosed {
         throw "Unity project '$ProjectRoot' appears open. Close the Unity Editor before running this validation."
     }
 
-    $projectPattern = [regex]::Escape((Get-NormalizedPath -Path $ProjectRoot))
-    $openProject = Get-CimInstance Win32_Process -Filter "Name = 'Unity.exe'" -ErrorAction SilentlyContinue | Where-Object {
-        $null -ne $_.CommandLine -and $_.CommandLine -match $projectPattern
-    } | Select-Object -First 1
-    if ($null -ne $openProject) {
-        throw "Unity process $($openProject.ProcessId) is using '$ProjectRoot'."
+    $processDiscovery = Get-ConsumerUnityProcess -ProjectRoot $ProjectRoot
+    if ($processDiscovery.status -eq 'active') {
+        throw $processDiscovery.reason
+    }
+    if ($processDiscovery.status -ne 'none') {
+        throw "Cannot verify whether a Unity process is using '$ProjectRoot'; refusing to continue. $($processDiscovery.reason)"
     }
 }
 
@@ -314,7 +362,7 @@ function Add-ConsumerStagingReceiptTreeEntries {
     param(
         [Parameter(Mandatory = $true)][hashtable]$EntriesByDestination,
         [Parameter(Mandatory = $true)][string]$SourceRoot,
-        [Parameter(Mandatory = $true)][string]$DestinationPrefix,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][ValidateScript({ $null -ne $_ -and $_ -is [string] })][object]$DestinationPrefix,
         [Parameter(Mandatory = $true)][string]$SourceKind
     )
 
@@ -340,7 +388,8 @@ function Get-ConsumerStagingReceipt {
         [Parameter(Mandatory = $true)][string]$ScaffoldRoot,
         [Parameter(Mandatory = $true)][string]$ShaderCoreRoot,
         [Parameter(Mandatory = $true)][string]$ModulesRoot,
-        [Parameter(Mandatory = $true)][string]$FixturesRoot
+        [Parameter(Mandatory = $true)][string]$FixturesRoot,
+        [Parameter(Mandatory = $true)][string]$CanonicalShaderCoreConfigPath
     )
 
     $entriesByDestination = @{}
@@ -348,6 +397,19 @@ function Get-ConsumerStagingReceipt {
     Add-ConsumerStagingReceiptTreeEntries -EntriesByDestination $entriesByDestination -SourceRoot $ShaderCoreRoot -DestinationPrefix '_LocalPackages/jp.lilxyzw.shadercore' -SourceKind 'shader-core-tree'
     Add-ConsumerStagingReceiptTreeEntries -EntriesByDestination $entriesByDestination -SourceRoot $ModulesRoot -DestinationPrefix 'Assets/ReleaseModules' -SourceKind 'release-modules'
     Add-ConsumerStagingReceiptTreeEntries -EntriesByDestination $entriesByDestination -SourceRoot $FixturesRoot -DestinationPrefix 'Assets/ReleaseConsumer/Fixtures' -SourceKind 'release-fixtures'
+    $canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
+    if (-not (Test-Path -LiteralPath $CanonicalShaderCoreConfigPath -PathType Leaf)) {
+        throw "Canonical Shader-Core config source is missing: '$CanonicalShaderCoreConfigPath'."
+    }
+    if ($entriesByDestination.ContainsKey($canonicalConfigDestination)) {
+        throw "Staging receipt source mappings overlap at '$canonicalConfigDestination'."
+    }
+    $entriesByDestination.Add($canonicalConfigDestination, [ordered]@{
+            destination = $canonicalConfigDestination
+            sourceKind = 'workspace-canonical-shader-core-config'
+            source = $CanonicalShaderCoreConfigPath
+            sha256 = Get-Sha256Hex -Path $CanonicalShaderCoreConfigPath
+        })
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
@@ -491,6 +553,687 @@ function Write-ConsumerImmutableManifestBootstrapDelta {
     Write-ConsumerJsonArtifact -Path $Path -Value $deltaReport
 }
 
+function Get-ExpectedFirstBootstrapAddedPaths {
+    return @(
+        'Assets/ReleaseConsumer/Fixtures.meta', 'Assets/ReleaseModules.meta', 'Assets/Resources.meta', 'Assets/Resources/BillingMode.json', 'Assets/Resources/BillingMode.json.meta', 'Packages/packages-lock.json',
+        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/QualitySettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',
+        '_LocalPackages/jp.penguin.purebase/Editor.meta', '_LocalPackages/jp.penguin.purebase/LICENSE.meta', '_LocalPackages/jp.penguin.purebase/NOTICE.meta', '_LocalPackages/jp.penguin.purebase/README.md.meta', '_LocalPackages/jp.penguin.purebase/Shaders.meta', '_LocalPackages/jp.penguin.purebase/package.json.meta'
+    )
+}
+
+function Get-FirstBootstrapGeneratedMetaProfile {
+    return [ordered]@{
+        'Assets/ReleaseConsumer/Fixtures.meta' = [ordered]@{ relatedPath = 'Assets/ReleaseConsumer/Fixtures'; itemType = 'Directory' }
+        'Assets/ReleaseModules.meta' = [ordered]@{ relatedPath = 'Assets/ReleaseModules'; itemType = 'Directory' }
+        'Assets/Resources.meta' = [ordered]@{ relatedPath = 'Assets/Resources'; itemType = 'Directory' }
+        'Assets/Resources/BillingMode.json.meta' = [ordered]@{ relatedPath = 'Assets/Resources/BillingMode.json'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/Editor.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/Editor'; itemType = 'Directory' }
+        '_LocalPackages/jp.penguin.purebase/LICENSE.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/LICENSE'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/NOTICE.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/NOTICE'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/README.md.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/README.md'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/Shaders.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/Shaders'; itemType = 'Directory' }
+        '_LocalPackages/jp.penguin.purebase/package.json.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/package.json'; itemType = 'Leaf' }
+    }
+}
+
+function Get-FirstBootstrapPackageProfile {
+    $manifestDependencies = [ordered]@{}
+    foreach ($entry in @'
+com.unity.2d.sprite|1.0.0
+com.unity.2d.tilemap|1.0.0
+com.unity.ads|4.4.2
+com.unity.ai.navigation|1.1.5
+com.unity.analytics|3.8.1
+com.unity.collab-proxy|2.3.1
+com.unity.ide.rider|3.0.28
+com.unity.ide.visualstudio|2.0.22
+com.unity.ide.vscode|1.2.5
+com.unity.purchasing|4.9.3
+com.unity.test-framework|1.1.33
+com.unity.textmeshpro|3.0.6
+com.unity.timeline|1.7.6
+com.unity.ugui|1.0.0
+com.unity.xr.legacyinputhelpers|2.1.10
+jp.lilxyzw.shadercore|file:../_LocalPackages/jp.lilxyzw.shadercore
+jp.penguin.purebase|file:../_LocalPackages/jp.penguin.purebase
+com.unity.modules.ai|1.0.0
+com.unity.modules.androidjni|1.0.0
+com.unity.modules.animation|1.0.0
+com.unity.modules.assetbundle|1.0.0
+com.unity.modules.audio|1.0.0
+com.unity.modules.cloth|1.0.0
+com.unity.modules.director|1.0.0
+com.unity.modules.imageconversion|1.0.0
+com.unity.modules.imgui|1.0.0
+com.unity.modules.jsonserialize|1.0.0
+com.unity.modules.particlesystem|1.0.0
+com.unity.modules.physics|1.0.0
+com.unity.modules.physics2d|1.0.0
+com.unity.modules.screencapture|1.0.0
+com.unity.modules.terrain|1.0.0
+com.unity.modules.terrainphysics|1.0.0
+com.unity.modules.tilemap|1.0.0
+com.unity.modules.ui|1.0.0
+com.unity.modules.uielements|1.0.0
+com.unity.modules.umbra|1.0.0
+com.unity.modules.unityanalytics|1.0.0
+com.unity.modules.unitywebrequest|1.0.0
+com.unity.modules.unitywebrequestassetbundle|1.0.0
+com.unity.modules.unitywebrequestaudio|1.0.0
+com.unity.modules.unitywebrequesttexture|1.0.0
+com.unity.modules.unitywebrequestwww|1.0.0
+com.unity.modules.vehicles|1.0.0
+com.unity.modules.video|1.0.0
+com.unity.modules.vr|1.0.0
+com.unity.modules.wind|1.0.0
+com.unity.modules.xr|1.0.0
+'@ -split "`r?`n" | Where-Object { $_ -ne '' }) {
+        $parts = $entry.Split('|', 2)
+        $manifestDependencies.Add($parts[0], $parts[1])
+    }
+
+    $lockDependencies = [ordered]@{}
+    foreach ($entry in @'
+com.unity.2d.sprite|1.0.0|0|builtin|
+com.unity.2d.tilemap|1.0.0|0|builtin|com.unity.modules.tilemap=1.0.0,com.unity.modules.uielements=1.0.0
+com.unity.ads|4.4.2|0|registry|com.unity.ugui=1.0.0
+com.unity.ai.navigation|1.1.5|0|registry|com.unity.modules.ai=1.0.0
+com.unity.analytics|3.8.1|0|registry|com.unity.services.analytics=1.0.4,com.unity.ugui=1.0.0
+com.unity.collab-proxy|2.3.1|0|registry|
+com.unity.ext.nunit|1.0.6|1|registry|
+com.unity.ide.rider|3.0.28|0|registry|com.unity.ext.nunit=1.0.6
+com.unity.ide.visualstudio|2.0.22|0|registry|com.unity.test-framework=1.1.9
+com.unity.ide.vscode|1.2.5|0|registry|
+com.unity.modules.ai|1.0.0|0|builtin|
+com.unity.modules.androidjni|1.0.0|0|builtin|
+com.unity.modules.animation|1.0.0|0|builtin|
+com.unity.modules.assetbundle|1.0.0|0|builtin|
+com.unity.modules.audio|1.0.0|0|builtin|
+com.unity.modules.cloth|1.0.0|0|builtin|com.unity.modules.physics=1.0.0
+com.unity.modules.director|1.0.0|0|builtin|com.unity.modules.animation=1.0.0,com.unity.modules.audio=1.0.0
+com.unity.modules.imageconversion|1.0.0|0|builtin|
+com.unity.modules.imgui|1.0.0|0|builtin|
+com.unity.modules.jsonserialize|1.0.0|0|builtin|
+com.unity.modules.particlesystem|1.0.0|0|builtin|
+com.unity.modules.physics|1.0.0|0|builtin|
+com.unity.modules.physics2d|1.0.0|0|builtin|
+com.unity.modules.screencapture|1.0.0|0|builtin|com.unity.modules.imageconversion=1.0.0
+com.unity.modules.subsystems|1.0.0|1|builtin|com.unity.modules.jsonserialize=1.0.0
+com.unity.modules.terrain|1.0.0|0|builtin|
+com.unity.modules.terrainphysics|1.0.0|0|builtin|com.unity.modules.physics=1.0.0,com.unity.modules.terrain=1.0.0
+com.unity.modules.tilemap|1.0.0|0|builtin|com.unity.modules.physics2d=1.0.0
+com.unity.modules.ui|1.0.0|0|builtin|
+com.unity.modules.uielements|1.0.0|0|builtin|com.unity.modules.imgui=1.0.0,com.unity.modules.jsonserialize=1.0.0,com.unity.modules.ui=1.0.0
+com.unity.modules.umbra|1.0.0|0|builtin|
+com.unity.modules.unityanalytics|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.unitywebrequest=1.0.0
+com.unity.modules.unitywebrequest|1.0.0|0|builtin|
+com.unity.modules.unitywebrequestassetbundle|1.0.0|0|builtin|com.unity.modules.assetbundle=1.0.0,com.unity.modules.unitywebrequest=1.0.0
+com.unity.modules.unitywebrequestaudio|1.0.0|0|builtin|com.unity.modules.audio=1.0.0,com.unity.modules.unitywebrequest=1.0.0
+com.unity.modules.unitywebrequesttexture|1.0.0|0|builtin|com.unity.modules.imageconversion=1.0.0,com.unity.modules.unitywebrequest=1.0.0
+com.unity.modules.unitywebrequestwww|1.0.0|0|builtin|com.unity.modules.assetbundle=1.0.0,com.unity.modules.audio=1.0.0,com.unity.modules.imageconversion=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.modules.unitywebrequestassetbundle=1.0.0,com.unity.modules.unitywebrequestaudio=1.0.0
+com.unity.modules.vehicles|1.0.0|0|builtin|com.unity.modules.physics=1.0.0
+com.unity.modules.video|1.0.0|0|builtin|com.unity.modules.audio=1.0.0,com.unity.modules.ui=1.0.0,com.unity.modules.unitywebrequest=1.0.0
+com.unity.modules.vr|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.physics=1.0.0,com.unity.modules.xr=1.0.0
+com.unity.modules.wind|1.0.0|0|builtin|
+com.unity.modules.xr|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.physics=1.0.0,com.unity.modules.subsystems=1.0.0
+com.unity.nuget.newtonsoft-json|3.2.1|2|registry|
+com.unity.purchasing|4.9.3|0|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.jsonserialize=1.0.0,com.unity.modules.unityanalytics=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.services.core=1.8.1,com.unity.ugui=1.0.0
+com.unity.services.analytics|5.0.0|1|registry|com.unity.modules.jsonserialize=1.0.0,com.unity.services.core=1.10.1,com.unity.ugui=1.0.0
+com.unity.services.core|1.12.4|1|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.nuget.newtonsoft-json=3.2.1
+com.unity.test-framework|1.1.33|0|registry|com.unity.ext.nunit=1.0.6,com.unity.modules.imgui=1.0.0,com.unity.modules.jsonserialize=1.0.0
+com.unity.textmeshpro|3.0.6|0|registry|com.unity.ugui=1.0.0
+com.unity.timeline|1.7.6|0|registry|com.unity.modules.animation=1.0.0,com.unity.modules.audio=1.0.0,com.unity.modules.director=1.0.0,com.unity.modules.particlesystem=1.0.0
+com.unity.ugui|1.0.0|0|builtin|com.unity.modules.imgui=1.0.0,com.unity.modules.ui=1.0.0
+com.unity.xr.legacyinputhelpers|2.1.10|0|registry|com.unity.modules.vr=1.0.0,com.unity.modules.xr=1.0.0
+jp.lilxyzw.shadercore|file:../_LocalPackages/jp.lilxyzw.shadercore|0|local|
+jp.penguin.purebase|file:../_LocalPackages/jp.penguin.purebase|0|local|
+'@ -split "`r?`n" | Where-Object { $_ -ne '' }) {
+        $parts = $entry.Split('|', 5)
+        $dependencies = [ordered]@{}
+        if (-not [string]::IsNullOrEmpty($parts[4])) {
+            foreach ($edge in $parts[4].Split(',')) {
+                $edgeParts = $edge.Split('=', 2)
+                $dependencies.Add($edgeParts[0], $edgeParts[1])
+            }
+        }
+        $lockDependencies.Add($parts[0], [ordered]@{ version = $parts[1]; depth = [int]$parts[2]; source = $parts[3]; dependencies = $dependencies })
+    }
+
+    return [ordered]@{
+        unityVersion = $RequiredUnityVersion
+        unityRevision = $RequiredUnityRevision
+        manifestDependencies = $manifestDependencies
+        lockDependencies = $lockDependencies
+    }
+}
+
+function Get-FirstBootstrapProjectSettingsProfile {
+    return [ordered]@{
+        'ProjectSettings/AudioManager.asset' = [ordered]@{ root = 'AudioManager'; requiredLines = @('  serializedVersion: 2', '  m_Volume: 1', '  m_SampleRate: 0') }
+        'ProjectSettings/ClusterInputManager.asset' = [ordered]@{ root = 'ClusterInputManager'; requiredLines = @('  m_Inputs: []') }
+        'ProjectSettings/DynamicsManager.asset' = [ordered]@{ root = 'PhysicsManager'; requiredLines = @('  serializedVersion: 14', '  m_Gravity: {x: 0, y: -9.81, z: 0}', '  m_DefaultSolverIterations: 6') }
+        'ProjectSettings/EditorBuildSettings.asset' = [ordered]@{ root = 'EditorBuildSettings'; requiredLines = @('  serializedVersion: 2', '  m_Scenes: []') }
+        'ProjectSettings/EditorSettings.asset' = [ordered]@{ root = 'EditorSettings'; requiredLines = @('  serializedVersion: 12', '  m_SerializationMode: 2', '  m_LineEndingsForNewScripts: 2') }
+        'ProjectSettings/GraphicsSettings.asset' = [ordered]@{ root = 'GraphicsSettings'; requiredLines = @('  serializedVersion: 15', '  m_AlwaysIncludedShaders:', '  - {fileID: 7, guid: 0000000000000000f000000000000000, type: 0}', '  m_DefaultRenderingPath: 1') }
+        'ProjectSettings/InputManager.asset' = [ordered]@{ root = 'InputManager'; requiredLines = @('  serializedVersion: 2', '  m_Axes:', '  - serializedVersion: 3', '    m_Name: Horizontal') }
+        'ProjectSettings/MemorySettings.asset' = [ordered]@{ root = 'MemorySettings'; requiredLines = @('  m_PlatformMemorySettings: {}', '  m_EditorMemorySettings:', '    m_MainAllocatorBlockSize: -1') }
+        'ProjectSettings/NavMeshAreas.asset' = [ordered]@{ root = 'NavMeshProjectSettings'; requiredLines = @('  serializedVersion: 2', '  areas:', '  - name: Walkable', '    cost: 1') }
+        'ProjectSettings/Physics2DSettings.asset' = [ordered]@{ root = 'Physics2DSettings'; requiredLines = @('  serializedVersion: 6', '  m_Gravity: {x: 0, y: -9.81}', '  m_VelocityIterations: 8') }
+        'ProjectSettings/PresetManager.asset' = [ordered]@{ root = 'PresetManager'; requiredLines = @('  serializedVersion: 2', '  m_DefaultPresets: {}') }
+        'ProjectSettings/ProjectSettings.asset' = [ordered]@{ root = 'PlayerSettings'; requiredLines = @('  serializedVersion: 26', '  companyName: DefaultCompany', '  productName: ConsumerProject', '  defaultScreenWidth: 1920', '  defaultScreenHeight: 1080', '  m_ActiveColorSpace: 0', '  bundleVersion: 1.0') }
+        'ProjectSettings/QualitySettings.asset' = [ordered]@{ root = 'QualitySettings'; requiredLines = @('  serializedVersion: 5', '  m_CurrentQuality: 5', '  m_QualitySettings:', '  - serializedVersion: 3', '    name: Very Low') }
+        'ProjectSettings/TagManager.asset' = [ordered]@{ root = 'TagManager'; requiredLines = @('  serializedVersion: 2', '  tags: []', '  layers:', '  - Default') }
+        'ProjectSettings/TimeManager.asset' = [ordered]@{ root = 'TimeManager'; requiredLines = @('  Fixed Timestep: 0.02', '  Maximum Allowed Timestep: 0.33333334', '  m_TimeScale: 1') }
+        'ProjectSettings/UnityConnectSettings.asset' = [ordered]@{ root = 'UnityConnectSettings'; requiredLines = @('  serializedVersion: 1', '  m_Enabled: 0', '  UnityAnalyticsSettings:', '    m_InitializeOnStartup: 1') }
+        'ProjectSettings/VFXManager.asset' = [ordered]@{ root = 'VFXManager'; requiredLines = @('  m_FixedTimeStep: 0.016666668', '  m_MaxDeltaTime: 0.05') }
+        'ProjectSettings/VersionControlSettings.asset' = [ordered]@{ root = 'VersionControlSettings'; requiredLines = @('  m_Mode: Visible Meta Files', '  m_CollabEditorSettings:', '    inProgressEnabled: 1') }
+    }
+}
+
+function Get-FirstBootstrapShaderCoreSettingsProfile {
+    return [ordered]@{
+        'PureBase/Hybrid' = @()
+        'PureBase/Tests/ShaderCore/Phase/PostPixel' = @('jp.penguin.purebase.tests.shadercore.phase.postpixel')
+        'PureBase/Tests/ShaderCore/Phase/Add' = @('jp.penguin.purebase.tests.shadercore.phase.add')
+        'PureBase/Tests/ShaderCore/Phase/CustomLight' = @('jp.penguin.purebase.tests.shadercore.phase.customlight')
+        'PureBase/Unlit' = @()
+        'PureBase/Tests/ShaderCore/Phase/Light' = @('jp.penguin.purebase.tests.shadercore.phase.light')
+        'PureBase/PBR' = @()
+        'PureBase/Tests/ShaderCore/Phase/Base' = @('jp.penguin.purebase.tests.shadercore.phase.base')
+        'PureBase/Tests/ShaderCore/Phase/ModifyLight' = @('jp.penguin.purebase.tests.shadercore.phase.modifylight')
+        'PureBase/Tests/ShaderCore/Phase/Morph' = @('jp.penguin.purebase.tests.shadercore.phase.morph')
+        'PureBase/Tests/ShaderCore/Phase/PostVertex' = @('jp.penguin.purebase.tests.shadercore.phase.postvertex')
+        'PureBase/Tests/ShaderCore/Phase/Reflection' = @('jp.penguin.purebase.tests.shadercore.phase.reflection')
+        'PureBase/Tests/ShaderCore/ModuleOrder' = @('jp.penguin.purebase.tests.shadercore.moduleorder.zeta', 'jp.penguin.purebase.tests.shadercore.moduleorder.alpha')
+        'PureBase/Tests/ShaderCore/Phase/Shade' = @('jp.penguin.purebase.tests.shadercore.phase.shade')
+        'PureBase/Toon' = @()
+    }
+}
+
+function Get-CanonicalShaderCoreSettingsProfile {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $manifestPath = Join-Path $ConsumerRoot (Get-CanonicalShaderCoreConfigDestination).Replace('/', '\')
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "Canonical Shader-Core test-host manifest is missing: '$manifestPath'."
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ($null -eq $manifest -or [int]$manifest.schemaVersion -ne 1 -or $null -eq $manifest.hosts) {
+        throw 'Canonical Shader-Core test-host manifest must be schema version 1 with hosts.'
+    }
+
+    $mapping = [ordered]@{}
+    foreach ($manifestHost in @($manifest.hosts)) {
+        $shaderName = [string]$manifestHost.shaderName
+        $singleModuleProperty = $manifestHost.PSObject.Properties['moduleUniqueId']
+        $multipleModulesProperty = $manifestHost.PSObject.Properties['moduleUniqueIds']
+        $singleModule = if ($null -eq $singleModuleProperty) { '' } else { [string]$singleModuleProperty.Value }
+        $multipleModules = @(
+            if ($null -ne $multipleModulesProperty) {
+                @($multipleModulesProperty.Value) | ForEach-Object { [string]$_ }
+            }
+        )
+        $modules = @(
+            if (-not [string]::IsNullOrEmpty($singleModule)) {
+                if ($multipleModules.Count -gt 0) { throw "Canonical Shader-Core host '$shaderName' defines both moduleUniqueId and moduleUniqueIds." }
+                $singleModule
+            }
+            else {
+                $multipleModules
+            }
+        )
+        if ([string]::IsNullOrEmpty($shaderName) -or $modules.Count -eq 0 -or @($modules | Where-Object { [string]::IsNullOrEmpty($_) }).Count -ne 0 -or $mapping.Contains($shaderName)) {
+            throw "Canonical Shader-Core test-host manifest contains an invalid or duplicate host '$shaderName'."
+        }
+        $mapping[$shaderName] = $modules
+    }
+    foreach ($productShaderName in @('PureBase/Unlit', 'PureBase/Toon', 'PureBase/Hybrid', 'PureBase/PBR')) {
+        if ($mapping.Contains($productShaderName)) {
+            throw "Canonical Shader-Core test-host manifest must not redefine product shader '$productShaderName'."
+        }
+        $mapping[$productShaderName] = @()
+    }
+    if ($mapping.Count -ne 15) {
+        throw "Canonical Shader-Core test-host manifest must define exactly 15 fixed host and product rows; found $($mapping.Count)."
+    }
+    return $mapping
+}
+
+function Get-CanonicalShaderCoreConfigDestination {
+    return 'Assets/ReleaseConsumer/Fixtures/ShaderCore/shader-core-test-hosts.json'
+}
+
+function Get-CanonicalShaderCoreConfigGeneratedMetaProfile {
+    $configDestination = Get-CanonicalShaderCoreConfigDestination
+    $directoryDestination = $configDestination.Substring(0, $configDestination.LastIndexOf('/'))
+    return [ordered]@{
+        ($directoryDestination + '.meta') = [ordered]@{ relatedPath = $directoryDestination; itemType = 'Directory' }
+        ($configDestination + '.meta') = [ordered]@{ relatedPath = $configDestination; itemType = 'Leaf' }
+    }
+}
+
+function Assert-FirstBootstrapProjectSettingsAsset {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $profile = Get-FirstBootstrapProjectSettingsProfile
+    if (-not $profile.Contains($RelativePath)) {
+        throw "No Unity 2022.3.22f1 project-settings projection is defined for '$RelativePath'."
+    }
+    $expected = $profile[$RelativePath]
+    $facts = Assert-FirstBootstrapUnityYaml -ConsumerRoot $ConsumerRoot -RelativePath $RelativePath -ExpectedRootName $expected.root
+    $text = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath $RelativePath
+    foreach ($requiredLine in @($expected.requiredLines)) {
+        if ($text -notmatch ('(?m)^' + [regex]::Escape($requiredLine) + '\r?$')) {
+            throw "First-bootstrap ProjectSettings projection changed '$requiredLine' in '$RelativePath'."
+        }
+    }
+    $facts['projection'] = [ordered]@{ root = $expected.root; requiredLines = @($expected.requiredLines) }
+    return $facts
+}
+
+function Get-ConsumerFileText {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $path = Join-Path $ConsumerRoot ($RelativePath.Replace('/', '\'))
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        throw "Expected first-bootstrap file is missing: '$RelativePath'."
+    }
+    return Get-Content -LiteralPath $path -Raw
+}
+
+function Assert-FirstBootstrapUnityYaml {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)][string]$RelativePath,
+        [Parameter()][string]$ExpectedRootName
+    )
+
+    $text = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath $RelativePath
+    if ($text -notmatch '(?m)^%YAML 1\.1\r?$' -or $text -notmatch '(?m)^%TAG !u! tag:unity3d\.com,2011:\r?$' -or $text -notmatch '(?m)^--- !u![0-9]+ &-?[0-9]+\r?$') {
+        throw "First-bootstrap Unity YAML is invalid: '$RelativePath'."
+    }
+    if (-not [string]::IsNullOrEmpty($ExpectedRootName) -and $text -notmatch ('(?m)^' + [regex]::Escape($ExpectedRootName) + ':\r?$')) {
+        throw "First-bootstrap Unity YAML root is not '$ExpectedRootName': '$RelativePath'."
+    }
+    return [ordered]@{ yaml = 'valid'; expectedRoot = $ExpectedRootName }
+}
+
+function Assert-FirstBootstrapMeta {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)][string]$RelativePath
+    )
+
+    $text = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath $RelativePath
+    $guidMatch = [regex]::Match($text, '(?m)^guid:\s*([0-9a-f]{32})\s*$')
+    if ($text -notmatch '(?m)^fileFormatVersion:\s*2\s*$' -or -not $guidMatch.Success -or $text -notmatch '(?m)^[A-Za-z]+Importer:\s*$') {
+        throw "First-bootstrap Unity meta file is invalid: '$RelativePath'."
+    }
+    $guid = $guidMatch.Groups[1].Value
+
+    $assetPath = $RelativePath.Substring(0, $RelativePath.Length - '.meta'.Length)
+    $assetAbsolutePath = Join-Path $ConsumerRoot ($assetPath.Replace('/', '\'))
+    if (-not (Test-Path -LiteralPath $assetAbsolutePath)) {
+        throw "First-bootstrap Unity meta file is orphaned: '$RelativePath'."
+    }
+    return [ordered]@{ yaml = 'valid'; guid = $guid; relatedPath = $assetPath }
+}
+
+function Get-FirstBootstrapMetaValidationFailures {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)]$ReceiptDestinations,
+        [Parameter(Mandatory = $true)]$ExpectedAdded,
+        [Parameter(Mandatory = $true)]$Delta,
+        [Parameter(Mandatory = $true)]$ReceiptGeneratedMetaProfile
+    )
+
+    $addedMetaPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    foreach ($entry in @($Delta.added | Where-Object { ([string]$_.path).EndsWith('.meta', [System.StringComparison]::Ordinal) })) {
+        [void]$addedMetaPaths.Add([string]$entry.path)
+    }
+    $failures = @{}
+    $guidPaths = @{}
+    $generatedMetaProfile = Get-FirstBootstrapGeneratedMetaProfile
+    $allMetaPaths = @(
+        Get-ChildItem -LiteralPath $ConsumerRoot -File -Recurse -Force |
+            ForEach-Object { Get-NormalizedRelativePath -Path $_.FullName.Substring($ConsumerRoot.Length).TrimStart('\', '/') } |
+            Where-Object { $_.EndsWith('.meta', [System.StringComparison]::Ordinal) -and ($_.StartsWith('Assets/', [System.StringComparison]::Ordinal) -or $_.StartsWith('Packages/', [System.StringComparison]::Ordinal) -or $_.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal) -or $_.StartsWith('_LocalPackages/', [System.StringComparison]::Ordinal)) }
+    )
+    $allMetaPaths = Get-OrdinalSortedStrings -Values $allMetaPaths
+    foreach ($path in $allMetaPaths) {
+        try {
+            $facts = Assert-FirstBootstrapMeta -ConsumerRoot $ConsumerRoot -RelativePath $path
+            $isReceiptMeta = $ReceiptDestinations.Contains($path)
+            $isAddedMeta = $addedMetaPaths.Contains($path)
+            $isReceiptGeneratedMeta = $ReceiptGeneratedMetaProfile.Contains($path)
+            if (-not $isReceiptMeta -and -not $isAddedMeta -and -not $isReceiptGeneratedMeta) {
+                throw "Immutable Unity meta is neither receipt-owned nor an observed bootstrap addition: '$path'."
+            }
+            if ($isAddedMeta) {
+                if (-not $ExpectedAdded.Contains($path)) {
+                    throw "First-bootstrap Unity meta is not in the exact allowed transition set: '$path'."
+                }
+                if (-not $generatedMetaProfile.Contains($path)) {
+                    throw "First-bootstrap Unity meta has no exact generated relationship profile: '$path'."
+                }
+            }
+            if ($isAddedMeta -or $isReceiptGeneratedMeta) {
+                $expectedRelationship = if ($isReceiptGeneratedMeta) { $ReceiptGeneratedMetaProfile[$path] } else { $generatedMetaProfile[$path] }
+                if ($facts.relatedPath -ne $expectedRelationship.relatedPath) {
+                    throw "First-bootstrap Unity meta has an unexpected generated relationship: '$path'."
+                }
+                $relatedItem = Get-Item -LiteralPath (Join-Path $ConsumerRoot ($facts.relatedPath.Replace('/', '\'))) -Force
+                if (($expectedRelationship.itemType -eq 'Directory' -and -not $relatedItem.PSIsContainer) -or ($expectedRelationship.itemType -eq 'Leaf' -and $relatedItem.PSIsContainer)) {
+                    throw "First-bootstrap Unity meta has an unexpected generated item type: '$path'."
+                }
+            }
+            $guid = [string]$facts.guid
+            if ($guidPaths.ContainsKey($guid)) {
+                $failures[$path] = "First-bootstrap Unity meta GUID '$guid' collides with '$($guidPaths[$guid])'."
+                $failures[$guidPaths[$guid]] = "First-bootstrap Unity meta GUID '$guid' collides with '$path'."
+            }
+            else {
+                $guidPaths[$guid] = $path
+            }
+        }
+        catch {
+            $failures[$path] = $_.Exception.Message
+        }
+    }
+    return $failures
+}
+
+function Assert-FirstBootstrapManifest {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $manifest = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath 'Packages/manifest.json' | ConvertFrom-Json
+    $profile = Get-FirstBootstrapPackageProfile
+    $expectedDependencies = $profile.manifestDependencies
+    if ($null -eq $manifest.dependencies) {
+        throw 'First-bootstrap manifest has no dependency map.'
+    }
+    if (@($manifest.dependencies.PSObject.Properties).Count -ne $expectedDependencies.Count) {
+        throw 'First-bootstrap manifest dependency names do not match the Unity 2022.3.22f1 profile.'
+    }
+    $expectedNames = @(Get-OrdinalSortedStrings -Values ([string[]]$expectedDependencies.Keys))
+    foreach ($dependencyName in $expectedDependencies.Keys) {
+        if ($null -eq $manifest.dependencies.PSObject.Properties[$dependencyName]) {
+            throw "First-bootstrap manifest omits required dependency '$dependencyName'."
+        }
+        $value = [string]$manifest.dependencies.PSObject.Properties[$dependencyName].Value
+        if ($value -ne $expectedDependencies[$dependencyName]) {
+            throw "First-bootstrap manifest changed direct dependency '$dependencyName'."
+        }
+        if ($value.StartsWith('file:', [System.StringComparison]::Ordinal)) {
+            $localPath = Get-NormalizedPath -Path (Join-Path (Join-Path $ConsumerRoot 'Packages') $value.Substring('file:'.Length))
+            if (-not (Test-PathContainedBy -Path $localPath -ParentPath (Join-Path $ConsumerRoot '_LocalPackages'))) {
+                throw "First-bootstrap manifest local dependency escapes _LocalPackages: '$dependencyName'."
+            }
+        }
+    }
+    foreach ($dependency in $manifest.dependencies.PSObject.Properties) {
+        if (-not $expectedDependencies.Contains([string]$dependency.Name)) {
+            throw "First-bootstrap manifest added an unprofiled dependency '$($dependency.Name)'."
+        }
+    }
+    return [ordered]@{ profile = 'Unity-2022.3.22f1-887be4894c44'; dependencyNames = $expectedNames; localDependencies = @('jp.lilxyzw.shadercore', 'jp.penguin.purebase') }
+}
+
+function Assert-FirstBootstrapProjectVersion {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $text = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath 'ProjectSettings/ProjectVersion.txt'
+    $versionMatch = [regex]::Match($text, '(?m)^m_EditorVersion:\s*(\S+)\s*$')
+    $revisionMatch = [regex]::Match($text, '(?m)^m_EditorVersionWithRevision:\s*(\S+)\s+\(([0-9a-f]+)\)\s*$')
+    if (-not $versionMatch.Success -or -not $revisionMatch.Success -or $versionMatch.Groups[1].Value -ne $RequiredUnityVersion -or $revisionMatch.Groups[1].Value -ne $RequiredUnityVersion -or $revisionMatch.Groups[2].Value -ne $RequiredUnityRevision) {
+        throw "First-bootstrap ProjectVersion does not pin Unity $RequiredUnityVersion ($RequiredUnityRevision)."
+    }
+    return [ordered]@{ unityVersion = $RequiredUnityVersion; unityRevision = $RequiredUnityRevision }
+}
+
+function Assert-FirstBootstrapPackagesLock {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $lock = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath 'Packages/packages-lock.json' | ConvertFrom-Json
+    if ($null -eq $lock.dependencies) {
+        throw 'First-bootstrap packages-lock.json has no dependency graph.'
+    }
+    $profile = Get-FirstBootstrapPackageProfile
+    $expectedLock = $profile.lockDependencies
+    if (@($lock.dependencies.PSObject.Properties).Count -ne $expectedLock.Count) {
+        throw 'First-bootstrap packages-lock.json entry names do not match the Unity 2022.3.22f1 profile.'
+    }
+    foreach ($dependencyName in $expectedLock.Keys) {
+        $actualProperty = $lock.dependencies.PSObject.Properties[$dependencyName]
+        if ($null -eq $actualProperty) {
+            throw "First-bootstrap packages-lock.json omits profiled dependency '$dependencyName'."
+        }
+        $actual = $actualProperty.Value
+        $expected = $expectedLock[$dependencyName]
+        if ([string]$actual.version -ne [string]$expected.version -or [int]$actual.depth -ne [int]$expected.depth -or [string]$actual.source -ne [string]$expected.source) {
+            throw "First-bootstrap packages-lock.json changed version, depth, or source for '$dependencyName'."
+        }
+        $actualEdges = if ($null -eq $actual.dependencies) { @() } else { @($actual.dependencies.PSObject.Properties) }
+        if (@($actualEdges).Count -ne @($expected.dependencies.Keys).Count) {
+            throw "First-bootstrap packages-lock.json changed dependency edges for '$dependencyName'."
+        }
+        foreach ($edgeName in $expected.dependencies.Keys) {
+            if ($null -eq $actual.dependencies.PSObject.Properties[$edgeName] -or [string]$actual.dependencies.PSObject.Properties[$edgeName].Value -ne [string]$expected.dependencies[$edgeName]) {
+                throw "First-bootstrap packages-lock.json changed dependency edge '$dependencyName' -> '$edgeName'."
+            }
+        }
+    }
+    foreach ($dependency in $lock.dependencies.PSObject.Properties) {
+        if (-not $expectedLock.Contains([string]$dependency.Name)) {
+            throw "First-bootstrap packages-lock.json added an unprofiled dependency '$($dependency.Name)'."
+        }
+    }
+    foreach ($dependencyName in $profile.manifestDependencies.Keys) {
+        $entry = $lock.dependencies.PSObject.Properties[$dependencyName].Value
+        if ([int]$entry.depth -ne 0) {
+            throw "First-bootstrap packages-lock.json manifest dependency '$dependencyName' is not a depth-zero lock root."
+        }
+    }
+    foreach ($localDependencyName in @('jp.lilxyzw.shadercore', 'jp.penguin.purebase')) {
+        $entry = $lock.dependencies.PSObject.Properties[$localDependencyName].Value
+        if (-not ([string]$entry.version).StartsWith('file:', [System.StringComparison]::Ordinal)) {
+            throw "First-bootstrap packages-lock.json local package '$localDependencyName' has no local URI."
+        }
+        $localPath = Get-NormalizedPath -Path (Join-Path (Join-Path $ConsumerRoot 'Packages') ([string]$entry.version).Substring('file:'.Length))
+        if (-not (Test-PathContainedBy -Path $localPath -ParentPath (Join-Path $ConsumerRoot '_LocalPackages'))) {
+            throw "First-bootstrap packages-lock.json local package escapes _LocalPackages: '$localDependencyName'."
+        }
+    }
+    return [ordered]@{ profile = 'Unity-2022.3.22f1-887be4894c44'; lockEntryCount = $expectedLock.Count; manifestLockRoots = @(Get-OrdinalSortedStrings -Values ([string[]]$profile.manifestDependencies.Keys)) }
+}
+
+function Assert-FirstBootstrapBillingMode {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $billing = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath 'Assets/Resources/BillingMode.json' | ConvertFrom-Json
+    if ($null -eq $billing -or @($billing.PSObject.Properties).Count -ne 1 -or $null -eq $billing.PSObject.Properties['androidStore'] -or [string]$billing.androidStore -ne 'GooglePlay') {
+        throw 'First-bootstrap BillingMode.json does not match the Unity 2022.3.22f1 Android-store profile.'
+    }
+    return [ordered]@{ androidStore = 'GooglePlay' }
+}
+
+function Assert-FirstBootstrapShaderCoreSettings {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $facts = Assert-FirstBootstrapUnityYaml -ConsumerRoot $ConsumerRoot -RelativePath 'ProjectSettings/jp.lilxyzw.shadercore.asset' -ExpectedRootName 'MonoBehaviour'
+    $text = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath 'ProjectSettings/jp.lilxyzw.shadercore.asset'
+    $expectedMapping = Get-CanonicalShaderCoreSettingsProfile -ConsumerRoot $ConsumerRoot
+    $actualMappings = @([regex]::Matches($text, '(?ms)^  - shadername:\s*(\S+)\r?\n    modules:[ \t]*(\[\]|(?:\r?\n    -\s*\S+)+)'))
+    if ($text -notmatch '(?m)^  shaderSettings:\r?$' -or $actualMappings.Count -ne $expectedMapping.Count) {
+        throw 'First-bootstrap Shader-Core settings do not match the expected shaderSettings profile.'
+    }
+    $actualMapping = @{}
+    foreach ($actual in $actualMappings) {
+        $shaderName = $actual.Groups[1].Value
+        if ($actualMapping.ContainsKey($shaderName)) {
+            throw "First-bootstrap Shader-Core settings contain duplicate shader mapping '$shaderName'."
+        }
+        $actualModules = @([regex]::Matches($actual.Groups[2].Value, '(?m)^    -\s*(\S+)\r?$') | ForEach-Object { $_.Groups[1].Value })
+        $actualMapping[$shaderName] = $actualModules
+    }
+    foreach ($shaderName in $actualMapping.Keys) {
+        if (-not $expectedMapping.Contains($shaderName)) {
+            throw "First-bootstrap Shader-Core settings contain unexpected shader mapping '$shaderName'."
+        }
+    }
+    foreach ($shaderName in $expectedMapping.Keys) {
+        if (-not $actualMapping.ContainsKey($shaderName)) {
+            throw "First-bootstrap Shader-Core settings omit required shader mapping '$shaderName'."
+        }
+        $actualModules = @($actualMapping[$shaderName])
+        $expectedModules = @($expectedMapping[$shaderName])
+        if ($actualModules.Count -ne $expectedModules.Count) {
+            throw "First-bootstrap Shader-Core settings changed module count for '$shaderName'."
+        }
+        for ($moduleIndex = 0; $moduleIndex -lt $expectedModules.Count; $moduleIndex++) {
+            if ($actualModules[$moduleIndex] -ne $expectedModules[$moduleIndex]) {
+                throw "First-bootstrap Shader-Core settings changed module mapping for '$shaderName' at index $moduleIndex."
+            }
+        }
+    }
+    $facts['mapping'] = [ordered]@{ shaderNames = @($expectedMapping.Keys); modules = $expectedMapping; rowCount = $expectedMapping.Count }
+    return $facts
+}
+
+function Get-ConsumerFirstBootstrapTransitionReport {
+    param(
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)]$StagingReceipt,
+        [Parameter(Mandatory = $true)]$PreBootstrap,
+        [Parameter(Mandatory = $true)]$PostBootstrap
+    )
+
+    $delta = Get-ConsumerImmutableManifestDeltaReport -PreBootstrap $PreBootstrap -PostBootstrap $PostBootstrap
+    $receiptDestinations = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    foreach ($receiptEntry in @($StagingReceipt.entries)) { [void]$receiptDestinations.Add([string]$receiptEntry.destination) }
+    $canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
+    $canonicalConfigEntries = @($StagingReceipt.entries | Where-Object { $_.destination -eq $canonicalConfigDestination })
+    if ($canonicalConfigEntries.Count -ne 1 -or $canonicalConfigEntries[0].sourceKind -ne 'workspace-canonical-shader-core-config') {
+        throw "Canonical Shader-Core config receipt is missing or invalid for '$canonicalConfigDestination'."
+    }
+    $receiptGeneratedMetaProfile = Get-CanonicalShaderCoreConfigGeneratedMetaProfile
+    $semanticDelta = [ordered]@{
+        preBootstrapRootSha256 = $delta.preBootstrapRootSha256
+        postBootstrapRootSha256 = $delta.postBootstrapRootSha256
+        added = @($delta.added | Where-Object { -not $receiptGeneratedMetaProfile.Contains([string]$_.path) })
+        removed = @($delta.removed)
+        changed = @($delta.changed)
+    }
+    $expectedAdded = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) { [void]$expectedAdded.Add($path) }
+    $expectedChanged = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    foreach ($path in @('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt')) { [void]$expectedChanged.Add($path) }
+    $entries = New-Object System.Collections.Generic.List[object]
+    $metaValidationFailures = Get-FirstBootstrapMetaValidationFailures -ConsumerRoot $ConsumerRoot -ReceiptDestinations $receiptDestinations -ExpectedAdded $expectedAdded -Delta $semanticDelta -ReceiptGeneratedMetaProfile $receiptGeneratedMetaProfile
+
+    foreach ($operation in @('added', 'changed', 'removed')) {
+        foreach ($deltaEntry in @($semanticDelta.$operation)) {
+            $path = [string]$deltaEntry.path
+            $ownership = if ($receiptDestinations.Contains($path)) { 'receipt-owned' } elseif ($operation -eq 'added' -and $path -eq 'Packages/packages-lock.json') { 'package-manager-owned' } else { 'unity-generated' }
+            $ruleId = if ($operation -eq 'changed' -and $path -eq 'Packages/manifest.json') { 'PB-BT-001-manifest' } elseif ($operation -eq 'changed' -and $path -eq 'ProjectSettings/ProjectVersion.txt') { 'PB-BT-002-project-version' } elseif ($operation -eq 'added' -and $path -eq 'Packages/packages-lock.json') { 'PB-BT-003-packages-lock' } elseif ($operation -eq 'added' -and $path -eq 'Assets/Resources/BillingMode.json') { 'PB-BT-004-billing-mode' } elseif ($operation -eq 'added' -and $path -eq 'ProjectSettings/jp.lilxyzw.shadercore.asset') { 'PB-BT-005-shader-core-settings' } elseif ($operation -eq 'added' -and $path.EndsWith('.meta', [System.StringComparison]::Ordinal)) { 'PB-BT-006-unity-meta' } elseif ($operation -eq 'added' -and $path -eq 'ProjectSettings/ProjectSettings.asset') { 'PB-BT-007-player-settings-projection' } elseif ($operation -eq 'added' -and $path.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal)) { 'PB-BT-008-generated-project-settings' } else { 'PB-BT-000-unclassified' }
+            $hashes = if ($operation -eq 'changed') { [ordered]@{ preBootstrapSha256 = [string]$deltaEntry.preBootstrapSha256; postBootstrapSha256 = [string]$deltaEntry.postBootstrapSha256 } } else { [ordered]@{ sha256 = [string]$deltaEntry.sha256 } }
+            $entry = [ordered]@{ path = $path; operation = $operation; ownership = $ownership; ruleId = $ruleId; hashValues = $hashes; semanticChecks = @(); facts = [ordered]@{}; verdict = 'unclassified' }
+            $entries.Add($entry)
+        }
+    }
+
+    foreach ($entry in $entries) {
+        try {
+            if ($entry.operation -eq 'removed') { throw "Removed immutable path is not approved: '$($entry.path)'." }
+            if ($entry.operation -eq 'changed' -and -not $expectedChanged.Contains($entry.path)) { throw "Changed immutable path is not approved: '$($entry.path)'." }
+            if ($entry.operation -eq 'added' -and -not $expectedAdded.Contains($entry.path)) { throw "Added immutable path is not approved: '$($entry.path)'." }
+            if ($entry.operation -eq 'changed' -and $receiptDestinations.Contains($entry.path) -and -not $expectedChanged.Contains($entry.path)) { throw "Receipt-owned path changed without an explicit rule: '$($entry.path)'." }
+            $facts = $null
+            if ($entry.path -eq 'Packages/manifest.json') { $facts = Assert-FirstBootstrapManifest -ConsumerRoot $ConsumerRoot }
+            elseif ($entry.path -eq 'ProjectSettings/ProjectVersion.txt') { $facts = Assert-FirstBootstrapProjectVersion -ConsumerRoot $ConsumerRoot }
+            elseif ($entry.path -eq 'Packages/packages-lock.json') { $facts = Assert-FirstBootstrapPackagesLock -ConsumerRoot $ConsumerRoot }
+            elseif ($entry.path -eq 'Assets/Resources/BillingMode.json') { $facts = Assert-FirstBootstrapBillingMode -ConsumerRoot $ConsumerRoot }
+            elseif ($entry.path -eq 'ProjectSettings/jp.lilxyzw.shadercore.asset') { $facts = Assert-FirstBootstrapShaderCoreSettings -ConsumerRoot $ConsumerRoot }
+            elseif ($entry.path.EndsWith('.meta', [System.StringComparison]::Ordinal)) {
+                $facts = Assert-FirstBootstrapMeta -ConsumerRoot $ConsumerRoot -RelativePath $entry.path
+                if ($metaValidationFailures.ContainsKey($entry.path)) { throw $metaValidationFailures[$entry.path] }
+            }
+            elseif ($entry.path -eq 'ProjectSettings/SceneTemplateSettings.json') {
+                $sceneTemplateSettings = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath $entry.path | ConvertFrom-Json
+                $expectedNames = @('templatePinStates', 'dependencyTypeInfos', 'defaultDependencyTypeInfo', 'newSceneOverride')
+                $actualNames = @($sceneTemplateSettings.PSObject.Properties | ForEach-Object { $_.Name })
+                $defaultDependencyTypeInfo = $sceneTemplateSettings.defaultDependencyTypeInfo
+                $hasExpectedDependencyTypes = @($sceneTemplateSettings.dependencyTypeInfos).Count -eq 22
+                $hasOnlyDefaultDependencyTypes = @($sceneTemplateSettings.dependencyTypeInfos | Where-Object { $_.userAdded -or [string]::IsNullOrEmpty([string]$_.type) -or ([int]$_.defaultInstantiationMode -ne 0 -and [int]$_.defaultInstantiationMode -ne 1) }).Count -eq 0
+                $hasExpectedDefaultDependencyType = $null -ne $defaultDependencyTypeInfo -and -not $defaultDependencyTypeInfo.userAdded -and [string]$defaultDependencyTypeInfo.type -eq '<default_scene_template_dependencies>' -and [int]$defaultDependencyTypeInfo.defaultInstantiationMode -eq 1
+                if ($null -eq $sceneTemplateSettings -or $actualNames.Count -ne $expectedNames.Count -or [string]::Join('|', $actualNames) -ne [string]::Join('|', $expectedNames) -or @($sceneTemplateSettings.templatePinStates).Count -ne 0 -or -not $hasExpectedDependencyTypes -or -not $hasOnlyDefaultDependencyTypes -or -not $hasExpectedDefaultDependencyType -or [int]$sceneTemplateSettings.newSceneOverride -ne 0) { throw 'First-bootstrap SceneTemplateSettings does not match the Unity 2022.3.22f1 dependency-type projection.' }
+                $facts = [ordered]@{ propertyNames = $expectedNames; templatePinCount = 0; dependencyTypeInfoCount = @($sceneTemplateSettings.dependencyTypeInfos).Count; userAddedDependencyTypeInfoCount = 0 }
+            }
+            elseif ((Get-FirstBootstrapProjectSettingsProfile).Contains($entry.path)) { $facts = Assert-FirstBootstrapProjectSettingsAsset -ConsumerRoot $ConsumerRoot -RelativePath $entry.path }
+            elseif ($entry.path.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal)) { throw "No Unity 2022.3.22f1 ProjectSettings projection classified '$($entry.path)'." }
+            else { throw "No semantic rule classified '$($entry.path)'." }
+
+            $entry.semanticChecks = @('path-operation-approved', 'ownership-approved', 'observed-stable-hash-or-semantic-projection', 'content-schema-approved')
+            $entry.facts = $facts
+            $entry.verdict = 'accepted'
+        }
+        catch {
+            $entry.semanticChecks = @('failed: ' + $_.Exception.Message)
+            $entry.verdict = if ($entry.ruleId -eq 'PB-BT-000-unclassified') { 'unclassified' } else { 'rejected' }
+        }
+    }
+
+    $accepted = @($entries | Where-Object { $_.verdict -eq 'accepted' }).Count
+    $rejected = @($entries | Where-Object { $_.verdict -eq 'rejected' }).Count
+    $unclassified = @($entries | Where-Object { $_.verdict -eq 'unclassified' }).Count
+    $verdict = if ($accepted -eq 34 -and $rejected -eq 0 -and $unclassified -eq 0 -and $metaValidationFailures.Count -eq 0 -and @($semanticDelta.added).Count -eq $expectedAdded.Count -and @($semanticDelta.changed).Count -eq $expectedChanged.Count -and @($semanticDelta.removed).Count -eq 0) { 'accepted' } else { 'rejected' }
+    return [ordered]@{
+        schemaName = 'purebase-first-bootstrap-semantic-transition'
+        schemaVersion = 1
+        profile = [ordered]@{
+            unityVersion = $RequiredUnityVersion
+            unityRevision = $RequiredUnityRevision
+            packageGraph = [ordered]@{ manifestDependencyCount = (Get-FirstBootstrapPackageProfile).manifestDependencies.Count; lockDependencyCount = (Get-FirstBootstrapPackageProfile).lockDependencies.Count }
+            shaderCore = [ordered]@{ packageName = [string]$PostBootstrap.shaderCore.packageName; packageVersion = [string]$PostBootstrap.shaderCore.packageVersion; identitySha256 = [string]$PostBootstrap.shaderCore.treeSha256; expectedIdentitySha256 = [string]$PostBootstrap.shaderCore.expectedIdentitySha256 }
+        }
+        deltaRoots = [ordered]@{ preBootstrapSha256 = [string]$delta.preBootstrapRootSha256; postBootstrapSha256 = [string]$delta.postBootstrapRootSha256 }
+        entries = $entries.ToArray()
+        summary = [ordered]@{ accepted = $accepted; rejected = $rejected; unclassified = $unclassified; metaValidationFailures = $metaValidationFailures.Count; expectedAdded = $expectedAdded.Count; expectedChanged = $expectedChanged.Count; observedAdded = @($semanticDelta.added).Count; observedChanged = @($semanticDelta.changed).Count; observedRemoved = @($semanticDelta.removed).Count }
+        verdict = $verdict
+    }
+}
+
+function Assert-ConsumerFirstBootstrapTransitionReport {
+    param([Parameter(Mandatory = $true)]$Report)
+
+    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.5' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
+        throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
+    }
+    if ($Report.verdict -ne 'accepted' -or [int]$Report.summary.accepted -ne 34 -or [int]$Report.summary.observedAdded -ne [int]$Report.summary.expectedAdded -or [int]$Report.summary.observedChanged -ne [int]$Report.summary.expectedChanged -or [int]$Report.summary.observedRemoved -ne 0 -or [int]$Report.summary.rejected -ne 0 -or [int]$Report.summary.unclassified -ne 0) {
+        throw "First-bootstrap semantic transition rejected or did not classify every immutable change: accepted=$($Report.summary.accepted) rejected=$($Report.summary.rejected) unclassified=$($Report.summary.unclassified)."
+    }
+}
+
+function Assert-ConsumerSecondBootstrapFixedPoint {
+    param(
+        [Parameter(Mandatory = $true)]$FirstBootstrap,
+        [Parameter(Mandatory = $true)]$AfterLibraryReset,
+        [Parameter(Mandatory = $true)]$SecondBootstrap,
+        [Parameter(Mandatory = $true)]$Delta
+    )
+
+    if ($FirstBootstrap.rootSha256 -ne $AfterLibraryReset.rootSha256 -or $FirstBootstrap.rootSha256 -ne $SecondBootstrap.rootSha256 -or @($Delta.added).Count -ne 0 -or @($Delta.changed).Count -ne 0 -or @($Delta.removed).Count -ne 0) {
+        throw 'Second bootstrap did not reach a byte-exact immutable fixed point.'
+    }
+}
+
 function Assert-ConsumerImmutableManifestBaseline {
     param(
         [Parameter(Mandatory = $true)]$Manifest,
@@ -571,6 +1314,39 @@ function Reset-ConsumerLibrary {
     return [ordered]@{ libraryPath = $libraryPath; priorLibraryPresent = [bool]$priorLibraryPresent; libraryPresentAfterReset = [bool](Test-Path -LiteralPath $libraryPath) }
 }
 
+function Invoke-ConsumerShaderCoreStateInitialization {
+    param(
+        [Parameter(Mandatory = $true)][string]$UnityEditor,
+        [Parameter(Mandatory = $true)][string]$ConsumerRoot,
+        [Parameter(Mandatory = $true)][string]$ArtifactDirectory,
+        [Parameter(Mandatory = $true)][string]$Phase
+    )
+
+    $method = 'PureBase.Release.Consumer.Tests.PureBaseConsumerShaderCoreInitializer.InitializeForBatchMode'
+    $commandPath = Join-Path $ArtifactDirectory 'shader-core-state-initialization-command.json'
+    $unityLogPath = Join-Path $ArtifactDirectory 'shader-core-state-initialization-Unity.log'
+    $processLogPath = Join-Path $ArtifactDirectory 'shader-core-state-initialization-Process.log'
+    $reportPath = Join-Path $ArtifactDirectory 'shader-core-state-initialization-report.json'
+    $arguments = @('-batchmode', '-force-d3d11', '-projectPath', $ConsumerRoot, '-executeMethod', $method, '-quit', '-logFile', $unityLogPath)
+    Write-ConsumerJsonArtifact -Path $commandPath -Value ([ordered]@{ executable = $UnityEditor; arguments = $arguments; phase = $Phase; canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination; initializer = $method }) -Depth 4
+    [System.IO.File]::WriteAllText($processLogPath, '', (New-Object System.Text.UTF8Encoding($false)))
+    & $UnityEditor @arguments 2>&1 | Tee-Object -FilePath $processLogPath -Append | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+        throw "Unity Shader-Core state initialization '$Phase' exited with $LASTEXITCODE. See '$processLogPath'."
+    }
+    $facts = Assert-FirstBootstrapShaderCoreSettings -ConsumerRoot $ConsumerRoot
+    Write-ConsumerJsonArtifact -Path $reportPath -Value ([ordered]@{
+            schemaName = 'purebase-shader-core-bootstrap-initialization'
+            schemaVersion = 1
+            phase = $Phase
+            canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
+            initializer = $method
+            rowCount = [int]$facts.mapping.rowCount
+            mapping = $facts.mapping
+        }) -Depth 12
+    return $facts
+}
+
 function Invoke-ConsumerBootstrapImport {
     param(
         [Parameter(Mandatory = $true)][string]$UnityEditor,
@@ -588,12 +1364,34 @@ function Invoke-ConsumerBootstrapImport {
     $processLogPath = Join-Path $bootstrapDirectory 'Process.log'
     $resultsPath = Join-Path $bootstrapDirectory 'NUnit.xml'
     $nunitSummaryPath = Join-Path $bootstrapDirectory 'nunit-summary.json'
+    $initializationCommandPath = Join-Path $bootstrapDirectory 'shader-core-state-initialization-command.json'
+    $initializationUnityLogPath = Join-Path $bootstrapDirectory 'shader-core-state-initialization-Unity.log'
+    $initializationProcessLogPath = Join-Path $bootstrapDirectory 'shader-core-state-initialization-Process.log'
+    $initializationReportPath = Join-Path $bootstrapDirectory 'shader-core-state-initialization-report.json'
+    $initializationConfigReceiptPath = Join-Path $bootstrapDirectory 'shader-core-state-initialization-config.json'
+    $initializationConfigPath = Join-Path $bootstrapDirectory 'shader-core-test-hosts.json'
     $receiptPath = Join-Path $bootstrapDirectory 'staging-receipt.json'
     $preBootstrapManifestPath = Join-Path $bootstrapDirectory 'immutable-input-manifest-pre-bootstrap.json'
+    $sceneBootstrapManifestPath = Join-Path $bootstrapDirectory 'immutable-input-manifest-after-scene-bootstrap.json'
     $manifestPath = Join-Path $bootstrapDirectory 'immutable-input-manifest-quiescent.json'
     $deltaReportPath = Join-Path $bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json'
+    $semanticTransitionPath = Join-Path $bootstrapDirectory 'semantic-transition-report.json'
     $afterResetManifestPath = Join-Path $bootstrapDirectory 'immutable-input-manifest-after-library-reset.json'
     $resetPath = Join-Path $bootstrapDirectory 'library-reset.json'
+    $secondBootstrapDirectory = Join-Path $bootstrapDirectory 'second-bootstrap'
+    $secondCommandPath = Join-Path $secondBootstrapDirectory 'unity-command.json'
+    $secondUnityLogPath = Join-Path $secondBootstrapDirectory 'Unity.log'
+    $secondProcessLogPath = Join-Path $secondBootstrapDirectory 'Process.log'
+    $secondResultsPath = Join-Path $secondBootstrapDirectory 'NUnit.xml'
+    $secondNunitSummaryPath = Join-Path $secondBootstrapDirectory 'nunit-summary.json'
+    $secondInitializationCommandPath = Join-Path $secondBootstrapDirectory 'shader-core-state-initialization-command.json'
+    $secondInitializationUnityLogPath = Join-Path $secondBootstrapDirectory 'shader-core-state-initialization-Unity.log'
+    $secondInitializationProcessLogPath = Join-Path $secondBootstrapDirectory 'shader-core-state-initialization-Process.log'
+    $secondInitializationReportPath = Join-Path $secondBootstrapDirectory 'shader-core-state-initialization-report.json'
+    $secondManifestPath = Join-Path $secondBootstrapDirectory 'immutable-input-manifest-quiescent.json'
+    $secondDeltaPath = Join-Path $secondBootstrapDirectory 'immutable-input-manifest-fixed-point-delta.json'
+    $fixedPointReportPath = Join-Path $secondBootstrapDirectory 'fixed-point-report.json'
+    $bootstrapTestFilter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerSceneTemplateBootstrapTests.DisposableSceneLifecycleMaterializesSceneTemplateSettings'
     $failure = $null
     $preBootstrapManifest = $null
     $manifest = $null
@@ -601,21 +1399,39 @@ function Invoke-ConsumerBootstrapImport {
     try {
         Assert-EditorClosed -ProjectRoot $ConsumerRoot
         Write-ConsumerJsonArtifact -Path $receiptPath -Value $StagingReceipt
+        $canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
+        $canonicalConfigEntries = @($StagingReceipt.entries | Where-Object { $_.destination -eq $canonicalConfigDestination })
+        Write-ConsumerJsonArtifact -Path $initializationConfigReceiptPath -Value ([ordered]@{
+                destination = $canonicalConfigDestination
+                expectedSourceKind = 'workspace-canonical-shader-core-config'
+                receiptEntryCount = $canonicalConfigEntries.Count
+                receiptEntry = if ($canonicalConfigEntries.Count -eq 1) { $canonicalConfigEntries[0] } else { $null }
+            }) -Depth 6
+        if ($canonicalConfigEntries.Count -ne 1 -or $canonicalConfigEntries[0].sourceKind -ne 'workspace-canonical-shader-core-config') {
+            throw "Canonical Shader-Core config receipt is missing or invalid for '$canonicalConfigDestination'."
+        }
         Assert-ConsumerStagingReceipt -ConsumerRoot $ConsumerRoot -Receipt $StagingReceipt
+        Copy-Item -LiteralPath (Join-Path $ConsumerRoot $canonicalConfigDestination.Replace('/', '\')) -Destination $initializationConfigPath -Force
         $preBootstrapManifest = Get-ConsumerImmutableManifest -ConsumerRoot $ConsumerRoot -ZipPath $ZipPath -ShaderCoreManifestPath $ShaderCoreManifestPath
         Write-ConsumerJsonArtifact -Path $preBootstrapManifestPath -Value $preBootstrapManifest
-        Assert-ConsumerImmutableManifestBaseline -Manifest $preBootstrapManifest -RunLabel 'bootstrap-pre'
-        $arguments = @('-batchmode', '-force-d3d11', '-projectPath', $ConsumerRoot, '-runTests', '-testPlatform', 'EditMode', '-assemblyNames', $ConsumerAssembly, '-testFilter', 'PureBase.Release.Consumer.Tests.PureBaseConsumerSceneTemplateBootstrapTests.DisposableSceneLifecycleMaterializesSceneTemplateSettings', '-testResults', $resultsPath, '-logFile', $unityLogPath)
+        $arguments = @('-batchmode', '-force-d3d11', '-projectPath', $ConsumerRoot, '-runTests', '-testPlatform', 'EditMode', '-assemblyNames', $ConsumerAssembly, '-testFilter', $bootstrapTestFilter, '-testResults', $resultsPath, '-logFile', $unityLogPath)
         Write-ConsumerJsonArtifact -Path $commandPath -Value ([ordered]@{ executable = $UnityEditor; arguments = $arguments }) -Depth 4
         [System.IO.File]::WriteAllText($processLogPath, '', (New-Object System.Text.UTF8Encoding($false)))
         & $UnityEditor @arguments 2>&1 | Tee-Object -FilePath $processLogPath -Append | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "Unity bootstrap import exited with $LASTEXITCODE. See '$processLogPath'." }
         $nunitSummary = Test-NUnitEvidence -ResultsPath $resultsPath -RunLabel 'bootstrap'
         Write-ConsumerJsonArtifact -Path $nunitSummaryPath -Value $nunitSummary
+        $sceneBootstrapManifest = Get-ConsumerImmutableManifest -ConsumerRoot $ConsumerRoot -ZipPath $ZipPath -ShaderCoreManifestPath $ShaderCoreManifestPath
+        Write-ConsumerJsonArtifact -Path $sceneBootstrapManifestPath -Value $sceneBootstrapManifest
+        Invoke-ConsumerShaderCoreStateInitialization -UnityEditor $UnityEditor -ConsumerRoot $ConsumerRoot -ArtifactDirectory $bootstrapDirectory -Phase 'first-bootstrap' | Out-Null
 
         $manifest = Get-ConsumerImmutableManifest -ConsumerRoot $ConsumerRoot -ZipPath $ZipPath -ShaderCoreManifestPath $ShaderCoreManifestPath
         Write-ConsumerJsonArtifact -Path $manifestPath -Value $manifest
         Write-ConsumerImmutableManifestBootstrapDelta -PreBootstrap $preBootstrapManifest -PostBootstrap $manifest -Path $deltaReportPath
+        $semanticTransition = Get-ConsumerFirstBootstrapTransitionReport -ConsumerRoot $ConsumerRoot -StagingReceipt $StagingReceipt -PreBootstrap $preBootstrapManifest -PostBootstrap $manifest
+        Write-ConsumerJsonArtifact -Path $semanticTransitionPath -Value $semanticTransition -Depth 12
+        Assert-ConsumerFirstBootstrapTransitionReport -Report $semanticTransition
+        Assert-ConsumerImmutableManifestBaseline -Manifest $preBootstrapManifest -RunLabel 'bootstrap-pre'
         Assert-ConsumerImmutableManifestBaseline -Manifest $manifest -RunLabel 'bootstrap'
 
         $resetResult = Reset-ConsumerLibrary -ConsumerRoot $ConsumerRoot
@@ -630,6 +1446,35 @@ function Invoke-ConsumerBootstrapImport {
         $afterResetManifest = Get-ConsumerImmutableManifest -ConsumerRoot $ConsumerRoot -ZipPath $ZipPath -ShaderCoreManifestPath $ShaderCoreManifestPath
         Write-ConsumerJsonArtifact -Path $afterResetManifestPath -Value $afterResetManifest
         Assert-ConsumerImmutableManifest -Expected $manifest -Actual $afterResetManifest -RunLabel 'bootstrap-library-reset'
+
+        New-Item -ItemType Directory -Path $secondBootstrapDirectory -Force | Out-Null
+        $secondArguments = @('-batchmode', '-force-d3d11', '-projectPath', $ConsumerRoot, '-runTests', '-testPlatform', 'EditMode', '-assemblyNames', $ConsumerAssembly, '-testFilter', $bootstrapTestFilter, '-testResults', $secondResultsPath, '-logFile', $secondUnityLogPath)
+        Write-ConsumerJsonArtifact -Path $secondCommandPath -Value ([ordered]@{ executable = $UnityEditor; arguments = $secondArguments }) -Depth 4
+        [System.IO.File]::WriteAllText($secondProcessLogPath, '', (New-Object System.Text.UTF8Encoding($false)))
+        & $UnityEditor @secondArguments 2>&1 | Tee-Object -FilePath $secondProcessLogPath -Append | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "Unity second bootstrap import exited with $LASTEXITCODE. See '$secondProcessLogPath'." }
+        $secondNunitSummary = Test-NUnitEvidence -ResultsPath $secondResultsPath -RunLabel 'bootstrap-second'
+        Write-ConsumerJsonArtifact -Path $secondNunitSummaryPath -Value $secondNunitSummary
+        Invoke-ConsumerShaderCoreStateInitialization -UnityEditor $UnityEditor -ConsumerRoot $ConsumerRoot -ArtifactDirectory $secondBootstrapDirectory -Phase 'second-bootstrap' | Out-Null
+        $secondManifest = Get-ConsumerImmutableManifest -ConsumerRoot $ConsumerRoot -ZipPath $ZipPath -ShaderCoreManifestPath $ShaderCoreManifestPath
+        Write-ConsumerJsonArtifact -Path $secondManifestPath -Value $secondManifest
+        $secondDelta = Get-ConsumerImmutableManifestDeltaReport -PreBootstrap $manifest -PostBootstrap $secondManifest
+        Write-ConsumerJsonArtifact -Path $secondDeltaPath -Value $secondDelta
+        $fixedPointReport = [ordered]@{
+            schemaName = 'purebase-second-bootstrap-fixed-point'
+            schemaVersion = 1
+            firstCanonicalRootSha256 = [string]$manifest.rootSha256
+            preSecondBootstrapRootSha256 = [string]$afterResetManifest.rootSha256
+            postSecondBootstrapRootSha256 = [string]$secondManifest.rootSha256
+            rootsEqual = [bool]($manifest.rootSha256 -eq $afterResetManifest.rootSha256 -and $manifest.rootSha256 -eq $secondManifest.rootSha256)
+            added = @($secondDelta.added)
+            changed = @($secondDelta.changed)
+            removed = @($secondDelta.removed)
+            nunit = $secondNunitSummary
+        }
+        Write-ConsumerJsonArtifact -Path $fixedPointReportPath -Value $fixedPointReport -Depth 12
+        Assert-ConsumerSecondBootstrapFixedPoint -FirstBootstrap $manifest -AfterLibraryReset $afterResetManifest -SecondBootstrap $secondManifest -Delta $secondDelta
+        Assert-ConsumerImmutableManifest -Expected $manifest -Actual $secondManifest -RunLabel 'bootstrap-second-fixed-point'
     }
     catch {
         $failure = $_
@@ -648,7 +1493,7 @@ function Invoke-ConsumerBootstrapImport {
             }
         }
         try {
-            Write-ConsumerFailureEvidence -RunDirectory $bootstrapDirectory -RunLabel 'bootstrap' -Failure $failure -EvidencePaths @($receiptPath, $preBootstrapManifestPath, $manifestPath, $deltaReportPath, $commandPath, $unityLogPath, $processLogPath, $resultsPath, $nunitSummaryPath, $afterResetManifestPath, $resetPath)
+            Write-ConsumerFailureEvidence -RunDirectory $bootstrapDirectory -RunLabel 'bootstrap' -Failure $failure -EvidencePaths @($receiptPath, $initializationConfigReceiptPath, $initializationConfigPath, $preBootstrapManifestPath, $sceneBootstrapManifestPath, $manifestPath, $deltaReportPath, $semanticTransitionPath, $commandPath, $unityLogPath, $processLogPath, $resultsPath, $nunitSummaryPath, $initializationCommandPath, $initializationUnityLogPath, $initializationProcessLogPath, $initializationReportPath, $afterResetManifestPath, $resetPath, $secondCommandPath, $secondUnityLogPath, $secondProcessLogPath, $secondResultsPath, $secondNunitSummaryPath, $secondInitializationCommandPath, $secondInitializationUnityLogPath, $secondInitializationProcessLogPath, $secondInitializationReportPath, $secondManifestPath, $secondDeltaPath, $fixedPointReportPath)
         }
         catch {
             throw "Consumer bootstrap import failed and its failure evidence could not be persisted. Original failure: $($failure.Exception.Message). Evidence failure: $($_.Exception.Message)"
@@ -1566,10 +2411,36 @@ function Write-ReleaseCleanupSummary {
         [Parameter(Mandatory = $true)][int]$ConsumerCreated,
         [Parameter(Mandatory = $true)][int]$ConsumerRemoved,
         [Parameter(Mandatory = $true)][bool]$KeepConsumer,
-        [Parameter(Mandatory = $true)][bool]$Failed
+        [Parameter(Mandatory = $true)][bool]$Failed,
+        [Parameter()][AllowEmptyString()][string]$CleanupFailure = '',
+        [Parameter()][AllowEmptyString()][string]$CleanupStatus = 'not-attempted',
+        [Parameter()][AllowEmptyString()][string]$CleanupReason = ''
     )
 
-    [ordered]@{ consumerDirectoryCreationCount = $ConsumerCreated; consumerDirectoryRemovalCount = $ConsumerRemoved; coldLibraryResetCount = $script:coldLibraryResetCount; keepConsumer = $KeepConsumer; failed = $Failed } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $RunRoot 'cleanup-summary.json') -Encoding UTF8
+    [ordered]@{ consumerDirectoryCreationCount = $ConsumerCreated; consumerDirectoryRemovalCount = $ConsumerRemoved; consumerDirectoryRemovalFailed = -not [string]::IsNullOrEmpty($CleanupFailure); consumerDirectoryPresentAfterCleanup = Test-Path -LiteralPath (Join-Path $RunRoot 'ConsumerProject'); coldLibraryResetCount = $script:coldLibraryResetCount; keepConsumer = $KeepConsumer; failed = $Failed; cleanupStatus = $CleanupStatus; cleanupReason = $CleanupReason; cleanupFailure = $CleanupFailure } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $RunRoot 'cleanup-summary.json') -Encoding UTF8
+}
+
+function Remove-ConsumerProject {
+    param([Parameter(Mandatory = $true)][string]$ConsumerRoot)
+
+    $processDiscovery = Get-ConsumerUnityProcess -ProjectRoot $ConsumerRoot
+    if ($processDiscovery.status -ne 'none') {
+        $message = if ($processDiscovery.status -eq 'active') {
+            "Unity process $($processDiscovery.process.ProcessId) is using '$ConsumerRoot'; refusing consumer cleanup."
+        }
+        elseif ($processDiscovery.status -eq 'indeterminate') {
+            "Cannot verify whether a Unity process is using '$ConsumerRoot'; refusing consumer cleanup. $($processDiscovery.reason)"
+        }
+        else {
+            "Unity process discovery returned unsupported status '$($processDiscovery.status)' for '$ConsumerRoot'; refusing consumer cleanup. $($processDiscovery.reason)"
+        }
+        $exception = [System.InvalidOperationException]::new($message)
+        $exception.Data['cleanupStatus'] = [string]$processDiscovery.status
+        $exception.Data['cleanupReason'] = [string]$processDiscovery.reason
+        throw $exception
+    }
+    Remove-Item -LiteralPath $ConsumerRoot -Recurse -Force
+    return [ordered]@{ cleanupStatus = 'removed'; cleanupReason = $processDiscovery.reason }
 }
 
 $packageRoot = Get-PackageGitRoot
@@ -1619,6 +2490,7 @@ $consumerRemoved = 0
 $script:coldLibraryResetCount = 0
 $consumerRoot = Join-Path $runRoot 'ConsumerProject'
 $failed = $true
+$executionFailure = $null
 try {
     $archiveDirectory = Join-Path $runRoot 'archive'
     & (Join-Path $scriptRoot 'Build-PureBaseRelease.ps1') -OutputDirectory $archiveDirectory
@@ -1639,7 +2511,11 @@ try {
     Copy-RegularTree -Source $shaderCoreRoot -Destination (Join-Path $localPackages 'jp.lilxyzw.shadercore')
     Copy-RegularTree -Source (Join-Path $scriptRoot 'Modules') -Destination (Join-Path $consumerRoot 'Assets/ReleaseModules')
     Copy-RegularTree -Source (Join-Path $packageRoot 'Tests/Fixtures') -Destination (Join-Path $consumerRoot 'Assets/ReleaseConsumer/Fixtures')
-    $stagingReceipt = Get-ConsumerStagingReceipt -ZipPath $zipPath -ScaffoldRoot $scaffoldRoot -ShaderCoreRoot $shaderCoreRoot -ModulesRoot (Join-Path $scriptRoot 'Modules') -FixturesRoot (Join-Path $packageRoot 'Tests/Fixtures')
+    $canonicalShaderCoreConfigPath = Join-Path $packageRoot 'Tests/Config/shader-core-test-hosts.json'
+    $canonicalShaderCoreConfigDestination = Join-Path $consumerRoot (Get-CanonicalShaderCoreConfigDestination).Replace('/', '\')
+    New-Item -ItemType Directory -Path (Split-Path -Parent $canonicalShaderCoreConfigDestination) -Force | Out-Null
+    Copy-Item -LiteralPath $canonicalShaderCoreConfigPath -Destination $canonicalShaderCoreConfigDestination -Force
+    $stagingReceipt = Get-ConsumerStagingReceipt -ZipPath $zipPath -ScaffoldRoot $scaffoldRoot -ShaderCoreRoot $shaderCoreRoot -ModulesRoot (Join-Path $scriptRoot 'Modules') -FixturesRoot (Join-Path $packageRoot 'Tests/Fixtures') -CanonicalShaderCoreConfigPath $canonicalShaderCoreConfigPath
     $bootstrapManifest = Invoke-ConsumerBootstrapImport -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -StagingReceipt $stagingReceipt
 
     $comparisonWarmContract = $null
@@ -1713,13 +2589,41 @@ try {
     Write-ReleaseRunSummary -RunRoot $runRoot -ConsumerCreated $consumerCreated -ConsumerRemoved $consumerRemoved -ValidationScope $validationScope -ComparisonMode ([bool]$CompareWarmAndColdStandardMorph) -ModuleFreeOnly ([bool]$ModuleFreeOnly) -Outcomes $outcomes -ComparisonVerdict $comparisonVerdict
     $failed = $false
 }
+catch {
+    $executionFailure = $_
+    throw
+}
 finally {
+    $cleanupFailure = $null
+    $cleanupStatus = if ($KeepConsumer) { 'not-requested' } else { 'not-required' }
+    $cleanupReason = if ($KeepConsumer) { 'Consumer retention was requested.' } else { 'Consumer project was not present for cleanup.' }
     if (-not $KeepConsumer -and (Test-Path -LiteralPath $consumerRoot)) {
-        Assert-EditorClosed -ProjectRoot $consumerRoot
-        Remove-Item -LiteralPath $consumerRoot -Recurse -Force
-        $consumerRemoved++
+        try {
+            $cleanupResult = Remove-ConsumerProject -ConsumerRoot $consumerRoot
+            $consumerRemoved++
+            $cleanupStatus = $cleanupResult.cleanupStatus
+            $cleanupReason = $cleanupResult.cleanupReason
+        }
+        catch {
+            $cleanupFailure = $_
+            $cleanupStatus = if ($_.Exception.Data.Contains('cleanupStatus')) { [string]$_.Exception.Data['cleanupStatus'] } else { 'failed' }
+            $cleanupReason = if ($_.Exception.Data.Contains('cleanupReason')) { [string]$_.Exception.Data['cleanupReason'] } else { $_.Exception.Message }
+            Write-ConsumerJsonArtifact -Path (Join-Path $runRoot 'cleanup-failure.json') -Value ([ordered]@{
+                    cleanupStatus = $cleanupStatus
+                    cleanupReason = $cleanupReason
+                    cleanupFailure = $_.Exception.Message
+                    executionFailure = if ($null -ne $executionFailure) { $executionFailure.Exception.Message } else { '' }
+                })
+        }
     }
-    Write-ReleaseCleanupSummary -RunRoot $runRoot -ConsumerCreated $consumerCreated -ConsumerRemoved $consumerRemoved -KeepConsumer ([bool]$KeepConsumer) -Failed $failed
+    $cleanupFailureMessage = if ($null -ne $cleanupFailure) { $cleanupFailure.Exception.Message } else { '' }
+    Write-ReleaseCleanupSummary -RunRoot $runRoot -ConsumerCreated $consumerCreated -ConsumerRemoved $consumerRemoved -KeepConsumer ([bool]$KeepConsumer) -Failed ($failed -or ($null -ne $cleanupFailure)) -CleanupFailure $cleanupFailureMessage -CleanupStatus $cleanupStatus -CleanupReason $cleanupReason
+    if ($null -ne $cleanupFailure) {
+        if ($failed) {
+            throw "Release validation execution failed: $($executionFailure.Exception.Message). Consumer cleanup failed: $cleanupFailureMessage. See '$runRoot\cleanup-failure.json'."
+        }
+        throw $cleanupFailure
+    }
 }
 
 if ($consumerCreated -ne 1 -or ((-not $KeepConsumer) -and $consumerRemoved -ne 1)) {

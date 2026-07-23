@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-// Validates runner-selected consumer imports, generated source, and BIRP runtime samples.
+// Validates runner-selected consumer imports, generated source, BIRP runtime samples, and Shader-Core bootstrap state.
 
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -1048,6 +1049,498 @@ namespace PureBase.Release.Consumer.Tests
                 UnityEngine.Object.DestroyImmediate(directionalLightObject);
                 UnityEngine.Object.DestroyImmediate(pointLightObject);
             }
+        }
+    }
+
+    /// <summary>Converges canonical Shader-Core module selections staged for an external consumer project.</summary>
+    public static class PureBaseConsumerShaderCoreInitializer
+    {
+        /// <summary>Identifies the consumer-staged canonical Shader-Core fixture.</summary>
+        private const string FixtureAssetPath = "Assets/ReleaseConsumer/Fixtures/ShaderCore/shader-core-test-hosts.json";
+
+        /// <summary>Identifies the loaded Shader-Core assembly.</summary>
+        private const string ShaderCoreAssemblyName = "jp.lilxyzw.shadercore";
+
+        /// <summary>Identifies Shader-Core's ProjectSettings singleton type.</summary>
+        private const string ProjectSettingsTypeName = "jp.lilxyzw.shadercore.ProjectSettings";
+
+        /// <summary>Identifies the serialized selection row collection.</summary>
+        private const string ShaderSettingsFieldName = "shaderSettings";
+
+        /// <summary>Identifies the serialized shader-name field.</summary>
+        private const string ShaderNameFieldName = "shadername";
+
+        /// <summary>Identifies the serialized module-ID collection.</summary>
+        private const string ModulesFieldName = "modules";
+
+        /// <summary>Defines the canonical number of configured Shader-Core hosts.</summary>
+        private const int ExpectedHostCount = 11;
+
+        /// <summary>Defines the product baseline order appended after canonical hosts.</summary>
+        private static readonly string[] ProductShaderNames =
+        {
+            "PureBase/Unlit",
+            "PureBase/Toon",
+            "PureBase/Hybrid",
+            "PureBase/PBR"
+        };
+
+        /// <summary>Provides the stable no-argument batch-mode entry point for the consumer Shader-Core bootstrap.</summary>
+        public static void InitializeForBatchMode()
+        {
+            List<ShaderSettingRow> expectedRows = LoadExpectedRows();
+            ProjectSettingsReflectionContract reflectionContract = GetValidatedProjectSettingsContract();
+            SerializedObject serializedSettings = new SerializedObject(reflectionContract.Settings);
+            SerializedProperty settingsProperty = GetValidatedSettingsProperty(serializedSettings);
+            List<ShaderSettingRow> actualRows = ReadRows(settingsProperty);
+            List<ShaderSettingRow> convergedRows = ConvergeRows(actualRows, expectedRows);
+
+            if (!RowsEqual(actualRows, convergedRows))
+            {
+                WriteRows(settingsProperty, convergedRows);
+                if (!serializedSettings.ApplyModifiedPropertiesWithoutUndo())
+                {
+                    throw new InvalidOperationException("Shader-Core ProjectSettings did not accept the validated consumer bootstrap update.");
+                }
+
+                reflectionContract.SaveMethod.Invoke(reflectionContract.Settings, null);
+                ReimportConfiguredHostAssets(expectedRows);
+            }
+
+            serializedSettings.Update();
+            AssertCanonicalRows(ReadRows(GetValidatedSettingsProperty(serializedSettings)), expectedRows);
+        }
+
+        /// <summary>Loads and validates the staged canonical manifest before any ProjectSettings mutation.</summary>
+        /// <returns>The canonical host rows followed by the fixed product baselines.</returns>
+        private static List<ShaderSettingRow> LoadExpectedRows()
+        {
+            AssetDatabase.ImportAsset(FixtureAssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            TextAsset fixture = AssetDatabase.LoadAssetAtPath<TextAsset>(FixtureAssetPath);
+            if (fixture == null || string.IsNullOrEmpty(fixture.text))
+            {
+                throw new InvalidOperationException($"The consumer Shader-Core bootstrap requires a non-empty fixture at '{FixtureAssetPath}'.");
+            }
+
+            HostManifest manifest;
+            try
+            {
+                manifest = JsonUtility.FromJson<HostManifest>(fixture.text);
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidOperationException($"The consumer Shader-Core bootstrap fixture at '{FixtureAssetPath}' is invalid JSON.", exception);
+            }
+
+            if (manifest == null || manifest.schemaVersion != 1 || manifest.hosts == null || manifest.hosts.Length != ExpectedHostCount)
+            {
+                throw new InvalidOperationException($"The consumer Shader-Core bootstrap fixture at '{FixtureAssetPath}' must be schema version 1 with exactly {ExpectedHostCount} hosts.");
+            }
+
+            List<ShaderSettingRow> expectedRows = new List<ShaderSettingRow>(ExpectedHostCount + ProductShaderNames.Length);
+            HashSet<string> shaderNames = new HashSet<string>(StringComparer.Ordinal);
+            HashSet<string> moduleIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (HostManifestEntry host in manifest.hosts)
+            {
+                if (host == null || string.IsNullOrEmpty(host.shaderName) || !shaderNames.Add(host.shaderName))
+                {
+                    throw new InvalidOperationException("The consumer Shader-Core bootstrap fixture contains a missing or duplicate host shaderName.");
+                }
+
+                string[] modules = GetValidatedModules(host);
+                foreach (string moduleId in modules)
+                {
+                    if (!moduleIds.Add(moduleId))
+                    {
+                        throw new InvalidOperationException($"The consumer Shader-Core bootstrap fixture contains duplicate module ID '{moduleId}'.");
+                    }
+                }
+
+                expectedRows.Add(new ShaderSettingRow(host.shaderName, modules));
+            }
+
+            foreach (string productShaderName in ProductShaderNames)
+            {
+                if (!shaderNames.Add(productShaderName))
+                {
+                    throw new InvalidOperationException($"The consumer Shader-Core bootstrap fixture must not redefine product shader '{productShaderName}'.");
+                }
+
+                expectedRows.Add(new ShaderSettingRow(productShaderName, Array.Empty<string>()));
+            }
+
+            return expectedRows;
+        }
+
+        /// <summary>Gets the validated ordered module IDs for a manifest host.</summary>
+        /// <param name="host">The host entry to validate.</param>
+        /// <returns>The host's ordered non-empty module IDs.</returns>
+        private static string[] GetValidatedModules(HostManifestEntry host)
+        {
+            bool hasSingleModule = !string.IsNullOrEmpty(host.moduleUniqueId);
+            bool hasModuleArray = host.moduleUniqueIds != null && host.moduleUniqueIds.Length > 0;
+            if (hasSingleModule == hasModuleArray)
+            {
+                throw new InvalidOperationException($"Consumer Shader-Core bootstrap host '{host.shaderName}' must define exactly one non-empty module selection form.");
+            }
+
+            string[] modules = hasSingleModule ? new[] { host.moduleUniqueId } : host.moduleUniqueIds;
+            foreach (string moduleId in modules)
+            {
+                if (string.IsNullOrEmpty(moduleId))
+                {
+                    throw new InvalidOperationException($"Consumer Shader-Core bootstrap host '{host.shaderName}' contains an empty module ID.");
+                }
+            }
+
+            return modules;
+        }
+
+        /// <summary>Resolves and verifies the Shader-Core singleton reflection contract before serialized writes.</summary>
+        /// <returns>The validated singleton and persistence method.</returns>
+        private static ProjectSettingsReflectionContract GetValidatedProjectSettingsContract()
+        {
+            Assembly shaderCoreAssembly = null;
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (assembly.GetName().Name == ShaderCoreAssemblyName)
+                {
+                    shaderCoreAssembly = assembly;
+                    break;
+                }
+            }
+
+            Type settingsType = shaderCoreAssembly?.GetType(ProjectSettingsTypeName, false);
+            if (settingsType == null)
+            {
+                throw new InvalidOperationException($"Shader-Core type '{ProjectSettingsTypeName}' was not loaded for consumer bootstrap.");
+            }
+
+            FieldInfo settingsField = settingsType.GetField(ShaderSettingsFieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (settingsField == null || !settingsField.FieldType.IsGenericType || settingsField.FieldType.GetGenericTypeDefinition() != typeof(List<>))
+            {
+                throw new InvalidOperationException("Shader-Core ProjectSettings.shaderSettings did not match the expected List<T> contract.");
+            }
+
+            Type rowType = settingsField.FieldType.GetGenericArguments()[0];
+            FieldInfo shaderNameField = rowType.GetField(ShaderNameFieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            FieldInfo modulesField = rowType.GetField(ModulesFieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (shaderNameField?.FieldType != typeof(string)
+                || modulesField == null
+                || !modulesField.FieldType.IsGenericType
+                || modulesField.FieldType.GetGenericTypeDefinition() != typeof(List<>)
+                || modulesField.FieldType.GetGenericArguments()[0] != typeof(string))
+            {
+                throw new InvalidOperationException("Shader-Core ShaderSettings rows did not match the expected shadername/string and modules/List<string> contract.");
+            }
+
+            Type singletonType = typeof(ScriptableSingleton<>).MakeGenericType(settingsType);
+            PropertyInfo instanceProperty = singletonType.GetProperty("instance", BindingFlags.Public | BindingFlags.Static);
+            UnityEngine.Object settings = instanceProperty?.GetValue(null) as UnityEngine.Object;
+            if (settings == null)
+            {
+                throw new InvalidOperationException("Shader-Core ProjectSettings singleton was unavailable after contract validation.");
+            }
+
+            MethodInfo saveMethod = settings.GetType().GetMethod("Save", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+            if (saveMethod == null)
+            {
+                throw new InvalidOperationException("Shader-Core ProjectSettings.Save() did not match the required non-public parameterless method contract.");
+            }
+
+            return new ProjectSettingsReflectionContract(settings, saveMethod);
+        }
+
+        /// <summary>Gets the serialized Shader-Core row collection after validating its shape.</summary>
+        /// <param name="serializedSettings">The serialized Shader-Core ProjectSettings singleton.</param>
+        /// <returns>The validated row collection property.</returns>
+        private static SerializedProperty GetValidatedSettingsProperty(SerializedObject serializedSettings)
+        {
+            SerializedProperty settingsProperty = serializedSettings.FindProperty(ShaderSettingsFieldName);
+            if (settingsProperty == null || !settingsProperty.isArray || settingsProperty.propertyType != SerializedPropertyType.Generic)
+            {
+                throw new InvalidOperationException("Shader-Core serialized shaderSettings did not match the expected array contract.");
+            }
+
+            if (settingsProperty.arraySize > 0)
+            {
+                SerializedProperty row = settingsProperty.GetArrayElementAtIndex(0);
+                SerializedProperty shaderName = row.FindPropertyRelative(ShaderNameFieldName);
+                SerializedProperty modules = row.FindPropertyRelative(ModulesFieldName);
+                if (shaderName == null || shaderName.propertyType != SerializedPropertyType.String || modules == null || !modules.isArray)
+                {
+                    throw new InvalidOperationException("Shader-Core serialized ShaderSettings rows did not match the expected contract.");
+                }
+            }
+
+            return settingsProperty;
+        }
+
+        /// <summary>Reads serialized rows without retaining Unity serialized-property references.</summary>
+        /// <param name="settingsProperty">The validated serialized row collection.</param>
+        /// <returns>The current row sequence.</returns>
+        private static List<ShaderSettingRow> ReadRows(SerializedProperty settingsProperty)
+        {
+            List<ShaderSettingRow> rows = new List<ShaderSettingRow>(settingsProperty.arraySize);
+            for (int index = 0; index < settingsProperty.arraySize; index++)
+            {
+                SerializedProperty row = settingsProperty.GetArrayElementAtIndex(index);
+                SerializedProperty shaderName = row.FindPropertyRelative(ShaderNameFieldName);
+                SerializedProperty modules = row.FindPropertyRelative(ModulesFieldName);
+                string[] moduleIds = new string[modules.arraySize];
+                for (int moduleIndex = 0; moduleIndex < modules.arraySize; moduleIndex++)
+                {
+                    SerializedProperty module = modules.GetArrayElementAtIndex(moduleIndex);
+                    if (module.propertyType != SerializedPropertyType.String)
+                    {
+                        throw new InvalidOperationException("Shader-Core serialized modules contained a non-string entry.");
+                    }
+
+                    moduleIds[moduleIndex] = module.stringValue;
+                }
+
+                rows.Add(new ShaderSettingRow(shaderName.stringValue, moduleIds));
+            }
+
+            return rows;
+        }
+
+        /// <summary>Replaces target rows with the canonical order while retaining unrelated settings rows.</summary>
+        /// <param name="actualRows">The current serialized rows.</param>
+        /// <param name="expectedRows">The canonical rows to apply.</param>
+        /// <returns>The converged serialized row sequence.</returns>
+        private static List<ShaderSettingRow> ConvergeRows(IReadOnlyList<ShaderSettingRow> actualRows, IReadOnlyList<ShaderSettingRow> expectedRows)
+        {
+            HashSet<string> expectedShaderNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ShaderSettingRow expectedRow in expectedRows)
+            {
+                expectedShaderNames.Add(expectedRow.ShaderName);
+            }
+
+            List<ShaderSettingRow> result = new List<ShaderSettingRow>(actualRows.Count + expectedRows.Count);
+            foreach (ShaderSettingRow actualRow in actualRows)
+            {
+                if (!expectedShaderNames.Contains(actualRow.ShaderName))
+                {
+                    result.Add(actualRow);
+                }
+            }
+
+            foreach (ShaderSettingRow expectedRow in expectedRows)
+            {
+                result.Add(expectedRow);
+            }
+
+            return result;
+        }
+
+        /// <summary>Writes the canonical serialized row sequence.</summary>
+        /// <param name="settingsProperty">The validated serialized row collection.</param>
+        /// <param name="rows">The complete converged row sequence.</param>
+        private static void WriteRows(SerializedProperty settingsProperty, IReadOnlyList<ShaderSettingRow> rows)
+        {
+            settingsProperty.arraySize = rows.Count;
+            for (int index = 0; index < rows.Count; index++)
+            {
+                SerializedProperty row = settingsProperty.GetArrayElementAtIndex(index);
+                row.FindPropertyRelative(ShaderNameFieldName).stringValue = rows[index].ShaderName;
+                SerializedProperty modules = row.FindPropertyRelative(ModulesFieldName);
+                modules.arraySize = rows[index].ModuleIds.Count;
+                for (int moduleIndex = 0; moduleIndex < rows[index].ModuleIds.Count; moduleIndex++)
+                {
+                    modules.GetArrayElementAtIndex(moduleIndex).stringValue = rows[index].ModuleIds[moduleIndex];
+                }
+            }
+        }
+
+        /// <summary>Reimports every staged host source affected by the canonical selection update.</summary>
+        /// <param name="expectedRows">The canonical host and product rows.</param>
+        private static void ReimportConfiguredHostAssets(IReadOnlyList<ShaderSettingRow> expectedRows)
+        {
+            HashSet<string> remainingHostNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ShaderSettingRow row in expectedRows)
+            {
+                if (row.ModuleIds.Count > 0)
+                {
+                    remainingHostNames.Add(row.ShaderName);
+                }
+            }
+
+            foreach (string guid in AssetDatabase.FindAssets("t:Shader"))
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+                if (shader != null && remainingHostNames.Remove(shader.name))
+                {
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                }
+            }
+
+            if (remainingHostNames.Count > 0)
+            {
+                throw new InvalidOperationException($"Consumer Shader-Core bootstrap could not find staged host assets for: {string.Join(", ", remainingHostNames)}.");
+            }
+        }
+
+        /// <summary>Verifies the persisted canonical rows and exact module order after initialization.</summary>
+        /// <param name="actualRows">The persisted serialized rows.</param>
+        /// <param name="expectedRows">The expected canonical row sequence.</param>
+        private static void AssertCanonicalRows(IReadOnlyList<ShaderSettingRow> actualRows, IReadOnlyList<ShaderSettingRow> expectedRows)
+        {
+            HashSet<string> expectedShaderNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ShaderSettingRow expectedRow in expectedRows)
+            {
+                expectedShaderNames.Add(expectedRow.ShaderName);
+            }
+
+            List<ShaderSettingRow> canonicalRows = new List<ShaderSettingRow>(expectedRows.Count);
+            foreach (ShaderSettingRow actualRow in actualRows)
+            {
+                if (expectedShaderNames.Contains(actualRow.ShaderName))
+                {
+                    canonicalRows.Add(actualRow);
+                }
+            }
+
+            if (!RowsEqual(canonicalRows, expectedRows))
+            {
+                throw new InvalidOperationException($"Consumer Shader-Core bootstrap did not persist the canonical {expectedRows.Count}-row mapping and module order.");
+            }
+        }
+
+        /// <summary>Compares complete serialized row sequences including module order.</summary>
+        /// <param name="left">The first row sequence.</param>
+        /// <param name="right">The second row sequence.</param>
+        /// <returns><see langword="true"/> when both row sequences are identical.</returns>
+        private static bool RowsEqual(IReadOnlyList<ShaderSettingRow> left, IReadOnlyList<ShaderSettingRow> right)
+        {
+            if (left.Count != right.Count)
+            {
+                return false;
+            }
+
+            for (int index = 0; index < left.Count; index++)
+            {
+                if (!left[index].Equals(right[index]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>Stores the resolved Shader-Core singleton and its validated persistence method.</summary>
+        private sealed class ProjectSettingsReflectionContract
+        {
+            /// <summary>Initializes the validated singleton contract.</summary>
+            /// <param name="settings">The Shader-Core ProjectSettings singleton.</param>
+            /// <param name="saveMethod">The validated persistence method.</param>
+            public ProjectSettingsReflectionContract(UnityEngine.Object settings, MethodInfo saveMethod)
+            {
+                Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+                SaveMethod = saveMethod ?? throw new ArgumentNullException(nameof(saveMethod));
+            }
+
+            /// <summary>Gets the Shader-Core ProjectSettings singleton.</summary>
+            public UnityEngine.Object Settings { get; }
+
+            /// <summary>Gets the validated private persistence method.</summary>
+            public MethodInfo SaveMethod { get; }
+        }
+
+        /// <summary>Stores one serialized Shader-Core selection row.</summary>
+        private sealed class ShaderSettingRow : IEquatable<ShaderSettingRow>
+        {
+            /// <summary>Initializes a selection row with ordered module IDs.</summary>
+            /// <param name="shaderName">The configured shader name.</param>
+            /// <param name="moduleIds">The configured module IDs.</param>
+            public ShaderSettingRow(string shaderName, IEnumerable<string> moduleIds)
+            {
+                if (string.IsNullOrEmpty(shaderName))
+                {
+                    throw new ArgumentException("A Shader-Core selection row requires a shader name.", nameof(shaderName));
+                }
+
+                ShaderName = shaderName;
+                ModuleIds = new List<string>(moduleIds ?? throw new ArgumentNullException(nameof(moduleIds)));
+            }
+
+            /// <summary>Gets the configured shader name.</summary>
+            public string ShaderName { get; }
+
+            /// <summary>Gets the configured ordered module IDs.</summary>
+            public IReadOnlyList<string> ModuleIds { get; }
+
+            /// <summary>Compares the shader name and ordered module IDs.</summary>
+            /// <param name="other">The row to compare.</param>
+            /// <returns><see langword="true"/> when both rows are identical.</returns>
+            public bool Equals(ShaderSettingRow other)
+            {
+                if (other == null || !string.Equals(ShaderName, other.ShaderName, StringComparison.Ordinal) || ModuleIds.Count != other.ModuleIds.Count)
+                {
+                    return false;
+                }
+
+                for (int index = 0; index < ModuleIds.Count; index++)
+                {
+                    if (!string.Equals(ModuleIds[index], other.ModuleIds[index], StringComparison.Ordinal))
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            /// <summary>Compares this row with another object.</summary>
+            /// <param name="obj">The object to compare.</param>
+            /// <returns><see langword="true"/> when the object is an identical row.</returns>
+            public override bool Equals(object obj)
+            {
+                return Equals(obj as ShaderSettingRow);
+            }
+
+            /// <summary>Gets a hash code for this row.</summary>
+            /// <returns>The row hash code.</returns>
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    int hashCode = ShaderName.GetHashCode();
+                    foreach (string moduleId in ModuleIds)
+                    {
+                        hashCode = (hashCode * 397) ^ (moduleId?.GetHashCode() ?? 0);
+                    }
+
+                    return hashCode;
+                }
+            }
+        }
+
+        /// <summary>Represents the staged versioned Shader-Core host manifest.</summary>
+        [Serializable]
+        private sealed class HostManifest
+        {
+            /// <summary>Stores the manifest schema version.</summary>
+            public int schemaVersion = 0;
+
+            /// <summary>Stores the canonical host entries.</summary>
+            public HostManifestEntry[] hosts = Array.Empty<HostManifestEntry>();
+        }
+
+        /// <summary>Represents one staged Shader-Core host selection.</summary>
+        [Serializable]
+        private sealed class HostManifestEntry
+        {
+            /// <summary>Stores the host shader name.</summary>
+            public string shaderName = string.Empty;
+
+            /// <summary>Stores a single selected module ID.</summary>
+            public string moduleUniqueId = string.Empty;
+
+            /// <summary>Stores ordered selected module IDs.</summary>
+            public string[] moduleUniqueIds = Array.Empty<string>();
         }
     }
 }
