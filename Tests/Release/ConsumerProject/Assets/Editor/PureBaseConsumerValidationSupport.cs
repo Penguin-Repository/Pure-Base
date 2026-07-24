@@ -412,10 +412,12 @@ namespace PureBase.Release.Consumer.Tests
     public static class ConsumerValidationSupport
     {
         /// <summary>Identifies the contract asset that the runner stages for each Unity process.</summary>
-        public const string ContractAssetPath = "Assets/ReleaseConsumer/PureBaseConsumerValidationContract.json";
+        public const string ContractAssetPath =
+            "Assets/ReleaseConsumer/PureBaseConsumerValidationContract.json";
 
         /// <summary>Identifies the runner-provided project-relative artifact directory variable.</summary>
-        public const string ArtifactDirectoryEnvironmentVariable = "PUREBASE_CONSUMER_ARTIFACTS_DIRECTORY";
+        public const string ArtifactDirectoryEnvironmentVariable =
+            "PUREBASE_CONSUMER_ARTIFACTS_DIRECTORY";
 
         /// <summary>Identifies the only project-relative root that may contain generated evidence.</summary>
         private const string ArtifactRootDirectory = "Artifacts";
@@ -427,10 +429,21 @@ namespace PureBase.Release.Consumer.Tests
         /// <returns>The deserialized consumer validation contract.</returns>
         public static ConsumerValidationContract LoadContract()
         {
-            AssetDatabase.ImportAsset(ContractAssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            AssetDatabase.ImportAsset(
+                ContractAssetPath,
+                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+            );
             TextAsset contractAsset = AssetDatabase.LoadAssetAtPath<TextAsset>(ContractAssetPath);
-            Assert.That(contractAsset, Is.Not.Null, $"The runner must stage a consumer validation contract at '{ContractAssetPath}' before tests run.");
-            Assert.That(contractAsset.text, Is.Not.Empty, $"The runner-staged consumer validation contract at '{ContractAssetPath}' is empty.");
+            Assert.That(
+                contractAsset,
+                Is.Not.Null,
+                $"The runner must stage a consumer validation contract at '{ContractAssetPath}' before tests run."
+            );
+            Assert.That(
+                contractAsset.text,
+                Is.Not.Empty,
+                $"The runner-staged consumer validation contract at '{ContractAssetPath}' is empty."
+            );
 
             ConsumerValidationContract contract;
             try
@@ -439,14 +452,32 @@ namespace PureBase.Release.Consumer.Tests
             }
             catch (Exception exception)
             {
-                Assert.Fail($"The runner-staged consumer validation contract at '{ContractAssetPath}' is invalid JSON. Original exception: {exception}");
+                Assert.Fail(
+                    $"The runner-staged consumer validation contract at '{ContractAssetPath}' is invalid JSON. Original exception: {exception}"
+                );
                 return null;
             }
 
-            Assert.That(contract, Is.Not.Null, $"The runner-staged consumer validation contract at '{ContractAssetPath}' could not be deserialized.");
-            Assert.That(contract.runLabel, Is.Not.Empty, "The runner-staged consumer validation contract must provide runLabel.");
-            Assert.That(contract.runKind, Is.Not.Empty, $"Consumer run '{contract.runLabel}' must provide runKind.");
-            Assert.That(contract.products, Is.Not.Null.And.Not.Empty, $"Consumer run '{contract.runLabel}' must provide product contracts.");
+            Assert.That(
+                contract,
+                Is.Not.Null,
+                $"The runner-staged consumer validation contract at '{ContractAssetPath}' could not be deserialized."
+            );
+            Assert.That(
+                contract.runLabel,
+                Is.Not.Empty,
+                "The runner-staged consumer validation contract must provide runLabel."
+            );
+            Assert.That(
+                contract.runKind,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' must provide runKind."
+            );
+            Assert.That(
+                contract.products,
+                Is.Not.Null.And.Not.Empty,
+                $"Consumer run '{contract.runLabel}' must provide product contracts."
+            );
             return contract;
         }
 
@@ -454,21 +485,42 @@ namespace PureBase.Release.Consumer.Tests
         /// <returns>An absolute artifact directory that remains beneath the consumer project's Artifacts root.</returns>
         public static string GetArtifactDirectory()
         {
-            string configuredDirectory = Environment.GetEnvironmentVariable(ArtifactDirectoryEnvironmentVariable);
-            Assert.That(configuredDirectory, Is.Not.Null.And.Not.Empty, $"The runner must set {ArtifactDirectoryEnvironmentVariable} to a project-relative directory under '{ArtifactRootDirectory}'.");
-            Assert.That(Path.IsPathRooted(configuredDirectory), Is.False, $"{ArtifactDirectoryEnvironmentVariable} must be project-relative under '{ArtifactRootDirectory}'.");
+            string configuredDirectory = Environment.GetEnvironmentVariable(
+                ArtifactDirectoryEnvironmentVariable
+            );
+            Assert.That(
+                configuredDirectory,
+                Is.Not.Null.And.Not.Empty,
+                $"The runner must set {ArtifactDirectoryEnvironmentVariable} to a project-relative directory under '{ArtifactRootDirectory}'."
+            );
+            Assert.That(
+                Path.IsPathRooted(configuredDirectory),
+                Is.False,
+                $"{ArtifactDirectoryEnvironmentVariable} must be project-relative under '{ArtifactRootDirectory}'."
+            );
 
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
-            string artifactRoot = Path.GetFullPath(Path.Combine(projectRoot, ArtifactRootDirectory));
-            string artifactDirectory = Path.GetFullPath(Path.Combine(projectRoot, configuredDirectory));
-            string artifactRootWithSeparator = artifactRoot.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+            string artifactRoot = Path.GetFullPath(
+                Path.Combine(projectRoot, ArtifactRootDirectory)
+            );
+            string artifactDirectory = Path.GetFullPath(
+                Path.Combine(projectRoot, configuredDirectory)
+            );
+            string artifactRootWithSeparator = artifactRoot.EndsWith(
+                Path.DirectorySeparatorChar.ToString(),
+                StringComparison.Ordinal
+            )
                 ? artifactRoot
                 : artifactRoot + Path.DirectorySeparatorChar;
             Assert.That(
                 string.Equals(artifactDirectory, artifactRoot, StringComparison.OrdinalIgnoreCase)
-                    || artifactDirectory.StartsWith(artifactRootWithSeparator, StringComparison.OrdinalIgnoreCase),
+                    || artifactDirectory.StartsWith(
+                        artifactRootWithSeparator,
+                        StringComparison.OrdinalIgnoreCase
+                    ),
                 Is.True,
-                $"{ArtifactDirectoryEnvironmentVariable} must resolve under '{ArtifactRootDirectory}'.");
+                $"{ArtifactDirectoryEnvironmentVariable} must resolve under '{ArtifactRootDirectory}'."
+            );
 
             Directory.CreateDirectory(artifactDirectory);
             return artifactDirectory;
@@ -480,14 +532,41 @@ namespace PureBase.Release.Consumer.Tests
         /// <returns>The imported usable public shader.</returns>
         public static Shader ImportProductShader(ConsumerProductContract product, string runLabel)
         {
-            Assert.That(product, Is.Not.Null, $"Consumer run '{runLabel}' has a null product contract.");
-            Assert.That(product.shaderName, Is.Not.Empty, $"Consumer run '{runLabel}' has a product without shaderName.");
-            Assert.That(product.shaderAssetPath, Is.Not.Empty, $"Consumer run '{runLabel}' product '{product.shaderName}' has no shaderAssetPath.");
-            AssetDatabase.ImportAsset(product.shaderAssetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            Assert.That(
+                product,
+                Is.Not.Null,
+                $"Consumer run '{runLabel}' has a null product contract."
+            );
+            Assert.That(
+                product.shaderName,
+                Is.Not.Empty,
+                $"Consumer run '{runLabel}' has a product without shaderName."
+            );
+            Assert.That(
+                product.shaderAssetPath,
+                Is.Not.Empty,
+                $"Consumer run '{runLabel}' product '{product.shaderName}' has no shaderAssetPath."
+            );
+            AssetDatabase.ImportAsset(
+                product.shaderAssetPath,
+                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+            );
             Shader shader = Shader.Find(product.shaderName);
-            Assert.That(shader, Is.Not.Null, $"Consumer run '{runLabel}' did not register Shader.Find(\"{product.shaderName}\") after importing '{product.shaderAssetPath}'.");
-            Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, $"Consumer run '{runLabel}' imported '{product.shaderName}' with compiler errors.");
-            Assert.That(shader.isSupported, Is.True, $"Consumer run '{runLabel}' imported unsupported shader '{product.shaderName}'.");
+            Assert.That(
+                shader,
+                Is.Not.Null,
+                $"Consumer run '{runLabel}' did not register Shader.Find(\"{product.shaderName}\") after importing '{product.shaderAssetPath}'."
+            );
+            Assert.That(
+                ShaderUtil.ShaderHasError(shader),
+                Is.False,
+                $"Consumer run '{runLabel}' imported '{product.shaderName}' with compiler errors."
+            );
+            Assert.That(
+                shader.isSupported,
+                Is.True,
+                $"Consumer run '{runLabel}' imported unsupported shader '{product.shaderName}'."
+            );
             return shader;
         }
 
@@ -499,18 +578,33 @@ namespace PureBase.Release.Consumer.Tests
         {
             TextAsset generatedSource = null;
             int generatedSourceCount = 0;
-            foreach (UnityEngine.Object importedAsset in AssetDatabase.LoadAllAssetsAtPath(product.shaderAssetPath))
+            foreach (
+                UnityEngine.Object importedAsset in AssetDatabase.LoadAllAssetsAtPath(
+                    product.shaderAssetPath
+                )
+            )
             {
                 TextAsset candidate = importedAsset as TextAsset;
-                if (candidate != null && string.Equals(candidate.name, GeneratedSourceName, StringComparison.Ordinal))
+                if (
+                    candidate != null
+                    && string.Equals(candidate.name, GeneratedSourceName, StringComparison.Ordinal)
+                )
                 {
                     generatedSource = candidate;
                     generatedSourceCount++;
                 }
             }
 
-            Assert.That(generatedSourceCount, Is.EqualTo(1), $"Consumer run '{runLabel}' product '{product.shaderName}' expected exactly one '{GeneratedSourceName}' subasset, but found {generatedSourceCount}.");
-            Assert.That(generatedSource, Is.Not.Null.And.Property("text").Not.Empty, $"Consumer run '{runLabel}' product '{product.shaderName}' emitted no usable '{GeneratedSourceName}' subasset.");
+            Assert.That(
+                generatedSourceCount,
+                Is.EqualTo(1),
+                $"Consumer run '{runLabel}' product '{product.shaderName}' expected exactly one '{GeneratedSourceName}' subasset, but found {generatedSourceCount}."
+            );
+            Assert.That(
+                generatedSource,
+                Is.Not.Null.And.Property("text").Not.Empty,
+                $"Consumer run '{runLabel}' product '{product.shaderName}' emitted no usable '{GeneratedSourceName}' subasset."
+            );
             return generatedSource.text;
         }
 
@@ -521,7 +615,11 @@ namespace PureBase.Release.Consumer.Tests
         public static void ExportGeneratedSource(string runLabel, string shaderName, string source)
         {
             string fileName = GetGeneratedSourceArtifactFileName(runLabel, shaderName);
-            File.WriteAllText(Path.Combine(GetArtifactDirectory(), fileName), source, new UTF8Encoding(false));
+            File.WriteAllText(
+                Path.Combine(GetArtifactDirectory(), fileName),
+                source,
+                new UTF8Encoding(false)
+            );
         }
 
         /// <summary>Returns the deterministic generated-source artifact filename for one consumer product.</summary>
@@ -530,7 +628,10 @@ namespace PureBase.Release.Consumer.Tests
         /// <returns>The filename written beneath the runner-provided artifact directory.</returns>
         public static string GetGeneratedSourceArtifactFileName(string runLabel, string shaderName)
         {
-            return SanitizeFileName(runLabel) + "-" + SanitizeFileName(shaderName) + "-generated-source.txt";
+            return SanitizeFileName(runLabel)
+                + "-"
+                + SanitizeFileName(shaderName)
+                + "-generated-source.txt";
         }
 
         /// <summary>Returns declared pass names in their generated order.</summary>
@@ -572,17 +673,35 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="runLabel">The current consumer run label.</param>
         /// <param name="shaderName">The product shader name used in diagnostics.</param>
         /// <returns>The requested pass section.</returns>
-        public static string GetPassSource(string source, string passName, string nextPassName, string runLabel, string shaderName)
+        public static string GetPassSource(
+            string source,
+            string passName,
+            string nextPassName,
+            string runLabel,
+            string shaderName
+        )
         {
             string startMarker = "Name \"" + passName + "\"";
             int start = source.IndexOf(startMarker, StringComparison.Ordinal);
-            Assert.That(start, Is.GreaterThanOrEqualTo(0), $"Consumer run '{runLabel}' product '{shaderName}' generated source did not contain pass marker '{startMarker}'.");
+            Assert.That(
+                start,
+                Is.GreaterThanOrEqualTo(0),
+                $"Consumer run '{runLabel}' product '{shaderName}' generated source did not contain pass marker '{startMarker}'."
+            );
             int end = source.Length;
             if (!string.IsNullOrEmpty(nextPassName))
             {
                 string endMarker = "Name \"" + nextPassName + "\"";
-                end = source.IndexOf(endMarker, start + startMarker.Length, StringComparison.Ordinal);
-                Assert.That(end, Is.GreaterThan(start), $"Consumer run '{runLabel}' product '{shaderName}' generated source did not contain following pass marker '{endMarker}'.");
+                end = source.IndexOf(
+                    endMarker,
+                    start + startMarker.Length,
+                    StringComparison.Ordinal
+                );
+                Assert.That(
+                    end,
+                    Is.GreaterThan(start),
+                    $"Consumer run '{runLabel}' product '{shaderName}' generated source did not contain following pass marker '{endMarker}'."
+                );
             }
 
             return source.Substring(start, end - start);
@@ -610,8 +729,16 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="description">The field description used in diagnostics.</param>
         public static void ValidateRange(ConsumerFloatRange range, string description)
         {
-            Assert.That(range, Is.Not.Null, $"Consumer runtime contract must provide {description}.");
-            Assert.That(range.minimum, Is.LessThanOrEqualTo(range.maximum), $"Consumer runtime contract {description} has minimum {range.minimum} greater than maximum {range.maximum}.");
+            Assert.That(
+                range,
+                Is.Not.Null,
+                $"Consumer runtime contract must provide {description}."
+            );
+            Assert.That(
+                range.minimum,
+                Is.LessThanOrEqualTo(range.maximum),
+                $"Consumer runtime contract {description} has minimum {range.minimum} greater than maximum {range.maximum}."
+            );
         }
 
         /// <summary>Converts an arbitrary label into a portable artifact filename segment.</summary>

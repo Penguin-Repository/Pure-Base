@@ -38,36 +38,76 @@ namespace PureBase.Release.Consumer.Tests
         private const string DisposableArtifactRootDirectory = "Assets/Artifacts";
 
         /// <summary>Identifies the disposable directory that owns copied-scene bake output.</summary>
-        private const string DisposableBakeDirectory = DisposableArtifactRootDirectory + "/ProgressiveCpuBake";
+        private const string DisposableBakeDirectory =
+            DisposableArtifactRootDirectory + "/ProgressiveCpuBake";
 
         /// <summary>Identifies the copied validation-scene asset used only for the synchronous bake.</summary>
-        private const string DisposableBakeScenePath = DisposableBakeDirectory + "/PureBaseValidationBake.unity";
+        private const string DisposableBakeScenePath =
+            DisposableBakeDirectory + "/PureBaseValidationBake.unity";
 
         /// <summary>Defines the four public products that must produce Meta evidence.</summary>
-        private static readonly string[] RequiredProductShaderNames = { "PureBase/Unlit", "PureBase/Toon", "PureBase/PBR", "PureBase/Hybrid" };
+        private static readonly string[] RequiredProductShaderNames =
+        {
+            "PureBase/Unlit",
+            "PureBase/Toon",
+            "PureBase/PBR",
+            "PureBase/Hybrid",
+        };
 
         /// <summary>Synchronously bakes the configured scene and records lightmap and image evidence.</summary>
         [Test]
         public void ConfiguredValidationSceneBakesAndExportsEvidence()
         {
             ConsumerValidationContract contract = ConsumerValidationSupport.LoadContract();
-            Assert.That(SystemInfo.graphicsDeviceType, Is.EqualTo(GraphicsDeviceType.Direct3D11), $"Consumer run '{contract.runLabel}' requires Direct3D11 for bake evidence.");
-            Assert.That(GraphicsSettings.currentRenderPipeline, Is.Null, $"Consumer run '{contract.runLabel}' requires the Built-in Render Pipeline for bake evidence.");
-            Assert.That(contract.bake, Is.Not.Null, $"Consumer run '{contract.runLabel}' must provide bake for bake evidence.");
+            Assert.That(
+                SystemInfo.graphicsDeviceType,
+                Is.EqualTo(GraphicsDeviceType.Direct3D11),
+                $"Consumer run '{contract.runLabel}' requires Direct3D11 for bake evidence."
+            );
+            Assert.That(
+                GraphicsSettings.currentRenderPipeline,
+                Is.Null,
+                $"Consumer run '{contract.runLabel}' requires the Built-in Render Pipeline for bake evidence."
+            );
+            Assert.That(
+                contract.bake,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' must provide bake for bake evidence."
+            );
             ValidateBakeContract(contract);
             AssertModuleFreeGeneratedSources(contract);
 
-            ConsumerBakeArtifact artifact = new ConsumerBakeArtifact { runLabel = contract.runLabel, scenePath = contract.bake.scenePath, unityVersion = Application.unityVersion, graphicsDevice = SystemInfo.graphicsDeviceType.ToString() };
+            ConsumerBakeArtifact artifact = new ConsumerBakeArtifact
+            {
+                runLabel = contract.runLabel,
+                scenePath = contract.bake.scenePath,
+                unityVersion = Application.unityVersion,
+                graphicsDevice = SystemInfo.graphicsDeviceType.ToString(),
+            };
             SceneSetup[] previousSceneSetup = EditorSceneManager.GetSceneManagerSetup();
             DisposableBakeScope disposableBakeScope = new DisposableBakeScope();
             try
             {
-                LightingSettings settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(contract.bake.lightingSettingsPath);
-                Scene scene = CreateDisposableBakeScene(contract.bake.scenePath, settings, disposableBakeScope);
+                LightingSettings settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(
+                    contract.bake.lightingSettingsPath
+                );
+                Scene scene = CreateDisposableBakeScene(
+                    contract.bake.scenePath,
+                    settings,
+                    disposableBakeScope
+                );
                 ValidateLightingBaseline(contract, scene, artifact);
                 artifact.bakeStarted = Lightmapping.Bake();
-                Assert.That(artifact.bakeStarted, Is.True, $"Consumer run '{contract.runLabel}' did not start a synchronous bake for '{contract.bake.scenePath}'.");
-                Assert.That(EditorSceneManager.SaveScene(scene), Is.True, $"Consumer run '{contract.runLabel}' could not persist disposable bake data at '{scene.path}'.");
+                Assert.That(
+                    artifact.bakeStarted,
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' did not start a synchronous bake for '{contract.bake.scenePath}'."
+                );
+                Assert.That(
+                    EditorSceneManager.SaveScene(scene),
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' could not persist disposable bake data at '{scene.path}'."
+                );
                 ValidateLightmaps(contract, scene, artifact);
                 CaptureReadback(contract, scene, artifact);
                 CaptureMetaAlbedoReadbacks(contract, scene, artifact);
@@ -78,7 +118,10 @@ namespace PureBase.Release.Consumer.Tests
             {
                 try
                 {
-                    RestoreSceneBaselineOrCloseFixtureScenes(previousSceneSetup, disposableBakeScope);
+                    RestoreSceneBaselineOrCloseFixtureScenes(
+                        previousSceneSetup,
+                        disposableBakeScope
+                    );
                 }
                 finally
                 {
@@ -88,7 +131,13 @@ namespace PureBase.Release.Consumer.Tests
                     }
                     finally
                     {
-                        File.WriteAllText(Path.Combine(ConsumerValidationSupport.GetArtifactDirectory(), "bake-evidence.json"), JsonUtility.ToJson(artifact, true));
+                        File.WriteAllText(
+                            Path.Combine(
+                                ConsumerValidationSupport.GetArtifactDirectory(),
+                                "bake-evidence.json"
+                            ),
+                            JsonUtility.ToJson(artifact, true)
+                        );
                     }
                 }
             }
@@ -99,42 +148,93 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="settings">The validated fixture Lighting Settings asset to reuse read-only.</param>
         /// <param name="scope">The scope that records created assets for cleanup, including partial initialization.</param>
         /// <returns>The disposable scene that owns all scene-local bake output.</returns>
-        private static Scene CreateDisposableBakeScene(string fixtureScenePath, LightingSettings settings, DisposableBakeScope scope)
+        private static Scene CreateDisposableBakeScene(
+            string fixtureScenePath,
+            LightingSettings settings,
+            DisposableBakeScope scope
+        )
         {
-            Assert.That(fixtureScenePath, Is.Not.EqualTo(DisposableBakeScenePath), "The fixture scene must not already be in the disposable bake namespace.");
-            Assert.That(settings, Is.Not.Null, "The validated fixture Lighting Settings asset must remain available for the disposable bake.");
+            Assert.That(
+                fixtureScenePath,
+                Is.Not.EqualTo(DisposableBakeScenePath),
+                "The fixture scene must not already be in the disposable bake namespace."
+            );
+            Assert.That(
+                settings,
+                Is.Not.Null,
+                "The validated fixture Lighting Settings asset must remain available for the disposable bake."
+            );
 
-            scope.artifactRootExisted = AssetDatabase.IsValidFolder(DisposableArtifactRootDirectory);
+            scope.artifactRootExisted = AssetDatabase.IsValidFolder(
+                DisposableArtifactRootDirectory
+            );
             scope.bakeDirectoryExisted = AssetDatabase.IsValidFolder(DisposableBakeDirectory);
             if (!scope.artifactRootExisted)
             {
-                Assert.That(AssetDatabase.CreateFolder("Assets", "Artifacts"), Is.Not.Empty, "Could not create the manifest-excluded Unity artifact root.");
+                Assert.That(
+                    AssetDatabase.CreateFolder("Assets", "Artifacts"),
+                    Is.Not.Empty,
+                    "Could not create the manifest-excluded Unity artifact root."
+                );
             }
 
             if (!scope.bakeDirectoryExisted)
             {
-                Assert.That(AssetDatabase.CreateFolder(DisposableArtifactRootDirectory, "ProgressiveCpuBake"), Is.Not.Empty, "Could not create the disposable Unity bake directory.");
+                Assert.That(
+                    AssetDatabase.CreateFolder(
+                        DisposableArtifactRootDirectory,
+                        "ProgressiveCpuBake"
+                    ),
+                    Is.Not.Empty,
+                    "Could not create the disposable Unity bake directory."
+                );
             }
 
             scope.scenePath = AssetDatabase.GenerateUniqueAssetPath(DisposableBakeScenePath);
-            Assert.That(AssetDatabase.CopyAsset(fixtureScenePath, scope.scenePath), Is.True, $"Could not copy fixed fixture scene '{fixtureScenePath}' into '{scope.scenePath}'.");
-            AssetDatabase.ImportAsset(scope.scenePath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+            Assert.That(
+                AssetDatabase.CopyAsset(fixtureScenePath, scope.scenePath),
+                Is.True,
+                $"Could not copy fixed fixture scene '{fixtureScenePath}' into '{scope.scenePath}'."
+            );
+            AssetDatabase.ImportAsset(
+                scope.scenePath,
+                ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+            );
 
             scope.scene = EditorSceneManager.OpenScene(scope.scenePath, OpenSceneMode.Additive);
-            Assert.That(SceneManager.SetActiveScene(scope.scene), Is.True, $"Could not activate disposable bake scene '{scope.scenePath}'.");
+            Assert.That(
+                SceneManager.SetActiveScene(scope.scene),
+                Is.True,
+                $"Could not activate disposable bake scene '{scope.scenePath}'."
+            );
             Lightmapping.lightingDataAsset = null;
-            Assert.That(Lightmapping.lightingDataAsset, Is.Null, $"Disposable bake scene '{scope.scenePath}' still references fixture-owned lighting data.");
+            Assert.That(
+                Lightmapping.lightingDataAsset,
+                Is.Null,
+                $"Disposable bake scene '{scope.scenePath}' still references fixture-owned lighting data."
+            );
             Lightmapping.SetLightingSettingsForScene(scope.scene, settings);
-            Assert.That(Lightmapping.GetLightingSettingsForScene(scope.scene), Is.SameAs(settings), $"Disposable bake scene '{scope.scenePath}' did not retain the read-only fixture Lighting Settings asset.");
+            Assert.That(
+                Lightmapping.GetLightingSettingsForScene(scope.scene),
+                Is.SameAs(settings),
+                $"Disposable bake scene '{scope.scenePath}' did not retain the read-only fixture Lighting Settings asset."
+            );
             EditorSceneManager.MarkSceneDirty(scope.scene);
-            Assert.That(EditorSceneManager.SaveScene(scope.scene), Is.True, $"Could not persist detached lighting ownership for disposable bake scene '{scope.scenePath}'.");
+            Assert.That(
+                EditorSceneManager.SaveScene(scope.scene),
+                Is.True,
+                $"Could not persist detached lighting ownership for disposable bake scene '{scope.scenePath}'."
+            );
             return scope.scene;
         }
 
         /// <summary>Restores a valid prior scene setup or closes the disposable scene opened by this fixture.</summary>
         /// <param name="previousSceneSetup">The scene setup captured before the fixture opened any scenes.</param>
         /// <param name="scope">The scope that owns the disposable bake scene.</param>
-        private static void RestoreSceneBaselineOrCloseFixtureScenes(SceneSetup[] previousSceneSetup, DisposableBakeScope scope)
+        private static void RestoreSceneBaselineOrCloseFixtureScenes(
+            SceneSetup[] previousSceneSetup,
+            DisposableBakeScope scope
+        )
         {
             if (IsRestorableSceneSetup(previousSceneSetup))
             {
@@ -188,7 +288,11 @@ namespace PureBase.Release.Consumer.Tests
                 return;
             }
 
-            Assert.That(EditorSceneManager.CloseScene(scene, true), Is.True, $"Could not close {sceneDescription} scene '{scene.path}' during cleanup.");
+            Assert.That(
+                EditorSceneManager.CloseScene(scene, true),
+                Is.True,
+                $"Could not close {sceneDescription} scene '{scene.path}' during cleanup."
+            );
         }
 
         /// <summary>Deletes transient Unity bake assets after bake evidence images have been captured.</summary>
@@ -202,12 +306,23 @@ namespace PureBase.Release.Consumer.Tests
 
             if (!scope.bakeDirectoryExisted && AssetDatabase.IsValidFolder(DisposableBakeDirectory))
             {
-                Assert.That(AssetDatabase.DeleteAsset(DisposableBakeDirectory), Is.True, $"Could not remove disposable bake assets from '{DisposableBakeDirectory}'.");
+                Assert.That(
+                    AssetDatabase.DeleteAsset(DisposableBakeDirectory),
+                    Is.True,
+                    $"Could not remove disposable bake assets from '{DisposableBakeDirectory}'."
+                );
             }
 
-            if (!scope.artifactRootExisted && AssetDatabase.IsValidFolder(DisposableArtifactRootDirectory))
+            if (
+                !scope.artifactRootExisted
+                && AssetDatabase.IsValidFolder(DisposableArtifactRootDirectory)
+            )
             {
-                Assert.That(AssetDatabase.DeleteAsset(DisposableArtifactRootDirectory), Is.True, $"Could not remove the transient manifest-excluded Unity artifact root '{DisposableArtifactRootDirectory}'.");
+                Assert.That(
+                    AssetDatabase.DeleteAsset(DisposableArtifactRootDirectory),
+                    Is.True,
+                    $"Could not remove the transient manifest-excluded Unity artifact root '{DisposableArtifactRootDirectory}'."
+                );
             }
         }
 
@@ -215,12 +330,23 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="contract">The runner-provided module-free bake contract.</param>
         private static void AssertModuleFreeGeneratedSources(ConsumerValidationContract contract)
         {
-            Assert.That(contract.hasSelectedModule, Is.False, $"Consumer run '{contract.runLabel}' bake must not select an external module.");
+            Assert.That(
+                contract.hasSelectedModule,
+                Is.False,
+                $"Consumer run '{contract.runLabel}' bake must not select an external module."
+            );
             foreach (ConsumerProductContract product in contract.products)
             {
                 ConsumerValidationSupport.ImportProductShader(product, contract.runLabel);
-                string source = ConsumerValidationSupport.LoadGeneratedSource(product, contract.runLabel);
-                ConsumerValidationSupport.ExportGeneratedSource(contract.runLabel, product.shaderName, source);
+                string source = ConsumerValidationSupport.LoadGeneratedSource(
+                    product,
+                    contract.runLabel
+                );
+                ConsumerValidationSupport.ExportGeneratedSource(
+                    contract.runLabel,
+                    product.shaderName,
+                    source
+                );
                 PureBaseConsumerModuleFreeImportTests.AssertInactiveSentinels(contract, source);
             }
         }
@@ -229,40 +355,140 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="contract">The current consumer contract.</param>
         private static void ValidateBakeContract(ConsumerValidationContract contract)
         {
-            Assert.That(contract.bake.scenePath, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake must provide scenePath.");
-            Assert.That(contract.bake.cameraName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake must provide cameraName.");
-            Assert.That(contract.bake.requiredStaticRendererNames, Is.Not.Null.And.Not.Empty, $"Consumer run '{contract.runLabel}' bake must provide requiredStaticRendererNames.");
-            Assert.That(contract.bake.minimumLightmapCount, Is.GreaterThan(0), $"Consumer run '{contract.runLabel}' bake must require at least one lightmap.");
-            Assert.That(contract.bake.minimumVisiblePixelCount, Is.GreaterThan(0), $"Consumer run '{contract.runLabel}' bake must require visible pixels.");
-            Assert.That(contract.bake.lightingSettingsPath, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake must provide lightingSettingsPath.");
-            Assert.That(contract.bake.lightingSettingsGuid, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake must provide lightingSettingsGuid.");
-            Assert.That(contract.bake.lightmapper, Is.EqualTo(LightingSettings.Lightmapper.ProgressiveCPU.ToString()), $"Consumer run '{contract.runLabel}' bake must require the Progressive CPU lightmapper.");
-            Assert.That(contract.bake.bakedGi, Is.True, $"Consumer run '{contract.runLabel}' bake must require baked GI.");
-            Assert.That(contract.bake.realtimeGi, Is.False, $"Consumer run '{contract.runLabel}' bake must disable realtime GI.");
-            Assert.That(contract.bake.autoGenerate, Is.False, $"Consumer run '{contract.runLabel}' bake must require an on-demand bake.");
-            Assert.That(contract.bake.metaReadbacks, Is.Not.Null.And.Length.EqualTo(RequiredProductShaderNames.Length), $"Consumer run '{contract.runLabel}' bake must provide four product Meta readbacks.");
-            Assert.That(contract.bake.shadowEvidence, Is.Not.Null, $"Consumer run '{contract.runLabel}' bake must provide shadowEvidence.");
-            Assert.That(contract.bake.variantWarmups, Is.Not.Null, $"Consumer run '{contract.runLabel}' bake must provide variantWarmups.");
-            Assert.That(contract.bake.expectedVariantWarmupCount, Is.EqualTo(56), $"Consumer run '{contract.runLabel}' bake must require exactly 56 representative BIRP variant warmups.");
-            Assert.That(contract.bake.variantWarmups.Length, Is.EqualTo(contract.bake.expectedVariantWarmupCount), $"Consumer run '{contract.runLabel}' bake must provide exactly {contract.bake.expectedVariantWarmupCount} variant warmup requests.");
+            Assert.That(
+                contract.bake.scenePath,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake must provide scenePath."
+            );
+            Assert.That(
+                contract.bake.cameraName,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake must provide cameraName."
+            );
+            Assert.That(
+                contract.bake.requiredStaticRendererNames,
+                Is.Not.Null.And.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake must provide requiredStaticRendererNames."
+            );
+            Assert.That(
+                contract.bake.minimumLightmapCount,
+                Is.GreaterThan(0),
+                $"Consumer run '{contract.runLabel}' bake must require at least one lightmap."
+            );
+            Assert.That(
+                contract.bake.minimumVisiblePixelCount,
+                Is.GreaterThan(0),
+                $"Consumer run '{contract.runLabel}' bake must require visible pixels."
+            );
+            Assert.That(
+                contract.bake.lightingSettingsPath,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake must provide lightingSettingsPath."
+            );
+            Assert.That(
+                contract.bake.lightingSettingsGuid,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake must provide lightingSettingsGuid."
+            );
+            Assert.That(
+                contract.bake.lightmapper,
+                Is.EqualTo(LightingSettings.Lightmapper.ProgressiveCPU.ToString()),
+                $"Consumer run '{contract.runLabel}' bake must require the Progressive CPU lightmapper."
+            );
+            Assert.That(
+                contract.bake.bakedGi,
+                Is.True,
+                $"Consumer run '{contract.runLabel}' bake must require baked GI."
+            );
+            Assert.That(
+                contract.bake.realtimeGi,
+                Is.False,
+                $"Consumer run '{contract.runLabel}' bake must disable realtime GI."
+            );
+            Assert.That(
+                contract.bake.autoGenerate,
+                Is.False,
+                $"Consumer run '{contract.runLabel}' bake must require an on-demand bake."
+            );
+            Assert.That(
+                contract.bake.metaReadbacks,
+                Is.Not.Null.And.Length.EqualTo(RequiredProductShaderNames.Length),
+                $"Consumer run '{contract.runLabel}' bake must provide four product Meta readbacks."
+            );
+            Assert.That(
+                contract.bake.shadowEvidence,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' bake must provide shadowEvidence."
+            );
+            Assert.That(
+                contract.bake.variantWarmups,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' bake must provide variantWarmups."
+            );
+            Assert.That(
+                contract.bake.expectedVariantWarmupCount,
+                Is.EqualTo(56),
+                $"Consumer run '{contract.runLabel}' bake must require exactly 56 representative BIRP variant warmups."
+            );
+            Assert.That(
+                contract.bake.variantWarmups.Length,
+                Is.EqualTo(contract.bake.expectedVariantWarmupCount),
+                $"Consumer run '{contract.runLabel}' bake must provide exactly {contract.bake.expectedVariantWarmupCount} variant warmup requests."
+            );
         }
 
         /// <summary>Verifies the runner-staged Progressive CPU lighting configuration before the synchronous bake.</summary>
         /// <param name="contract">The current consumer contract.</param>
         /// <param name="scene">The opened bake scene.</param>
         /// <param name="artifact">The evidence record to update.</param>
-        private static void ValidateLightingBaseline(ConsumerValidationContract contract, Scene scene, ConsumerBakeArtifact artifact)
+        private static void ValidateLightingBaseline(
+            ConsumerValidationContract contract,
+            Scene scene,
+            ConsumerBakeArtifact artifact
+        )
         {
-            LightingSettings settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(contract.bake.lightingSettingsPath);
-            Assert.That(settings, Is.Not.Null, $"Consumer run '{contract.runLabel}' did not import Lighting Settings '{contract.bake.lightingSettingsPath}'.");
-            Assert.That(AssetDatabase.AssetPathToGUID(contract.bake.lightingSettingsPath), Is.EqualTo(contract.bake.lightingSettingsGuid), $"Consumer run '{contract.runLabel}' changed Lighting Settings GUID '{contract.bake.lightingSettingsPath}'.");
-            Assert.That(Lightmapping.GetLightingSettingsForScene(scene), Is.SameAs(settings), $"Consumer run '{contract.runLabel}' bake scene did not reference its staged Lighting Settings asset.");
-            Assert.That(settings.lightmapper, Is.EqualTo(LightingSettings.Lightmapper.ProgressiveCPU), $"Consumer run '{contract.runLabel}' bake scene does not use Progressive CPU.");
-            Assert.That(settings.bakedGI, Is.True, $"Consumer run '{contract.runLabel}' bake scene does not enable baked GI.");
-            Assert.That(settings.realtimeGI, Is.False, $"Consumer run '{contract.runLabel}' bake scene must disable realtime GI.");
-            Assert.That(settings.autoGenerate, Is.False, $"Consumer run '{contract.runLabel}' bake scene must use an explicit on-demand bake.");
+            LightingSettings settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(
+                contract.bake.lightingSettingsPath
+            );
+            Assert.That(
+                settings,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' did not import Lighting Settings '{contract.bake.lightingSettingsPath}'."
+            );
+            Assert.That(
+                AssetDatabase.AssetPathToGUID(contract.bake.lightingSettingsPath),
+                Is.EqualTo(contract.bake.lightingSettingsGuid),
+                $"Consumer run '{contract.runLabel}' changed Lighting Settings GUID '{contract.bake.lightingSettingsPath}'."
+            );
+            Assert.That(
+                Lightmapping.GetLightingSettingsForScene(scene),
+                Is.SameAs(settings),
+                $"Consumer run '{contract.runLabel}' bake scene did not reference its staged Lighting Settings asset."
+            );
+            Assert.That(
+                settings.lightmapper,
+                Is.EqualTo(LightingSettings.Lightmapper.ProgressiveCPU),
+                $"Consumer run '{contract.runLabel}' bake scene does not use Progressive CPU."
+            );
+            Assert.That(
+                settings.bakedGI,
+                Is.True,
+                $"Consumer run '{contract.runLabel}' bake scene does not enable baked GI."
+            );
+            Assert.That(
+                settings.realtimeGI,
+                Is.False,
+                $"Consumer run '{contract.runLabel}' bake scene must disable realtime GI."
+            );
+            Assert.That(
+                settings.autoGenerate,
+                Is.False,
+                $"Consumer run '{contract.runLabel}' bake scene must use an explicit on-demand bake."
+            );
             artifact.lightingSettingsPath = contract.bake.lightingSettingsPath;
-            artifact.lightingSettingsGuid = AssetDatabase.AssetPathToGUID(contract.bake.lightingSettingsPath);
+            artifact.lightingSettingsGuid = AssetDatabase.AssetPathToGUID(
+                contract.bake.lightingSettingsPath
+            );
             artifact.lightmapper = settings.lightmapper.ToString();
             artifact.bakedGi = settings.bakedGI;
             artifact.realtimeGi = settings.realtimeGI;
@@ -273,20 +499,46 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="contract">The current consumer contract.</param>
         /// <param name="scene">The baked validation scene.</param>
         /// <param name="artifact">The evidence record to update.</param>
-        private static void ValidateLightmaps(ConsumerValidationContract contract, Scene scene, ConsumerBakeArtifact artifact)
+        private static void ValidateLightmaps(
+            ConsumerValidationContract contract,
+            Scene scene,
+            ConsumerBakeArtifact artifact
+        )
         {
             LightmapData[] lightmaps = LightmapSettings.lightmaps;
             artifact.lightmapCount = lightmaps == null ? 0 : lightmaps.Length;
-            Assert.That(artifact.lightmapCount, Is.GreaterThanOrEqualTo(contract.bake.minimumLightmapCount), $"Consumer run '{contract.runLabel}' bake produced {artifact.lightmapCount} lightmaps, but expected at least {contract.bake.minimumLightmapCount}.");
+            Assert.That(
+                artifact.lightmapCount,
+                Is.GreaterThanOrEqualTo(contract.bake.minimumLightmapCount),
+                $"Consumer run '{contract.runLabel}' bake produced {artifact.lightmapCount} lightmaps, but expected at least {contract.bake.minimumLightmapCount}."
+            );
 
             Dictionary<string, MeshRenderer> renderers = GetStaticMeshRenderers(scene);
             foreach (string rendererName in contract.bake.requiredStaticRendererNames)
             {
-                Assert.That(rendererName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake configured an empty static renderer name.");
-                Assert.That(renderers.ContainsKey(rendererName), Is.True, $"Consumer run '{contract.runLabel}' bake did not find required static renderer '{rendererName}'.");
+                Assert.That(
+                    rendererName,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' bake configured an empty static renderer name."
+                );
+                Assert.That(
+                    renderers.ContainsKey(rendererName),
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' bake did not find required static renderer '{rendererName}'."
+                );
                 MeshRenderer renderer = renderers[rendererName];
-                artifact.staticRenderers.Add(new ConsumerStaticRendererArtifact { name = renderer.name, lightmapIndex = renderer.lightmapIndex });
-                Assert.That(renderer.lightmapIndex, Is.GreaterThanOrEqualTo(0), $"Consumer run '{contract.runLabel}' baked static renderer '{renderer.name}' has no lightmap assignment.");
+                artifact.staticRenderers.Add(
+                    new ConsumerStaticRendererArtifact
+                    {
+                        name = renderer.name,
+                        lightmapIndex = renderer.lightmapIndex,
+                    }
+                );
+                Assert.That(
+                    renderer.lightmapIndex,
+                    Is.GreaterThanOrEqualTo(0),
+                    $"Consumer run '{contract.runLabel}' baked static renderer '{renderer.name}' has no lightmap assignment."
+                );
             }
         }
 
@@ -295,14 +547,24 @@ namespace PureBase.Release.Consumer.Tests
         /// <returns>The static renderers indexed by unique name.</returns>
         private static Dictionary<string, MeshRenderer> GetStaticMeshRenderers(Scene scene)
         {
-            Dictionary<string, MeshRenderer> renderers = new Dictionary<string, MeshRenderer>(StringComparer.Ordinal);
+            Dictionary<string, MeshRenderer> renderers = new Dictionary<string, MeshRenderer>(
+                StringComparer.Ordinal
+            );
             foreach (GameObject root in scene.GetRootGameObjects())
             {
                 foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
                 {
-                    if (renderer.gameObject.isStatic && renderer.enabled && renderer.sharedMaterial != null)
+                    if (
+                        renderer.gameObject.isStatic
+                        && renderer.enabled
+                        && renderer.sharedMaterial != null
+                    )
                     {
-                        Assert.That(renderers.ContainsKey(renderer.name), Is.False, $"Consumer bake scene contains duplicate static renderer name '{renderer.name}'.");
+                        Assert.That(
+                            renderers.ContainsKey(renderer.name),
+                            Is.False,
+                            $"Consumer bake scene contains duplicate static renderer name '{renderer.name}'."
+                        );
                         renderers.Add(renderer.name, renderer);
                     }
                 }
@@ -315,12 +577,28 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="contract">The current consumer contract.</param>
         /// <param name="scene">The baked validation scene.</param>
         /// <param name="artifact">The evidence record to update.</param>
-        private static void CaptureReadback(ConsumerValidationContract contract, Scene scene, ConsumerBakeArtifact artifact)
+        private static void CaptureReadback(
+            ConsumerValidationContract contract,
+            Scene scene,
+            ConsumerBakeArtifact artifact
+        )
         {
             Camera camera = FindCamera(scene, contract.bake.cameraName);
             RenderTexture previousTarget = camera.targetTexture;
-            RenderTexture target = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-            Texture2D readback = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+            RenderTexture target = new RenderTexture(
+                RenderSize,
+                RenderSize,
+                24,
+                RenderTextureFormat.ARGBHalf,
+                RenderTextureReadWrite.Linear
+            );
+            Texture2D readback = new Texture2D(
+                RenderSize,
+                RenderSize,
+                TextureFormat.RGBAFloat,
+                false,
+                true
+            );
             try
             {
                 target.Create();
@@ -341,8 +619,16 @@ namespace PureBase.Release.Consumer.Tests
                 Color[] pixels = readback.GetPixels();
                 artifact.finitePixelCount = CountFinitePixels(pixels);
                 artifact.visiblePixelCount = CountVisiblePixels(pixels, camera.backgroundColor);
-                Assert.That(artifact.finitePixelCount, Is.EqualTo(pixels.Length), $"Consumer run '{contract.runLabel}' bake evidence contains non-finite HDR pixels.");
-                Assert.That(artifact.visiblePixelCount, Is.GreaterThanOrEqualTo(contract.bake.minimumVisiblePixelCount), $"Consumer run '{contract.runLabel}' bake evidence contains only {artifact.visiblePixelCount} visible pixels.");
+                Assert.That(
+                    artifact.finitePixelCount,
+                    Is.EqualTo(pixels.Length),
+                    $"Consumer run '{contract.runLabel}' bake evidence contains non-finite HDR pixels."
+                );
+                Assert.That(
+                    artifact.visiblePixelCount,
+                    Is.GreaterThanOrEqualTo(contract.bake.minimumVisiblePixelCount),
+                    $"Consumer run '{contract.runLabel}' bake evidence contains only {artifact.visiblePixelCount} visible pixels."
+                );
                 SavePng(pixels, "bake-evidence.png");
             }
             finally
@@ -358,26 +644,75 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="contract">The current consumer contract.</param>
         /// <param name="scene">The baked validation scene.</param>
         /// <param name="artifact">The evidence record to update.</param>
-        private static void CaptureMetaAlbedoReadbacks(ConsumerValidationContract contract, Scene scene, ConsumerBakeArtifact artifact)
+        private static void CaptureMetaAlbedoReadbacks(
+            ConsumerValidationContract contract,
+            Scene scene,
+            ConsumerBakeArtifact artifact
+        )
         {
             Dictionary<string, Material> materials = GetProductMaterials(scene);
             HashSet<string> shaderNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (ConsumerMetaReadbackContract readbackContract in contract.bake.metaReadbacks)
             {
-                Assert.That(readbackContract, Is.Not.Null, $"Consumer run '{contract.runLabel}' bake has a null Meta readback contract.");
-                Assert.That(readbackContract.materialName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake Meta readback must provide materialName.");
-                Assert.That(readbackContract.shaderName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake Meta readback '{readbackContract.materialName}' must provide shaderName.");
-                ConsumerValidationSupport.ValidateRange(readbackContract.meanLuminance, $"bake Meta readback '{readbackContract.materialName}'.meanLuminance");
-                Assert.That(materials.ContainsKey(readbackContract.materialName), Is.True, $"Consumer run '{contract.runLabel}' bake did not find Meta material '{readbackContract.materialName}'.");
+                Assert.That(
+                    readbackContract,
+                    Is.Not.Null,
+                    $"Consumer run '{contract.runLabel}' bake has a null Meta readback contract."
+                );
+                Assert.That(
+                    readbackContract.materialName,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' bake Meta readback must provide materialName."
+                );
+                Assert.That(
+                    readbackContract.shaderName,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' bake Meta readback '{readbackContract.materialName}' must provide shaderName."
+                );
+                ConsumerValidationSupport.ValidateRange(
+                    readbackContract.meanLuminance,
+                    $"bake Meta readback '{readbackContract.materialName}'.meanLuminance"
+                );
+                Assert.That(
+                    materials.ContainsKey(readbackContract.materialName),
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' bake did not find Meta material '{readbackContract.materialName}'."
+                );
                 Material material = materials[readbackContract.materialName];
-                Assert.That(material.shader.name, Is.EqualTo(readbackContract.shaderName), $"Consumer run '{contract.runLabel}' bake Meta material '{material.name}' has an unexpected shader.");
-                Assert.That(shaderNames.Add(material.shader.name), Is.True, $"Consumer run '{contract.runLabel}' bake configured multiple Meta readbacks for product '{material.shader.name}'.");
+                Assert.That(
+                    material.shader.name,
+                    Is.EqualTo(readbackContract.shaderName),
+                    $"Consumer run '{contract.runLabel}' bake Meta material '{material.name}' has an unexpected shader."
+                );
+                Assert.That(
+                    shaderNames.Add(material.shader.name),
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' bake configured multiple Meta readbacks for product '{material.shader.name}'."
+                );
                 float meanLuminance = RenderMetaAlbedo(material, contract.runLabel);
-                artifact.metaReadbacks.Add(new ConsumerMetaReadbackArtifact { material = material.name, shader = material.shader.name, meanLuminance = meanLuminance });
-                Assert.That(meanLuminance, Is.InRange(readbackContract.meanLuminance.minimum, readbackContract.meanLuminance.maximum), $"Consumer run '{contract.runLabel}' bake Meta material '{material.name}' observed mean luminance {meanLuminance}, but expected [{readbackContract.meanLuminance.minimum}, {readbackContract.meanLuminance.maximum}].");
+                artifact.metaReadbacks.Add(
+                    new ConsumerMetaReadbackArtifact
+                    {
+                        material = material.name,
+                        shader = material.shader.name,
+                        meanLuminance = meanLuminance,
+                    }
+                );
+                Assert.That(
+                    meanLuminance,
+                    Is.InRange(
+                        readbackContract.meanLuminance.minimum,
+                        readbackContract.meanLuminance.maximum
+                    ),
+                    $"Consumer run '{contract.runLabel}' bake Meta material '{material.name}' observed mean luminance {meanLuminance}, but expected [{readbackContract.meanLuminance.minimum}, {readbackContract.meanLuminance.maximum}]."
+                );
             }
 
-            CollectionAssert.AreEquivalent(RequiredProductShaderNames, shaderNames, $"Consumer run '{contract.runLabel}' bake Meta readbacks did not cover the four public products.");
+            CollectionAssert.AreEquivalent(
+                RequiredProductShaderNames,
+                shaderNames,
+                $"Consumer run '{contract.runLabel}' bake Meta readbacks did not cover the four public products."
+            );
         }
 
         /// <summary>Collects uniquely named public-product materials from the baked scene.</summary>
@@ -385,18 +720,31 @@ namespace PureBase.Release.Consumer.Tests
         /// <returns>Scene materials indexed by stable material name.</returns>
         private static Dictionary<string, Material> GetProductMaterials(Scene scene)
         {
-            Dictionary<string, Material> materials = new Dictionary<string, Material>(StringComparer.Ordinal);
+            Dictionary<string, Material> materials = new Dictionary<string, Material>(
+                StringComparer.Ordinal
+            );
             foreach (GameObject root in scene.GetRootGameObjects())
             {
                 foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
                 {
                     foreach (Material material in renderer.sharedMaterials)
                     {
-                        if (material != null && material.shader != null && material.shader.name.StartsWith("PureBase/", StringComparison.Ordinal))
+                        if (
+                            material != null
+                            && material.shader != null
+                            && material.shader.name.StartsWith(
+                                "PureBase/",
+                                StringComparison.Ordinal
+                            )
+                        )
                         {
                             if (materials.TryGetValue(material.name, out Material existingMaterial))
                             {
-                                Assert.That(existingMaterial, Is.SameAs(material), $"Consumer bake scene contains different public-product materials named '{material.name}'.");
+                                Assert.That(
+                                    existingMaterial,
+                                    Is.SameAs(material),
+                                    $"Consumer bake scene contains different public-product materials named '{material.name}'."
+                                );
                             }
 
                             materials[material.name] = material;
@@ -418,8 +766,20 @@ namespace PureBase.Release.Consumer.Tests
             Mesh mesh = CreateScreenMesh();
             GameObject cameraObject = new GameObject("PureBase Consumer Bake Meta Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
-            RenderTexture target = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-            Texture2D readback = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+            RenderTexture target = new RenderTexture(
+                RenderSize,
+                RenderSize,
+                24,
+                RenderTextureFormat.ARGBHalf,
+                RenderTextureReadWrite.Linear
+            );
+            Texture2D readback = new Texture2D(
+                RenderSize,
+                RenderSize,
+                TextureFormat.RGBAFloat,
+                false,
+                true
+            );
             Vector4 originalVertexControl = Shader.GetGlobalVector("unity_MetaVertexControl");
             Vector4 originalFragmentControl = Shader.GetGlobalVector("unity_MetaFragmentControl");
             Vector4 originalLightmapSt = Shader.GetGlobalVector("unity_LightmapST");
@@ -428,7 +788,11 @@ namespace PureBase.Release.Consumer.Tests
             try
             {
                 int pass = material.FindPass("Meta");
-                Assert.That(pass, Is.GreaterThanOrEqualTo(0), $"Consumer run '{runLabel}' material '{sourceMaterial.name}' does not expose a Meta pass.");
+                Assert.That(
+                    pass,
+                    Is.GreaterThanOrEqualTo(0),
+                    $"Consumer run '{runLabel}' material '{sourceMaterial.name}' does not expose a Meta pass."
+                );
                 target.Create();
                 camera.enabled = false;
                 camera.cullingMask = 0;
@@ -436,12 +800,21 @@ namespace PureBase.Release.Consumer.Tests
                 camera.orthographic = true;
                 camera.orthographicSize = 1.0f;
                 camera.targetTexture = target;
-                Shader.SetGlobalVector("unity_MetaVertexControl", new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
-                Shader.SetGlobalVector("unity_MetaFragmentControl", new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+                Shader.SetGlobalVector(
+                    "unity_MetaVertexControl",
+                    new Vector4(1.0f, 0.0f, 0.0f, 0.0f)
+                );
+                Shader.SetGlobalVector(
+                    "unity_MetaFragmentControl",
+                    new Vector4(1.0f, 0.0f, 0.0f, 0.0f)
+                );
                 Shader.SetGlobalVector("unity_LightmapST", new Vector4(1.0f, 1.0f, 0.0f, 0.0f));
                 Shader.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
                 Shader.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
-                CommandBuffer commandBuffer = new CommandBuffer { name = "PureBase Consumer Bake Meta" };
+                CommandBuffer commandBuffer = new CommandBuffer
+                {
+                    name = "PureBase Consumer Bake Meta",
+                };
                 try
                 {
                     commandBuffer.SetRenderTarget(target);
@@ -457,7 +830,11 @@ namespace PureBase.Release.Consumer.Tests
                 }
 
                 Color[] pixels = ReadPixels(target, readback);
-                Assert.That(CountFinitePixels(pixels), Is.EqualTo(pixels.Length), $"Consumer run '{runLabel}' material '{sourceMaterial.name}' produced non-finite Meta samples.");
+                Assert.That(
+                    CountFinitePixels(pixels),
+                    Is.EqualTo(pixels.Length),
+                    $"Consumer run '{runLabel}' material '{sourceMaterial.name}' produced non-finite Meta samples."
+                );
                 float luminance = 0.0f;
                 foreach (Color pixel in pixels)
                 {
@@ -486,17 +863,45 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="contract">The current consumer contract.</param>
         /// <param name="scene">The baked validation scene.</param>
         /// <param name="artifact">The evidence record to update.</param>
-        private static void CaptureShadowSilhouette(ConsumerValidationContract contract, Scene scene, ConsumerBakeArtifact artifact)
+        private static void CaptureShadowSilhouette(
+            ConsumerValidationContract contract,
+            Scene scene,
+            ConsumerBakeArtifact artifact
+        )
         {
             ConsumerShadowEvidenceContract shadowContract = contract.bake.shadowEvidence;
-            Assert.That(shadowContract.materialName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake shadowEvidence must provide materialName.");
-            Assert.That(shadowContract.shaderName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake shadowEvidence must provide shaderName.");
-            Assert.That(shadowContract.minimumChangedPixelCount, Is.GreaterThan(0), $"Consumer run '{contract.runLabel}' bake shadowEvidence must require changed pixels.");
-            Assert.That(shadowContract.screenshotFileName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake shadowEvidence must provide screenshotFileName.");
+            Assert.That(
+                shadowContract.materialName,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake shadowEvidence must provide materialName."
+            );
+            Assert.That(
+                shadowContract.shaderName,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake shadowEvidence must provide shaderName."
+            );
+            Assert.That(
+                shadowContract.minimumChangedPixelCount,
+                Is.GreaterThan(0),
+                $"Consumer run '{contract.runLabel}' bake shadowEvidence must require changed pixels."
+            );
+            Assert.That(
+                shadowContract.screenshotFileName,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' bake shadowEvidence must provide screenshotFileName."
+            );
             Dictionary<string, Material> materials = GetProductMaterials(scene);
-            Assert.That(materials.ContainsKey(shadowContract.materialName), Is.True, $"Consumer run '{contract.runLabel}' bake did not find shadow material '{shadowContract.materialName}'.");
+            Assert.That(
+                materials.ContainsKey(shadowContract.materialName),
+                Is.True,
+                $"Consumer run '{contract.runLabel}' bake did not find shadow material '{shadowContract.materialName}'."
+            );
             Material sourceMaterial = materials[shadowContract.materialName];
-            Assert.That(sourceMaterial.shader.name, Is.EqualTo(shadowContract.shaderName), $"Consumer run '{contract.runLabel}' bake shadow material '{sourceMaterial.name}' has an unexpected shader.");
+            Assert.That(
+                sourceMaterial.shader.name,
+                Is.EqualTo(shadowContract.shaderName),
+                $"Consumer run '{contract.runLabel}' bake shadow material '{sourceMaterial.name}' has an unexpected shader."
+            );
 
             const int FixtureLayer = 31;
             Material casterMaterial = new Material(sourceMaterial);
@@ -507,11 +912,27 @@ namespace PureBase.Release.Consumer.Tests
             GameObject caster = GameObject.CreatePrimitive(PrimitiveType.Cube);
             Camera camera = cameraObject.AddComponent<Camera>();
             Light directionalLight = lightObject.AddComponent<Light>();
-            RenderTexture target = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-            Texture2D readback = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+            RenderTexture target = new RenderTexture(
+                RenderSize,
+                RenderSize,
+                24,
+                RenderTextureFormat.ARGBHalf,
+                RenderTextureReadWrite.Linear
+            );
+            Texture2D readback = new Texture2D(
+                RenderSize,
+                RenderSize,
+                TextureFormat.RGBAFloat,
+                false,
+                true
+            );
             try
             {
-                Assert.That(receiverMaterial.shader, Is.Not.Null, $"Consumer run '{contract.runLabel}' cannot load the Built-in Standard receiver material for ShadowCaster evidence.");
+                Assert.That(
+                    receiverMaterial.shader,
+                    Is.Not.Null,
+                    $"Consumer run '{contract.runLabel}' cannot load the Built-in Standard receiver material for ShadowCaster evidence."
+                );
                 cameraObject.layer = FixtureLayer;
                 lightObject.layer = FixtureLayer;
                 receiver.layer = FixtureLayer;
@@ -550,7 +971,11 @@ namespace PureBase.Release.Consumer.Tests
                 artifact.shadowScreenshot = shadowContract.screenshotFileName;
                 artifact.shadowChangedPixelCount = CountChangedPixels(withoutShadows, withShadows);
                 SavePng(withShadows, artifact.shadowScreenshot);
-                Assert.That(artifact.shadowChangedPixelCount, Is.GreaterThanOrEqualTo(shadowContract.minimumChangedPixelCount), $"Consumer run '{contract.runLabel}' bake ShadowCaster evidence changed {artifact.shadowChangedPixelCount} pixels, but expected at least {shadowContract.minimumChangedPixelCount}.");
+                Assert.That(
+                    artifact.shadowChangedPixelCount,
+                    Is.GreaterThanOrEqualTo(shadowContract.minimumChangedPixelCount),
+                    $"Consumer run '{contract.runLabel}' bake ShadowCaster evidence changed {artifact.shadowChangedPixelCount} pixels, but expected at least {shadowContract.minimumChangedPixelCount}."
+                );
             }
             finally
             {
@@ -569,34 +994,100 @@ namespace PureBase.Release.Consumer.Tests
         /// <summary>Imports and warms every explicit representative BIRP shader/pass/keyword request.</summary>
         /// <param name="contract">The current consumer contract.</param>
         /// <param name="artifact">The evidence record to update.</param>
-        private static void WarmRepresentativeVariants(ConsumerValidationContract contract, ConsumerBakeArtifact artifact)
+        private static void WarmRepresentativeVariants(
+            ConsumerValidationContract contract,
+            ConsumerBakeArtifact artifact
+        )
         {
             HashSet<string> labels = new HashSet<string>(StringComparer.Ordinal);
             HashSet<string> shaderNames = new HashSet<string>(StringComparer.Ordinal);
             foreach (ConsumerBirpVariantWarmupContract request in contract.bake.variantWarmups)
             {
-                Assert.That(request, Is.Not.Null, $"Consumer run '{contract.runLabel}' bake has a null variant warmup request.");
-                Assert.That(request.label, Is.Not.Empty, $"Consumer run '{contract.runLabel}' bake has a variant warmup request without label.");
-                Assert.That(labels.Add(request.label), Is.True, $"Consumer run '{contract.runLabel}' bake repeats variant warmup label '{request.label}'.");
-                Assert.That(request.shaderName, Is.Not.Empty, $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide shaderName.");
-                Assert.That(request.shaderAssetPath, Is.Not.Empty, $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide shaderAssetPath.");
-                Assert.That(request.passType, Is.Not.Empty, $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide passType.");
-                Assert.That(request.keywords, Is.Not.Null, $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide keywords, including an empty array when none are selected.");
+                Assert.That(
+                    request,
+                    Is.Not.Null,
+                    $"Consumer run '{contract.runLabel}' bake has a null variant warmup request."
+                );
+                Assert.That(
+                    request.label,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' bake has a variant warmup request without label."
+                );
+                Assert.That(
+                    labels.Add(request.label),
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' bake repeats variant warmup label '{request.label}'."
+                );
+                Assert.That(
+                    request.shaderName,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide shaderName."
+                );
+                Assert.That(
+                    request.shaderAssetPath,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide shaderAssetPath."
+                );
+                Assert.That(
+                    request.passType,
+                    Is.Not.Empty,
+                    $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide passType."
+                );
+                Assert.That(
+                    request.keywords,
+                    Is.Not.Null,
+                    $"Consumer run '{contract.runLabel}' variant '{request.label}' must provide keywords, including an empty array when none are selected."
+                );
                 PassType passType;
-                Assert.That(Enum.TryParse(request.passType, false, out passType), Is.True, $"Consumer run '{contract.runLabel}' variant '{request.label}' has unknown PassType '{request.passType}'.");
-                Shader shader = ConsumerValidationSupport.ImportProductShader(new ConsumerProductContract { shaderName = request.shaderName, shaderAssetPath = request.shaderAssetPath }, contract.runLabel);
+                Assert.That(
+                    Enum.TryParse(request.passType, false, out passType),
+                    Is.True,
+                    $"Consumer run '{contract.runLabel}' variant '{request.label}' has unknown PassType '{request.passType}'."
+                );
+                Shader shader = ConsumerValidationSupport.ImportProductShader(
+                    new ConsumerProductContract
+                    {
+                        shaderName = request.shaderName,
+                        shaderAssetPath = request.shaderAssetPath,
+                    },
+                    contract.runLabel
+                );
                 shaderNames.Add(shader.name);
-                ConsumerVariantWarmupArtifact outcome = new ConsumerVariantWarmupArtifact { label = request.label, shader = shader.name, passType = passType.ToString(), keywords = request.keywords };
+                ConsumerVariantWarmupArtifact outcome = new ConsumerVariantWarmupArtifact
+                {
+                    label = request.label,
+                    shader = shader.name,
+                    passType = passType.ToString(),
+                    keywords = request.keywords,
+                };
                 ShaderVariantCollection collection = new ShaderVariantCollection();
                 try
                 {
-                    outcome.added = collection.Add(new ShaderVariantCollection.ShaderVariant(shader, passType, request.keywords));
-                    Assert.That(outcome.added, Is.True, $"Consumer run '{contract.runLabel}' could not add representative variant '{request.label}' for '{shader.name}'.");
+                    outcome.added = collection.Add(
+                        new ShaderVariantCollection.ShaderVariant(
+                            shader,
+                            passType,
+                            request.keywords
+                        )
+                    );
+                    Assert.That(
+                        outcome.added,
+                        Is.True,
+                        $"Consumer run '{contract.runLabel}' could not add representative variant '{request.label}' for '{shader.name}'."
+                    );
                     collection.WarmUp();
                     outcome.warmed = collection.isWarmedUp;
                     outcome.variantCount = collection.variantCount;
-                    Assert.That(outcome.warmed, Is.True, $"Consumer run '{contract.runLabel}' did not warm representative variant '{request.label}' for '{shader.name}'.");
-                    Assert.That(outcome.variantCount, Is.EqualTo(1), $"Consumer run '{contract.runLabel}' representative variant '{request.label}' did not remain a single explicit request for '{shader.name}'.");
+                    Assert.That(
+                        outcome.warmed,
+                        Is.True,
+                        $"Consumer run '{contract.runLabel}' did not warm representative variant '{request.label}' for '{shader.name}'."
+                    );
+                    Assert.That(
+                        outcome.variantCount,
+                        Is.EqualTo(1),
+                        $"Consumer run '{contract.runLabel}' representative variant '{request.label}' did not remain a single explicit request for '{shader.name}'."
+                    );
                 }
                 finally
                 {
@@ -605,8 +1096,16 @@ namespace PureBase.Release.Consumer.Tests
                 }
             }
 
-            Assert.That(artifact.variantWarmups.Count, Is.EqualTo(contract.bake.expectedVariantWarmupCount), $"Consumer run '{contract.runLabel}' did not record every representative BIRP warmup.");
-            CollectionAssert.AreEquivalent(RequiredProductShaderNames, shaderNames, $"Consumer run '{contract.runLabel}' representative BIRP warmups did not cover every public product.");
+            Assert.That(
+                artifact.variantWarmups.Count,
+                Is.EqualTo(contract.bake.expectedVariantWarmupCount),
+                $"Consumer run '{contract.runLabel}' did not record every representative BIRP warmup."
+            );
+            CollectionAssert.AreEquivalent(
+                RequiredProductShaderNames,
+                shaderNames,
+                $"Consumer run '{contract.runLabel}' representative BIRP warmups did not cover every public product."
+            );
         }
 
         /// <summary>Creates a full-frame mesh with matching primary and lightmap UVs for compiled Meta draws.</summary>
@@ -614,8 +1113,20 @@ namespace PureBase.Release.Consumer.Tests
         private static Mesh CreateScreenMesh()
         {
             Mesh mesh = new Mesh { name = "PureBase Consumer Bake Meta Screen Mesh" };
-            mesh.vertices = new[] { new Vector3(-1.0f, -1.0f, 0.0f), new Vector3(1.0f, -1.0f, 0.0f), new Vector3(1.0f, 1.0f, 0.0f), new Vector3(-1.0f, 1.0f, 0.0f) };
-            Vector2[] uvs = { new Vector2(0.0f, 0.0f), new Vector2(1.0f, 0.0f), new Vector2(1.0f, 1.0f), new Vector2(0.0f, 1.0f) };
+            mesh.vertices = new[]
+            {
+                new Vector3(-1.0f, -1.0f, 0.0f),
+                new Vector3(1.0f, -1.0f, 0.0f),
+                new Vector3(1.0f, 1.0f, 0.0f),
+                new Vector3(-1.0f, 1.0f, 0.0f),
+            };
+            Vector2[] uvs =
+            {
+                new Vector2(0.0f, 0.0f),
+                new Vector2(1.0f, 0.0f),
+                new Vector2(1.0f, 1.0f),
+                new Vector2(0.0f, 1.0f),
+            };
             mesh.uv = uvs;
             mesh.uv2 = uvs;
             mesh.uv3 = uvs;
@@ -681,7 +1192,9 @@ namespace PureBase.Release.Consumer.Tests
                 }
             }
 
-            Assert.Fail($"Consumer bake scene '{scene.path}' did not contain configured camera '{cameraName}'.");
+            Assert.Fail(
+                $"Consumer bake scene '{scene.path}' did not contain configured camera '{cameraName}'."
+            );
             return null;
         }
 
@@ -693,7 +1206,12 @@ namespace PureBase.Release.Consumer.Tests
             int count = 0;
             foreach (Color pixel in pixels)
             {
-                if (IsFinite(pixel.r) && IsFinite(pixel.g) && IsFinite(pixel.b) && IsFinite(pixel.a))
+                if (
+                    IsFinite(pixel.r)
+                    && IsFinite(pixel.g)
+                    && IsFinite(pixel.b)
+                    && IsFinite(pixel.a)
+                )
                 {
                     count++;
                 }
@@ -711,7 +1229,10 @@ namespace PureBase.Release.Consumer.Tests
             int count = 0;
             foreach (Color pixel in pixels)
             {
-                float distance = Mathf.Abs(pixel.r - background.r) + Mathf.Abs(pixel.g - background.g) + Mathf.Abs(pixel.b - background.b);
+                float distance =
+                    Mathf.Abs(pixel.r - background.r)
+                    + Mathf.Abs(pixel.g - background.g)
+                    + Mathf.Abs(pixel.b - background.b);
                 if (distance > 0.01f)
                 {
                     count++;
@@ -726,12 +1247,21 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="fileName">The artifact filename.</param>
         private static void SavePng(Color[] pixels, string fileName)
         {
-            Texture2D image = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBA32, false, true);
+            Texture2D image = new Texture2D(
+                RenderSize,
+                RenderSize,
+                TextureFormat.RGBA32,
+                false,
+                true
+            );
             try
             {
                 image.SetPixels(pixels);
                 image.Apply(false, false);
-                File.WriteAllBytes(Path.Combine(ConsumerValidationSupport.GetArtifactDirectory(), fileName), image.EncodeToPNG());
+                File.WriteAllBytes(
+                    Path.Combine(ConsumerValidationSupport.GetArtifactDirectory(), fileName),
+                    image.EncodeToPNG()
+                );
             }
             finally
             {
@@ -804,7 +1334,8 @@ namespace PureBase.Release.Consumer.Tests
             public int lightmapCount;
 
             /// <summary>Stores static renderer lightmap assignments.</summary>
-            public List<ConsumerStaticRendererArtifact> staticRenderers = new List<ConsumerStaticRendererArtifact>();
+            public List<ConsumerStaticRendererArtifact> staticRenderers =
+                new List<ConsumerStaticRendererArtifact>();
 
             /// <summary>Stores the finite HDR pixel count.</summary>
             public int finitePixelCount;
@@ -813,7 +1344,8 @@ namespace PureBase.Release.Consumer.Tests
             public int visiblePixelCount;
 
             /// <summary>Stores actual compiled product Meta readbacks.</summary>
-            public List<ConsumerMetaReadbackArtifact> metaReadbacks = new List<ConsumerMetaReadbackArtifact>();
+            public List<ConsumerMetaReadbackArtifact> metaReadbacks =
+                new List<ConsumerMetaReadbackArtifact>();
 
             /// <summary>Stores the material cloned for ShadowCaster evidence.</summary>
             public string shadowMaterial;
@@ -828,7 +1360,8 @@ namespace PureBase.Release.Consumer.Tests
             public int shadowChangedPixelCount;
 
             /// <summary>Stores every explicit BIRP variant warmup result.</summary>
-            public List<ConsumerVariantWarmupArtifact> variantWarmups = new List<ConsumerVariantWarmupArtifact>();
+            public List<ConsumerVariantWarmupArtifact> variantWarmups =
+                new List<ConsumerVariantWarmupArtifact>();
         }
 
         /// <summary>Stores one baked static renderer assignment.</summary>

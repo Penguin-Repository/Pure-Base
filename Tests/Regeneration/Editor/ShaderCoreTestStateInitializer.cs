@@ -40,7 +40,7 @@ namespace PureBase.Tests.Regeneration
             "PureBase/Unlit",
             "PureBase/Toon",
             "PureBase/Hybrid",
-            "PureBase/PBR"
+            "PureBase/PBR",
         };
 
         /// <summary>Provides a public no-argument entry point for Unity batch-mode <c>-executeMethod</c> invocation.</summary>
@@ -56,7 +56,8 @@ namespace PureBase.Tests.Regeneration
             return Initialize(
                 LoadExpectedRows(),
                 new ShaderCoreReflectionContractResolver(),
-                new SerializedStateApplicationFactory());
+                new SerializedStateApplicationFactory()
+            );
         }
 
         /// <summary>Converges expected rows after resolving every required reflection contract before state application.</summary>
@@ -67,11 +68,15 @@ namespace PureBase.Tests.Regeneration
         internal static StateInitializationResult Initialize(
             IReadOnlyDictionary<string, string[]> expectedRows,
             IReflectionContractResolver reflectionContractResolver,
-            IStateApplicationFactory stateApplicationFactory)
+            IStateApplicationFactory stateApplicationFactory
+        )
         {
-            if (expectedRows == null) throw new ArgumentNullException(nameof(expectedRows));
-            if (reflectionContractResolver == null) throw new ArgumentNullException(nameof(reflectionContractResolver));
-            if (stateApplicationFactory == null) throw new ArgumentNullException(nameof(stateApplicationFactory));
+            if (expectedRows == null)
+                throw new ArgumentNullException(nameof(expectedRows));
+            if (reflectionContractResolver == null)
+                throw new ArgumentNullException(nameof(reflectionContractResolver));
+            if (stateApplicationFactory == null)
+                throw new ArgumentNullException(nameof(stateApplicationFactory));
 
             var reflectionContract = reflectionContractResolver.Resolve();
             var stateApplication = stateApplicationFactory.Create(reflectionContract);
@@ -86,7 +91,9 @@ namespace PureBase.Tests.Regeneration
             stateApplication.WriteRows(convergedRows);
             if (!stateApplication.Apply())
             {
-                throw new InvalidOperationException("Shader-Core ProjectSettings did not accept the validated state update.");
+                throw new InvalidOperationException(
+                    "Shader-Core ProjectSettings did not accept the validated state update."
+                );
             }
 
             stateApplication.Save();
@@ -102,7 +109,9 @@ namespace PureBase.Tests.Regeneration
             var manifest = JsonUtility.FromJson<HostManifest>(manifestJson);
             if (manifest == null || manifest.schemaVersion != 1 || manifest.hosts == null)
             {
-                throw new InvalidOperationException("The Shader-Core test-host manifest must be schema version 1 with a hosts array.");
+                throw new InvalidOperationException(
+                    "The Shader-Core test-host manifest must be schema version 1 with a hosts array."
+                );
             }
 
             var expectedRows = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -110,13 +119,21 @@ namespace PureBase.Tests.Regeneration
             {
                 if (host == null || string.IsNullOrEmpty(host.shaderName))
                 {
-                    throw new InvalidOperationException("The Shader-Core test-host manifest contains a host without shaderName.");
+                    throw new InvalidOperationException(
+                        "The Shader-Core test-host manifest contains a host without shaderName."
+                    );
                 }
 
                 var modules = GetExpectedModules(host);
-                if (modules.Length == 0 || modules.Any(string.IsNullOrEmpty) || !expectedRows.TryAdd(host.shaderName, modules))
+                if (
+                    modules.Length == 0
+                    || modules.Any(string.IsNullOrEmpty)
+                    || !expectedRows.TryAdd(host.shaderName, modules)
+                )
                 {
-                    throw new InvalidOperationException($"The Shader-Core test-host manifest contains an invalid or duplicate host '{host.shaderName}'.");
+                    throw new InvalidOperationException(
+                        $"The Shader-Core test-host manifest contains an invalid or duplicate host '{host.shaderName}'."
+                    );
                 }
             }
 
@@ -124,7 +141,9 @@ namespace PureBase.Tests.Regeneration
             {
                 if (!expectedRows.TryAdd(productShaderName, Array.Empty<string>()))
                 {
-                    throw new InvalidOperationException($"The Shader-Core test-host manifest must not redefine product shader '{productShaderName}'.");
+                    throw new InvalidOperationException(
+                        $"The Shader-Core test-host manifest must not redefine product shader '{productShaderName}'."
+                    );
                 }
             }
 
@@ -139,10 +158,13 @@ namespace PureBase.Tests.Regeneration
         internal static IReadOnlyList<ShaderSettingRow> ConvergeRows(
             IReadOnlyList<ShaderSettingRow> actualRows,
             IReadOnlyDictionary<string, string[]> expectedRows,
-            out bool changed)
+            out bool changed
+        )
         {
-            if (actualRows == null) throw new ArgumentNullException(nameof(actualRows));
-            if (expectedRows == null) throw new ArgumentNullException(nameof(expectedRows));
+            if (actualRows == null)
+                throw new ArgumentNullException(nameof(actualRows));
+            if (expectedRows == null)
+                throw new ArgumentNullException(nameof(expectedRows));
 
             var result = new List<ShaderSettingRow>(actualRows.Count + expectedRows.Count);
             var encounteredTargets = new HashSet<string>(StringComparer.Ordinal);
@@ -175,46 +197,88 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Returns the package manifest path from Unity's project root.</summary>
         internal static string GetManifestPath()
         {
-            return Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Packages", "jp.penguin.purebase", "Tests", "Config", "shader-core-test-hosts.json");
+            return Path.Combine(
+                Directory.GetParent(Application.dataPath).FullName,
+                "Packages",
+                "jp.penguin.purebase",
+                "Tests",
+                "Config",
+                "shader-core-test-hosts.json"
+            );
         }
 
         /// <summary>Gets every validated Shader-Core ProjectSettings reflection contract or fails before state application.</summary>
         private static ProjectSettingsReflectionContract GetValidatedProjectSettingsContract()
         {
-            var assembly = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(candidate => candidate.GetName().Name == ShaderCoreAssemblyName);
+            var assembly = AppDomain
+                .CurrentDomain.GetAssemblies()
+                .SingleOrDefault(candidate => candidate.GetName().Name == ShaderCoreAssemblyName);
             var settingsType = assembly?.GetType(ProjectSettingsTypeName, false);
             if (settingsType == null)
             {
-                throw new InvalidOperationException($"Shader-Core 0.1.5 type '{ProjectSettingsTypeName}' was not loaded.");
+                throw new InvalidOperationException(
+                    $"Shader-Core 0.1.5 type '{ProjectSettingsTypeName}' was not loaded."
+                );
             }
 
             ValidateProjectSettingsShape(settingsType);
             var singletonType = typeof(ScriptableSingleton<>).MakeGenericType(settingsType);
-            var instanceProperty = singletonType.GetProperty("instance", BindingFlags.Public | BindingFlags.Static);
+            var instanceProperty = singletonType.GetProperty(
+                "instance",
+                BindingFlags.Public | BindingFlags.Static
+            );
             var settings = instanceProperty?.GetValue(null) as UnityEngine.Object;
             if (settings == null)
             {
-                throw new InvalidOperationException("Shader-Core ProjectSettings singleton was unavailable after shape validation.");
+                throw new InvalidOperationException(
+                    "Shader-Core ProjectSettings singleton was unavailable after shape validation."
+                );
             }
 
-            return new ProjectSettingsReflectionContract(settings, GetValidatedSaveMethod(settings.GetType()));
+            return new ProjectSettingsReflectionContract(
+                settings,
+                GetValidatedSaveMethod(settings.GetType())
+            );
         }
 
         /// <summary>Validates the exact Shader-Core 0.1.5 reflection field shape required before state writes.</summary>
         private static void ValidateProjectSettingsShape(Type settingsType)
         {
-            var settingsField = settingsType.GetField(ShaderSettingsFieldName, BindingFlags.Instance | BindingFlags.NonPublic);
-            if (settingsField == null || !settingsField.FieldType.IsGenericType || settingsField.FieldType.GetGenericTypeDefinition() != typeof(List<>))
+            var settingsField = settingsType.GetField(
+                ShaderSettingsFieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic
+            );
+            if (
+                settingsField == null
+                || !settingsField.FieldType.IsGenericType
+                || settingsField.FieldType.GetGenericTypeDefinition() != typeof(List<>)
+            )
             {
-                throw new InvalidOperationException("Shader-Core ProjectSettings.shaderSettings did not match the expected List<T> field shape.");
+                throw new InvalidOperationException(
+                    "Shader-Core ProjectSettings.shaderSettings did not match the expected List<T> field shape."
+                );
             }
 
             var rowType = settingsField.FieldType.GetGenericArguments()[0];
-            var shaderNameField = rowType.GetField(ShaderNameFieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            var modulesField = rowType.GetField(ModulesFieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (shaderNameField?.FieldType != typeof(string) || modulesField == null || !modulesField.FieldType.IsGenericType || modulesField.FieldType.GetGenericTypeDefinition() != typeof(List<>) || modulesField.FieldType.GetGenericArguments()[0] != typeof(string))
+            var shaderNameField = rowType.GetField(
+                ShaderNameFieldName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
+            var modulesField = rowType.GetField(
+                ModulesFieldName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
+            if (
+                shaderNameField?.FieldType != typeof(string)
+                || modulesField == null
+                || !modulesField.FieldType.IsGenericType
+                || modulesField.FieldType.GetGenericTypeDefinition() != typeof(List<>)
+                || modulesField.FieldType.GetGenericArguments()[0] != typeof(string)
+            )
             {
-                throw new InvalidOperationException("Shader-Core ShaderSettings row fields did not match the expected shadername/string and modules/List<string> shape.");
+                throw new InvalidOperationException(
+                    "Shader-Core ShaderSettings row fields did not match the expected shadername/string and modules/List<string> shape."
+                );
             }
         }
 
@@ -223,22 +287,38 @@ namespace PureBase.Tests.Regeneration
         /// <returns>The validated Save method.</returns>
         private static MethodInfo GetValidatedSaveMethod(Type settingsType)
         {
-            var saveMethod = settingsType.GetMethod("Save", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+            var saveMethod = settingsType.GetMethod(
+                "Save",
+                BindingFlags.Instance | BindingFlags.NonPublic,
+                null,
+                Type.EmptyTypes,
+                null
+            );
             if (saveMethod == null)
             {
-                throw new InvalidOperationException("Shader-Core ProjectSettings.Save() did not match the required non-public parameterless method contract.");
+                throw new InvalidOperationException(
+                    "Shader-Core ProjectSettings.Save() did not match the required non-public parameterless method contract."
+                );
             }
 
             return saveMethod;
         }
 
         /// <summary>Gets and validates the serialized representation before any property is changed.</summary>
-        private static SerializedProperty GetValidatedSettingsProperty(SerializedObject serializedSettings)
+        private static SerializedProperty GetValidatedSettingsProperty(
+            SerializedObject serializedSettings
+        )
         {
             var settingsProperty = serializedSettings.FindProperty(ShaderSettingsFieldName);
-            if (settingsProperty == null || !settingsProperty.isArray || settingsProperty.propertyType != SerializedPropertyType.Generic)
+            if (
+                settingsProperty == null
+                || !settingsProperty.isArray
+                || settingsProperty.propertyType != SerializedPropertyType.Generic
+            )
             {
-                throw new InvalidOperationException("Shader-Core serialized shaderSettings did not match the expected array shape.");
+                throw new InvalidOperationException(
+                    "Shader-Core serialized shaderSettings did not match the expected array shape."
+                );
             }
 
             if (settingsProperty.arraySize > 0)
@@ -246,9 +326,16 @@ namespace PureBase.Tests.Regeneration
                 var row = settingsProperty.GetArrayElementAtIndex(0);
                 var shaderName = row.FindPropertyRelative(ShaderNameFieldName);
                 var modules = row.FindPropertyRelative(ModulesFieldName);
-                if (shaderName == null || shaderName.propertyType != SerializedPropertyType.String || modules == null || !modules.isArray)
+                if (
+                    shaderName == null
+                    || shaderName.propertyType != SerializedPropertyType.String
+                    || modules == null
+                    || !modules.isArray
+                )
                 {
-                    throw new InvalidOperationException("Shader-Core serialized ShaderSettings row did not match the expected field shape.");
+                    throw new InvalidOperationException(
+                        "Shader-Core serialized ShaderSettings row did not match the expected field shape."
+                    );
                 }
             }
 
@@ -270,7 +357,9 @@ namespace PureBase.Tests.Regeneration
                     var module = modules.GetArrayElementAtIndex(moduleIndex);
                     if (module.propertyType != SerializedPropertyType.String)
                     {
-                        throw new InvalidOperationException("Shader-Core serialized modules contained a non-string entry.");
+                        throw new InvalidOperationException(
+                            "Shader-Core serialized modules contained a non-string entry."
+                        );
                     }
 
                     moduleIds[moduleIndex] = module.stringValue;
@@ -283,7 +372,10 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Writes the already-validated converged rows into the serialized settings object.</summary>
-        private static void WriteRows(SerializedProperty settingsProperty, IReadOnlyList<ShaderSettingRow> rows)
+        private static void WriteRows(
+            SerializedProperty settingsProperty,
+            IReadOnlyList<ShaderSettingRow> rows
+        )
         {
             settingsProperty.arraySize = rows.Count;
             for (var index = 0; index < rows.Count; index++)
@@ -294,25 +386,41 @@ namespace PureBase.Tests.Regeneration
                 modules.arraySize = rows[index].Modules.Count;
                 for (var moduleIndex = 0; moduleIndex < rows[index].Modules.Count; moduleIndex++)
                 {
-                    modules.GetArrayElementAtIndex(moduleIndex).stringValue = rows[index].Modules[moduleIndex];
+                    modules.GetArrayElementAtIndex(moduleIndex).stringValue = rows[index].Modules[
+                        moduleIndex
+                    ];
                 }
             }
         }
 
         /// <summary>Reimports only package test-host source assets after an actual selection-state change.</summary>
-        private static IReadOnlyList<string> ReimportConfiguredHostAssets(IEnumerable<string> shaderNames)
+        private static IReadOnlyList<string> ReimportConfiguredHostAssets(
+            IEnumerable<string> shaderNames
+        )
         {
-            var remainingNames = new HashSet<string>(shaderNames.Where(name => !ProductShaderNames.Contains(name)), StringComparer.Ordinal);
+            var remainingNames = new HashSet<string>(
+                shaderNames.Where(name => !ProductShaderNames.Contains(name)),
+                StringComparer.Ordinal
+            );
             var reimportedAssets = new List<string>();
-            foreach (string guid in AssetDatabase.FindAssets("PureBaseTest", new[] { "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts" }))
+            foreach (
+                string guid in AssetDatabase.FindAssets(
+                    "PureBaseTest",
+                    new[] { "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts" }
+                )
+            )
             {
                 var assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                if (!assetPath.EndsWith(".scshader", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!assetPath.EndsWith(".scshader", StringComparison.OrdinalIgnoreCase))
+                    continue;
 
                 var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
                 if (shader != null && remainingNames.Remove(shader.name))
                 {
-                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                    AssetDatabase.ImportAsset(
+                        assetPath,
+                        ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
+                    );
                     reimportedAssets.Add(assetPath);
                 }
             }
@@ -367,7 +475,10 @@ namespace PureBase.Tests.Regeneration
             /// <summary>Initializes a validated ProjectSettings reflection contract.</summary>
             /// <param name="settings">The Shader-Core ProjectSettings singleton.</param>
             /// <param name="saveMethod">The required non-public parameterless Save method.</param>
-            public ProjectSettingsReflectionContract(UnityEngine.Object settings, MethodInfo saveMethod)
+            public ProjectSettingsReflectionContract(
+                UnityEngine.Object settings,
+                MethodInfo saveMethod
+            )
             {
                 Settings = settings ?? throw new ArgumentNullException(nameof(settings));
                 SaveMethod = saveMethod ?? throw new ArgumentNullException(nameof(saveMethod));
@@ -411,7 +522,9 @@ namespace PureBase.Tests.Regeneration
             /// <param name="reflectionContract">The validated ProjectSettings reflection contract.</param>
             public SerializedStateApplication(ProjectSettingsReflectionContract reflectionContract)
             {
-                this.reflectionContract = reflectionContract ?? throw new ArgumentNullException(nameof(reflectionContract));
+                this.reflectionContract =
+                    reflectionContract
+                    ?? throw new ArgumentNullException(nameof(reflectionContract));
                 serializedSettings = new SerializedObject(reflectionContract.Settings);
                 settingsProperty = GetValidatedSettingsProperty(serializedSettings);
             }
@@ -441,7 +554,9 @@ namespace PureBase.Tests.Regeneration
             }
 
             /// <inheritdoc />
-            public IReadOnlyList<string> ReimportConfiguredHostAssets(IEnumerable<string> shaderNames)
+            public IReadOnlyList<string> ReimportConfiguredHostAssets(
+                IEnumerable<string> shaderNames
+            )
             {
                 return ShaderCoreTestStateInitializer.ReimportConfiguredHostAssets(shaderNames);
             }
@@ -454,7 +569,9 @@ namespace PureBase.Tests.Regeneration
             {
                 if (host.moduleUniqueIds != null && host.moduleUniqueIds.Length > 0)
                 {
-                    throw new InvalidOperationException($"Host '{host.shaderName}' cannot define both moduleUniqueId and moduleUniqueIds.");
+                    throw new InvalidOperationException(
+                        $"Host '{host.shaderName}' cannot define both moduleUniqueId and moduleUniqueIds."
+                    );
                 }
 
                 return new[] { host.moduleUniqueId };
@@ -464,9 +581,13 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Compares row sequences including their module order.</summary>
-        private static bool RowsEqual(IReadOnlyList<ShaderSettingRow> left, IReadOnlyList<ShaderSettingRow> right)
+        private static bool RowsEqual(
+            IReadOnlyList<ShaderSettingRow> left,
+            IReadOnlyList<ShaderSettingRow> right
+        )
         {
-            return left.Count == right.Count && !left.Where((row, index) => !row.Equals(right[index])).Any();
+            return left.Count == right.Count
+                && !left.Where((row, index) => !row.Equals(right[index])).Any();
         }
 
         /// <summary>Represents one serialized Shader-Core selection row without retaining SerializedProperty references.</summary>
@@ -488,7 +609,9 @@ namespace PureBase.Tests.Regeneration
             /// <summary>Compares the shader name and exact module order.</summary>
             public bool Equals(ShaderSettingRow other)
             {
-                return other != null && ShaderName == other.ShaderName && Modules.SequenceEqual(other.Modules);
+                return other != null
+                    && ShaderName == other.ShaderName
+                    && Modules.SequenceEqual(other.Modules);
             }
 
             /// <summary>Compares this row with another object.</summary>
@@ -503,7 +626,8 @@ namespace PureBase.Tests.Regeneration
                 unchecked
                 {
                     var hashCode = ShaderName.GetHashCode();
-                    foreach (string module in Modules) hashCode = (hashCode * 397) ^ (module?.GetHashCode() ?? 0);
+                    foreach (string module in Modules)
+                        hashCode = (hashCode * 397) ^ (module?.GetHashCode() ?? 0);
                     return hashCode;
                 }
             }
@@ -516,7 +640,8 @@ namespace PureBase.Tests.Regeneration
             public StateInitializationResult(bool changed, IReadOnlyList<string> reimportedAssets)
             {
                 Changed = changed;
-                ReimportedAssets = reimportedAssets ?? throw new ArgumentNullException(nameof(reimportedAssets));
+                ReimportedAssets =
+                    reimportedAssets ?? throw new ArgumentNullException(nameof(reimportedAssets));
             }
 
             /// <summary>Gets whether ProjectSettings rows changed.</summary>

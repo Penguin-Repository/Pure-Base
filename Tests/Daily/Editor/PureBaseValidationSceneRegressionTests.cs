@@ -32,13 +32,16 @@ namespace PureBase.Tests.Daily
     public sealed class PureBaseValidationSceneRegressionTests
     {
         /// <summary>Identifies the canonical validation scene.</summary>
-        public const string ScenePath = "Packages/jp.penguin.purebase/Tests/Fixtures/Scenes/PureBaseValidation.unity";
+        public const string ScenePath =
+            "Packages/jp.penguin.purebase/Tests/Fixtures/Scenes/PureBaseValidation.unity";
 
         /// <summary>Identifies the canonical Lighting Settings asset.</summary>
-        public const string LightingSettingsPath = "Packages/jp.penguin.purebase/Tests/Fixtures/Lighting/PureBaseValidationLightingSettings.lighting";
+        public const string LightingSettingsPath =
+            "Packages/jp.penguin.purebase/Tests/Fixtures/Lighting/PureBaseValidationLightingSettings.lighting";
 
         /// <summary>Identifies the reviewed BIRP numeric baseline.</summary>
-        public const string BaselinePath = "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json";
+        public const string BaselinePath =
+            "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json";
 
         /// <summary>Defines the supported baseline schema.</summary>
         public const int BaselineSchemaVersion = 1;
@@ -59,7 +62,13 @@ namespace PureBase.Tests.Daily
         private const string TestOwnerScenePath = "Assets/Pure-Base.unity";
 
         /// <summary>Lists the product shaders expected in the canonical scene.</summary>
-        private static readonly string[] ProductShaderNames = { "PureBase/Unlit", "PureBase/Toon", "PureBase/PBR", "PureBase/Hybrid" };
+        private static readonly string[] ProductShaderNames =
+        {
+            "PureBase/Unlit",
+            "PureBase/Toon",
+            "PureBase/PBR",
+            "PureBase/Hybrid",
+        };
 
         /// <summary>Stores the one allocation point that focused cleanup tests force to fail.</summary>
         private static CaptureAllocationFault injectedCaptureAllocationFault;
@@ -75,7 +84,9 @@ namespace PureBase.Tests.Daily
             bool wasLoaded = validationScene.isLoaded;
             bool wasDirty = validationScene.isDirty;
 
-            Assert.Throws<AssertionException>(() => LoadBaseline("Library/PureBaseTests/missing-scene-regression-baseline.json"));
+            Assert.Throws<AssertionException>(() =>
+                LoadBaseline("Library/PureBaseTests/missing-scene-regression-baseline.json")
+            );
 
             Assert.That(validationScene.isLoaded, Is.EqualTo(wasLoaded));
             Assert.That(validationScene.isDirty, Is.EqualTo(wasDirty));
@@ -100,15 +111,29 @@ namespace PureBase.Tests.Daily
 
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 sceneWasLoaded = validationScene.isLoaded;
-                if (!sceneWasLoaded) validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                if (!sceneWasLoaded)
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 sceneWasDirty = validationScene.isDirty;
 
-                MetaAlbedoObservation[] observations = CaptureMetaAlbedo(GetProductMaterials(validationScene));
+                MetaAlbedoObservation[] observations = CaptureMetaAlbedo(
+                    GetProductMaterials(validationScene)
+                );
                 Assert.That(observations, Has.Length.EqualTo(ProductShaderNames.Length));
                 for (int index = 0; index < observations.Length; index++)
                 {
-                    Assert.That(IsFinite(observations[index].meanLuminance), Is.True, $"Meta luminance for '{observations[index].materialName}' is non-finite.");
-                    Assert.That(observations[index].meanLuminance, Is.GreaterThan(MinimumMetaLuminance), $"Meta luminance for '{observations[index].materialName}' is not observable.");
+                    Assert.That(
+                        IsFinite(observations[index].meanLuminance),
+                        Is.True,
+                        $"Meta luminance for '{observations[index].materialName}' is non-finite."
+                    );
+                    Assert.That(
+                        observations[index].meanLuminance,
+                        Is.GreaterThan(MinimumMetaLuminance),
+                        $"Meta luminance for '{observations[index].materialName}' is not observable."
+                    );
                 }
             }
             finally
@@ -130,15 +155,41 @@ namespace PureBase.Tests.Daily
             {
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 sceneWasLoaded = validationScene.isLoaded;
-                if (!sceneWasLoaded) validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                if (!sceneWasLoaded)
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 sceneWasDirty = validationScene.isDirty;
 
-                ShadowCaptureComparison comparison = CaptureShadowComparison(GetProductMaterials(validationScene)[0]);
-                Assert.That(comparison.preview.changedPixelCount, Is.LessThanOrEqualTo(MinimumShadowChangedPixelCount), comparison.Describe());
-                Assert.That(comparison.additive.coveragePixelCount, Is.GreaterThan(0), comparison.Describe());
-                Assert.That(comparison.additive.maxAbsoluteRgbDelta, Is.GreaterThan(0.002f), comparison.Describe());
-                Assert.That(comparison.additive.changedPixelCount, Is.GreaterThan(MinimumShadowChangedPixelCount), comparison.Describe());
-                Assert.That(CaptureShadowSilhouette(validationScene).changedPixelCount, Is.EqualTo(comparison.additive.changedPixelCount), comparison.Describe());
+                ShadowCaptureComparison comparison = CaptureShadowComparison(
+                    GetProductMaterials(validationScene)[0]
+                );
+                Assert.That(
+                    comparison.preview.changedPixelCount,
+                    Is.LessThanOrEqualTo(MinimumShadowChangedPixelCount),
+                    comparison.Describe()
+                );
+                Assert.That(
+                    comparison.additive.coveragePixelCount,
+                    Is.GreaterThan(0),
+                    comparison.Describe()
+                );
+                Assert.That(
+                    comparison.additive.maxAbsoluteRgbDelta,
+                    Is.GreaterThan(0.002f),
+                    comparison.Describe()
+                );
+                Assert.That(
+                    comparison.additive.changedPixelCount,
+                    Is.GreaterThan(MinimumShadowChangedPixelCount),
+                    comparison.Describe()
+                );
+                Assert.That(
+                    CaptureShadowSilhouette(validationScene).changedPixelCount,
+                    Is.EqualTo(comparison.additive.changedPixelCount),
+                    comparison.Describe()
+                );
             }
             finally
             {
@@ -158,29 +209,54 @@ namespace PureBase.Tests.Daily
             {
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 sceneWasLoaded = validationScene.isLoaded;
-                if (!sceneWasLoaded) validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                if (!sceneWasLoaded)
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 sceneWasDirty = validationScene.isDirty;
 
                 Material sourceMaterial = GetProductMaterials(validationScene)[0];
-                ShadowCaptureObservation expected = CaptureShadowSilhouette(sourceMaterial, TemporarySceneOwnership.RegularAdditive);
+                ShadowCaptureObservation expected = CaptureShadowSilhouette(
+                    sourceMaterial,
+                    TemporarySceneOwnership.RegularAdditive
+                );
                 GameObject foreignCaster = EditorUtility.CreateGameObjectWithHideFlags(
                     "PureBase Daily Foreign Shadow Caster",
                     HideFlags.HideAndDontSave,
                     typeof(MeshFilter),
-                    typeof(MeshRenderer));
+                    typeof(MeshRenderer)
+                );
                 try
                 {
                     SceneManager.MoveGameObjectToScene(foreignCaster, validationScene);
                     foreignCaster.layer = 31;
                     foreignCaster.transform.position = new Vector3(0.0f, 1.5f, 0.0f);
-                    foreignCaster.GetComponent<MeshFilter>().sharedMesh = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+                    foreignCaster.GetComponent<MeshFilter>().sharedMesh =
+                        Resources.GetBuiltinResource<Mesh>("Cube.fbx");
                     foreignCaster.GetComponent<MeshRenderer>().sharedMaterial = sourceMaterial;
-                    foreignCaster.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
+                    foreignCaster.GetComponent<MeshRenderer>().shadowCastingMode =
+                        ShadowCastingMode.On;
 
-                    ShadowCaptureObservation actual = CaptureShadowSilhouette(sourceMaterial, TemporarySceneOwnership.RegularAdditive);
-                    Assert.That(actual.changedPixelCount, Is.EqualTo(expected.changedPixelCount), actual.Describe());
-                    Assert.That(actual.coveragePixelCount, Is.EqualTo(expected.coveragePixelCount), actual.Describe());
-                    Assert.That(actual.maxAbsoluteRgbDelta, Is.EqualTo(expected.maxAbsoluteRgbDelta).Within(0.0001f), actual.Describe());
+                    ShadowCaptureObservation actual = CaptureShadowSilhouette(
+                        sourceMaterial,
+                        TemporarySceneOwnership.RegularAdditive
+                    );
+                    Assert.That(
+                        actual.changedPixelCount,
+                        Is.EqualTo(expected.changedPixelCount),
+                        actual.Describe()
+                    );
+                    Assert.That(
+                        actual.coveragePixelCount,
+                        Is.EqualTo(expected.coveragePixelCount),
+                        actual.Describe()
+                    );
+                    Assert.That(
+                        actual.maxAbsoluteRgbDelta,
+                        Is.EqualTo(expected.maxAbsoluteRgbDelta).Within(0.0001f),
+                        actual.Describe()
+                    );
                 }
                 finally
                 {
@@ -210,34 +286,72 @@ namespace PureBase.Tests.Daily
             {
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 sceneWasLoaded = validationScene.isLoaded;
-                if (!sceneWasLoaded) validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                if (!sceneWasLoaded)
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 sceneWasDirty = validationScene.isDirty;
                 Material sourceMaterial = GetProductMaterials(validationScene)[0];
 
-                foreach (CaptureAllocationFault fault in new[]
-                {
-                    CaptureAllocationFault.MetaMaterial, CaptureAllocationFault.MetaMesh, CaptureAllocationFault.MetaCamera,
-                    CaptureAllocationFault.MetaTarget, CaptureAllocationFault.MetaReadback
-                })
+                foreach (
+                    CaptureAllocationFault fault in new[]
+                    {
+                        CaptureAllocationFault.MetaMaterial,
+                        CaptureAllocationFault.MetaMesh,
+                        CaptureAllocationFault.MetaCamera,
+                        CaptureAllocationFault.MetaTarget,
+                        CaptureAllocationFault.MetaReadback,
+                    }
+                )
                 {
                     AssertCaptureAllocationFailure(fault, () => RenderMetaAlbedo(sourceMaterial));
                 }
 
-                foreach (CaptureAllocationFault fault in new[]
+                foreach (
+                    CaptureAllocationFault fault in new[]
+                    {
+                        CaptureAllocationFault.ShadowCasterMaterial,
+                        CaptureAllocationFault.ShadowReceiverMaterial,
+                        CaptureAllocationFault.ShadowCamera,
+                        CaptureAllocationFault.ShadowLight,
+                        CaptureAllocationFault.ShadowReceiver,
+                        CaptureAllocationFault.ShadowCaster,
+                        CaptureAllocationFault.ShadowTarget,
+                        CaptureAllocationFault.ShadowReadback,
+                    }
+                )
                 {
-                    CaptureAllocationFault.ShadowCasterMaterial, CaptureAllocationFault.ShadowReceiverMaterial,
-                    CaptureAllocationFault.ShadowCamera, CaptureAllocationFault.ShadowLight, CaptureAllocationFault.ShadowReceiver,
-                    CaptureAllocationFault.ShadowCaster, CaptureAllocationFault.ShadowTarget, CaptureAllocationFault.ShadowReadback
-                })
-                {
-                    AssertCaptureAllocationFailure(fault, () => CaptureShadowSilhouette(sourceMaterial, TemporarySceneOwnership.RegularAdditive));
+                    AssertCaptureAllocationFailure(
+                        fault,
+                        () =>
+                            CaptureShadowSilhouette(
+                                sourceMaterial,
+                                TemporarySceneOwnership.RegularAdditive
+                            )
+                    );
                 }
 
-                Assert.That(Shader.GetGlobalVector("unity_MetaVertexControl"), Is.EqualTo(originalVertexControl));
-                Assert.That(Shader.GetGlobalVector("unity_MetaFragmentControl"), Is.EqualTo(originalFragmentControl));
-                Assert.That(Shader.GetGlobalVector("unity_LightmapST"), Is.EqualTo(originalLightmapSt));
-                Assert.That(Shader.GetGlobalFloat("unity_OneOverOutputBoost"), Is.EqualTo(originalOutputBoost));
-                Assert.That(Shader.GetGlobalFloat("unity_MaxOutputValue"), Is.EqualTo(originalMaximumOutput));
+                Assert.That(
+                    Shader.GetGlobalVector("unity_MetaVertexControl"),
+                    Is.EqualTo(originalVertexControl)
+                );
+                Assert.That(
+                    Shader.GetGlobalVector("unity_MetaFragmentControl"),
+                    Is.EqualTo(originalFragmentControl)
+                );
+                Assert.That(
+                    Shader.GetGlobalVector("unity_LightmapST"),
+                    Is.EqualTo(originalLightmapSt)
+                );
+                Assert.That(
+                    Shader.GetGlobalFloat("unity_OneOverOutputBoost"),
+                    Is.EqualTo(originalOutputBoost)
+                );
+                Assert.That(
+                    Shader.GetGlobalFloat("unity_MaxOutputValue"),
+                    Is.EqualTo(originalMaximumOutput)
+                );
             }
             finally
             {
@@ -250,9 +364,15 @@ namespace PureBase.Tests.Daily
         [Test]
         public void BaselineRejectsMissingMetaObservations()
         {
-            var baseline = new SceneRegressionBaseline { metaAlbedo = null, shadowChangedPixelCount = MinimumShadowChangedPixelCount + 1 };
+            var baseline = new SceneRegressionBaseline
+            {
+                metaAlbedo = null,
+                shadowChangedPixelCount = MinimumShadowChangedPixelCount + 1,
+            };
 
-            Assert.Throws<AssertionException>(() => ValidateBaselineObservability(baseline, "test baseline"));
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
         }
 
         /// <summary>Ensures a baseline with a zero Meta range cannot be accepted.</summary>
@@ -262,7 +382,9 @@ namespace PureBase.Tests.Daily
             SceneRegressionBaseline baseline = CreateObservableBaseline();
             baseline.metaAlbedo[0].meanLuminance = FloatRange.Exact(0.0f);
 
-            Assert.Throws<AssertionException>(() => ValidateBaselineObservability(baseline, "test baseline"));
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
         }
 
         /// <summary>Ensures a baseline with no changed shadow pixels cannot be accepted.</summary>
@@ -272,7 +394,9 @@ namespace PureBase.Tests.Daily
             SceneRegressionBaseline baseline = CreateObservableBaseline();
             baseline.shadowChangedPixelCount = 0;
 
-            Assert.Throws<AssertionException>(() => ValidateBaselineObservability(baseline, "test baseline"));
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
         }
 
         /// <summary>Ensures successful temporary capture setup does not change the active scene dirty state.</summary>
@@ -334,11 +458,18 @@ namespace PureBase.Tests.Daily
                 sceneWasLoaded = validationScene.isLoaded;
                 if (!sceneWasLoaded)
                 {
-                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 }
 
                 sceneWasDirty = validationScene.isDirty;
-                Assert.That(SceneManager.SetActiveScene(validationScene), Is.True, "The canonical validation scene could not become active.");
+                Assert.That(
+                    SceneManager.SetActiveScene(validationScene),
+                    Is.True,
+                    "The canonical validation scene could not become active."
+                );
                 SceneRegressionObservation observation = CaptureObservation(validationScene);
                 AssertObservationMatchesBaseline(observation, baseline);
             }
@@ -362,13 +493,19 @@ namespace PureBase.Tests.Daily
         {
             if (!File.Exists(baselinePath))
             {
-                throw new AssertionException($"Missing committed scene regression baseline at '{baselinePath}'. Run the explicit PureBase/Tests/Regenerate Scene Baseline command in the approved environment; Daily never creates baselines.");
+                throw new AssertionException(
+                    $"Missing committed scene regression baseline at '{baselinePath}'. Run the explicit PureBase/Tests/Regenerate Scene Baseline command in the approved environment; Daily never creates baselines."
+                );
             }
 
-            SceneRegressionBaseline baseline = JsonUtility.FromJson<SceneRegressionBaseline>(File.ReadAllText(baselinePath));
+            SceneRegressionBaseline baseline = JsonUtility.FromJson<SceneRegressionBaseline>(
+                File.ReadAllText(baselinePath)
+            );
             if (baseline == null || baseline.schemaVersion != BaselineSchemaVersion)
             {
-                throw new AssertionException($"Baseline '{baselinePath}' must use schema version {BaselineSchemaVersion}.");
+                throw new AssertionException(
+                    $"Baseline '{baselinePath}' must use schema version {BaselineSchemaVersion}."
+                );
             }
 
             ValidateBaselineObservability(baseline, $"Baseline '{baselinePath}'");
@@ -378,40 +515,72 @@ namespace PureBase.Tests.Daily
         /// <summary>Rejects a baseline that cannot prove Meta or directional shadow rendering remains observable.</summary>
         /// <param name="baseline">The baseline to validate.</param>
         /// <param name="baselineLabel">The diagnostic baseline label.</param>
-        public static void ValidateBaselineObservability(SceneRegressionBaseline baseline, string baselineLabel)
+        public static void ValidateBaselineObservability(
+            SceneRegressionBaseline baseline,
+            string baselineLabel
+        )
         {
-            if (baseline == null) throw new AssertionException($"{baselineLabel} is missing.");
-            if (baseline.metaAlbedo == null || baseline.metaAlbedo.Length != ProductShaderNames.Length)
+            if (baseline == null)
+                throw new AssertionException($"{baselineLabel} is missing.");
+            if (
+                baseline.metaAlbedo == null
+                || baseline.metaAlbedo.Length != ProductShaderNames.Length
+            )
             {
-                throw new AssertionException($"{baselineLabel} must contain four reviewed Meta albedo observations.");
+                throw new AssertionException(
+                    $"{baselineLabel} must contain four reviewed Meta albedo observations."
+                );
             }
 
             for (int index = 0; index < baseline.metaAlbedo.Length; index++)
             {
                 MetaAlbedoBaseline meta = baseline.metaAlbedo[index];
-                if (meta == null || meta.meanLuminance == null ||
-                    !IsFinite(meta.meanLuminance.minimum) ||
-                    !IsFinite(meta.meanLuminance.maximum) ||
-                    meta.meanLuminance.minimum <= MinimumMetaLuminance ||
-                    meta.meanLuminance.maximum < meta.meanLuminance.minimum)
+                if (
+                    meta == null
+                    || meta.meanLuminance == null
+                    || !IsFinite(meta.meanLuminance.minimum)
+                    || !IsFinite(meta.meanLuminance.maximum)
+                    || meta.meanLuminance.minimum <= MinimumMetaLuminance
+                    || meta.meanLuminance.maximum < meta.meanLuminance.minimum
+                )
                 {
-                    throw new AssertionException($"{baselineLabel} has an unobservable Meta luminance range at index {index}.");
+                    throw new AssertionException(
+                        $"{baselineLabel} has an unobservable Meta luminance range at index {index}."
+                    );
                 }
             }
 
             if (baseline.shadowChangedPixelCount <= MinimumShadowChangedPixelCount)
             {
-                throw new AssertionException($"{baselineLabel} must contain more than {MinimumShadowChangedPixelCount} changed directional-shadow pixels.");
+                throw new AssertionException(
+                    $"{baselineLabel} must contain more than {MinimumShadowChangedPixelCount} changed directional-shadow pixels."
+                );
             }
         }
 
         /// <summary>Validates the environment that the reviewed BIRP baseline describes.</summary>
         public static void ValidateRuntimeConfiguration()
         {
-            Assert.That(Application.unityVersion, Is.EqualTo(ExpectedUnityVersion), $"The scene regression baseline requires Unity {ExpectedUnityVersion}.");
-            Assert.That(GraphicsSettings.currentRenderPipeline, Is.Null, "The scene regression baseline requires the Built-in Render Pipeline.");
-            Assert.That(SystemInfo.graphicsDeviceType, Is.EqualTo(GraphicsDeviceType.Direct3D11), "The scene regression baseline requires D3D11.");
-            Assert.That(PlayerSettings.colorSpace, Is.EqualTo(ColorSpace.Linear), "The scene regression baseline requires Linear color space.");
+            Assert.That(
+                Application.unityVersion,
+                Is.EqualTo(ExpectedUnityVersion),
+                $"The scene regression baseline requires Unity {ExpectedUnityVersion}."
+            );
+            Assert.That(
+                GraphicsSettings.currentRenderPipeline,
+                Is.Null,
+                "The scene regression baseline requires the Built-in Render Pipeline."
+            );
+            Assert.That(
+                SystemInfo.graphicsDeviceType,
+                Is.EqualTo(GraphicsDeviceType.Direct3D11),
+                "The scene regression baseline requires D3D11."
+            );
+            Assert.That(
+                PlayerSettings.colorSpace,
+                Is.EqualTo(ColorSpace.Linear),
+                "The scene regression baseline requires Linear color space."
+            );
         }
 
         /// <summary>Captures all numeric observations required by the read-only baseline contract.</summary>
@@ -422,11 +591,16 @@ namespace PureBase.Tests.Daily
             ValidateFixture(scene);
             var observation = new SceneRegressionObservation();
             List<MeshRenderer> staticRenderers = GetStaticRenderers(scene);
-            observation.staticLightmapCount = LightmapSettings.lightmaps == null ? 0 : LightmapSettings.lightmaps.Length;
+            observation.staticLightmapCount =
+                LightmapSettings.lightmaps == null ? 0 : LightmapSettings.lightmaps.Length;
             observation.staticRendererAssignmentCount = staticRenderers.Count;
             foreach (MeshRenderer renderer in staticRenderers)
             {
-                Assert.That(renderer.lightmapIndex, Is.GreaterThanOrEqualTo(0), $"Static renderer '{renderer.name}' is not assigned to a committed lightmap.");
+                Assert.That(
+                    renderer.lightmapIndex,
+                    Is.GreaterThanOrEqualTo(0),
+                    $"Static renderer '{renderer.name}' is not assigned to a committed lightmap."
+                );
             }
 
             CaptureSceneReadback(scene, observation);
@@ -446,22 +620,45 @@ namespace PureBase.Tests.Daily
         /// <summary>Compares each captured observable against its reviewed fixed value or range.</summary>
         /// <param name="observation">The current read-only observation.</param>
         /// <param name="baseline">The committed reviewed baseline.</param>
-        public static void AssertObservationMatchesBaseline(SceneRegressionObservation observation, SceneRegressionBaseline baseline)
+        public static void AssertObservationMatchesBaseline(
+            SceneRegressionObservation observation,
+            SceneRegressionBaseline baseline
+        )
         {
             ValidateBaselineObservability(baseline, "Reviewed baseline");
             ValidateObservationObservability(observation, "Current observation");
             Assert.That(baseline.unityVersion, Is.EqualTo(ExpectedUnityVersion));
-            Assert.That(baseline.graphicsDevice, Is.EqualTo(GraphicsDeviceType.Direct3D11.ToString()));
+            Assert.That(
+                baseline.graphicsDevice,
+                Is.EqualTo(GraphicsDeviceType.Direct3D11.ToString())
+            );
             Assert.That(baseline.colorSpace, Is.EqualTo(ColorSpace.Linear.ToString()));
             Assert.That(baseline.renderPipeline, Is.EqualTo("BuiltIn"));
             Assert.That(baseline.renderSize, Is.EqualTo(RenderSize));
             Assert.That(observation.staticLightmapCount, Is.EqualTo(baseline.staticLightmapCount));
-            Assert.That(observation.staticRendererAssignmentCount, Is.EqualTo(baseline.staticRendererAssignmentCount));
-            Assert.That(observation.shadowChangedPixelCount, Is.EqualTo(baseline.shadowChangedPixelCount));
+            Assert.That(
+                observation.staticRendererAssignmentCount,
+                Is.EqualTo(baseline.staticRendererAssignmentCount)
+            );
+            Assert.That(
+                observation.shadowChangedPixelCount,
+                Is.EqualTo(baseline.shadowChangedPixelCount)
+            );
             Assert.That(observation.warmedVariantCount, Is.EqualTo(baseline.warmedVariantCount));
-            Assert.That(observation.dynamicLightmapStatus, Is.EqualTo("NOT_DETERMINISTIC_IN_BATCH_EDITMODE"));
-            Assert.That(observation.sceneFinitePixelCount, Is.EqualTo(RenderSize * RenderSize), "The scene readback contains non-finite HDR values.");
-            AssertRange(observation.sceneVisiblePixelCount, baseline.sceneVisiblePixelCount, "scene visible pixel count");
+            Assert.That(
+                observation.dynamicLightmapStatus,
+                Is.EqualTo("NOT_DETERMINISTIC_IN_BATCH_EDITMODE")
+            );
+            Assert.That(
+                observation.sceneFinitePixelCount,
+                Is.EqualTo(RenderSize * RenderSize),
+                "The scene readback contains non-finite HDR values."
+            );
+            AssertRange(
+                observation.sceneVisiblePixelCount,
+                baseline.sceneVisiblePixelCount,
+                "scene visible pixel count"
+            );
             Assert.That(observation.metaAlbedo, Has.Length.EqualTo(baseline.metaAlbedo.Length));
             for (int index = 0; index < baseline.metaAlbedo.Length; index++)
             {
@@ -469,14 +666,20 @@ namespace PureBase.Tests.Daily
                 MetaAlbedoObservation actual = observation.metaAlbedo[index];
                 Assert.That(actual.materialName, Is.EqualTo(expected.materialName));
                 Assert.That(actual.shaderName, Is.EqualTo(expected.shaderName));
-                AssertRange(actual.meanLuminance, expected.meanLuminance, $"Meta luminance for '{actual.materialName}'");
+                AssertRange(
+                    actual.meanLuminance,
+                    expected.meanLuminance,
+                    $"Meta luminance for '{actual.materialName}'"
+                );
             }
         }
 
         /// <summary>Creates a baseline-shaped DTO from an observation using exact values pending human tolerance review.</summary>
         /// <param name="observation">The observation captured after an explicit regeneration bake.</param>
         /// <returns>A baseline DTO with zero-width numeric ranges.</returns>
-        public static SceneRegressionBaseline CreateExactBaseline(SceneRegressionObservation observation)
+        public static SceneRegressionBaseline CreateExactBaseline(
+            SceneRegressionObservation observation
+        )
         {
             ValidateObservationObservability(observation, "Regenerated observation");
             var baseline = new SceneRegressionBaseline
@@ -493,7 +696,7 @@ namespace PureBase.Tests.Daily
                 shadowChangedPixelCount = observation.shadowChangedPixelCount,
                 warmedVariantCount = observation.warmedVariantCount,
                 dynamicLightmapStatus = "NOT_DETERMINISTIC_IN_BATCH_EDITMODE",
-                metaAlbedo = new MetaAlbedoBaseline[observation.metaAlbedo.Length]
+                metaAlbedo = new MetaAlbedoBaseline[observation.metaAlbedo.Length],
             };
 
             for (int index = 0; index < observation.metaAlbedo.Length; index++)
@@ -503,7 +706,7 @@ namespace PureBase.Tests.Daily
                 {
                     materialName = meta.materialName,
                     shaderName = meta.shaderName,
-                    meanLuminance = FloatRange.Exact(meta.meanLuminance)
+                    meanLuminance = FloatRange.Exact(meta.meanLuminance),
                 };
             }
 
@@ -514,27 +717,42 @@ namespace PureBase.Tests.Daily
         /// <summary>Rejects an observation that cannot serve as a rendering regression oracle.</summary>
         /// <param name="observation">The captured rendering observation.</param>
         /// <param name="observationLabel">The diagnostic observation label.</param>
-        private static void ValidateObservationObservability(SceneRegressionObservation observation, string observationLabel)
+        private static void ValidateObservationObservability(
+            SceneRegressionObservation observation,
+            string observationLabel
+        )
         {
-            if (observation == null || observation.metaAlbedo == null ||
-                observation.metaAlbedo.Length != ProductShaderNames.Length)
+            if (
+                observation == null
+                || observation.metaAlbedo == null
+                || observation.metaAlbedo.Length != ProductShaderNames.Length
+            )
             {
-                throw new AssertionException($"{observationLabel} must contain four Meta albedo observations.");
+                throw new AssertionException(
+                    $"{observationLabel} must contain four Meta albedo observations."
+                );
             }
 
             for (int index = 0; index < observation.metaAlbedo.Length; index++)
             {
                 MetaAlbedoObservation meta = observation.metaAlbedo[index];
-                if (meta == null || !IsFinite(meta.meanLuminance) ||
-                    meta.meanLuminance <= MinimumMetaLuminance)
+                if (
+                    meta == null
+                    || !IsFinite(meta.meanLuminance)
+                    || meta.meanLuminance <= MinimumMetaLuminance
+                )
                 {
-                    throw new AssertionException($"{observationLabel} has an unobservable Meta luminance at index {index}.");
+                    throw new AssertionException(
+                        $"{observationLabel} has an unobservable Meta luminance at index {index}."
+                    );
                 }
             }
 
             if (observation.shadowChangedPixelCount <= MinimumShadowChangedPixelCount)
             {
-                throw new AssertionException($"{observationLabel} must contain more than {MinimumShadowChangedPixelCount} changed directional-shadow pixels.");
+                throw new AssertionException(
+                    $"{observationLabel} must contain more than {MinimumShadowChangedPixelCount} changed directional-shadow pixels."
+                );
             }
         }
 
@@ -543,10 +761,19 @@ namespace PureBase.Tests.Daily
         private static void ValidateFixture(Scene scene)
         {
             Assert.That(scene.IsValid(), Is.True, "The canonical validation scene is unavailable.");
-            LightingSettings settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(LightingSettingsPath);
-            Assert.That(settings, Is.Not.Null, "The canonical Lighting Settings asset is unavailable.");
+            LightingSettings settings = AssetDatabase.LoadAssetAtPath<LightingSettings>(
+                LightingSettingsPath
+            );
+            Assert.That(
+                settings,
+                Is.Not.Null,
+                "The canonical Lighting Settings asset is unavailable."
+            );
             Assert.That(Lightmapping.GetLightingSettingsForScene(scene), Is.SameAs(settings));
-            Assert.That(settings.lightmapper, Is.EqualTo(LightingSettings.Lightmapper.ProgressiveCPU));
+            Assert.That(
+                settings.lightmapper,
+                Is.EqualTo(LightingSettings.Lightmapper.ProgressiveCPU)
+            );
             Assert.That(settings.bakedGI, Is.True);
             Assert.That(settings.realtimeGI, Is.False);
             Assert.That(settings.autoGenerate, Is.False);
@@ -564,29 +791,55 @@ namespace PureBase.Tests.Daily
             {
                 foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
                 {
-                    if (renderer.enabled && renderer.gameObject.isStatic && renderer.sharedMaterial != null)
+                    if (
+                        renderer.enabled
+                        && renderer.gameObject.isStatic
+                        && renderer.sharedMaterial != null
+                    )
                     {
                         renderers.Add(renderer);
                     }
                 }
             }
 
-            Assert.That(renderers, Is.Not.Empty, "The canonical validation scene has no static renderers.");
+            Assert.That(
+                renderers,
+                Is.Not.Empty,
+                "The canonical validation scene has no static renderers."
+            );
             return renderers;
         }
 
         /// <summary>Renders the scene through a temporary camera without changing the persisted camera target.</summary>
         /// <param name="scene">The canonical validation scene.</param>
         /// <param name="observation">The observation to populate.</param>
-        private static void CaptureSceneReadback(Scene scene, SceneRegressionObservation observation)
+        private static void CaptureSceneReadback(
+            Scene scene,
+            SceneRegressionObservation observation
+        )
         {
             Camera sourceCamera = FindSceneCamera(scene);
             using (var temporaryScene = new TemporaryCaptureScene())
             {
-                GameObject cameraObject = temporaryScene.CreateGameObject("PureBase Daily Scene Readback Camera", typeof(Camera));
+                GameObject cameraObject = temporaryScene.CreateGameObject(
+                    "PureBase Daily Scene Readback Camera",
+                    typeof(Camera)
+                );
                 Camera camera = cameraObject.GetComponent<Camera>();
-                RenderTexture target = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-                Texture2D readback = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                RenderTexture target = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBHalf,
+                    RenderTextureReadWrite.Linear
+                );
+                Texture2D readback = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAFloat,
+                    false,
+                    true
+                );
                 try
                 {
                     camera.CopyFrom(sourceCamera);
@@ -597,8 +850,13 @@ namespace PureBase.Tests.Daily
                     Color[] pixels = ReadPixels(target, readback);
                     observation.sceneFinitePixelCount = CountFinitePixels(pixels);
                     observation.sceneVisiblePixelCount = CountVisiblePixels(pixels);
-                    observation.sceneVisibleCoverage = (float)observation.sceneVisiblePixelCount / pixels.Length;
-                    CalculateVisibleCentroid(pixels, out observation.sceneVisibleCentroidX, out observation.sceneVisibleCentroidY);
+                    observation.sceneVisibleCoverage =
+                        (float)observation.sceneVisiblePixelCount / pixels.Length;
+                    CalculateVisibleCentroid(
+                        pixels,
+                        out observation.sceneVisibleCentroidX,
+                        out observation.sceneVisibleCentroidY
+                    );
                 }
                 finally
                 {
@@ -623,7 +881,7 @@ namespace PureBase.Tests.Daily
                 {
                     materialName = material.name,
                     shaderName = material.shader.name,
-                    meanLuminance = RenderMetaAlbedo(material)
+                    meanLuminance = RenderMetaAlbedo(material),
                 };
             }
 
@@ -634,16 +892,25 @@ namespace PureBase.Tests.Daily
         /// <summary>Rejects non-finite or black Meta capture results before they reach an observation DTO.</summary>
         /// <param name="observations">The transient Meta observations to inspect.</param>
         /// <param name="observationLabel">The diagnostic observation label.</param>
-        private static void ValidateMetaAlbedoObservations(IReadOnlyList<MetaAlbedoObservation> observations, string observationLabel)
+        private static void ValidateMetaAlbedoObservations(
+            IReadOnlyList<MetaAlbedoObservation> observations,
+            string observationLabel
+        )
         {
             for (int index = 0; index < observations.Count; index++)
             {
                 MetaAlbedoObservation observation = observations[index];
                 Assert.That(observation, Is.Not.Null, $"{observationLabel} {index} is missing.");
-                Assert.That(IsFinite(observation.meanLuminance), Is.True,
-                    $"{observationLabel} for '{observation.materialName}' is non-finite.");
-                Assert.That(observation.meanLuminance, Is.GreaterThan(MinimumMetaLuminance),
-                    $"{observationLabel} for '{observation.materialName}' is not observable.");
+                Assert.That(
+                    IsFinite(observation.meanLuminance),
+                    Is.True,
+                    $"{observationLabel} for '{observation.materialName}' is non-finite."
+                );
+                Assert.That(
+                    observation.meanLuminance,
+                    Is.GreaterThan(MinimumMetaLuminance),
+                    $"{observationLabel} for '{observation.materialName}' is not observable."
+                );
             }
         }
 
@@ -668,12 +935,33 @@ namespace PureBase.Tests.Daily
                 bool metaGlobalsCaptured = false;
                 try
                 {
-                    material = resources.Track(new Material(sourceMaterial), CaptureAllocationFault.MetaMaterial);
+                    material = resources.Track(
+                        new Material(sourceMaterial),
+                        CaptureAllocationFault.MetaMaterial
+                    );
                     mesh = resources.Track(CreateScreenMesh(), CaptureAllocationFault.MetaMesh);
-                    cameraObject = resources.Track(temporaryScene.CreateGameObject("PureBase Daily Meta Camera", typeof(Camera)), CaptureAllocationFault.MetaCamera);
-                    target = resources.Track(new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear), CaptureAllocationFault.MetaTarget);
-                    readback = resources.Track(new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true), CaptureAllocationFault.MetaReadback);
-                Camera camera = cameraObject.GetComponent<Camera>();
+                    cameraObject = resources.Track(
+                        temporaryScene.CreateGameObject(
+                            "PureBase Daily Meta Camera",
+                            typeof(Camera)
+                        ),
+                        CaptureAllocationFault.MetaCamera
+                    );
+                    target = resources.Track(
+                        new RenderTexture(
+                            RenderSize,
+                            RenderSize,
+                            24,
+                            RenderTextureFormat.ARGBHalf,
+                            RenderTextureReadWrite.Linear
+                        ),
+                        CaptureAllocationFault.MetaTarget
+                    );
+                    readback = resources.Track(
+                        new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true),
+                        CaptureAllocationFault.MetaReadback
+                    );
+                    Camera camera = cameraObject.GetComponent<Camera>();
                     originalVertexControl = Shader.GetGlobalVector("unity_MetaVertexControl");
                     originalFragmentControl = Shader.GetGlobalVector("unity_MetaFragmentControl");
                     originalLightmapSt = Shader.GetGlobalVector("unity_LightmapST");
@@ -681,7 +969,11 @@ namespace PureBase.Tests.Daily
                     originalMaximumOutput = Shader.GetGlobalFloat("unity_MaxOutputValue");
                     metaGlobalsCaptured = true;
                     int pass = material.FindPass("Meta");
-                    Assert.That(pass, Is.GreaterThanOrEqualTo(0), $"Material '{sourceMaterial.name}' does not expose a Meta pass.");
+                    Assert.That(
+                        pass,
+                        Is.GreaterThanOrEqualTo(0),
+                        $"Material '{sourceMaterial.name}' does not expose a Meta pass."
+                    );
                     target.Create();
                     camera.enabled = false;
                     camera.cullingMask = 0;
@@ -692,8 +984,14 @@ namespace PureBase.Tests.Daily
                     camera.nearClipPlane = 0.1f;
                     camera.farClipPlane = 20.0f;
                     camera.targetTexture = target;
-                    Shader.SetGlobalVector("unity_MetaVertexControl", new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
-                    Shader.SetGlobalVector("unity_MetaFragmentControl", new Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+                    Shader.SetGlobalVector(
+                        "unity_MetaVertexControl",
+                        new Vector4(1.0f, 0.0f, 0.0f, 0.0f)
+                    );
+                    Shader.SetGlobalVector(
+                        "unity_MetaFragmentControl",
+                        new Vector4(1.0f, 0.0f, 0.0f, 0.0f)
+                    );
                     Shader.SetGlobalVector("unity_LightmapST", new Vector4(1.0f, 1.0f, 0.0f, 0.0f));
                     Shader.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
                     Shader.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
@@ -713,11 +1011,16 @@ namespace PureBase.Tests.Daily
                     }
 
                     Color[] pixels = ReadPixels(target, readback);
-                    Assert.That(CountFinitePixels(pixels), Is.EqualTo(pixels.Length), $"Material '{sourceMaterial.name}' produced non-finite Meta samples.");
+                    Assert.That(
+                        CountFinitePixels(pixels),
+                        Is.EqualTo(pixels.Length),
+                        $"Material '{sourceMaterial.name}' produced non-finite Meta samples."
+                    );
                     float luminance = 0.0f;
                     foreach (Color pixel in pixels)
                     {
-                        luminance += (pixel.r * 0.2126f) + (pixel.g * 0.7152f) + (pixel.b * 0.0722f);
+                        luminance +=
+                            (pixel.r * 0.2126f) + (pixel.g * 0.7152f) + (pixel.b * 0.0722f);
                     }
 
                     return luminance / pixels.Length;
@@ -727,7 +1030,10 @@ namespace PureBase.Tests.Daily
                     if (metaGlobalsCaptured)
                     {
                         Shader.SetGlobalVector("unity_MetaVertexControl", originalVertexControl);
-                        Shader.SetGlobalVector("unity_MetaFragmentControl", originalFragmentControl);
+                        Shader.SetGlobalVector(
+                            "unity_MetaFragmentControl",
+                            originalFragmentControl
+                        );
                         Shader.SetGlobalVector("unity_LightmapST", originalLightmapSt);
                         Shader.SetGlobalFloat("unity_OneOverOutputBoost", originalOutputBoost);
                         Shader.SetGlobalFloat("unity_MaxOutputValue", originalMaximumOutput);
@@ -741,8 +1047,15 @@ namespace PureBase.Tests.Daily
         /// <returns>The complete directional shadow capture metrics.</returns>
         private static ShadowCaptureObservation CaptureShadowSilhouette(Scene scene)
         {
-            ShadowCaptureObservation observation = CaptureShadowSilhouette(GetProductMaterials(scene)[0], TemporarySceneOwnership.RegularAdditive);
-            Assert.That(observation.changedPixelCount, Is.GreaterThan(MinimumShadowChangedPixelCount), observation.Describe());
+            ShadowCaptureObservation observation = CaptureShadowSilhouette(
+                GetProductMaterials(scene)[0],
+                TemporarySceneOwnership.RegularAdditive
+            );
+            Assert.That(
+                observation.changedPixelCount,
+                Is.GreaterThan(MinimumShadowChangedPixelCount),
+                observation.Describe()
+            );
             return observation;
         }
 
@@ -753,14 +1066,18 @@ namespace PureBase.Tests.Daily
         {
             return new ShadowCaptureComparison(
                 CaptureShadowSilhouette(sourceMaterial, TemporarySceneOwnership.Preview),
-                CaptureShadowSilhouette(sourceMaterial, TemporarySceneOwnership.RegularAdditive));
+                CaptureShadowSilhouette(sourceMaterial, TemporarySceneOwnership.RegularAdditive)
+            );
         }
 
         /// <summary>Captures a transient directional shadow fixture in one specified disposable scene kind.</summary>
         /// <param name="sourceMaterial">The persistent product material whose ShadowCaster pass is observed.</param>
         /// <param name="ownership">The disposable scene kind that owns the fixture.</param>
         /// <returns>The rendered shadow coverage and delta measurements.</returns>
-        private static ShadowCaptureObservation CaptureShadowSilhouette(Material sourceMaterial, TemporarySceneOwnership ownership)
+        private static ShadowCaptureObservation CaptureShadowSilhouette(
+            Material sourceMaterial,
+            TemporarySceneOwnership ownership
+        )
         {
             using (var resources = new CaptureResourceScope())
             using (var temporaryScene = new TemporaryCaptureScene(ownership))
@@ -775,18 +1092,64 @@ namespace PureBase.Tests.Daily
                 Texture2D readback = null;
                 try
                 {
-                    casterMaterial = resources.Track(new Material(sourceMaterial), CaptureAllocationFault.ShadowCasterMaterial);
-                    receiverMaterial = resources.Track(new Material(Shader.Find("Standard")), CaptureAllocationFault.ShadowReceiverMaterial);
-                    cameraObject = resources.Track(temporaryScene.CreateGameObject("PureBase Daily Shadow Camera", typeof(Camera)), CaptureAllocationFault.ShadowCamera);
-                    lightObject = resources.Track(temporaryScene.CreateGameObject("PureBase Daily Shadow Light", typeof(Light)), CaptureAllocationFault.ShadowLight);
-                    receiver = resources.Track(temporaryScene.CreatePrimitive("PureBase Daily Shadow Receiver", PrimitiveType.Plane), CaptureAllocationFault.ShadowReceiver);
-                    caster = resources.Track(temporaryScene.CreatePrimitive("PureBase Daily Shadow Caster", PrimitiveType.Cube), CaptureAllocationFault.ShadowCaster);
-                    target = resources.Track(new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear), CaptureAllocationFault.ShadowTarget);
-                    readback = resources.Track(new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true), CaptureAllocationFault.ShadowReadback);
-                Camera camera = cameraObject.GetComponent<Camera>();
-                Light directionalLight = lightObject.GetComponent<Light>();
-                const int fixtureLayer = 31;
-                    Assert.That(receiverMaterial.shader, Is.Not.Null, "The Built-in Standard shader is unavailable for the shadow readback.");
+                    casterMaterial = resources.Track(
+                        new Material(sourceMaterial),
+                        CaptureAllocationFault.ShadowCasterMaterial
+                    );
+                    receiverMaterial = resources.Track(
+                        new Material(Shader.Find("Standard")),
+                        CaptureAllocationFault.ShadowReceiverMaterial
+                    );
+                    cameraObject = resources.Track(
+                        temporaryScene.CreateGameObject(
+                            "PureBase Daily Shadow Camera",
+                            typeof(Camera)
+                        ),
+                        CaptureAllocationFault.ShadowCamera
+                    );
+                    lightObject = resources.Track(
+                        temporaryScene.CreateGameObject(
+                            "PureBase Daily Shadow Light",
+                            typeof(Light)
+                        ),
+                        CaptureAllocationFault.ShadowLight
+                    );
+                    receiver = resources.Track(
+                        temporaryScene.CreatePrimitive(
+                            "PureBase Daily Shadow Receiver",
+                            PrimitiveType.Plane
+                        ),
+                        CaptureAllocationFault.ShadowReceiver
+                    );
+                    caster = resources.Track(
+                        temporaryScene.CreatePrimitive(
+                            "PureBase Daily Shadow Caster",
+                            PrimitiveType.Cube
+                        ),
+                        CaptureAllocationFault.ShadowCaster
+                    );
+                    target = resources.Track(
+                        new RenderTexture(
+                            RenderSize,
+                            RenderSize,
+                            24,
+                            RenderTextureFormat.ARGBHalf,
+                            RenderTextureReadWrite.Linear
+                        ),
+                        CaptureAllocationFault.ShadowTarget
+                    );
+                    readback = resources.Track(
+                        new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true),
+                        CaptureAllocationFault.ShadowReadback
+                    );
+                    Camera camera = cameraObject.GetComponent<Camera>();
+                    Light directionalLight = lightObject.GetComponent<Light>();
+                    const int fixtureLayer = 31;
+                    Assert.That(
+                        receiverMaterial.shader,
+                        Is.Not.Null,
+                        "The Built-in Standard shader is unavailable for the shadow readback."
+                    );
                     cameraObject.layer = fixtureLayer;
                     lightObject.layer = fixtureLayer;
                     receiver.layer = fixtureLayer;
@@ -795,7 +1158,9 @@ namespace PureBase.Tests.Daily
                     camera.cullingMask = 1 << fixtureLayer;
                     if (ownership == TemporarySceneOwnership.RegularAdditive)
                     {
-                        camera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(temporaryScene.Scene);
+                        camera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(
+                            temporaryScene.Scene
+                        );
                     }
                     camera.clearFlags = CameraClearFlags.SolidColor;
                     camera.backgroundColor = new Color(0.02f, 0.025f, 0.03f, 1.0f);
@@ -819,11 +1184,13 @@ namespace PureBase.Tests.Daily
                     directionalLight.shadows = LightShadows.Hard;
                     camera.Render();
                     Color[] withShadows = ReadPixels(target, readback);
-                    return AnalyzeShadowObservation(withoutShadows, withShadows, camera.backgroundColor);
+                    return AnalyzeShadowObservation(
+                        withoutShadows,
+                        withShadows,
+                        camera.backgroundColor
+                    );
                 }
-                finally
-                {
-                }
+                finally { }
             }
         }
 
@@ -836,13 +1203,27 @@ namespace PureBase.Tests.Daily
             {
                 Shader shader = Shader.Find(shaderName);
                 Assert.That(shader, Is.Not.Null, $"Product shader '{shaderName}' is unavailable.");
-                Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, $"Product shader '{shaderName}' has compiler errors.");
+                Assert.That(
+                    ShaderUtil.ShaderHasError(shader),
+                    Is.False,
+                    $"Product shader '{shaderName}' has compiler errors."
+                );
                 foreach (VariantRequest request in GetVariantRequests())
                 {
                     var collection = new ShaderVariantCollection();
                     try
                     {
-                        Assert.That(collection.Add(new ShaderVariantCollection.ShaderVariant(shader, request.pass, request.keywords)), Is.True, $"Variant '{request.label}' could not be added for '{shaderName}'.");
+                        Assert.That(
+                            collection.Add(
+                                new ShaderVariantCollection.ShaderVariant(
+                                    shader,
+                                    request.pass,
+                                    request.keywords
+                                )
+                            ),
+                            Is.True,
+                            $"Variant '{request.label}' could not be added for '{shaderName}'."
+                        );
                         collection.WarmUp();
                         Assert.That(collection.variantCount, Is.EqualTo(1));
                         warmedCount++;
@@ -866,7 +1247,8 @@ namespace PureBase.Tests.Daily
             {
                 foreach (Camera camera in root.GetComponentsInChildren<Camera>(true))
                 {
-                    if (camera.enabled) return camera;
+                    if (camera.enabled)
+                        return camera;
                 }
             }
 
@@ -894,7 +1276,11 @@ namespace PureBase.Tests.Daily
             var materials = new List<Material>(ProductShaderNames.Length);
             foreach (string shaderName in ProductShaderNames)
             {
-                Assert.That(byShader.TryGetValue(shaderName, out Material material), Is.True, $"The canonical scene is missing material '{shaderName}'.");
+                Assert.That(
+                    byShader.TryGetValue(shaderName, out Material material),
+                    Is.True,
+                    $"The canonical scene is missing material '{shaderName}'."
+                );
                 materials.Add(material);
             }
 
@@ -910,12 +1296,18 @@ namespace PureBase.Tests.Daily
                 Vector2.zero,
                 Vector2.up,
                 Vector2.one,
-                Vector2.right
+                Vector2.right,
             };
             var mesh = new Mesh
             {
-                vertices = new[] { new Vector3(-1.0f, -1.0f), new Vector3(-1.0f, 1.0f), new Vector3(1.0f, 1.0f), new Vector3(1.0f, -1.0f) },
-                triangles = new[] { 0, 1, 2, 0, 2, 3 }
+                vertices = new[]
+                {
+                    new Vector3(-1.0f, -1.0f),
+                    new Vector3(-1.0f, 1.0f),
+                    new Vector3(1.0f, 1.0f),
+                    new Vector3(1.0f, -1.0f),
+                },
+                triangles = new[] { 0, 1, 2, 0, 2, 3 },
             };
             mesh.SetUVs(0, legacyUv);
             mesh.SetUVs(1, legacyUv);
@@ -952,7 +1344,15 @@ namespace PureBase.Tests.Daily
             var count = 0;
             foreach (Color pixel in pixels)
             {
-                if (!float.IsNaN(pixel.r) && !float.IsInfinity(pixel.r) && !float.IsNaN(pixel.g) && !float.IsInfinity(pixel.g) && !float.IsNaN(pixel.b) && !float.IsInfinity(pixel.b)) count++;
+                if (
+                    !float.IsNaN(pixel.r)
+                    && !float.IsInfinity(pixel.r)
+                    && !float.IsNaN(pixel.g)
+                    && !float.IsInfinity(pixel.g)
+                    && !float.IsNaN(pixel.b)
+                    && !float.IsInfinity(pixel.b)
+                )
+                    count++;
             }
 
             return count;
@@ -966,7 +1366,8 @@ namespace PureBase.Tests.Daily
             var count = 0;
             foreach (Color pixel in pixels)
             {
-                if (pixel.maxColorComponent > 0.01f) count++;
+                if (pixel.maxColorComponent > 0.01f)
+                    count++;
             }
 
             return count;
@@ -976,14 +1377,19 @@ namespace PureBase.Tests.Daily
         /// <param name="pixels">The scene readback samples.</param>
         /// <param name="centroidX">Receives the horizontal normalized centroid.</param>
         /// <param name="centroidY">Receives the vertical normalized centroid.</param>
-        private static void CalculateVisibleCentroid(Color[] pixels, out float centroidX, out float centroidY)
+        private static void CalculateVisibleCentroid(
+            Color[] pixels,
+            out float centroidX,
+            out float centroidY
+        )
         {
             var visibleCount = 0;
             var totalX = 0.0f;
             var totalY = 0.0f;
             for (int index = 0; index < pixels.Length; index++)
             {
-                if (pixels[index].maxColorComponent <= 0.01f) continue;
+                if (pixels[index].maxColorComponent <= 0.01f)
+                    continue;
                 visibleCount++;
                 totalX += index % RenderSize;
                 totalY += index / RenderSize;
@@ -997,7 +1403,11 @@ namespace PureBase.Tests.Daily
         /// <param name="withoutShadows">The unshadowed samples.</param>
         /// <param name="withShadows">The shadowed samples.</param>
         /// <returns>The changed sample count.</returns>
-        private static ShadowCaptureObservation AnalyzeShadowObservation(Color[] withoutShadows, Color[] withShadows, Color backgroundColor)
+        private static ShadowCaptureObservation AnalyzeShadowObservation(
+            Color[] withoutShadows,
+            Color[] withShadows,
+            Color backgroundColor
+        )
         {
             var changedPixelCount = 0;
             var coveragePixelCount = 0;
@@ -1007,39 +1417,75 @@ namespace PureBase.Tests.Daily
             for (int index = 0; index < withoutShadows.Length; index++)
             {
                 Color delta = withoutShadows[index] - withShadows[index];
-                float maximumAbsoluteDelta = Mathf.Max(Mathf.Abs(delta.r),
-                    Mathf.Max(Mathf.Abs(delta.g), Mathf.Abs(delta.b)));
+                float maximumAbsoluteDelta = Mathf.Max(
+                    Mathf.Abs(delta.r),
+                    Mathf.Max(Mathf.Abs(delta.g), Mathf.Abs(delta.b))
+                );
                 if (maximumAbsoluteDelta > 0.002f)
                 {
                     changedPixelCount++;
                     totalChangedX += index % RenderSize;
                     totalChangedY += index / RenderSize;
                 }
-                if (maximumAbsoluteDelta > maxAbsoluteRgbDelta) maxAbsoluteRgbDelta = maximumAbsoluteDelta;
+                if (maximumAbsoluteDelta > maxAbsoluteRgbDelta)
+                    maxAbsoluteRgbDelta = maximumAbsoluteDelta;
 
                 Color coverageDelta = withShadows[index] - backgroundColor;
-                if (Mathf.Max(Mathf.Abs(coverageDelta.r), Mathf.Max(Mathf.Abs(coverageDelta.g), Mathf.Abs(coverageDelta.b))) > 0.002f) coveragePixelCount++;
+                if (
+                    Mathf.Max(
+                        Mathf.Abs(coverageDelta.r),
+                        Mathf.Max(Mathf.Abs(coverageDelta.g), Mathf.Abs(coverageDelta.b))
+                    ) > 0.002f
+                )
+                    coveragePixelCount++;
             }
 
             float coverage = (float)coveragePixelCount / withoutShadows.Length;
-            float centroidX = changedPixelCount == 0 ? 0.0f : totalChangedX / changedPixelCount / (RenderSize - 1);
-            float centroidY = changedPixelCount == 0 ? 0.0f : totalChangedY / changedPixelCount / (RenderSize - 1);
-            return new ShadowCaptureObservation(coveragePixelCount, coverage, centroidX, centroidY, maxAbsoluteRgbDelta, changedPixelCount);
+            float centroidX =
+                changedPixelCount == 0
+                    ? 0.0f
+                    : totalChangedX / changedPixelCount / (RenderSize - 1);
+            float centroidY =
+                changedPixelCount == 0
+                    ? 0.0f
+                    : totalChangedY / changedPixelCount / (RenderSize - 1);
+            return new ShadowCaptureObservation(
+                coveragePixelCount,
+                coverage,
+                centroidX,
+                centroidY,
+                maxAbsoluteRgbDelta,
+                changedPixelCount
+            );
         }
 
         /// <summary>Forces one allocation failure and verifies that the capture left no tracked resource or temporary scene behind.</summary>
         /// <param name="fault">The allocation point that must throw.</param>
         /// <param name="capture">The capture operation expected to fail.</param>
-        private static void AssertCaptureAllocationFailure(CaptureAllocationFault fault, TestDelegate capture)
+        private static void AssertCaptureAllocationFailure(
+            CaptureAllocationFault fault,
+            TestDelegate capture
+        )
         {
             int originalSceneCount = SceneManager.sceneCount;
             lastCaptureResourcesReleased = false;
             injectedCaptureAllocationFault = fault;
             try
             {
-                Assert.Throws<InvalidOperationException>(capture, $"Capture allocation fault '{fault}' did not throw.");
-                Assert.That(lastCaptureResourcesReleased, Is.True, $"Capture allocation fault '{fault}' leaked a native resource.");
-                Assert.That(SceneManager.sceneCount, Is.EqualTo(originalSceneCount), $"Capture allocation fault '{fault}' leaked a temporary scene.");
+                Assert.Throws<InvalidOperationException>(
+                    capture,
+                    $"Capture allocation fault '{fault}' did not throw."
+                );
+                Assert.That(
+                    lastCaptureResourcesReleased,
+                    Is.True,
+                    $"Capture allocation fault '{fault}' leaked a native resource."
+                );
+                Assert.That(
+                    SceneManager.sceneCount,
+                    Is.EqualTo(originalSceneCount),
+                    $"Capture allocation fault '{fault}' leaked a temporary scene."
+                );
             }
             finally
             {
@@ -1053,7 +1499,9 @@ namespace PureBase.Tests.Daily
         {
             if (injectedCaptureAllocationFault == fault)
             {
-                throw new InvalidOperationException($"Simulated capture allocation failure at '{fault}'.");
+                throw new InvalidOperationException(
+                    $"Simulated capture allocation failure at '{fault}'."
+                );
             }
         }
 
@@ -1072,10 +1520,17 @@ namespace PureBase.Tests.Daily
             var metaAlbedo = new MetaAlbedoBaseline[ProductShaderNames.Length];
             for (int index = 0; index < metaAlbedo.Length; index++)
             {
-                metaAlbedo[index] = new MetaAlbedoBaseline { meanLuminance = FloatRange.Exact(MinimumMetaLuminance + 0.001f) };
+                metaAlbedo[index] = new MetaAlbedoBaseline
+                {
+                    meanLuminance = FloatRange.Exact(MinimumMetaLuminance + 0.001f),
+                };
             }
 
-            return new SceneRegressionBaseline { metaAlbedo = metaAlbedo, shadowChangedPixelCount = MinimumShadowChangedPixelCount + 1 };
+            return new SceneRegressionBaseline
+            {
+                metaAlbedo = metaAlbedo,
+                shadowChangedPixelCount = MinimumShadowChangedPixelCount + 1,
+            };
         }
 
         /// <summary>Exercises temporary capture isolation against a disposable active scene.</summary>
@@ -1085,7 +1540,13 @@ namespace PureBase.Tests.Daily
             Scene sourceScene = SceneManager.GetActiveScene();
             bool sourceWasDirty = sourceScene.isDirty;
             Assert.That(sourceScene.IsValid(), Is.True);
-            foreach (TemporarySceneOwnership ownership in new[] { TemporarySceneOwnership.Preview, TemporarySceneOwnership.RegularAdditive })
+            foreach (
+                TemporarySceneOwnership ownership in new[]
+                {
+                    TemporarySceneOwnership.Preview,
+                    TemporarySceneOwnership.RegularAdditive,
+                }
+            )
             {
                 if (throwInsideScope)
                 {
@@ -1094,7 +1555,9 @@ namespace PureBase.Tests.Daily
                         using (var temporaryScene = new TemporaryCaptureScene(ownership))
                         {
                             CreateTemporaryCaptureObjects(temporaryScene);
-                            throw new InvalidOperationException("Simulated temporary capture failure.");
+                            throw new InvalidOperationException(
+                                "Simulated temporary capture failure."
+                            );
                         }
                     });
                 }
@@ -1106,8 +1569,16 @@ namespace PureBase.Tests.Daily
                     }
                 }
 
-                Assert.That(SceneManager.GetActiveScene(), Is.EqualTo(sourceScene), $"Temporary {ownership} capture changed the active scene.");
-                Assert.That(sourceScene.isDirty, Is.EqualTo(sourceWasDirty), $"Temporary {ownership} capture changed the active scene dirty state.");
+                Assert.That(
+                    SceneManager.GetActiveScene(),
+                    Is.EqualTo(sourceScene),
+                    $"Temporary {ownership} capture changed the active scene."
+                );
+                Assert.That(
+                    sourceScene.isDirty,
+                    Is.EqualTo(sourceWasDirty),
+                    $"Temporary {ownership} capture changed the active scene dirty state."
+                );
             }
         }
 
@@ -1115,10 +1586,22 @@ namespace PureBase.Tests.Daily
         /// <param name="temporaryScene">The disposable preview scene that must own every created object.</param>
         private static void CreateTemporaryCaptureObjects(TemporaryCaptureScene temporaryScene)
         {
-            GameObject camera = temporaryScene.CreateGameObject("PureBase Daily Temporary Capture Camera", typeof(Camera));
-            GameObject light = temporaryScene.CreateGameObject("PureBase Daily Temporary Capture Light", typeof(Light));
-            GameObject plane = temporaryScene.CreatePrimitive("PureBase Daily Temporary Capture Plane", PrimitiveType.Plane);
-            GameObject cube = temporaryScene.CreatePrimitive("PureBase Daily Temporary Capture Cube", PrimitiveType.Cube);
+            GameObject camera = temporaryScene.CreateGameObject(
+                "PureBase Daily Temporary Capture Camera",
+                typeof(Camera)
+            );
+            GameObject light = temporaryScene.CreateGameObject(
+                "PureBase Daily Temporary Capture Light",
+                typeof(Light)
+            );
+            GameObject plane = temporaryScene.CreatePrimitive(
+                "PureBase Daily Temporary Capture Plane",
+                PrimitiveType.Plane
+            );
+            GameObject cube = temporaryScene.CreatePrimitive(
+                "PureBase Daily Temporary Capture Cube",
+                PrimitiveType.Cube
+            );
             Assert.That(camera.scene, Is.EqualTo(temporaryScene.Scene));
             Assert.That(light.scene, Is.EqualTo(temporaryScene.Scene));
             Assert.That(plane.scene, Is.EqualTo(temporaryScene.Scene));
@@ -1128,7 +1611,10 @@ namespace PureBase.Tests.Daily
         /// <summary>Exercises the snapshot restore path with the canonical scene initially loaded or unloaded.</summary>
         /// <param name="canonicalPreloaded">Whether the canonical scene is loaded before capturing the snapshot.</param>
         /// <param name="throwInsideScope">Whether to simulate an observation failure before restoration.</param>
-        private static void AssertCanonicalSceneSnapshotRestoration(bool canonicalPreloaded, bool throwInsideScope)
+        private static void AssertCanonicalSceneSnapshotRestoration(
+            bool canonicalPreloaded,
+            bool throwInsideScope
+        )
         {
             SceneSetup[] originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
             Scene validationScene = SceneManager.GetSceneByPath(ScenePath);
@@ -1136,20 +1622,44 @@ namespace PureBase.Tests.Daily
             {
                 Scene ownerScene = GetOrOpenPersistedOwnerScene();
                 string ownerScenePath = ownerScene.path;
-                Assert.That(SceneManager.SetActiveScene(ownerScene), Is.True, "The persisted owner scene could not become active before the canonical scene state is prepared.");
+                Assert.That(
+                    SceneManager.SetActiveScene(ownerScene),
+                    Is.True,
+                    "The persisted owner scene could not become active before the canonical scene state is prepared."
+                );
                 if (canonicalPreloaded && !validationScene.isLoaded)
                 {
-                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 }
                 else if (!canonicalPreloaded && validationScene.isLoaded)
                 {
-                    Assert.That(validationScene.isDirty, Is.False, "The unloaded-scene restoration test cannot discard a dirty canonical fixture.");
-                    Assert.That(EditorSceneManager.CloseScene(validationScene, true), Is.True, "The canonical validation scene could not be closed before snapshot capture.");
+                    Assert.That(
+                        validationScene.isDirty,
+                        Is.False,
+                        "The unloaded-scene restoration test cannot discard a dirty canonical fixture."
+                    );
+                    Assert.That(
+                        EditorSceneManager.CloseScene(validationScene, true),
+                        Is.True,
+                        "The canonical validation scene could not be closed before snapshot capture."
+                    );
                     validationScene = SceneManager.GetSceneByPath(ScenePath);
-                    Assert.That(validationScene.isLoaded, Is.False, "The canonical validation scene remained loaded before the unloaded-scene snapshot was captured.");
+                    Assert.That(
+                        validationScene.isLoaded,
+                        Is.False,
+                        "The canonical validation scene remained loaded before the unloaded-scene snapshot was captured."
+                    );
                 }
 
-                if (!canonicalPreloaded) Assert.That(validationScene.isLoaded, Is.False, "The canonical validation scene must be unloaded before the unloaded-scene snapshot is captured.");
+                if (!canonicalPreloaded)
+                    Assert.That(
+                        validationScene.isLoaded,
+                        Is.False,
+                        "The canonical validation scene must be unloaded before the unloaded-scene snapshot is captured."
+                    );
 
                 bool ownerWasDirty = ownerScene.isDirty;
                 bool validationWasDirty = validationScene.isLoaded && validationScene.isDirty;
@@ -1159,18 +1669,29 @@ namespace PureBase.Tests.Daily
                 LightmapData[] validationLightmaps = null;
                 if (canonicalPreloaded)
                 {
-                    Assert.That(SceneManager.SetActiveScene(validationScene), Is.True, "The preloaded canonical scene could not become active before snapshot capture.");
+                    Assert.That(
+                        SceneManager.SetActiveScene(validationScene),
+                        Is.True,
+                        "The preloaded canonical scene could not become active before snapshot capture."
+                    );
                     validationAmbientMode = RenderSettings.ambientMode;
                     validationAmbientLight = RenderSettings.ambientLight;
                     validationAmbientIntensity = RenderSettings.ambientIntensity;
                     validationLightmaps = LightmapSettings.lightmaps;
-                    Assert.That(SceneManager.SetActiveScene(ownerScene), Is.True, "The persisted owner scene could not be restored as active before snapshot capture.");
+                    Assert.That(
+                        SceneManager.SetActiveScene(ownerScene),
+                        Is.True,
+                        "The persisted owner scene could not be restored as active before snapshot capture."
+                    );
                 }
 
                 EditorStateSnapshot snapshot = EditorStateSnapshot.Capture();
                 if (!validationScene.isLoaded)
                 {
-                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 }
 
                 if (throwInsideScope)
@@ -1179,36 +1700,63 @@ namespace PureBase.Tests.Daily
                     {
                         try
                         {
-                            Assert.That(SceneManager.SetActiveScene(validationScene), Is.True, "The canonical scene could not become active before exceptional restoration.");
+                            Assert.That(
+                                SceneManager.SetActiveScene(validationScene),
+                                Is.True,
+                                "The canonical scene could not become active before exceptional restoration."
+                            );
                             MutateSceneOwnedLightingSettings();
-                            throw new InvalidOperationException("Simulated canonical scene observation failure.");
+                            throw new InvalidOperationException(
+                                "Simulated canonical scene observation failure."
+                            );
                         }
                         finally
                         {
-                            snapshot.Restore(validationScene, canonicalPreloaded, validationWasDirty);
+                            snapshot.Restore(
+                                validationScene,
+                                canonicalPreloaded,
+                                validationWasDirty
+                            );
                         }
                     });
                 }
                 else
                 {
-                    Assert.That(SceneManager.SetActiveScene(validationScene), Is.True, "The canonical scene could not become active before normal restoration.");
+                    Assert.That(
+                        SceneManager.SetActiveScene(validationScene),
+                        Is.True,
+                        "The canonical scene could not become active before normal restoration."
+                    );
                     MutateSceneOwnedLightingSettings();
                     snapshot.Restore(validationScene, canonicalPreloaded, validationWasDirty);
                 }
 
                 Scene restoredOwnerScene = SceneManager.GetSceneByPath(ownerScenePath);
-                Assert.That(SceneManager.GetActiveScene().path, Is.EqualTo(restoredOwnerScene.path));
+                Assert.That(
+                    SceneManager.GetActiveScene().path,
+                    Is.EqualTo(restoredOwnerScene.path)
+                );
                 Assert.That(restoredOwnerScene.isDirty, Is.EqualTo(ownerWasDirty));
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 Assert.That(validationScene.isLoaded, Is.EqualTo(canonicalPreloaded));
                 if (canonicalPreloaded)
                 {
                     Assert.That(validationScene.isDirty, Is.EqualTo(validationWasDirty));
-                    Assert.That(SceneManager.SetActiveScene(validationScene), Is.True, "The restored preloaded canonical scene could not become active for verification.");
+                    Assert.That(
+                        SceneManager.SetActiveScene(validationScene),
+                        Is.True,
+                        "The restored preloaded canonical scene could not become active for verification."
+                    );
                     Assert.That(RenderSettings.ambientMode, Is.EqualTo(validationAmbientMode));
                     Assert.That(RenderSettings.ambientLight, Is.EqualTo(validationAmbientLight));
-                    Assert.That(RenderSettings.ambientIntensity, Is.EqualTo(validationAmbientIntensity));
-                    Assert.That(LightmapsMatch(LightmapSettings.lightmaps, validationLightmaps), Is.True);
+                    Assert.That(
+                        RenderSettings.ambientIntensity,
+                        Is.EqualTo(validationAmbientIntensity)
+                    );
+                    Assert.That(
+                        LightmapsMatch(LightmapSettings.lightmaps, validationLightmaps),
+                        Is.True
+                    );
                 }
 
                 UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
@@ -1229,7 +1777,12 @@ namespace PureBase.Tests.Daily
             for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
             {
                 Scene scene = SceneManager.GetSceneAt(sceneIndex);
-                if (scene.isLoaded && !string.IsNullOrEmpty(scene.path) && !string.Equals(scene.path, ScenePath, StringComparison.Ordinal)) return scene;
+                if (
+                    scene.isLoaded
+                    && !string.IsNullOrEmpty(scene.path)
+                    && !string.Equals(scene.path, ScenePath, StringComparison.Ordinal)
+                )
+                    return scene;
             }
 
             return EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
@@ -1250,17 +1803,23 @@ namespace PureBase.Tests.Daily
         /// <returns><see langword="true"/> when every lightmap reference is unchanged.</returns>
         private static bool LightmapsMatch(LightmapData[] left, LightmapData[] right)
         {
-            if (ReferenceEquals(left, right)) return true;
-            if (left == null || right == null || left.Length != right.Length) return false;
+            if (ReferenceEquals(left, right))
+                return true;
+            if (left == null || right == null || left.Length != right.Length)
+                return false;
             for (int index = 0; index < left.Length; index++)
             {
                 LightmapData leftData = left[index];
                 LightmapData rightData = right[index];
-                if (ReferenceEquals(leftData, rightData)) continue;
-                if (leftData == null || rightData == null ||
-                    leftData.lightmapColor != rightData.lightmapColor ||
-                    leftData.lightmapDir != rightData.lightmapDir ||
-                    leftData.shadowMask != rightData.shadowMask)
+                if (ReferenceEquals(leftData, rightData))
+                    continue;
+                if (
+                    leftData == null
+                    || rightData == null
+                    || leftData.lightmapColor != rightData.lightmapColor
+                    || leftData.lightmapDir != rightData.lightmapDir
+                    || leftData.shadowMask != rightData.shadowMask
+                )
                 {
                     return false;
                 }
@@ -1276,7 +1835,11 @@ namespace PureBase.Tests.Daily
         private static void AssertRange(int actual, IntRange range, string label)
         {
             Assert.That(range, Is.Not.Null, $"Baseline has no range for {label}.");
-            Assert.That(actual, Is.InRange(range.minimum, range.maximum), $"{label} was {actual}, outside [{range.minimum}, {range.maximum}].");
+            Assert.That(
+                actual,
+                Is.InRange(range.minimum, range.maximum),
+                $"{label} was {actual}, outside [{range.minimum}, {range.maximum}]."
+            );
         }
 
         /// <summary>Asserts that a floating-point observation is inside the reviewed inclusive range.</summary>
@@ -1286,7 +1849,11 @@ namespace PureBase.Tests.Daily
         private static void AssertRange(float actual, FloatRange range, string label)
         {
             Assert.That(range, Is.Not.Null, $"Baseline has no range for {label}.");
-            Assert.That(actual, Is.InRange(range.minimum, range.maximum), $"{label} was {actual}, outside [{range.minimum}, {range.maximum}].");
+            Assert.That(
+                actual,
+                Is.InRange(range.minimum, range.maximum),
+                $"{label} was {actual}, outside [{range.minimum}, {range.maximum}]."
+            );
         }
 
         /// <summary>Returns the fixed representative BIRP variant requests.</summary>
@@ -1295,7 +1862,60 @@ namespace PureBase.Tests.Daily
         {
             return new[]
             {
-                new VariantRequest("ForwardBase default", PassType.ForwardBase, Array.Empty<string>()), new VariantRequest("ForwardBase fog", PassType.ForwardBase, new[] { "FOG_LINEAR" }), new VariantRequest("ForwardBase instancing", PassType.ForwardBase, new[] { "INSTANCING_ON" }), new VariantRequest("ForwardBase lightmap", PassType.ForwardBase, new[] { "LIGHTMAP_ON" }), new VariantRequest("ForwardBase directional-lightmap", PassType.ForwardBase, new[] { "LIGHTMAP_ON", "DIRLIGHTMAP_COMBINED" }), new VariantRequest("ForwardBase dynamic-lightmap", PassType.ForwardBase, new[] { "DYNAMICLIGHTMAP_ON" }), new VariantRequest("ForwardBase shadowmask", PassType.ForwardBase, new[] { "LIGHTMAP_ON", "SHADOWS_SHADOWMASK" }), new VariantRequest("ForwardAdd directional", PassType.ForwardAdd, new[] { "DIRECTIONAL" }), new VariantRequest("ForwardAdd point", PassType.ForwardAdd, new[] { "POINT" }), new VariantRequest("ForwardAdd spot", PassType.ForwardAdd, new[] { "SPOT" }), new VariantRequest("ForwardAdd full shadows", PassType.ForwardAdd, new[] { "SPOT", "SHADOWS_DEPTH" }), new VariantRequest("ShadowCaster instancing", PassType.ShadowCaster, new[] { "INSTANCING_ON" }), new VariantRequest("ShadowCaster cutout", PassType.ShadowCaster, Array.Empty<string>()), new VariantRequest("Meta bake", PassType.Meta, Array.Empty<string>())
+                new VariantRequest(
+                    "ForwardBase default",
+                    PassType.ForwardBase,
+                    Array.Empty<string>()
+                ),
+                new VariantRequest("ForwardBase fog", PassType.ForwardBase, new[] { "FOG_LINEAR" }),
+                new VariantRequest(
+                    "ForwardBase instancing",
+                    PassType.ForwardBase,
+                    new[] { "INSTANCING_ON" }
+                ),
+                new VariantRequest(
+                    "ForwardBase lightmap",
+                    PassType.ForwardBase,
+                    new[] { "LIGHTMAP_ON" }
+                ),
+                new VariantRequest(
+                    "ForwardBase directional-lightmap",
+                    PassType.ForwardBase,
+                    new[] { "LIGHTMAP_ON", "DIRLIGHTMAP_COMBINED" }
+                ),
+                new VariantRequest(
+                    "ForwardBase dynamic-lightmap",
+                    PassType.ForwardBase,
+                    new[] { "DYNAMICLIGHTMAP_ON" }
+                ),
+                new VariantRequest(
+                    "ForwardBase shadowmask",
+                    PassType.ForwardBase,
+                    new[] { "LIGHTMAP_ON", "SHADOWS_SHADOWMASK" }
+                ),
+                new VariantRequest(
+                    "ForwardAdd directional",
+                    PassType.ForwardAdd,
+                    new[] { "DIRECTIONAL" }
+                ),
+                new VariantRequest("ForwardAdd point", PassType.ForwardAdd, new[] { "POINT" }),
+                new VariantRequest("ForwardAdd spot", PassType.ForwardAdd, new[] { "SPOT" }),
+                new VariantRequest(
+                    "ForwardAdd full shadows",
+                    PassType.ForwardAdd,
+                    new[] { "SPOT", "SHADOWS_DEPTH" }
+                ),
+                new VariantRequest(
+                    "ShadowCaster instancing",
+                    PassType.ShadowCaster,
+                    new[] { "INSTANCING_ON" }
+                ),
+                new VariantRequest(
+                    "ShadowCaster cutout",
+                    PassType.ShadowCaster,
+                    Array.Empty<string>()
+                ),
+                new VariantRequest("Meta bake", PassType.Meta, Array.Empty<string>()),
             };
         }
 
@@ -1308,7 +1928,13 @@ namespace PureBase.Tests.Daily
             private readonly SceneLightingState[] sceneLightingStates;
             private readonly SceneDirtyState[] sceneDirtyStates;
 
-            private EditorStateSnapshot(SceneSetup[] sceneSetup, Scene activeScene, string activeScenePath, SceneLightingState[] sceneLightingStates, SceneDirtyState[] sceneDirtyStates)
+            private EditorStateSnapshot(
+                SceneSetup[] sceneSetup,
+                Scene activeScene,
+                string activeScenePath,
+                SceneLightingState[] sceneLightingStates,
+                SceneDirtyState[] sceneDirtyStates
+            )
             {
                 this.sceneSetup = sceneSetup;
                 this.activeScene = activeScene;
@@ -1327,14 +1953,23 @@ namespace PureBase.Tests.Daily
                 for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
                 {
                     Scene scene = SceneManager.GetSceneAt(sceneIndex);
-                    if (!scene.isLoaded) continue;
+                    if (!scene.isLoaded)
+                        continue;
                     dirtyStates.Add(new SceneDirtyState(scene, scene.isDirty));
-                    if (!SceneManager.SetActiveScene(scene)) continue;
+                    if (!SceneManager.SetActiveScene(scene))
+                        continue;
                     lightingStates.Add(SceneLightingState.Capture(scene));
                 }
 
-                if (activeScene.IsValid() && activeScene.isLoaded) SceneManager.SetActiveScene(activeScene);
-                return new EditorStateSnapshot(EditorSceneManager.GetSceneManagerSetup(), activeScene, activeScene.path, lightingStates.ToArray(), dirtyStates.ToArray());
+                if (activeScene.IsValid() && activeScene.isLoaded)
+                    SceneManager.SetActiveScene(activeScene);
+                return new EditorStateSnapshot(
+                    EditorSceneManager.GetSceneManagerSetup(),
+                    activeScene,
+                    activeScene.path,
+                    lightingStates.ToArray(),
+                    dirtyStates.ToArray()
+                );
             }
 
             /// <summary>Restores all captured state and verifies that the fixture's original dirty state remains unchanged.</summary>
@@ -1347,10 +1982,20 @@ namespace PureBase.Tests.Daily
                 RestoreSceneSetup(validationScenePath, sceneWasLoaded);
                 RestoreSceneLightingSettings();
                 Scene restoredActiveScene = ResolveScene(activeScene, activeScenePath);
-                if (restoredActiveScene.IsValid() && restoredActiveScene.isLoaded) SceneManager.SetActiveScene(restoredActiveScene);
+                if (restoredActiveScene.IsValid() && restoredActiveScene.isLoaded)
+                    SceneManager.SetActiveScene(restoredActiveScene);
                 RestoreDirtyStates();
                 Scene restoredValidationScene = SceneManager.GetSceneByPath(validationScenePath);
-                if (sceneWasLoaded && restoredValidationScene.IsValid() && restoredValidationScene.isLoaded) Assert.That(restoredValidationScene.isDirty, Is.EqualTo(sceneWasDirty), "Daily changed the canonical fixture dirty state.");
+                if (
+                    sceneWasLoaded
+                    && restoredValidationScene.IsValid()
+                    && restoredValidationScene.isLoaded
+                )
+                    Assert.That(
+                        restoredValidationScene.isDirty,
+                        Is.EqualTo(sceneWasDirty),
+                        "Daily changed the canonical fixture dirty state."
+                    );
             }
 
             /// <summary>Restores saved scene layouts or preserves untitled user scenes while unloading a Daily-opened canonical scene.</summary>
@@ -1358,7 +2003,8 @@ namespace PureBase.Tests.Daily
             /// <param name="sceneWasLoaded">Whether the canonical scene was loaded when the snapshot was captured.</param>
             private void RestoreSceneSetup(string validationScenePath, bool sceneWasLoaded)
             {
-                if (sceneSetup == null || sceneSetup.Length == 0) return;
+                if (sceneSetup == null || sceneSetup.Length == 0)
+                    return;
                 if (!ContainsUntitledScene())
                 {
                     EditorSceneManager.RestoreSceneManagerSetup(sceneSetup);
@@ -1372,13 +2018,19 @@ namespace PureBase.Tests.Daily
             /// <summary>Closes a canonical scene that Daily loaded after capture so the original scene layout remains intact.</summary>
             /// <param name="validationScenePath">The canonical scene path Daily observed.</param>
             /// <param name="sceneWasLoaded">Whether the canonical scene was loaded when the snapshot was captured.</param>
-            private void CloseTemporarilyLoadedValidationScene(string validationScenePath, bool sceneWasLoaded)
+            private void CloseTemporarilyLoadedValidationScene(
+                string validationScenePath,
+                bool sceneWasLoaded
+            )
             {
-                if (sceneWasLoaded || string.IsNullOrEmpty(validationScenePath)) return;
+                if (sceneWasLoaded || string.IsNullOrEmpty(validationScenePath))
+                    return;
                 Scene restoredValidationScene = SceneManager.GetSceneByPath(validationScenePath);
-                if (!restoredValidationScene.IsValid() || !restoredValidationScene.isLoaded) return;
+                if (!restoredValidationScene.IsValid() || !restoredValidationScene.isLoaded)
+                    return;
                 Scene restoredActiveScene = ResolveScene(activeScene, activeScenePath);
-                if (restoredActiveScene.IsValid() && restoredActiveScene.isLoaded) SceneManager.SetActiveScene(restoredActiveScene);
+                if (restoredActiveScene.IsValid() && restoredActiveScene.isLoaded)
+                    SceneManager.SetActiveScene(restoredActiveScene);
                 EditorSceneManager.CloseScene(restoredValidationScene, true);
             }
 
@@ -1388,7 +2040,8 @@ namespace PureBase.Tests.Daily
             {
                 foreach (SceneSetup setup in sceneSetup)
                 {
-                    if (string.IsNullOrEmpty(setup.path)) return true;
+                    if (string.IsNullOrEmpty(setup.path))
+                        return true;
                 }
 
                 return false;
@@ -1400,8 +2053,10 @@ namespace PureBase.Tests.Daily
                 foreach (SceneLightingState lightingState in sceneLightingStates)
                 {
                     Scene scene = lightingState.GetRestoredScene();
-                    if (!scene.IsValid() || !scene.isLoaded) continue;
-                    if (!SceneManager.SetActiveScene(scene)) continue;
+                    if (!scene.IsValid() || !scene.isLoaded)
+                        continue;
+                    if (!SceneManager.SetActiveScene(scene))
+                        continue;
                     lightingState.Restore();
                 }
             }
@@ -1412,14 +2067,19 @@ namespace PureBase.Tests.Daily
                 foreach (SceneDirtyState dirtyState in sceneDirtyStates)
                 {
                     Scene scene = dirtyState.GetRestoredScene();
-                    if (!scene.IsValid() || !scene.isLoaded) continue;
+                    if (!scene.IsValid() || !scene.isLoaded)
+                        continue;
                     if (dirtyState.wasDirty && !scene.isDirty)
                     {
                         EditorSceneManager.MarkSceneDirty(scene);
                     }
                     else if (!dirtyState.wasDirty)
                     {
-                        Assert.That(scene.isDirty, Is.False, $"Daily changed the dirty state of scene '{scene.path}'.");
+                        Assert.That(
+                            scene.isDirty,
+                            Is.False,
+                            $"Daily changed the dirty state of scene '{scene.path}'."
+                        );
                     }
                 }
             }
@@ -1430,7 +2090,9 @@ namespace PureBase.Tests.Daily
             /// <returns>The current scene instance.</returns>
             private static Scene ResolveScene(Scene scene, string scenePath)
             {
-                return string.IsNullOrEmpty(scenePath) ? scene : SceneManager.GetSceneByPath(scenePath);
+                return string.IsNullOrEmpty(scenePath)
+                    ? scene
+                    : SceneManager.GetSceneByPath(scenePath);
             }
 
             /// <summary>Stores one loaded scene's dirty state before Daily observation.</summary>
@@ -1465,7 +2127,13 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores one loaded scene's active-context RenderSettings and LightmapSettings values.</summary>
             private sealed class SceneLightingState
             {
-                private SceneLightingState(Scene scene, AmbientMode ambientMode, Color ambientLight, float ambientIntensity, LightmapData[] lightmaps)
+                private SceneLightingState(
+                    Scene scene,
+                    AmbientMode ambientMode,
+                    Color ambientLight,
+                    float ambientIntensity,
+                    LightmapData[] lightmaps
+                )
                 {
                     this.scene = scene;
                     scenePath = scene.path;
@@ -1493,7 +2161,13 @@ namespace PureBase.Tests.Daily
                 /// <returns>The captured scene-owned settings.</returns>
                 public static SceneLightingState Capture(Scene scene)
                 {
-                    return new SceneLightingState(scene, RenderSettings.ambientMode, RenderSettings.ambientLight, RenderSettings.ambientIntensity, LightmapSettings.lightmaps);
+                    return new SceneLightingState(
+                        scene,
+                        RenderSettings.ambientMode,
+                        RenderSettings.ambientLight,
+                        RenderSettings.ambientIntensity,
+                        LightmapSettings.lightmaps
+                    );
                 }
 
                 /// <summary>Gets the current scene instance after a possible scene setup restoration.</summary>
@@ -1506,10 +2180,19 @@ namespace PureBase.Tests.Daily
                 /// <summary>Restores the captured settings while the owning scene is active.</summary>
                 public void Restore()
                 {
-                    if (RenderSettings.ambientMode != ambientMode) RenderSettings.ambientMode = ambientMode;
-                    if (RenderSettings.ambientLight != ambientLight) RenderSettings.ambientLight = ambientLight;
-                    if (!Mathf.Approximately(RenderSettings.ambientIntensity, ambientIntensity)) RenderSettings.ambientIntensity = ambientIntensity;
-                    if (!PureBaseValidationSceneRegressionTests.LightmapsMatch(LightmapSettings.lightmaps, lightmaps)) LightmapSettings.lightmaps = lightmaps;
+                    if (RenderSettings.ambientMode != ambientMode)
+                        RenderSettings.ambientMode = ambientMode;
+                    if (RenderSettings.ambientLight != ambientLight)
+                        RenderSettings.ambientLight = ambientLight;
+                    if (!Mathf.Approximately(RenderSettings.ambientIntensity, ambientIntensity))
+                        RenderSettings.ambientIntensity = ambientIntensity;
+                    if (
+                        !PureBaseValidationSceneRegressionTests.LightmapsMatch(
+                            LightmapSettings.lightmaps,
+                            lightmaps
+                        )
+                    )
+                        LightmapSettings.lightmaps = lightmaps;
                 }
             }
         }
@@ -1523,9 +2206,7 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Creates a preview scene for one temporary capture without changing the active scene.</summary>
             public TemporaryCaptureScene()
-                : this(TemporarySceneOwnership.Preview)
-            {
-            }
+                : this(TemporarySceneOwnership.Preview) { }
 
             /// <summary>Creates an isolated preview or regular additive scene for one temporary capture.</summary>
             /// <param name="ownership">The disposable scene kind that owns temporary objects.</param>
@@ -1540,7 +2221,10 @@ namespace PureBase.Tests.Daily
                 }
 
                 scene = EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
-                EditorSceneManager.SetSceneCullingMask(scene, EditorSceneManager.CalculateAvailableSceneCullingMask());
+                EditorSceneManager.SetSceneCullingMask(
+                    scene,
+                    EditorSceneManager.CalculateAvailableSceneCullingMask()
+                );
             }
 
             /// <summary>Gets the preview scene that owns the temporary capture objects.</summary>
@@ -1552,7 +2236,11 @@ namespace PureBase.Tests.Daily
             /// <returns>The preview-scene GameObject.</returns>
             public GameObject CreateGameObject(string name, params Type[] components)
             {
-                GameObject gameObject = EditorUtility.CreateGameObjectWithHideFlags(name, HideFlags.HideAndDontSave, components);
+                GameObject gameObject = EditorUtility.CreateGameObjectWithHideFlags(
+                    name,
+                    HideFlags.HideAndDontSave,
+                    components
+                );
                 SceneManager.MoveGameObjectToScene(gameObject, scene);
                 return gameObject;
             }
@@ -1563,11 +2251,19 @@ namespace PureBase.Tests.Daily
             /// <returns>The preview-scene primitive object.</returns>
             public GameObject CreatePrimitive(string name, PrimitiveType primitiveType)
             {
-                string meshName = primitiveType == PrimitiveType.Plane ? "New-Plane.fbx" : "Cube.fbx";
+                string meshName =
+                    primitiveType == PrimitiveType.Plane ? "New-Plane.fbx" : "Cube.fbx";
                 Mesh mesh = Resources.GetBuiltinResource<Mesh>(meshName);
-                if (mesh == null) throw new InvalidOperationException($"The built-in '{primitiveType}' mesh is unavailable for Daily capture.");
+                if (mesh == null)
+                    throw new InvalidOperationException(
+                        $"The built-in '{primitiveType}' mesh is unavailable for Daily capture."
+                    );
 
-                GameObject gameObject = CreateGameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+                GameObject gameObject = CreateGameObject(
+                    name,
+                    typeof(MeshFilter),
+                    typeof(MeshRenderer)
+                );
                 gameObject.GetComponent<MeshFilter>().sharedMesh = mesh;
                 return gameObject;
             }
@@ -1575,14 +2271,16 @@ namespace PureBase.Tests.Daily
             /// <summary>Destroys all temporary preview-scene objects without changing the active scene.</summary>
             public void Dispose()
             {
-                if (!scene.IsValid() || !scene.isLoaded) return;
+                if (!scene.IsValid() || !scene.isLoaded)
+                    return;
                 if (ownership == TemporarySceneOwnership.Preview)
                 {
                     EditorSceneManager.ClosePreviewScene(scene);
                     return;
                 }
 
-                if (activeScene.IsValid() && activeScene.isLoaded) SceneManager.SetActiveScene(activeScene);
+                if (activeScene.IsValid() && activeScene.isLoaded)
+                    SceneManager.SetActiveScene(activeScene);
                 EditorSceneManager.CloseScene(scene, true);
             }
         }
@@ -1592,8 +2290,9 @@ namespace PureBase.Tests.Daily
         {
             /// <summary>Uses Unity's preview-scene rendering context.</summary>
             Preview,
+
             /// <summary>Uses a regular empty additive scene, matching the legacy shadow harness context.</summary>
-            RegularAdditive
+            RegularAdditive,
         }
 
         /// <summary>Identifies a transient resource acquisition that focused tests can interrupt.</summary>
@@ -1601,32 +2300,45 @@ namespace PureBase.Tests.Daily
         {
             /// <summary>Does not inject a failure.</summary>
             None,
+
             /// <summary>Interrupts Meta material allocation.</summary>
             MetaMaterial,
+
             /// <summary>Interrupts Meta mesh allocation.</summary>
             MetaMesh,
+
             /// <summary>Interrupts Meta camera allocation.</summary>
             MetaCamera,
+
             /// <summary>Interrupts Meta render-target allocation.</summary>
             MetaTarget,
+
             /// <summary>Interrupts Meta readback allocation.</summary>
             MetaReadback,
+
             /// <summary>Interrupts Shadow caster-material allocation.</summary>
             ShadowCasterMaterial,
+
             /// <summary>Interrupts Shadow receiver-material allocation.</summary>
             ShadowReceiverMaterial,
+
             /// <summary>Interrupts Shadow camera allocation.</summary>
             ShadowCamera,
+
             /// <summary>Interrupts Shadow light allocation.</summary>
             ShadowLight,
+
             /// <summary>Interrupts Shadow receiver allocation.</summary>
             ShadowReceiver,
+
             /// <summary>Interrupts Shadow caster allocation.</summary>
             ShadowCaster,
+
             /// <summary>Interrupts Shadow render-target allocation.</summary>
             ShadowTarget,
+
             /// <summary>Interrupts Shadow readback allocation.</summary>
-            ShadowReadback
+            ShadowReadback,
         }
 
         /// <summary>Tracks transient Unity objects from their first allocation and destroys them in reverse acquisition order.</summary>
@@ -1639,7 +2351,8 @@ namespace PureBase.Tests.Daily
             /// <param name="resource">The newly allocated resource.</param>
             /// <param name="fault">The allocation point associated with the resource.</param>
             /// <returns>The tracked resource.</returns>
-            public T Track<T>(T resource, CaptureAllocationFault fault) where T : UnityEngine.Object
+            public T Track<T>(T resource, CaptureAllocationFault fault)
+                where T : UnityEngine.Object
             {
                 resources.Add(resource);
                 ThrowIfCaptureAllocationFaultInjected(fault);
@@ -1653,7 +2366,8 @@ namespace PureBase.Tests.Daily
                 for (int index = resources.Count - 1; index >= 0; index--)
                 {
                     UnityEngine.Object resource = resources[index];
-                    if (resource is RenderTexture target) target.Release();
+                    if (resource is RenderTexture target)
+                        target.Release();
                     UnityEngine.Object.DestroyImmediate(resource);
                     released &= !resource;
                 }
@@ -1669,7 +2383,14 @@ namespace PureBase.Tests.Daily
             /// <param name="coveragePixelCount">The number of pixels covered by transient geometry.</param>
             /// <param name="maxAbsoluteRgbDelta">The greatest RGB delta between unshadowed and shadowed rendering.</param>
             /// <param name="changedPixelCount">The number of pixels changed by directional shadowing.</param>
-            public ShadowCaptureObservation(int coveragePixelCount, float coverage, float centroidX, float centroidY, float maxAbsoluteRgbDelta, int changedPixelCount)
+            public ShadowCaptureObservation(
+                int coveragePixelCount,
+                float coverage,
+                float centroidX,
+                float centroidY,
+                float maxAbsoluteRgbDelta,
+                int changedPixelCount
+            )
             {
                 this.coveragePixelCount = coveragePixelCount;
                 this.coverage = coverage;
@@ -1699,7 +2420,8 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Formats the capture measurements for assertion diagnostics.</summary>
             /// <returns>The diagnostic measurement text.</returns>
-            public string Describe() => $"coverage={coveragePixelCount}, maxAbsoluteRgbDelta={maxAbsoluteRgbDelta}, changedPixels={changedPixelCount}";
+            public string Describe() =>
+                $"coverage={coveragePixelCount}, maxAbsoluteRgbDelta={maxAbsoluteRgbDelta}, changedPixels={changedPixelCount}";
         }
 
         /// <summary>Stores preview-scene and regular additive-scene results for one identical shadow fixture.</summary>
@@ -1708,7 +2430,10 @@ namespace PureBase.Tests.Daily
             /// <summary>Initializes the two-scene shadow capture comparison.</summary>
             /// <param name="preview">The preview-scene result.</param>
             /// <param name="additive">The regular additive-scene result.</param>
-            public ShadowCaptureComparison(ShadowCaptureObservation preview, ShadowCaptureObservation additive)
+            public ShadowCaptureComparison(
+                ShadowCaptureObservation preview,
+                ShadowCaptureObservation additive
+            )
             {
                 this.preview = preview;
                 this.additive = additive;
@@ -1722,7 +2447,8 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Formats both scene results for deterministic A/B assertion diagnostics.</summary>
             /// <returns>The diagnostic comparison text.</returns>
-            public string Describe() => $"preview({preview.Describe()}), additive({additive.Describe()})";
+            public string Describe() =>
+                $"preview({preview.Describe()}), additive({additive.Describe()})";
         }
 
         /// <summary>Defines one fixed BIRP shader variant request.</summary>
@@ -1756,28 +2482,40 @@ namespace PureBase.Tests.Daily
     {
         /// <summary>Stores the JSON schema version.</summary>
         public int schemaVersion;
+
         /// <summary>Stores the Unity version used to approve this baseline.</summary>
         public string unityVersion;
+
         /// <summary>Stores the graphics API used to approve this baseline.</summary>
         public string graphicsDevice;
+
         /// <summary>Stores the project color space used to approve this baseline.</summary>
         public string colorSpace;
+
         /// <summary>Stores the rendering pipeline used to approve this baseline.</summary>
         public string renderPipeline;
+
         /// <summary>Stores the square readback dimension.</summary>
         public int renderSize;
+
         /// <summary>Stores the committed static lightmap count.</summary>
         public int staticLightmapCount;
+
         /// <summary>Stores the committed static renderer assignment count.</summary>
         public int staticRendererAssignmentCount;
+
         /// <summary>Stores the reviewed visible scene-pixel range.</summary>
         public IntRange sceneVisiblePixelCount;
+
         /// <summary>Stores the committed shadow silhouette pixel count.</summary>
         public int shadowChangedPixelCount;
+
         /// <summary>Stores the committed representative warmed variant count.</summary>
         public int warmedVariantCount;
+
         /// <summary>Stores the non-deterministic dynamic-lightmap status.</summary>
         public string dynamicLightmapStatus;
+
         /// <summary>Stores the reviewed Meta albedo observations.</summary>
         public MetaAlbedoBaseline[] metaAlbedo;
     }
@@ -1788,34 +2526,49 @@ namespace PureBase.Tests.Daily
     {
         /// <summary>Stores the static lightmap count.</summary>
         public int staticLightmapCount;
+
         /// <summary>Stores the number of static renderer assignments.</summary>
         public int staticRendererAssignmentCount;
+
         /// <summary>Stores the finite scene-pixel count.</summary>
         public int sceneFinitePixelCount;
+
         /// <summary>Stores the visible scene-pixel count.</summary>
         public int sceneVisiblePixelCount;
+
         /// <summary>Stores the normalized visible scene-pixel coverage.</summary>
         public float sceneVisibleCoverage;
+
         /// <summary>Stores the horizontal normalized centroid of visible scene pixels.</summary>
         public float sceneVisibleCentroidX;
+
         /// <summary>Stores the vertical normalized centroid of visible scene pixels.</summary>
         public float sceneVisibleCentroidY;
+
         /// <summary>Stores the observed Meta values.</summary>
         public MetaAlbedoObservation[] metaAlbedo;
+
         /// <summary>Stores the shadow silhouette count.</summary>
         public int shadowChangedPixelCount;
+
         /// <summary>Stores the shadow receiver coverage pixel count.</summary>
         public int shadowCoveragePixelCount;
+
         /// <summary>Stores the normalized shadow receiver coverage.</summary>
         public float shadowCoverage;
+
         /// <summary>Stores the horizontal normalized centroid of changed shadow pixels.</summary>
         public float shadowCentroidX;
+
         /// <summary>Stores the vertical normalized centroid of changed shadow pixels.</summary>
         public float shadowCentroidY;
+
         /// <summary>Stores the maximum absolute RGB difference caused by directional shadows.</summary>
         public float shadowMaxAbsoluteRgbDelta;
+
         /// <summary>Stores the warmed variant count.</summary>
         public int warmedVariantCount;
+
         /// <summary>Stores the dynamic-lightmap limitation status.</summary>
         public string dynamicLightmapStatus;
     }
@@ -1826,13 +2579,15 @@ namespace PureBase.Tests.Daily
     {
         /// <summary>Stores the inclusive minimum.</summary>
         public int minimum;
+
         /// <summary>Stores the inclusive maximum.</summary>
         public int maximum;
 
         /// <summary>Creates a zero-width reviewed range.</summary>
         /// <param name="value">The reviewed value.</param>
         /// <returns>The exact range.</returns>
-        public static IntRange Exact(int value) => new IntRange { minimum = value, maximum = value };
+        public static IntRange Exact(int value) =>
+            new IntRange { minimum = value, maximum = value };
     }
 
     /// <summary>Defines an inclusive reviewed floating-point range.</summary>
@@ -1841,13 +2596,15 @@ namespace PureBase.Tests.Daily
     {
         /// <summary>Stores the inclusive minimum.</summary>
         public float minimum;
+
         /// <summary>Stores the inclusive maximum.</summary>
         public float maximum;
 
         /// <summary>Creates a zero-width reviewed range.</summary>
         /// <param name="value">The reviewed value.</param>
         /// <returns>The exact range.</returns>
-        public static FloatRange Exact(float value) => new FloatRange { minimum = value, maximum = value };
+        public static FloatRange Exact(float value) =>
+            new FloatRange { minimum = value, maximum = value };
     }
 
     /// <summary>Stores one reviewed Meta albedo range.</summary>
@@ -1856,8 +2613,10 @@ namespace PureBase.Tests.Daily
     {
         /// <summary>Stores the material name.</summary>
         public string materialName;
+
         /// <summary>Stores the product shader name.</summary>
         public string shaderName;
+
         /// <summary>Stores the reviewed mean luminance range.</summary>
         public FloatRange meanLuminance;
     }
@@ -1868,8 +2627,10 @@ namespace PureBase.Tests.Daily
     {
         /// <summary>Stores the material name.</summary>
         public string materialName;
+
         /// <summary>Stores the product shader name.</summary>
         public string shaderName;
+
         /// <summary>Stores the observed mean luminance.</summary>
         public float meanLuminance;
     }

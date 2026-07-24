@@ -49,7 +49,12 @@ namespace PureBase.Tests.Daily
         private const float VisibleAlphaThreshold = 0.0025f;
 
         /// <summary>Defines the background color used by each isolated runtime observation.</summary>
-        private static readonly Color RuntimeBackgroundColor = new Color(0.009f, 0.013f, 0.021f, 0.0f);
+        private static readonly Color RuntimeBackgroundColor = new Color(
+            0.009f,
+            0.013f,
+            0.021f,
+            0.0f
+        );
 
         /// <summary>Lists package product shaders that must stay free of test-host sentinels.</summary>
         private static readonly string[] ProductShaderNames =
@@ -57,7 +62,7 @@ namespace PureBase.Tests.Daily
             "PureBase/Unlit",
             "PureBase/Toon",
             "PureBase/Hybrid",
-            "PureBase/PBR"
+            "PureBase/PBR",
         };
 
         /// <summary>Ensures every fixed host has one non-empty shader name and module selection.</summary>
@@ -71,20 +76,48 @@ namespace PureBase.Tests.Daily
             Assert.That(manifest.hosts, Is.Not.Null);
             Assert.That(manifest.hosts.Length, Is.EqualTo(11));
 
-            var shaderNames = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+            var shaderNames = new System.Collections.Generic.HashSet<string>(
+                StringComparer.Ordinal
+            );
             foreach (HostManifestEntry host in manifest.hosts)
             {
                 Assert.That(host.shaderName, Is.Not.Empty);
-                Assert.That(shaderNames.Add(host.shaderName), Is.True, $"Duplicate fixed host shader '{host.shaderName}'.");
+                Assert.That(
+                    shaderNames.Add(host.shaderName),
+                    Is.True,
+                    $"Duplicate fixed host shader '{host.shaderName}'."
+                );
 
-                var moduleCount = string.IsNullOrEmpty(host.moduleUniqueId) ? host.moduleUniqueIds?.Length ?? 0 : 1;
-                Assert.That(moduleCount, Is.GreaterThan(0), $"Host '{host.shaderName}' has no fixed module selection.");
-                Assert.That(host.expectedSentinels, Is.Not.Null.And.Not.Empty, $"Host '{host.shaderName}' has no expected sentinels.");
-                Assert.That(host.expectedPassSentinelCounts, Is.Not.Null, $"Host '{host.shaderName}' has no expected pass counts.");
+                var moduleCount = string.IsNullOrEmpty(host.moduleUniqueId)
+                    ? host.moduleUniqueIds?.Length ?? 0
+                    : 1;
+                Assert.That(
+                    moduleCount,
+                    Is.GreaterThan(0),
+                    $"Host '{host.shaderName}' has no fixed module selection."
+                );
+                Assert.That(
+                    host.expectedSentinels,
+                    Is.Not.Null.And.Not.Empty,
+                    $"Host '{host.shaderName}' has no expected sentinels."
+                );
+                Assert.That(
+                    host.expectedPassSentinelCounts,
+                    Is.Not.Null,
+                    $"Host '{host.shaderName}' has no expected pass counts."
+                );
             }
 
-            Assert.That(manifest.hosts.Count(HasConfiguredRuntimeDelta), Is.EqualTo(10), "Each phase host must declare one valid runtime delta and the module-order host must not.");
-            Assert.That(manifest.hosts.Count(HasConfiguredModuleOrder), Is.EqualTo(1), "Only the module-order host must declare one valid module-order contract.");
+            Assert.That(
+                manifest.hosts.Count(HasConfiguredRuntimeDelta),
+                Is.EqualTo(10),
+                "Each phase host must declare one valid runtime delta and the module-order host must not."
+            );
+            Assert.That(
+                manifest.hosts.Count(HasConfiguredModuleOrder),
+                Is.EqualTo(1),
+                "Only the module-order host must declare one valid module-order contract."
+            );
         }
 
         /// <summary>Checks every imported host's compiler status and generated source sentinel contract without importing or modifying assets.</summary>
@@ -113,18 +146,37 @@ namespace PureBase.Tests.Daily
         [Test]
         public void PhaseHostsExposeConfiguredRuntimeDeltas()
         {
-            Assert.That(GraphicsSettings.currentRenderPipeline, Is.Null, "Fixed host runtime deltas require the Built-in Render Pipeline.");
+            Assert.That(
+                GraphicsSettings.currentRenderPipeline,
+                Is.Null,
+                "Fixed host runtime deltas require the Built-in Render Pipeline."
+            );
 
             HostManifest manifest = LoadManifest();
             foreach (HostManifestEntry host in manifest.hosts.Where(HasConfiguredRuntimeDelta))
             {
-                Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(FindHostAssetPath(host.shaderName));
+                Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(
+                    FindHostAssetPath(host.shaderName)
+                );
                 AssertImportedShaderIsUsable(host.shaderName, shader);
-                using (RuntimeRenderResources resources = new RuntimeRenderResources(shader, host.shaderName))
+                using (
+                    RuntimeRenderResources resources = new RuntimeRenderResources(
+                        shader,
+                        host.shaderName
+                    )
+                )
                 {
-                    RuntimeObservation disabled = resources.Render(0.0f, out Color[] disabledPixels);
+                    RuntimeObservation disabled = resources.Render(
+                        0.0f,
+                        out Color[] disabledPixels
+                    );
                     RuntimeObservation enabled = resources.Render(1.0f, out Color[] enabledPixels);
-                    AssertRuntimeDelta(host, disabled, enabled, CountChangedPixels(disabledPixels, enabledPixels));
+                    AssertRuntimeDelta(
+                        host,
+                        disabled,
+                        enabled,
+                        CountChangedPixels(disabledPixels, enabledPixels)
+                    );
                 }
             }
         }
@@ -135,18 +187,27 @@ namespace PureBase.Tests.Daily
         {
             foreach (string productShaderName in ProductShaderNames)
             {
-                string assetPath = FindShaderCoreAssetPath(productShaderName, "Packages/jp.penguin.purebase/Shaders");
+                string assetPath = FindShaderCoreAssetPath(
+                    productShaderName,
+                    "Packages/jp.penguin.purebase/Shaders"
+                );
                 Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
                 AssertImportedShaderIsUsable(productShaderName, shader);
                 string source = LoadGeneratedShaderSource(assetPath, productShaderName);
-                Assert.That(source.IndexOf(TestSentinelPrefix, StringComparison.Ordinal), Is.EqualTo(-1), $"Product shader '{productShaderName}' imported a test sentinel.");
+                Assert.That(
+                    source.IndexOf(TestSentinelPrefix, StringComparison.Ordinal),
+                    Is.EqualTo(-1),
+                    $"Product shader '{productShaderName}' imported a test sentinel."
+                );
             }
         }
 
         /// <summary>Loads and validates the fixed host manifest.</summary>
         private static HostManifest LoadManifest()
         {
-            HostManifest manifest = JsonUtility.FromJson<HostManifest>(File.ReadAllText(GetManifestPath()));
+            HostManifest manifest = JsonUtility.FromJson<HostManifest>(
+                File.ReadAllText(GetManifestPath())
+            );
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
             Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(11));
@@ -184,39 +245,70 @@ namespace PureBase.Tests.Daily
                 }
 
                 Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
-                if (shader != null && string.Equals(shader.name, shaderName, StringComparison.Ordinal))
+                if (
+                    shader != null
+                    && string.Equals(shader.name, shaderName, StringComparison.Ordinal)
+                )
                 {
                     return assetPath;
                 }
             }
 
-            Assert.Fail($"Imported Shader-Core shader '{shaderName}' was not found below '{searchRoot}'. Run the dedicated Initialize lane before Daily.");
+            Assert.Fail(
+                $"Imported Shader-Core shader '{shaderName}' was not found below '{searchRoot}'. Run the dedicated Initialize lane before Daily."
+            );
             return null;
         }
 
         /// <summary>Finds one fixed test host asset without importing or modifying it.</summary>
         private static string FindHostAssetPath(string shaderName)
         {
-            return FindShaderCoreAssetPath(shaderName, "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts");
+            return FindShaderCoreAssetPath(
+                shaderName,
+                "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts"
+            );
         }
 
         /// <summary>Asserts that an already imported Shader-Core shader compiled and is supported.</summary>
         private static void AssertImportedShaderIsUsable(string shaderName, Shader shader)
         {
-            Assert.That(shader, Is.Not.Null, $"Imported Shader-Core shader '{shaderName}' was unavailable.");
-            Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, $"Imported Shader-Core shader '{shaderName}' has compiler errors.");
-            Assert.That(shader.isSupported, Is.True, $"Imported Shader-Core shader '{shaderName}' is not supported.");
+            Assert.That(
+                shader,
+                Is.Not.Null,
+                $"Imported Shader-Core shader '{shaderName}' was unavailable."
+            );
+            Assert.That(
+                ShaderUtil.ShaderHasError(shader),
+                Is.False,
+                $"Imported Shader-Core shader '{shaderName}' has compiler errors."
+            );
+            Assert.That(
+                shader.isSupported,
+                Is.True,
+                $"Imported Shader-Core shader '{shaderName}' is not supported."
+            );
         }
 
         /// <summary>Loads exactly one generated Shader Source subasset without forcing an import.</summary>
         private static string LoadGeneratedShaderSource(string assetPath, string shaderName)
         {
-            TextAsset[] sourceAssets = AssetDatabase.LoadAllAssetsAtPath(assetPath)
+            TextAsset[] sourceAssets = AssetDatabase
+                .LoadAllAssetsAtPath(assetPath)
                 .OfType<TextAsset>()
-                .Where(asset => string.Equals(asset.name, GeneratedSourceName, StringComparison.Ordinal))
+                .Where(asset =>
+                    string.Equals(asset.name, GeneratedSourceName, StringComparison.Ordinal)
+                )
                 .ToArray();
-            Assert.That(sourceAssets, Has.Length.EqualTo(1), $"Imported Shader-Core shader '{shaderName}' must contain exactly one generated Shader Source subasset.");
-            Assert.That(sourceAssets[0].text, Is.Not.Empty, $"Imported Shader-Core shader '{shaderName}' generated an empty Shader Source subasset.");
+            Assert.That(
+                sourceAssets,
+                Has.Length.EqualTo(1),
+                $"Imported Shader-Core shader '{shaderName}' must contain exactly one generated Shader Source subasset."
+            );
+            Assert.That(
+                sourceAssets[0].text,
+                Is.Not.Empty,
+                $"Imported Shader-Core shader '{shaderName}' generated an empty Shader Source subasset."
+            );
             return sourceAssets[0].text;
         }
 
@@ -225,18 +317,52 @@ namespace PureBase.Tests.Daily
         {
             foreach (string sentinel in host.expectedSentinels)
             {
-                AssertPassSentinelCount(host, source, "ForwardBase", sentinel, host.expectedPassSentinelCounts.ForwardBase);
-                AssertPassSentinelCount(host, source, "ForwardAdd", sentinel, host.expectedPassSentinelCounts.ForwardAdd);
-                AssertPassSentinelCount(host, source, "ShadowCaster", sentinel, host.expectedPassSentinelCounts.ShadowCaster);
-                AssertPassSentinelCount(host, source, "Meta", sentinel, host.expectedPassSentinelCounts.Meta);
+                AssertPassSentinelCount(
+                    host,
+                    source,
+                    "ForwardBase",
+                    sentinel,
+                    host.expectedPassSentinelCounts.ForwardBase
+                );
+                AssertPassSentinelCount(
+                    host,
+                    source,
+                    "ForwardAdd",
+                    sentinel,
+                    host.expectedPassSentinelCounts.ForwardAdd
+                );
+                AssertPassSentinelCount(
+                    host,
+                    source,
+                    "ShadowCaster",
+                    sentinel,
+                    host.expectedPassSentinelCounts.ShadowCaster
+                );
+                AssertPassSentinelCount(
+                    host,
+                    source,
+                    "Meta",
+                    sentinel,
+                    host.expectedPassSentinelCounts.Meta
+                );
             }
         }
 
         /// <summary>Checks that one sentinel count in a named generated ShaderLab pass matches the manifest.</summary>
-        private static void AssertPassSentinelCount(HostManifestEntry host, string source, string passName, string sentinel, int expectedCount)
+        private static void AssertPassSentinelCount(
+            HostManifestEntry host,
+            string source,
+            string passName,
+            string sentinel,
+            int expectedCount
+        )
         {
             string passSource = GetPassSource(source, passName, host.shaderName);
-            Assert.That(CountOccurrences(passSource, sentinel), Is.EqualTo(expectedCount), $"Host '{host.shaderName}' pass '{passName}' emitted an unexpected count for '{sentinel}'.");
+            Assert.That(
+                CountOccurrences(passSource, sentinel),
+                Is.EqualTo(expectedCount),
+                $"Host '{host.shaderName}' pass '{passName}' emitted an unexpected count for '{sentinel}'."
+            );
         }
 
         /// <summary>Checks that every inactive sentinel is absent from the entire generated source.</summary>
@@ -244,7 +370,11 @@ namespace PureBase.Tests.Daily
         {
             foreach (string sentinel in host.inactiveSentinels ?? Array.Empty<string>())
             {
-                Assert.That(CountOccurrences(source, sentinel), Is.Zero, $"Host '{host.shaderName}' emitted inactive sentinel '{sentinel}'.");
+                Assert.That(
+                    CountOccurrences(source, sentinel),
+                    Is.Zero,
+                    $"Host '{host.shaderName}' emitted inactive sentinel '{sentinel}'."
+                );
             }
         }
 
@@ -252,14 +382,34 @@ namespace PureBase.Tests.Daily
         private static void AssertModuleOrder(HostManifestEntry host, string source)
         {
             Assert.That(host.moduleOrder, Is.Not.Null);
-            AssertModuleOrderInPass(host, source, "ForwardBase", host.expectedPassSentinelCounts.ForwardBase);
-            AssertModuleOrderInPass(host, source, "ForwardAdd", host.expectedPassSentinelCounts.ForwardAdd);
-            AssertModuleOrderInPass(host, source, "ShadowCaster", host.expectedPassSentinelCounts.ShadowCaster);
+            AssertModuleOrderInPass(
+                host,
+                source,
+                "ForwardBase",
+                host.expectedPassSentinelCounts.ForwardBase
+            );
+            AssertModuleOrderInPass(
+                host,
+                source,
+                "ForwardAdd",
+                host.expectedPassSentinelCounts.ForwardAdd
+            );
+            AssertModuleOrderInPass(
+                host,
+                source,
+                "ShadowCaster",
+                host.expectedPassSentinelCounts.ShadowCaster
+            );
             AssertModuleOrderInPass(host, source, "Meta", host.expectedPassSentinelCounts.Meta);
         }
 
         /// <summary>Checks module-order sentinels are present in source order in one emitted generated pass.</summary>
-        private static void AssertModuleOrderInPass(HostManifestEntry host, string source, string passName, int expectedCount)
+        private static void AssertModuleOrderInPass(
+            HostManifestEntry host,
+            string source,
+            string passName,
+            int expectedCount
+        )
         {
             if (expectedCount == 0)
             {
@@ -267,41 +417,91 @@ namespace PureBase.Tests.Daily
             }
 
             string passSource = GetPassSource(source, passName, host.shaderName);
-            int firstIndex = passSource.IndexOf(host.moduleOrder.firstSentinel, StringComparison.Ordinal);
-            int secondIndex = passSource.IndexOf(host.moduleOrder.secondSentinel, StringComparison.Ordinal);
-            Assert.That(firstIndex, Is.GreaterThanOrEqualTo(0), $"Host '{host.shaderName}' pass '{passName}' did not emit first module-order sentinel '{host.moduleOrder.firstSentinel}'.");
-            Assert.That(secondIndex, Is.GreaterThan(firstIndex), $"Host '{host.shaderName}' pass '{passName}' did not preserve module order '{host.moduleOrder.firstSentinel}' before '{host.moduleOrder.secondSentinel}'.");
+            int firstIndex = passSource.IndexOf(
+                host.moduleOrder.firstSentinel,
+                StringComparison.Ordinal
+            );
+            int secondIndex = passSource.IndexOf(
+                host.moduleOrder.secondSentinel,
+                StringComparison.Ordinal
+            );
+            Assert.That(
+                firstIndex,
+                Is.GreaterThanOrEqualTo(0),
+                $"Host '{host.shaderName}' pass '{passName}' did not emit first module-order sentinel '{host.moduleOrder.firstSentinel}'."
+            );
+            Assert.That(
+                secondIndex,
+                Is.GreaterThan(firstIndex),
+                $"Host '{host.shaderName}' pass '{passName}' did not preserve module order '{host.moduleOrder.firstSentinel}' before '{host.moduleOrder.secondSentinel}'."
+            );
         }
 
         /// <summary>Asserts the configured gate-on versus gate-off metric direction and magnitude.</summary>
-        private static void AssertRuntimeDelta(HostManifestEntry host, RuntimeObservation disabled, RuntimeObservation enabled, int changedPixelCount)
+        private static void AssertRuntimeDelta(
+            HostManifestEntry host,
+            RuntimeObservation disabled,
+            RuntimeObservation enabled,
+            int changedPixelCount
+        )
         {
-            float delta = GetRuntimeMetric(enabled, host.runtimeDelta.metric) - GetRuntimeMetric(disabled, host.runtimeDelta.metric);
+            float delta =
+                GetRuntimeMetric(enabled, host.runtimeDelta.metric)
+                - GetRuntimeMetric(disabled, host.runtimeDelta.metric);
             float minimumAbsoluteDelta = host.runtimeDelta.minimumAbsoluteDelta;
-            string evidence = $"disabled={GetRuntimeMetric(disabled, host.runtimeDelta.metric)}, enabled={GetRuntimeMetric(enabled, host.runtimeDelta.metric)}, disabledCoverage={disabled.MeshCoverage}, enabledCoverage={enabled.MeshCoverage}, changedPixelCount={changedPixelCount}";
-            Assert.That(minimumAbsoluteDelta, Is.GreaterThan(0.0f), $"Host '{host.shaderName}' must declare a positive runtime delta magnitude.");
-            AssertCoverageDoesNotFillRenderTarget(host, "disabled", disabled.MeshCoverage, evidence);
+            string evidence =
+                $"disabled={GetRuntimeMetric(disabled, host.runtimeDelta.metric)}, enabled={GetRuntimeMetric(enabled, host.runtimeDelta.metric)}, disabledCoverage={disabled.MeshCoverage}, enabledCoverage={enabled.MeshCoverage}, changedPixelCount={changedPixelCount}";
+            Assert.That(
+                minimumAbsoluteDelta,
+                Is.GreaterThan(0.0f),
+                $"Host '{host.shaderName}' must declare a positive runtime delta magnitude."
+            );
+            AssertCoverageDoesNotFillRenderTarget(
+                host,
+                "disabled",
+                disabled.MeshCoverage,
+                evidence
+            );
             AssertCoverageDoesNotFillRenderTarget(host, "enabled", enabled.MeshCoverage, evidence);
 
             if (string.Equals(host.runtimeDelta.direction, "increase", StringComparison.Ordinal))
             {
-                Assert.That(delta, Is.GreaterThanOrEqualTo(minimumAbsoluteDelta), $"Host '{host.shaderName}' gate did not increase '{host.runtimeDelta.metric}' by {minimumAbsoluteDelta}. {evidence}.");
+                Assert.That(
+                    delta,
+                    Is.GreaterThanOrEqualTo(minimumAbsoluteDelta),
+                    $"Host '{host.shaderName}' gate did not increase '{host.runtimeDelta.metric}' by {minimumAbsoluteDelta}. {evidence}."
+                );
                 return;
             }
 
             if (string.Equals(host.runtimeDelta.direction, "decrease", StringComparison.Ordinal))
             {
-                Assert.That(delta, Is.LessThanOrEqualTo(-minimumAbsoluteDelta), $"Host '{host.shaderName}' gate did not decrease '{host.runtimeDelta.metric}' by {minimumAbsoluteDelta}. {evidence}.");
+                Assert.That(
+                    delta,
+                    Is.LessThanOrEqualTo(-minimumAbsoluteDelta),
+                    $"Host '{host.shaderName}' gate did not decrease '{host.runtimeDelta.metric}' by {minimumAbsoluteDelta}. {evidence}."
+                );
                 return;
             }
 
-            Assert.Fail($"Host '{host.shaderName}' has unsupported runtime delta direction '{host.runtimeDelta.direction}'.");
+            Assert.Fail(
+                $"Host '{host.shaderName}' has unsupported runtime delta direction '{host.runtimeDelta.direction}'."
+            );
         }
 
         /// <summary>Rejects a full-frame alpha occupancy result because the isolated sphere cannot cover the complete target.</summary>
-        private static void AssertCoverageDoesNotFillRenderTarget(HostManifestEntry host, string gateState, int coverage, string evidence)
+        private static void AssertCoverageDoesNotFillRenderTarget(
+            HostManifestEntry host,
+            string gateState,
+            int coverage,
+            string evidence
+        )
         {
-            Assert.That(coverage, Is.LessThan(RenderSize * RenderSize), $"Host '{host.shaderName}' {gateState} observation covered the complete render target. {evidence}.");
+            Assert.That(
+                coverage,
+                Is.LessThan(RenderSize * RenderSize),
+                $"Host '{host.shaderName}' {gateState} observation covered the complete render target. {evidence}."
+            );
         }
 
         /// <summary>Counts readback pixels whose RGBA values differ between two gate states.</summary>
@@ -314,7 +514,12 @@ namespace PureBase.Tests.Daily
             {
                 Color disabled = disabledPixels[index];
                 Color enabled = enabledPixels[index];
-                if (disabled.r != enabled.r || disabled.g != enabled.g || disabled.b != enabled.b || disabled.a != enabled.a)
+                if (
+                    disabled.r != enabled.r
+                    || disabled.g != enabled.g
+                    || disabled.b != enabled.b
+                    || disabled.a != enabled.a
+                )
                 {
                     changedPixelCount++;
                 }
@@ -328,12 +533,18 @@ namespace PureBase.Tests.Daily
         {
             switch (metric)
             {
-                case "meshCentroidX": return observation.MeshCentroidX;
-                case "meshCentroidY": return observation.MeshCentroidY;
-                case "meshCoverage": return observation.MeshCoverage;
-                case "meanRed": return observation.MeanColor.r;
-                case "meanGreen": return observation.MeanColor.g;
-                case "meanBlue": return observation.MeanColor.b;
+                case "meshCentroidX":
+                    return observation.MeshCentroidX;
+                case "meshCentroidY":
+                    return observation.MeshCentroidY;
+                case "meshCoverage":
+                    return observation.MeshCoverage;
+                case "meanRed":
+                    return observation.MeanColor.r;
+                case "meanGreen":
+                    return observation.MeanColor.g;
+                case "meanBlue":
+                    return observation.MeanColor.b;
                 default:
                     Assert.Fail($"Unsupported fixed host runtime metric '{metric}'.");
                     return 0.0f;
@@ -368,9 +579,20 @@ namespace PureBase.Tests.Daily
         private static string GetPassSource(string source, string passName, string shaderName)
         {
             int passStart = source.IndexOf($"Name \"{passName}\"", StringComparison.Ordinal);
-            Assert.That(passStart, Is.GreaterThanOrEqualTo(0), $"Host '{shaderName}' has no generated {passName} pass.");
-            int nextPass = source.IndexOf("\n        Pass", passStart + 1, StringComparison.Ordinal);
-            return source.Substring(passStart, nextPass < 0 ? source.Length - passStart : nextPass - passStart);
+            Assert.That(
+                passStart,
+                Is.GreaterThanOrEqualTo(0),
+                $"Host '{shaderName}' has no generated {passName} pass."
+            );
+            int nextPass = source.IndexOf(
+                "\n        Pass",
+                passStart + 1,
+                StringComparison.Ordinal
+            );
+            return source.Substring(
+                passStart,
+                nextPass < 0 ? source.Length - passStart : nextPass - passStart
+            );
         }
 
         /// <summary>Counts non-overlapping ordinal occurrences in a source string.</summary>
@@ -390,7 +612,14 @@ namespace PureBase.Tests.Daily
         /// <summary>Returns the package manifest path from Unity's project root.</summary>
         private static string GetManifestPath()
         {
-            return Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Packages", "jp.penguin.purebase", "Tests", "Config", "shader-core-test-hosts.json");
+            return Path.Combine(
+                Directory.GetParent(Application.dataPath).FullName,
+                "Packages",
+                "jp.penguin.purebase",
+                "Tests",
+                "Config",
+                "shader-core-test-hosts.json"
+            );
         }
 
         /// <summary>Represents the read-only top-level host manifest.</summary>
@@ -483,7 +712,12 @@ namespace PureBase.Tests.Daily
             /// <param name="meshCentroidX">The normalized horizontal host centroid.</param>
             /// <param name="meshCentroidY">The normalized vertical host centroid.</param>
             /// <param name="meanColor">The average HDR host color.</param>
-            public RuntimeObservation(int meshCoverage, float meshCentroidX, float meshCentroidY, Color meanColor)
+            public RuntimeObservation(
+                int meshCoverage,
+                float meshCentroidX,
+                float meshCentroidY,
+                Color meanColor
+            )
             {
                 MeshCoverage = meshCoverage;
                 MeshCentroidX = meshCentroidX;
@@ -521,9 +755,16 @@ namespace PureBase.Tests.Daily
             public RuntimeRenderResources(Shader shader, string shaderName)
             {
                 material = new Material(shader);
-                Assert.That(material.HasProperty(RuntimeGatePropertyName), Is.True, $"Host '{shaderName}' does not expose {RuntimeGatePropertyName}.");
+                Assert.That(
+                    material.HasProperty(RuntimeGatePropertyName),
+                    Is.True,
+                    $"Host '{shaderName}' does not expose {RuntimeGatePropertyName}."
+                );
 
-                cameraObject = new GameObject("PureBase Daily Host Camera") { layer = RuntimeLayer };
+                cameraObject = new GameObject("PureBase Daily Host Camera")
+                {
+                    layer = RuntimeLayer,
+                };
                 camera = cameraObject.AddComponent<Camera>();
                 camera.enabled = false;
                 camera.allowHDR = true;
@@ -550,14 +791,25 @@ namespace PureBase.Tests.Daily
                 light.cullingMask = 1 << RuntimeLayer;
                 lightObject.transform.rotation = Quaternion.Euler(50.0f, -35.0f, 0.0f);
 
-                renderTarget = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf)
+                renderTarget = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBHalf
+                )
                 {
                     useMipMap = false,
-                    autoGenerateMips = false
+                    autoGenerateMips = false,
                 };
                 renderTarget.Create();
                 camera.targetTexture = renderTarget;
-                readbackTexture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAHalf, mipChain: false, linear: true);
+                readbackTexture = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAHalf,
+                    mipChain: false,
+                    linear: true
+                );
             }
 
             /// <summary>Renders one runtime gate state into an in-memory observation and readback.</summary>
@@ -572,7 +824,12 @@ namespace PureBase.Tests.Daily
                 try
                 {
                     RenderTexture.active = renderTarget;
-                    readbackTexture.ReadPixels(new Rect(0.0f, 0.0f, RenderSize, RenderSize), 0, 0, recalculateMipMaps: false);
+                    readbackTexture.ReadPixels(
+                        new Rect(0.0f, 0.0f, RenderSize, RenderSize),
+                        0,
+                        0,
+                        recalculateMipMaps: false
+                    );
                     readbackTexture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
                 }
                 finally
@@ -621,7 +878,12 @@ namespace PureBase.Tests.Daily
 
                 return coverage == 0
                     ? new RuntimeObservation(0, 0.0f, 0.0f, Color.black)
-                    : new RuntimeObservation(coverage, sumX / coverage / RenderSize, sumY / coverage / RenderSize, sumColor / coverage);
+                    : new RuntimeObservation(
+                        coverage,
+                        sumX / coverage / RenderSize,
+                        sumY / coverage / RenderSize,
+                        sumColor / coverage
+                    );
             }
         }
     }

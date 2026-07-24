@@ -51,18 +51,51 @@ namespace PureBase.Release.Consumer.Tests
         public void SelectedForwardAddSignalAttenuatesTowardBlackWithControlledFog()
         {
             ConsumerValidationContract contract = ConsumerValidationSupport.LoadContract();
-            Assert.That(SystemInfo.graphicsDeviceType, Is.EqualTo(GraphicsDeviceType.Direct3D11), $"Consumer run '{contract.runLabel}' requires Direct3D11 for Unlit ForwardAdd fog evidence.");
-            Assert.That(GraphicsSettings.currentRenderPipeline, Is.Null, $"Consumer run '{contract.runLabel}' requires the Built-in Render Pipeline for Unlit ForwardAdd fog evidence.");
-            Assert.That(contract.unlitForwardAddFog, Is.Not.Null, $"Consumer run '{contract.runLabel}' must provide unlitForwardAddFog.");
+            Assert.That(
+                SystemInfo.graphicsDeviceType,
+                Is.EqualTo(GraphicsDeviceType.Direct3D11),
+                $"Consumer run '{contract.runLabel}' requires Direct3D11 for Unlit ForwardAdd fog evidence."
+            );
+            Assert.That(
+                GraphicsSettings.currentRenderPipeline,
+                Is.Null,
+                $"Consumer run '{contract.runLabel}' requires the Built-in Render Pipeline for Unlit ForwardAdd fog evidence."
+            );
+            Assert.That(
+                contract.unlitForwardAddFog,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' must provide unlitForwardAddFog."
+            );
             ValidateContract(contract);
 
             ConsumerUnlitForwardAddFogContract fogContract = contract.unlitForwardAddFog;
-            Shader shader = ConsumerValidationSupport.ImportProductShader(fogContract.product, contract.runLabel);
-            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(fogContract.product, contract.runLabel);
-            ConsumerValidationSupport.ExportGeneratedSource(contract.runLabel, fogContract.product.shaderName, generatedSource);
-            StringAssert.Contains("[SCModule(" + fogContract.moduleUniqueId + ")]", generatedSource, $"Consumer run '{contract.runLabel}' did not import selected ForwardAdd fog module '{fogContract.moduleUniqueId}'.");
-            StringAssert.Contains(fogContract.sentinel, generatedSource, $"Consumer run '{contract.runLabel}' did not retain selected ForwardAdd fog sentinel '{fogContract.sentinel}'.");
-            PureBaseConsumerModuleFreeImportTests.AssertInactiveSentinels(contract, generatedSource);
+            Shader shader = ConsumerValidationSupport.ImportProductShader(
+                fogContract.product,
+                contract.runLabel
+            );
+            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(
+                fogContract.product,
+                contract.runLabel
+            );
+            ConsumerValidationSupport.ExportGeneratedSource(
+                contract.runLabel,
+                fogContract.product.shaderName,
+                generatedSource
+            );
+            StringAssert.Contains(
+                "[SCModule(" + fogContract.moduleUniqueId + ")]",
+                generatedSource,
+                $"Consumer run '{contract.runLabel}' did not import selected ForwardAdd fog module '{fogContract.moduleUniqueId}'."
+            );
+            StringAssert.Contains(
+                fogContract.sentinel,
+                generatedSource,
+                $"Consumer run '{contract.runLabel}' did not retain selected ForwardAdd fog sentinel '{fogContract.sentinel}'."
+            );
+            PureBaseConsumerModuleFreeImportTests.AssertInactiveSentinels(
+                contract,
+                generatedSource
+            );
 
             ConsumerForwardAddFogArtifact artifact = new ConsumerForwardAddFogArtifact
             {
@@ -80,31 +113,76 @@ namespace PureBase.Release.Consumer.Tests
             };
             try
             {
-                using (ConsumerForwardAddFogFixture fixture = new ConsumerForwardAddFogFixture(shader, fogContract))
+                using (
+                    ConsumerForwardAddFogFixture fixture = new ConsumerForwardAddFogFixture(
+                        shader,
+                        fogContract
+                    )
+                )
                 {
                     Color withoutFog = fixture.Render(false);
                     artifact.fogDisabled = ConsumerColorArtifact.FromColor(withoutFog);
                     artifact.fogDisabledRgbMagnitude = RgbMagnitude(withoutFog);
-                    AssertInRange(artifact.fogDisabledRgbMagnitude, fogContract.fogDisabledSignalMagnitude, contract.runLabel, "fog-disabled signal RGB magnitude");
+                    AssertInRange(
+                        artifact.fogDisabledRgbMagnitude,
+                        fogContract.fogDisabledSignalMagnitude,
+                        contract.runLabel,
+                        "fog-disabled signal RGB magnitude"
+                    );
 
                     Color withFog = fixture.Render(true);
                     artifact.fogEnabled = ConsumerColorArtifact.FromColor(withFog);
                     artifact.fogEnabledRgbMagnitude = RgbMagnitude(withFog);
-                    artifact.retainedSignalFraction = artifact.fogEnabledRgbMagnitude / artifact.fogDisabledRgbMagnitude;
+                    artifact.retainedSignalFraction =
+                        artifact.fogEnabledRgbMagnitude / artifact.fogDisabledRgbMagnitude;
                     artifact.renderSettingsFogEnabled = RenderSettings.fog;
-                    artifact.globalExponentialFogKeywordEnabled = Shader.IsKeywordEnabled(FogExponentialKeyword);
-                    artifact.materialExponentialFogKeywordEnabled = fixture.IsMaterialKeywordEnabled(FogExponentialKeyword);
+                    artifact.globalExponentialFogKeywordEnabled = Shader.IsKeywordEnabled(
+                        FogExponentialKeyword
+                    );
+                    artifact.materialExponentialFogKeywordEnabled =
+                        fixture.IsMaterialKeywordEnabled(FogExponentialKeyword);
                     artifact.fogParametersY = Shader.GetGlobalVector(FogParametersGlobalName).y;
-                    AssertInRange(artifact.retainedSignalFraction, fogContract.retainedSignalFraction, contract.runLabel, "fog-enabled retained signal fraction");
-                    AssertInRange(withFog.r, fogContract.blackFogRed, contract.runLabel, "fog-enabled black red");
-                    AssertInRange(withFog.g, fogContract.blackFogGreen, contract.runLabel, "fog-enabled black green");
-                    AssertInRange(withFog.b, fogContract.blackFogBlue, contract.runLabel, "fog-enabled black blue");
-                    AssertInRange(withFog.a, fogContract.blackFogAlpha, contract.runLabel, "fog-enabled black alpha");
+                    AssertInRange(
+                        artifact.retainedSignalFraction,
+                        fogContract.retainedSignalFraction,
+                        contract.runLabel,
+                        "fog-enabled retained signal fraction"
+                    );
+                    AssertInRange(
+                        withFog.r,
+                        fogContract.blackFogRed,
+                        contract.runLabel,
+                        "fog-enabled black red"
+                    );
+                    AssertInRange(
+                        withFog.g,
+                        fogContract.blackFogGreen,
+                        contract.runLabel,
+                        "fog-enabled black green"
+                    );
+                    AssertInRange(
+                        withFog.b,
+                        fogContract.blackFogBlue,
+                        contract.runLabel,
+                        "fog-enabled black blue"
+                    );
+                    AssertInRange(
+                        withFog.a,
+                        fogContract.blackFogAlpha,
+                        contract.runLabel,
+                        "fog-enabled black alpha"
+                    );
                 }
             }
             finally
             {
-                File.WriteAllText(Path.Combine(ConsumerValidationSupport.GetArtifactDirectory(), "unlit-forward-add-fog-readbacks.json"), JsonUtility.ToJson(artifact, true));
+                File.WriteAllText(
+                    Path.Combine(
+                        ConsumerValidationSupport.GetArtifactDirectory(),
+                        "unlit-forward-add-fog-readbacks.json"
+                    ),
+                    JsonUtility.ToJson(artifact, true)
+                );
             }
         }
 
@@ -113,24 +191,90 @@ namespace PureBase.Release.Consumer.Tests
         private static void ValidateContract(ConsumerValidationContract contract)
         {
             ConsumerUnlitForwardAddFogContract fogContract = contract.unlitForwardAddFog;
-            Assert.That(fogContract.product, Is.Not.Null, $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide product.");
-            Assert.That(fogContract.product.shaderName, Is.EqualTo("PureBase/Unlit"), $"Consumer run '{contract.runLabel}' unlitForwardAddFog must render PureBase/Unlit.");
-            Assert.That(fogContract.product.shaderAssetPath, Is.Not.Empty, $"Consumer run '{contract.runLabel}' unlitForwardAddFog product must provide shaderAssetPath.");
-            Assert.That(fogContract.moduleUniqueId, Is.Not.Empty, $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide moduleUniqueId.");
-            Assert.That(fogContract.sentinel, Is.Not.Empty, $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide sentinel.");
-            Assert.That(fogContract.floatAssignments, Is.Not.Null, $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide floatAssignments, including an empty array when none are needed.");
-            Assert.That(fogContract.fog, Is.Not.Null, $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide fog.");
-            Assert.That(fogContract.fog.mode, Is.EqualTo(FogMode.Exponential.ToString()), $"Consumer run '{contract.runLabel}' unlitForwardAddFog must use Exponential fog.");
-            Assert.That(fogContract.fog.color, Is.Not.Null, $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide fog.color.");
-            Assert.That(fogContract.fog.density, Is.GreaterThan(0.0f), $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide a positive fog density.");
-            Assert.That(fogContract.cameraFieldOfView, Is.InRange(1.0f, 179.0f), $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide a perspective camera field of view between 1 and 179 degrees.");
-            ConsumerValidationSupport.ValidateRange(fogContract.fogDisabledSignalMagnitude, "unlitForwardAddFog.fogDisabledSignalMagnitude");
-            ConsumerValidationSupport.ValidateRange(fogContract.retainedSignalFraction, "unlitForwardAddFog.retainedSignalFraction");
-            ConsumerValidationSupport.ValidateRange(fogContract.blackFogRed, "unlitForwardAddFog.blackFogRed");
-            ConsumerValidationSupport.ValidateRange(fogContract.blackFogGreen, "unlitForwardAddFog.blackFogGreen");
-            ConsumerValidationSupport.ValidateRange(fogContract.blackFogBlue, "unlitForwardAddFog.blackFogBlue");
-            ConsumerValidationSupport.ValidateRange(fogContract.blackFogAlpha, "unlitForwardAddFog.blackFogAlpha");
-            Assert.That(fogContract.fogDisabledSignalMagnitude.minimum, Is.GreaterThan(0.0f), $"Consumer run '{contract.runLabel}' unlitForwardAddFog must require a nonzero fog-disabled signal.");
+            Assert.That(
+                fogContract.product,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide product."
+            );
+            Assert.That(
+                fogContract.product.shaderName,
+                Is.EqualTo("PureBase/Unlit"),
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must render PureBase/Unlit."
+            );
+            Assert.That(
+                fogContract.product.shaderAssetPath,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog product must provide shaderAssetPath."
+            );
+            Assert.That(
+                fogContract.moduleUniqueId,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide moduleUniqueId."
+            );
+            Assert.That(
+                fogContract.sentinel,
+                Is.Not.Empty,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide sentinel."
+            );
+            Assert.That(
+                fogContract.floatAssignments,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide floatAssignments, including an empty array when none are needed."
+            );
+            Assert.That(
+                fogContract.fog,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide fog."
+            );
+            Assert.That(
+                fogContract.fog.mode,
+                Is.EqualTo(FogMode.Exponential.ToString()),
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must use Exponential fog."
+            );
+            Assert.That(
+                fogContract.fog.color,
+                Is.Not.Null,
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide fog.color."
+            );
+            Assert.That(
+                fogContract.fog.density,
+                Is.GreaterThan(0.0f),
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide a positive fog density."
+            );
+            Assert.That(
+                fogContract.cameraFieldOfView,
+                Is.InRange(1.0f, 179.0f),
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must provide a perspective camera field of view between 1 and 179 degrees."
+            );
+            ConsumerValidationSupport.ValidateRange(
+                fogContract.fogDisabledSignalMagnitude,
+                "unlitForwardAddFog.fogDisabledSignalMagnitude"
+            );
+            ConsumerValidationSupport.ValidateRange(
+                fogContract.retainedSignalFraction,
+                "unlitForwardAddFog.retainedSignalFraction"
+            );
+            ConsumerValidationSupport.ValidateRange(
+                fogContract.blackFogRed,
+                "unlitForwardAddFog.blackFogRed"
+            );
+            ConsumerValidationSupport.ValidateRange(
+                fogContract.blackFogGreen,
+                "unlitForwardAddFog.blackFogGreen"
+            );
+            ConsumerValidationSupport.ValidateRange(
+                fogContract.blackFogBlue,
+                "unlitForwardAddFog.blackFogBlue"
+            );
+            ConsumerValidationSupport.ValidateRange(
+                fogContract.blackFogAlpha,
+                "unlitForwardAddFog.blackFogAlpha"
+            );
+            Assert.That(
+                fogContract.fogDisabledSignalMagnitude.minimum,
+                Is.GreaterThan(0.0f),
+                $"Consumer run '{contract.runLabel}' unlitForwardAddFog must require a nonzero fog-disabled signal."
+            );
         }
 
         /// <summary>Asserts an observed scalar against a runner-provided inclusive range.</summary>
@@ -138,9 +282,18 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="expected">The expected inclusive range.</param>
         /// <param name="runLabel">The current consumer run label.</param>
         /// <param name="description">The observed quantity description.</param>
-        private static void AssertInRange(float actual, ConsumerFloatRange expected, string runLabel, string description)
+        private static void AssertInRange(
+            float actual,
+            ConsumerFloatRange expected,
+            string runLabel,
+            string description
+        )
         {
-            Assert.That(actual, Is.InRange(expected.minimum, expected.maximum), $"Consumer run '{runLabel}' observed {description}={actual}, but expected [{expected.minimum}, {expected.maximum}].");
+            Assert.That(
+                actual,
+                Is.InRange(expected.minimum, expected.maximum),
+                $"Consumer run '{runLabel}' observed {description}={actual}, but expected [{expected.minimum}, {expected.maximum}]."
+            );
         }
 
         /// <summary>Returns the Euclidean RGB magnitude of one HDR color.</summary>
@@ -208,7 +361,10 @@ namespace PureBase.Release.Consumer.Tests
             /// <summary>Initializes actual Unlit resources and captures the complete global fog state.</summary>
             /// <param name="shader">The imported selected Unlit shader.</param>
             /// <param name="fogContract">The runner-provided fog configuration.</param>
-            public ConsumerForwardAddFogFixture(Shader shader, ConsumerUnlitForwardAddFogContract fogContract)
+            public ConsumerForwardAddFogFixture(
+                Shader shader,
+                ConsumerUnlitForwardAddFogContract fogContract
+            )
             {
                 originalFog = RenderSettings.fog;
                 originalFogMode = RenderSettings.fogMode;
@@ -218,20 +374,41 @@ namespace PureBase.Release.Consumer.Tests
                 originalFogParametersGlobal = Shader.GetGlobalVector(FogParametersGlobalName);
                 originalFogLinearKeyword = Shader.IsKeywordEnabled(FogLinearKeyword);
                 originalFogExponentialKeyword = Shader.IsKeywordEnabled(FogExponentialKeyword);
-                originalFogExponentialSquaredKeyword = Shader.IsKeywordEnabled(FogExponentialSquaredKeyword);
+                originalFogExponentialSquaredKeyword = Shader.IsKeywordEnabled(
+                    FogExponentialSquaredKeyword
+                );
                 this.fogContract = fogContract;
-                material = new Material(shader) { name = "PureBase Consumer Unlit ForwardAdd Fog Material" };
+                material = new Material(shader)
+                {
+                    name = "PureBase Consumer Unlit ForwardAdd Fog Material",
+                };
                 foreach (ConsumerFloatAssignment assignment in fogContract.floatAssignments)
                 {
-                    Assert.That(assignment, Is.Not.Null, "Consumer Unlit ForwardAdd fog contract has a null float assignment.");
-                    Assert.That(assignment.propertyName, Is.Not.Empty, "Consumer Unlit ForwardAdd fog contract has a float assignment without propertyName.");
-                    Assert.That(material.HasProperty(assignment.propertyName), Is.True, $"Consumer Unlit ForwardAdd fog product '{shader.name}' does not expose '{assignment.propertyName}'.");
+                    Assert.That(
+                        assignment,
+                        Is.Not.Null,
+                        "Consumer Unlit ForwardAdd fog contract has a null float assignment."
+                    );
+                    Assert.That(
+                        assignment.propertyName,
+                        Is.Not.Empty,
+                        "Consumer Unlit ForwardAdd fog contract has a float assignment without propertyName."
+                    );
+                    Assert.That(
+                        material.HasProperty(assignment.propertyName),
+                        Is.True,
+                        $"Consumer Unlit ForwardAdd fog product '{shader.name}' does not expose '{assignment.propertyName}'."
+                    );
                     material.SetFloat(assignment.propertyName, assignment.value);
                 }
                 material.SetFloat("_Cull", 0.0f);
 
                 forwardAddPass = material.FindPass("ForwardAdd");
-                Assert.That(forwardAddPass, Is.GreaterThanOrEqualTo(0), $"Consumer Unlit ForwardAdd fog product '{shader.name}' does not expose ForwardAdd.");
+                Assert.That(
+                    forwardAddPass,
+                    Is.GreaterThanOrEqualTo(0),
+                    $"Consumer Unlit ForwardAdd fog product '{shader.name}' does not expose ForwardAdd."
+                );
                 mesh = CreateScreenMesh();
                 cameraObject = new GameObject("PureBase Consumer Unlit ForwardAdd Fog Camera");
                 camera = cameraObject.AddComponent<Camera>();
@@ -242,10 +419,22 @@ namespace PureBase.Release.Consumer.Tests
                 camera.transform.position = new Vector3(0.0f, 0.0f, -5.0f);
                 camera.orthographic = false;
                 camera.fieldOfView = fogContract.cameraFieldOfView;
-                target = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+                target = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBHalf,
+                    RenderTextureReadWrite.Linear
+                );
                 target.Create();
                 camera.targetTexture = target;
-                readback = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                readback = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAFloat,
+                    false,
+                    true
+                );
             }
 
             /// <summary>Renders only the actual ForwardAdd pass with the requested controlled fog state.</summary>
@@ -254,7 +443,12 @@ namespace PureBase.Release.Consumer.Tests
             public Color Render(bool fogEnabled)
             {
                 SetFogState(fogEnabled);
-                CommandBuffer commandBuffer = new CommandBuffer { name = fogEnabled ? "PureBase Consumer ForwardAdd Fog Enabled" : "PureBase Consumer ForwardAdd Fog Disabled" };
+                CommandBuffer commandBuffer = new CommandBuffer
+                {
+                    name = fogEnabled
+                        ? "PureBase Consumer ForwardAdd Fog Enabled"
+                        : "PureBase Consumer ForwardAdd Fog Disabled",
+                };
                 try
                 {
                     commandBuffer.SetRenderTarget(target);
@@ -288,7 +482,11 @@ namespace PureBase.Release.Consumer.Tests
                 RenderSettings.fogDensity = originalFogDensity;
                 Shader.SetGlobalColor(FogColorGlobalName, originalFogColorGlobal);
                 Shader.SetGlobalVector(FogParametersGlobalName, originalFogParametersGlobal);
-                SetFogKeywords(originalFogLinearKeyword, originalFogExponentialKeyword, originalFogExponentialSquaredKeyword);
+                SetFogKeywords(
+                    originalFogLinearKeyword,
+                    originalFogExponentialKeyword,
+                    originalFogExponentialSquaredKeyword
+                );
                 camera.targetTexture = null;
                 UnityEngine.Object.DestroyImmediate(readback);
                 target.Release();
@@ -305,12 +503,20 @@ namespace PureBase.Release.Consumer.Tests
                 RenderSettings.fog = fogEnabled;
                 if (fogEnabled)
                 {
-                    Color color = new Color(fogContract.fog.color.red, fogContract.fog.color.green, fogContract.fog.color.blue, fogContract.fog.color.alpha);
+                    Color color = new Color(
+                        fogContract.fog.color.red,
+                        fogContract.fog.color.green,
+                        fogContract.fog.color.blue,
+                        fogContract.fog.color.alpha
+                    );
                     RenderSettings.fogMode = FogMode.Exponential;
                     RenderSettings.fogColor = color;
                     RenderSettings.fogDensity = fogContract.fog.density;
                     Shader.SetGlobalColor(FogColorGlobalName, color);
-                    Shader.SetGlobalVector(FogParametersGlobalName, new Vector4(0.0f, fogContract.fog.density * 1.4426951f, 0.0f, 0.0f));
+                    Shader.SetGlobalVector(
+                        FogParametersGlobalName,
+                        new Vector4(0.0f, fogContract.fog.density * 1.4426951f, 0.0f, 0.0f)
+                    );
                     SetFogKeywords(false, true, false);
                 }
                 else
@@ -325,7 +531,11 @@ namespace PureBase.Release.Consumer.Tests
             /// <param name="linear">Whether linear fog is enabled.</param>
             /// <param name="exponential">Whether exponential fog is enabled.</param>
             /// <param name="exponentialSquared">Whether exponential-squared fog is enabled.</param>
-            private static void SetFogKeywords(bool linear, bool exponential, bool exponentialSquared)
+            private static void SetFogKeywords(
+                bool linear,
+                bool exponential,
+                bool exponentialSquared
+            )
             {
                 SetKeyword(FogLinearKeyword, linear);
                 SetKeyword(FogExponentialKeyword, exponential);
@@ -336,7 +546,11 @@ namespace PureBase.Release.Consumer.Tests
             /// <param name="linear">Whether linear fog is enabled.</param>
             /// <param name="exponential">Whether exponential fog is enabled.</param>
             /// <param name="exponentialSquared">Whether exponential-squared fog is enabled.</param>
-            private void SetMaterialFogKeywords(bool linear, bool exponential, bool exponentialSquared)
+            private void SetMaterialFogKeywords(
+                bool linear,
+                bool exponential,
+                bool exponentialSquared
+            )
             {
                 SetMaterialKeyword(FogLinearKeyword, linear);
                 SetMaterialKeyword(FogExponentialKeyword, exponential);
@@ -384,7 +598,18 @@ namespace PureBase.Release.Consumer.Tests
                     readback.ReadPixels(new Rect(0.0f, 0.0f, RenderSize, RenderSize), 0, 0, false);
                     readback.Apply(false, false);
                     Color center = readback.GetPixel(RenderSize / 2, RenderSize / 2);
-                    Assert.That(float.IsNaN(center.r) || float.IsInfinity(center.r) || float.IsNaN(center.g) || float.IsInfinity(center.g) || float.IsNaN(center.b) || float.IsInfinity(center.b) || float.IsNaN(center.a) || float.IsInfinity(center.a), Is.False, "Consumer Unlit ForwardAdd fog readback produced a non-finite center pixel.");
+                    Assert.That(
+                        float.IsNaN(center.r)
+                            || float.IsInfinity(center.r)
+                            || float.IsNaN(center.g)
+                            || float.IsInfinity(center.g)
+                            || float.IsNaN(center.b)
+                            || float.IsInfinity(center.b)
+                            || float.IsNaN(center.a)
+                            || float.IsInfinity(center.a),
+                        Is.False,
+                        "Consumer Unlit ForwardAdd fog readback produced a non-finite center pixel."
+                    );
                     return center;
                 }
                 finally
@@ -398,8 +623,20 @@ namespace PureBase.Release.Consumer.Tests
             private static Mesh CreateScreenMesh()
             {
                 Mesh mesh = new Mesh { name = "PureBase Consumer Unlit ForwardAdd Fog Mesh" };
-                mesh.vertices = new[] { new Vector3(-1.0f, -1.0f, 0.0f), new Vector3(1.0f, -1.0f, 0.0f), new Vector3(1.0f, 1.0f, 0.0f), new Vector3(-1.0f, 1.0f, 0.0f) };
-                Vector2[] uvs = { new Vector2(0.0f, 0.0f), new Vector2(1.0f, 0.0f), new Vector2(1.0f, 1.0f), new Vector2(0.0f, 1.0f) };
+                mesh.vertices = new[]
+                {
+                    new Vector3(-1.0f, -1.0f, 0.0f),
+                    new Vector3(1.0f, -1.0f, 0.0f),
+                    new Vector3(1.0f, 1.0f, 0.0f),
+                    new Vector3(-1.0f, 1.0f, 0.0f),
+                };
+                Vector2[] uvs =
+                {
+                    new Vector2(0.0f, 0.0f),
+                    new Vector2(1.0f, 0.0f),
+                    new Vector2(1.0f, 1.0f),
+                    new Vector2(0.0f, 1.0f),
+                };
                 mesh.uv = uvs;
                 mesh.uv2 = uvs;
                 mesh.uv3 = uvs;
@@ -495,7 +732,13 @@ namespace PureBase.Release.Consumer.Tests
             /// <returns>The serialized color artifact.</returns>
             public static ConsumerColorArtifact FromColor(Color color)
             {
-                return new ConsumerColorArtifact { red = color.r, green = color.g, blue = color.b, alpha = color.a };
+                return new ConsumerColorArtifact
+                {
+                    red = color.r,
+                    green = color.g,
+                    blue = color.b,
+                    alpha = color.a,
+                };
             }
         }
     }
