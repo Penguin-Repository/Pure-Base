@@ -50,9 +50,14 @@ jobs:
       checkout_ref: ${{ steps.source.outputs.checkout_ref }}
       reason: ${{ steps.source.outputs.reason }}
     steps:
+      - name: Checkout trusted workflow helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Resolve trusted source
         id: source
-        shell: bash
+        shell: pwsh
         env:
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
@@ -61,31 +66,17 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          set -euo pipefail
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            echo "allowed=true" >> "$GITHUB_OUTPUT"
-            echo "checkout_ref=$PUSH_SHA" >> "$GITHUB_OUTPUT"
-            echo "reason=push" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ "$PR_HEAD_REPOSITORY" != "$REPOSITORY" ]]; then
-            echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "checkout_ref=" >> "$GITHUB_OUTPUT"
-            echo "reason=external pull request" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [[ "$PR_DRAFT" == "true" ]]; then
-            echo "allowed=false" >> "$GITHUB_OUTPUT"
-            echo "checkout_ref=" >> "$GITHUB_OUTPUT"
-            echo "reason=draft pull request" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "allowed=true" >> "$GITHUB_OUTPUT"
-          echo "checkout_ref=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
-          echo "reason=same-repository pull request" >> "$GITHUB_OUTPUT"
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/PureBase.Automation.psm1" -Force
+          $source = Resolve-PureBaseDailySource `
+            -EventName $env:EVENT_NAME `
+            -Repository $env:REPOSITORY `
+            -PushSha $env:PUSH_SHA `
+            -PullRequestHeadRepository $env:PR_HEAD_REPOSITORY `
+            -PullRequestHeadSha $env:PR_HEAD_SHA `
+            -PullRequestDraft ($env:PR_DRAFT -eq 'true')
+          "allowed=$($source.Allowed.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "checkout_ref=$($source.CheckoutRef)" >> $env:GITHUB_OUTPUT
+          "reason=$($source.Reason)" >> $env:GITHUB_OUTPUT
 
   reject-untrusted-pull-request:
     name: Reject unsupported PR source
