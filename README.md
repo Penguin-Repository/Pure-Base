@@ -14,9 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# Pure-Base
+# Pure Base
 
 Pure-Base provides four minimal Built-in Render Pipeline base shaders for Shader-Core. Each shader is independently usable without an optional module.
+
+> [!Important]
+> Pure Base is an unofficial project that is independent of and unrelated to Shader-Core, NonToon, and lilToon.
+>
+> Pure Base and Penguin do not accept any financial support. Only issues, pull requests, code, and patches are accepted.
 
 ## Requirements
 
