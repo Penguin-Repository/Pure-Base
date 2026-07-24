@@ -227,11 +227,9 @@ namespace PureBase.Tests.Daily
                 );
 
                 Assert.That(
-                    Regex.Matches(
-                        source,
-                        lineStartDeclarationPattern,
-                        RegexOptions.Multiline
-                    ).Count,
+                    Regex
+                        .Matches(source, lineStartDeclarationPattern, RegexOptions.Multiline)
+                        .Count,
                     Is.EqualTo(1),
                     $"Product shader '{productShaderName}' at '{assetPath}' must contain exactly one line-start CustomEditor declaration."
                 );
