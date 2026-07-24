@@ -53,14 +53,19 @@ Create these Actions secrets:
 - `APP_PRIVATE_KEY`: GitHub App private key.
 - `PAT_FOR_DISPATCH`: token that can send `repository_dispatch` to `VPM_REPOSITORY`.
 
-Install the GitHub App on Pure-Base with repository **Contents: write** permission. Enable
-immutable releases in the repository settings before the first release.
+Install the GitHub App on Pure-Base with repository **Contents: write** and
+**Administration: read** permissions. Enable immutable releases in the repository settings before
+the first release. The release script checks `GET /repos/{owner}/{repo}/immutable-releases` before
+running Unity release validation and stops without changing the repository when the setting is not
+enabled.
 
 ## Workflows
 
 `Daily` runs `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` followed by `-Mode Daily` on every
-push and on non-draft pull requests whose head branch belongs to Pure-Base. Fork pull requests are
-rejected without checking out or executing their code on the Unity runner.
+push and on non-draft pull requests whose head branch belongs to Pure-Base. The authorization job
+uses the tested `Resolve-PureBaseDailySource` helper from the base workflow checkout. Fork pull
+requests are rejected before a self-hosted runner is allocated and without checking out or
+executing their code on the Unity runner.
 
 `Release validation` is manual and read-only. It runs the full release consumer validation and
 uploads the complete evidence directory, including a versioned copy of the audited package ZIP.
@@ -77,5 +82,10 @@ package version, creates a missing tag when necessary, resumes an existing draft
 already published release only when its asset matches, and retries the VPM dispatch. Creating and
 filling a draft before publication minimizes the immutable release failure window.
 
+`Automation tests` runs Pester on GitHub-hosted Linux runners. The tests cover stable version
+validation, fresh and resume release mode decisions, missing and mismatched tags, VPM dispatch URLs
+and hashes, fork and draft PR rejection, immutable-release preflight behavior, and the generated
+Unity project version, Linear color space, text serialization, and Shader-Core pin.
+
 `CodeQL` runs on GitHub-hosted Linux runners for C# and GitHub Actions. HLSL and PowerShell are not
-CodeQL languages and remain covered by the Unity and release validation scripts.
+CodeQL languages and remain covered by the Unity, release validation, and Pester automation tests.
