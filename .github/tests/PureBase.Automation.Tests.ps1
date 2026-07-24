@@ -93,13 +93,37 @@ Describe 'Resume tag handling' {
     }
 }
 
+Describe 'Git process output isolation' {
+    It 'keeps stderr warnings out of the logic-critical Output value' {
+        $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Git-Test-' + [guid]::NewGuid().ToString('N'))
+        try {
+            New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+            & git -C $temporaryRoot init --quiet
+            if ($LASTEXITCODE -ne 0) { throw 'git init failed for test fixture.' }
+
+            $result = Invoke-PureBaseGit `
+                -PackageRoot $temporaryRoot `
+                -Arguments @('-c', 'alias.emit=!sh -c ''echo expected; echo warning >&2''', 'emit')
+
+            $result.ExitCode | Should -Be 0
+            $result.Output | Should -Be 'expected'
+            $result.Error | Should -Be 'warning'
+        }
+        finally {
+            if (Test-Path -LiteralPath $temporaryRoot) {
+                Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+            }
+        }
+    }
+}
+
 Describe 'VPM dispatch payload' {
-    It 'creates the exact immutable release asset URL' {
+    It 'creates the exact immutable release asset URL without an empty query string' {
         New-PureBasePackageUrl `
             -Repository 'PenguinDOOM/Pure-Base' `
             -Version '0.2.0' `
             -AssetName 'jp.penguin.purebase-0.2.0.zip' |
-            Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip?'
+            Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
     }
 
     It 'includes the URL and SHA-256 in repository_dispatch data' {
@@ -113,7 +137,7 @@ Describe 'VPM dispatch payload' {
             -ReleaseUrl 'https://github.com/PenguinDOOM/Pure-Base/releases/tag/0.2.0'
 
         $payload.event_type | Should -Be 'update-vpm'
-        $payload.client_payload.packageurl | Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip?'
+        $payload.client_payload.packageurl | Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
         $payload.client_payload.sha256 | Should -Be '0123456789abcdef'
     }
 }
@@ -133,6 +157,15 @@ Describe 'Daily source authorization' {
             -PullRequestHeadSha 'abc123'
         $result.Allowed | Should -BeTrue
         $result.CheckoutRef | Should -Be 'abc123'
+    }
+
+    It 'accepts repository identity with different owner or repository casing' {
+        $result = Resolve-PureBaseDailySource `
+            -EventName pull_request_target `
+            -Repository 'PenguinDOOM/Pure-Base' `
+            -PullRequestHeadRepository 'penguindoom/pure-base' `
+            -PullRequestHeadSha 'abc123'
+        $result.Allowed | Should -BeTrue
     }
 
     It 'rejects an external fork before runner allocation' {
@@ -206,6 +239,55 @@ Describe 'Immutable Releases preflight' {
     }
 }
 
+Describe 'Published immutable release reuse' {
+    BeforeAll {
+        $assetName = 'jp.penguin.purebase-0.2.0.zip'
+        $digest = 'a' * 64
+        $publishedRelease = [pscustomobject]@{
+            draft = $false
+            immutable = $true
+            assets = @(
+                [pscustomobject]@{
+                    name = $assetName
+                    state = 'uploaded'
+                    digest = "sha256:$digest"
+                    browser_download_url = "https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/$assetName"
+                }
+            )
+        }
+    }
+
+    It 'reuses the GitHub asset digest instead of requiring a rebuilt ZIP' {
+        $artifact = Resolve-PureBasePublishedArtifact -Release $publishedRelease -AssetName $assetName
+        $artifact.Source | Should -Be 'published-release'
+        $artifact.Path | Should -BeNullOrEmpty
+        $artifact.Sha256 | Should -Be ('a' * 64)
+        $artifact.DownloadUrl | Should -Match '/releases/download/0\.2\.0/'
+    }
+
+    It 'rejects a non-immutable published release' {
+        $release = $publishedRelease.PSObject.Copy()
+        $release.immutable = $false
+        { Resolve-PureBasePublishedArtifact -Release $release -AssetName $assetName } |
+            Should -Throw '*immutable*'
+    }
+
+    It 'rejects a published asset without a valid digest' {
+        $release = [pscustomobject]@{
+            draft = $false
+            immutable = $true
+            assets = @([pscustomobject]@{ name=$assetName; state='uploaded'; digest=''; browser_download_url='https://example.invalid/file.zip' })
+        }
+        { Resolve-PureBasePublishedArtifact -Release $release -AssetName $assetName } |
+            Should -Throw '*valid SHA-256 digest*'
+    }
+
+    It 'validates an expected digest when one is supplied' {
+        { Resolve-PureBasePublishedArtifact -Release $publishedRelease -AssetName $assetName -ExpectedSha256 ('b' * 64) } |
+            Should -Throw '*expected SHA-256*'
+    }
+}
+
 Describe 'Production workflow integration' {
     It 'runs the immutable preflight before full release validation' {
         $releaseScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw
@@ -215,7 +297,9 @@ Describe 'Production workflow integration' {
         $validationIndex | Should -BeGreaterThan $preflightIndex
         $releaseScript | Should -Match 'Resolve-PureBaseReleaseMode'
         $releaseScript | Should -Match 'Resolve-PureBaseResumeTagAction'
+        $releaseScript | Should -Match 'Resolve-PureBasePublishedArtifact'
         $releaseScript | Should -Match 'New-PureBaseDispatchPayload'
+        $releaseScript | Should -Match "ReleaseState -eq 'published'"
     }
 
     It 'uses the tested authorization function before allocating the Unity runner' {
