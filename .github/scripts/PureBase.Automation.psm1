@@ -22,7 +22,6 @@ function ConvertTo-PureBaseStableVersion {
     if ($Value -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$') {
         throw "Only stable unprefixed semantic versions are supported: '$Value'."
     }
-
     return [version]$Value
 }
 
@@ -52,7 +51,6 @@ function Resolve-PureBaseReleaseMode {
         if ($target -ne $current) {
             throw 'Resume is valid only when update_trigger.json and package.json versions are equal.'
         }
-
         return [pscustomobject][ordered]@{
             Mode = 'resume'
             CurrentVersion = $CurrentVersion
@@ -94,7 +92,6 @@ function Resolve-PureBaseResumeTagAction {
     if (-not [string]::Equals($ExistingTagSha, $HeadSha, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'The existing release tag points to a different commit.'
     }
-
     return 'reuse'
 }
 
@@ -115,7 +112,7 @@ function New-PureBasePackageUrl {
     }
 
     $encodedAssetName = [Uri]::EscapeDataString($AssetName)
-    return "https://github.com/$Repository/releases/download/$Version/$encodedAssetName?"
+    return "https://github.com/$Repository/releases/download/$Version/$($encodedAssetName)?"
 }
 
 function New-PureBaseDispatchPayload {
@@ -130,7 +127,6 @@ function New-PureBaseDispatchPayload {
         [Parameter(Mandatory)][string]$ReleaseUrl
     )
 
-    $packageUrl = New-PureBasePackageUrl -Repository $Repository -Version $Version -AssetName $AssetName
     return [ordered]@{
         event_type = 'update-vpm'
         client_payload = [ordered]@{
@@ -138,7 +134,7 @@ function New-PureBaseDispatchPayload {
             version = $Version
             tag = $Version
             commitSha = $CommitSha
-            packageurl = $packageUrl
+            packageurl = New-PureBasePackageUrl -Repository $Repository -Version $Version -AssetName $AssetName
             sha256 = $Sha256
             releaseUrl = $ReleaseUrl
             sourceRepository = $Repository
@@ -175,7 +171,6 @@ function Resolve-PureBaseDailySource {
     if ([string]::IsNullOrWhiteSpace($PullRequestHeadSha)) {
         throw 'Trusted pull requests require a head commit SHA.'
     }
-
     return [pscustomobject][ordered]@{ Allowed = $true; CheckoutRef = $PullRequestHeadSha; Reason = 'same-repository pull request' }
 }
 
@@ -202,7 +197,6 @@ function Assert-PureBaseImmutableReleasesEnabled {
     if ($null -eq $response -or $null -eq $response.PSObject.Properties['enabled'] -or -not [bool]$response.enabled) {
         throw "GitHub did not confirm that Immutable Releases are enabled for '$Repository'."
     }
-
     return $response
 }
 
