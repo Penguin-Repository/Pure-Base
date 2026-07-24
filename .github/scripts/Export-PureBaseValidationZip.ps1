@@ -23,12 +23,11 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'PureBase.Automation.psm1') -Force
 
 $package = Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw | ConvertFrom-Json
 $version = [string]$package.version
-if ($version -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
-    throw "package.json contains an invalid semantic version '$version'."
-}
+[void](ConvertTo-PureBaseStableVersion -Value $version)
 
 $sourceZip = @(
     Get-ChildItem -LiteralPath $ValidationArtifactDirectory -Filter 'jp.penguin.purebase-*.zip' -File -Recurse |
