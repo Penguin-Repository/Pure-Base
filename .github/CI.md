@@ -51,13 +51,15 @@ Create these Actions secrets:
 
 - `APP_CLIENT_ID`: GitHub App client ID.
 - `APP_PRIVATE_KEY`: GitHub App private key.
-- `PAT_FOR_DISPATCH`: token that can send `repository_dispatch` to `VPM_REPOSITORY`.
 
-Install the GitHub App on Pure-Base with repository **Contents: write** and
-**Administration: read** permissions. Enable immutable releases in the repository settings before
-the first release. The release script checks `GET /repos/{owner}/{repo}/immutable-releases` before
-running Unity release validation and stops without changing the repository when the setting is not
-enabled.
+Install the same GitHub App on both Pure-Base and the repository named by `VPM_REPOSITORY`.
+Grant repository **Contents: write** on both installations and **Administration: read** on
+Pure-Base. The release workflow creates separate installation tokens for Pure-Base and the VPM
+repository, with each token restricted to its target repository and requested permissions.
+
+Enable immutable releases in the Pure-Base repository settings before the first release. The
+release script checks `GET /repos/{owner}/{repo}/immutable-releases` before running Unity release
+validation and stops without changing the repository when the setting is not enabled.
 
 ## Workflows
 
@@ -74,7 +76,7 @@ uploads the complete evidence directory, including a versioned copy of the audit
 For a new release, that version must be newer than `package.json`. The workflow validates the
 pre-update package, updates and commits `package.json`, pushes the version tag, builds a new audited
 ZIP from the updated commit, creates a draft release, uploads the ZIP, publishes the release, and
-sends `update-vpm` to the VPM repository.
+sends `update-vpm` to the VPM repository using a GitHub App installation token.
 
 If a run fails after the package version commit, rerun the workflow with the same version and
 `resume` enabled. Resume mode reruns release validation, verifies that HEAD contains the selected
