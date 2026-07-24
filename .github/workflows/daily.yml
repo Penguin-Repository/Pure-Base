@@ -1,0 +1,196 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Daily
+
+on:
+  push:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GIT_CONFIG_COUNT: 2
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: "false"
+  GIT_CONFIG_KEY_1: core.eol
+  GIT_CONFIG_VALUE_1: lf
+  UNITY_EDITOR_PATH: C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe
+  CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+  ARTIFACT_ROOT: ${{ runner.temp }}\PureBase-Daily-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  authorize:
+    name: Authorize source
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.source.outputs.allowed }}
+      checkout_ref: ${{ steps.source.outputs.checkout_ref }}
+      reason: ${{ steps.source.outputs.reason }}
+    steps:
+      - name: Resolve trusted source
+        id: source
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          PUSH_SHA: ${{ github.sha }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            echo "allowed=true" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=$PUSH_SHA" >> "$GITHUB_OUTPUT"
+            echo "reason=push" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$PR_HEAD_REPOSITORY" != "$REPOSITORY" ]]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=" >> "$GITHUB_OUTPUT"
+            echo "reason=external pull request" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$PR_DRAFT" == "true" ]]; then
+            echo "allowed=false" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=" >> "$GITHUB_OUTPUT"
+            echo "reason=draft pull request" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "allowed=true" >> "$GITHUB_OUTPUT"
+          echo "checkout_ref=$PR_HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "reason=same-repository pull request" >> "$GITHUB_OUTPUT"
+
+  reject-untrusted-pull-request:
+    name: Reject unsupported PR source
+    needs: authorize
+    if: github.event_name == 'pull_request_target' && needs.authorize.outputs.allowed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain restriction
+        shell: bash
+        env:
+          REASON: ${{ needs.authorize.outputs.reason }}
+        run: |
+          echo "Daily Unity validation is restricted to non-draft branches inside this repository."
+          echo "Rejected source: $REASON"
+          exit 1
+
+  unity-daily:
+    name: Unity 2022.3.22f1 / D3D11
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - unity-2022.3.22f1
+    timeout-minutes: 120
+    steps:
+      - name: Remove previous CI project shell
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath $env:CI_PROJECT_ROOT) {
+            Remove-Item -LiteralPath $env:CI_PROJECT_ROOT -Recurse -Force
+          }
+
+      - name: Checkout Pure-Base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.checkout_ref }}
+          path: PureBaseCi/Packages/jp.penguin.purebase
+          fetch-depth: 0
+          persist-credentials: false
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
+
+      - name: Checkout Shader-Core 0.1.5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: lilxyzw/Shader-Core
+          ref: 0.1.5
+          path: PureBaseCi/Packages/jp.lilxyzw.shadercore
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare Unity project shell
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+            -ProjectRoot $env:CI_PROJECT_ROOT
+
+      - name: Verify Unity installation
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)) {
+            throw "Unity 2022.3.22f1 was not found at '$env:UNITY_EDITOR_PATH'."
+          }
+
+      - name: Configure deterministic project settings
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          $logPath = Join-Path $env:ARTIFACT_ROOT 'Bootstrap.Unity.log'
+          & $env:UNITY_EDITOR_PATH `
+            -batchmode `
+            -quit `
+            -force-d3d11 `
+            -projectPath $env:CI_PROJECT_ROOT `
+            -executeMethod PureBaseCiBootstrap.Configure `
+            -logFile $logPath
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path -LiteralPath $logPath) {
+              Get-Content -LiteralPath $logPath -Tail 200
+            }
+            throw "Unity project bootstrap failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Initialize fixed Shader-Core test hosts
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/Tests/Run-PureBaseRegression.ps1" `
+            -Mode Initialize `
+            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Run Daily tests
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/Tests/Run-PureBaseRegression.ps1" `
+            -Mode Daily `
+            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Upload Daily evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: pure-base-daily-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.ARTIFACT_ROOT }}
+          if-no-files-found: warn
+          retention-days: 14
