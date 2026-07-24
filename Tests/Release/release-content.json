@@ -41,7 +41,7 @@
     "Release/**"
   ],
   "requiredVpmDependencies": {
-    "jp.lilxyzw.shadercore": "0.1.5"
+    "jp.lilxyzw.shadercore": "0.1.9"
   },
   "forbiddenDependencyNames": [
     "com.unity.render-pipelines.universal",

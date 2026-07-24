@@ -37,8 +37,8 @@ if ([string]$packageJson.name -ne 'jp.penguin.purebase') {
 }
 
 $shaderCoreJson = Get-Content -LiteralPath (Join-Path $shaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
-if ([string]$shaderCoreJson.name -ne 'jp.lilxyzw.shadercore' -or [string]$shaderCoreJson.version -ne '0.1.5') {
-    throw "The CI workspace requires jp.lilxyzw.shadercore exactly 0.1.5."
+if ([string]$shaderCoreJson.name -ne 'jp.lilxyzw.shadercore' -or [string]$shaderCoreJson.version -ne '0.1.9') {
+    throw "The CI workspace requires jp.lilxyzw.shadercore exactly 0.1.9."
 }
 
 $assetsRoot = Join-Path $projectRootFullPath 'Assets'

@@ -23,7 +23,8 @@ This document defines the stable public contract of the Pure-Base shader package
 - Target pipeline: Unity Built-in Render Pipeline only.
 - Integration validation editor: Unity `2022.3.22f1`.
 - Integration test graphics API: D3D11, forced by the harness.
-- Shader-Core dependency: exactly `jp.lilxyzw.shadercore` `0.1.5`.
+- Shader-Core dependency: exactly `jp.lilxyzw.shadercore` `0.1.9`.
+- Pure-Base does not automatically allow future `0.1.x` releases. Shader-Core upstream has not declared compatibility across `0.x` releases, and importer, ProjectSettings, and method-shape contracts are sensitive.
 - Transparent material blending and URP are outside the supported contract.
 
 ## Stable Shader Paths

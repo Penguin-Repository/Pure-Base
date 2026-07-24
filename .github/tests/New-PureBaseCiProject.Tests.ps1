@@ -12,12 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BeforeAll {
-    $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-    $projectBuilder = Join-Path $repositoryRoot '.github/scripts/New-PureBaseCiProject.ps1'
+function Assert-CiProjectHarness {
+    param(
+        [Parameter(Mandatory = $true)][bool]$Condition,
+        [Parameter(Mandatory = $true)][string]$Message
+    )
+
+    if (-not $Condition) {
+        throw $Message
+    }
 }
 
 Describe 'Pure-Base CI Unity project generation' {
+    BeforeAll {
+        $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+        $projectBuilder = Join-Path $repositoryRoot '.github/scripts/New-PureBaseCiProject.ps1'
+    }
+
     BeforeEach {
         $projectRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $pureBaseRoot = Join-Path $projectRoot 'Packages/jp.penguin.purebase'
@@ -31,7 +42,7 @@ Describe 'Pure-Base CI Unity project generation' {
         )
         [IO.File]::WriteAllText(
             (Join-Path $shaderCoreRoot 'package.json'),
-            '{"name":"jp.lilxyzw.shadercore","version":"0.1.5"}',
+            '{"name":"jp.lilxyzw.shadercore","version":"0.1.9"}',
             [Text.UTF8Encoding]::new($false)
         )
         [IO.File]::WriteAllText(
@@ -45,25 +56,28 @@ Describe 'Pure-Base CI Unity project generation' {
         & $projectBuilder -ProjectRoot $projectRoot
 
         $projectVersion = Get-Content -LiteralPath (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt') -Raw
-        $projectVersion | Should -Match 'm_EditorVersion: 2022\.3\.22f1'
-        $projectVersion | Should -Match '887be4894c44'
+        Assert-CiProjectHarness -Condition ($projectVersion -match 'm_EditorVersion: 2022\.3\.22f1') -Message 'Generated CI ProjectVersion.txt does not pin Unity 2022.3.22f1.'
+        Assert-CiProjectHarness -Condition ($projectVersion -match '887be4894c44') -Message 'Generated CI ProjectVersion.txt does not pin the required Unity revision.'
 
         $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'Packages/manifest.json') -Raw | ConvertFrom-Json
-        [string]$manifest.dependencies.'com.unity.test-framework' | Should -Be '1.1.33'
+        Assert-CiProjectHarness -Condition ([string]$manifest.dependencies.'com.unity.test-framework' -eq '1.1.33') -Message 'Generated CI manifest does not pin the Unity Test Framework.'
 
         $bootstrap = Get-Content -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs') -Raw
-        $bootstrap | Should -Match 'Application\.unityVersion != "2022\.3\.22f1"'
-        $bootstrap | Should -Match 'PlayerSettings\.colorSpace = ColorSpace\.Linear;'
-        $bootstrap | Should -Match 'EditorSettings\.serializationMode = SerializationMode\.ForceText;'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'Application\.unityVersion != "2022\.3\.22f1"') -Message 'Generated CI bootstrap does not pin the Unity version.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'PlayerSettings\.colorSpace = ColorSpace\.Linear;') -Message 'Generated CI bootstrap does not require Linear color space.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorSettings\.serializationMode = SerializationMode\.ForceText;') -Message 'Generated CI bootstrap does not require text serialization.'
     }
 
     It 'rejects an unexpected Shader-Core version' {
         [IO.File]::WriteAllText(
             (Join-Path $shaderCoreRoot 'package.json'),
-            '{"name":"jp.lilxyzw.shadercore","version":"0.1.6"}',
+            '{"name":"jp.lilxyzw.shadercore","version":"0.1.8"}',
             [Text.UTF8Encoding]::new($false)
         )
 
-        { & $projectBuilder -ProjectRoot $projectRoot } | Should -Throw '*exactly 0.1.5*'
+        $failure = $null
+        try { & $projectBuilder -ProjectRoot $projectRoot }
+        catch { $failure = $_ }
+        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*exactly 0.1.9*') -Message 'The CI project builder accepted an unexpected Shader-Core version.'
     }
 }

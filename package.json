@@ -8,7 +8,7 @@
   "unity": "2022.3",
   "description": "Minimal base shader for Shader-Core",
   "vpmDependencies": {
-    "jp.lilxyzw.shadercore": "0.1.5"
+    "jp.lilxyzw.shadercore": "0.1.9"
   },
   "changelogUrl": "",
   "licensesUrl": "",

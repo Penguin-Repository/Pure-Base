@@ -1213,7 +1213,7 @@ function Get-ConsumerFirstBootstrapTransitionReport {
 function Assert-ConsumerFirstBootstrapTransitionReport {
     param([Parameter(Mandatory = $true)]$Report)
 
-    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.5' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
+    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.9' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
         throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
     }
     if ($Report.verdict -ne 'accepted' -or [int]$Report.summary.accepted -ne 34 -or [int]$Report.summary.observedAdded -ne [int]$Report.summary.expectedAdded -or [int]$Report.summary.observedChanged -ne [int]$Report.summary.expectedChanged -or [int]$Report.summary.observedRemoved -ne 0 -or [int]$Report.summary.rejected -ne 0 -or [int]$Report.summary.unclassified -ne 0) {
@@ -1240,11 +1240,11 @@ function Assert-ConsumerImmutableManifestBaseline {
         [Parameter(Mandatory = $true)][string]$RunLabel
     )
 
-    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.1.5') {
-        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.1.5."
+    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.1.9') {
+        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.1.9."
     }
     if ($Manifest.shaderCore.expectedIdentitySha256 -ne $Manifest.shaderCore.treeSha256) {
-        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.1.5.sha256.json."
+        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.1.9.sha256.json."
     }
 }
 
@@ -2497,8 +2497,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Approved release archive builder failed.' }
     $zipPath = Join-Path $archiveDirectory 'jp.penguin.purebase-0.1.0.zip'
     if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Approved release archive builder did not produce the expected ZIP.' }
-    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.1.5.sha256.json'
-    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.1.5.sha256.json') -Destination $shaderCoreManifestPath -Force
+    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.1.9.sha256.json'
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.1.9.sha256.json') -Destination $shaderCoreManifestPath -Force
 
     $scaffoldRoot = Join-Path $scriptRoot 'ConsumerProject'
     Copy-RegularTree -Source $scaffoldRoot -Destination $consumerRoot

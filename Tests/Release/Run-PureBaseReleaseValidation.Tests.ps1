@@ -190,7 +190,7 @@ function New-HarnessManifest {
         releaseZipSha256 = 'release-zip'
         shaderCore = [ordered]@{
             packageName = 'jp.lilxyzw.shadercore'
-            packageVersion = '0.1.5'
+            packageVersion = '0.1.9'
             expectedIdentitySha256 = 'shader-core'
             treeSha256 = 'shader-core'
         }

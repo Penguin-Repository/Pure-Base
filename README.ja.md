@@ -28,7 +28,8 @@ Pure-Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限�
 ## 要件
 
 - Built-in Render Pipeline のみです。URP はサポートされません。
-- パッケージは正確な依存関係 `jp.lilxyzw.shadercore` `0.1.5` を宣言します。
+- パッケージは正確な依存関係 `jp.lilxyzw.shadercore` `0.1.9` を要求します。
+- Pure Base は将来の `0.1.x` release を自動的には許可しません。Shader-Core upstream は `0.x` release 間の互換性を宣言しておらず、importer、ProjectSettings、method-shape contract は変更に敏感です。
 - integration harness は Unity `2022.3.22f1` に固定され、test execution には D3D11 を強制します。
 - Material transparency と transparent blending はサポートされません。すべての product shader は固定の Cutout coverage を使用します。
 

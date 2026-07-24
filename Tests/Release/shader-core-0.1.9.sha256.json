@@ -1,0 +1,778 @@
+{
+  "schemaVersion": 1,
+  "packageName": "jp.lilxyzw.shadercore",
+  "packageVersion": "0.1.9",
+  "scope": "All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.",
+  "algorithm": "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\\t<lowercase-file-sha256>\\n' in ordinal path order.",
+  "identitySha256": "2bd669a4387d2dcf7f9b4be42301b63456e37358e2a41db822832f3d96831303",
+  "entries": [
+    {
+      "path": "Editor.meta",
+      "sha256": "06a69a7329247118bae2f62498e424c193241f8a157d1132dcbf09913c131514"
+    },
+    {
+      "path": "Editor/API.meta",
+      "sha256": "0602f03012fa99bb7cb2b499a34d1c3ae6e5787298d8283a48adc5c9cf94cd80"
+    },
+    {
+      "path": "Editor/API/AttributeActions.cs",
+      "sha256": "e6144a9815a7666c10bf259438a9fba0f5e7856bbd98a84c09625c18398f5837"
+    },
+    {
+      "path": "Editor/API/AttributeActions.cs.meta",
+      "sha256": "3e466c0cca5a38db001315c4682f4283b0feff78951bfe462485073fda7911f3"
+    },
+    {
+      "path": "Editor/API/Events.meta",
+      "sha256": "ccb70ef6ef02112107c9bbac7f5d30156db4cc4cb43fee0b0a597b8ee156a268"
+    },
+    {
+      "path": "Editor/API/Events/SCKeyEvent.cs",
+      "sha256": "7f36a1e68fb96a5a9a9a9fd7070219c3afb9df37e5ca58f6c6bfa5034a9efad0"
+    },
+    {
+      "path": "Editor/API/Events/SCKeyEvent.cs.meta",
+      "sha256": "3d03fbca7ff3c57b4b8bd90d8608c3b60dabb8e6b5b0888406c67b79c6108f7c"
+    },
+    {
+      "path": "Editor/API/Events/SCLocalizeEvent.cs",
+      "sha256": "69f17e93a3b0303ff9ce15e460c2615f71901b48f2af010962e10f521695d635"
+    },
+    {
+      "path": "Editor/API/Events/SCLocalizeEvent.cs.meta",
+      "sha256": "f78f72f754f1529f65b8dd83164588f5a1eff26e91b3b8edbe26003d9975deed"
+    },
+    {
+      "path": "Editor/API/Events/SCUpdateEvent.cs",
+      "sha256": "52858b4cf1b87a816f28462d0df47d7f9a0695df9bc1023a5678619cb37c1afa"
+    },
+    {
+      "path": "Editor/API/Events/SCUpdateEvent.cs.meta",
+      "sha256": "8787c215fe110e3e869d934bfe43ec0c2ecaa395802382416fe89d9411f97a4a"
+    },
+    {
+      "path": "Editor/API/Events/TargetHolder.cs",
+      "sha256": "c112bca0bfb50355eb0ab1d14ac0b415e386bd3d2a22740f0597490c68a7a8c1"
+    },
+    {
+      "path": "Editor/API/Events/TargetHolder.cs.meta",
+      "sha256": "658fc0b399c7fe3149b21c5191052df8a9a4033bc20671a93824b34009e9ddfd"
+    },
+    {
+      "path": "Editor/API/IMaterialPropertyElement.cs",
+      "sha256": "a35c3631c50eef93879054a15a45c86b713c07d1912a9049114c07feb7748724"
+    },
+    {
+      "path": "Editor/API/IMaterialPropertyElement.cs.meta",
+      "sha256": "9d6e239548029675ad70ad1d5f0fd71027a0cbc41d5f6b710b5e8ed8eea46d39"
+    },
+    {
+      "path": "Editor/API/ModuleSetter.cs",
+      "sha256": "f66d27ea64d6efb21695fa11ba6026ac80b6ef868f9f9eac99e65bd7e7902dd6"
+    },
+    {
+      "path": "Editor/API/ModuleSetter.cs.meta",
+      "sha256": "65fbe9ae403c4383fb01473e726a5bdf7be9fbe7879f4f6f01c00391509d5f45"
+    },
+    {
+      "path": "Editor/API/SCL10n.cs",
+      "sha256": "058b9cbb5646bc9d8832178568d6c86ea7bf7d5c26cc08ce3cfdc4b09bd19e5a"
+    },
+    {
+      "path": "Editor/API/SCL10n.cs.meta",
+      "sha256": "6e1d08935005a3b91a99aa217fc4fecfb0218d6230974fc3ae53f71aafa90ed6"
+    },
+    {
+      "path": "Editor/API/SCStyles.cs",
+      "sha256": "dcf552999b4a0a6ff9a631500f96e0cf5884f4fa8280db648e0fb928fa6fe856"
+    },
+    {
+      "path": "Editor/API/SCStyles.cs.meta",
+      "sha256": "adcc12aae9823f5ae3d9f92a1b3f9069c74bbfdafbd040d87693df17d8288661"
+    },
+    {
+      "path": "Editor/Core.meta",
+      "sha256": "a92b3086fc54f0a47aaaacfdb5a4e789f6ce5b0c060fd82815f53d3adbee9cdd"
+    },
+    {
+      "path": "Editor/Core/HLSLMinifier.cs",
+      "sha256": "84e39f2281b507007ee09182baa3c80b44494ef9fdfc1653d2dce2244db85235"
+    },
+    {
+      "path": "Editor/Core/HLSLMinifier.cs.meta",
+      "sha256": "9168745c57a59645e90c0fd65d354559e19673ef194d876fc92b9c10924a53ff"
+    },
+    {
+      "path": "Editor/Core/JsonParser.cs",
+      "sha256": "c9cff0c13e1c738c65d112ae34ff361f98be57a9d256df7b05d9a12be5703252"
+    },
+    {
+      "path": "Editor/Core/JsonParser.cs.meta",
+      "sha256": "cc59a2267211bd803e7cf9592591c8d29948513373d3066a999ce9f1d1368a38"
+    },
+    {
+      "path": "Editor/Core/POParser.cs",
+      "sha256": "5c401e84edc1e829599c6077cf12b49e0241e0f0f651327b593f26441aec101b"
+    },
+    {
+      "path": "Editor/Core/POParser.cs.meta",
+      "sha256": "787a4cddbaa7fd2575235b7e92b40e8c2edef24b0521ffb75495b62b57ef0e1e"
+    },
+    {
+      "path": "Editor/Core/SCModule.cs",
+      "sha256": "fdeb6122542d79387e1d3e57fc217a989cbd6277b86c4d77ac3621d750cf29c1"
+    },
+    {
+      "path": "Editor/Core/SCModule.cs.meta",
+      "sha256": "61b6640706b673941afda3f711dbe9a11b390ec9bd1ac32cbd8011d27ce9883f"
+    },
+    {
+      "path": "Editor/Core/SCProperty.cs",
+      "sha256": "3a9f77ab23aaf7506c2d3da8ce2740e774762d81bbc4e6e21674bebfc6a24d4d"
+    },
+    {
+      "path": "Editor/Core/SCProperty.cs.meta",
+      "sha256": "8d01f8bf157eca37742d6678651fcf6b20481381ca3354a4d4827b181b8cef7e"
+    },
+    {
+      "path": "Editor/Core/SCPropertyClipbord.cs",
+      "sha256": "4548c355751a99f8148c9976cd50fe06f873228295de5f9d84429df1d49595cf"
+    },
+    {
+      "path": "Editor/Core/SCPropertyClipbord.cs.meta",
+      "sha256": "2f36909863279f7d5045d77fe885dee308c30c48ed4a6e8eaeb0c696f303245a"
+    },
+    {
+      "path": "Editor/Core/Utils.cs",
+      "sha256": "716fb96945aa18f307d5e689adb543c8b21eaf11576d22422133d4e79f0748a6"
+    },
+    {
+      "path": "Editor/Core/Utils.cs.meta",
+      "sha256": "e7a865de9e4e12db62a50901f8926e79f500b4d69da34a44b18251b2b6a2d2c2"
+    },
+    {
+      "path": "Editor/Core/jp.lilxyzw.shadercore.Core.asmdef",
+      "sha256": "5c37c7213d906069a35780a858fdd3fe568bf4d37828a89faa369b9ce467b899"
+    },
+    {
+      "path": "Editor/Core/jp.lilxyzw.shadercore.Core.asmdef.meta",
+      "sha256": "280502daccbff0948edbba9bb1b4e6bd85546fecf569cb3cc63bec7068049b0e"
+    },
+    {
+      "path": "Editor/CustomTextures.meta",
+      "sha256": "b104b70c085bbbff91a72954599fc36f6f17d0e29ec52c66663f73605a6d72a0"
+    },
+    {
+      "path": "Editor/CustomTextures/GradientsImporter.cs",
+      "sha256": "055ab3bea930f8f9289091790910d8d914387d002f0f058a114404cfd55cc4a3"
+    },
+    {
+      "path": "Editor/CustomTextures/GradientsImporter.cs.meta",
+      "sha256": "77d3ac00142414afd1ddba16d28acf1907164893af89208dc0b5f528626e58f7"
+    },
+    {
+      "path": "Editor/CustomTextures/GradientsImporterEditor.cs",
+      "sha256": "be0a6c3c0b4cf0ee03fb37c9d0c38437210359f17e9440bf3c777b552c0ccd2d"
+    },
+    {
+      "path": "Editor/CustomTextures/GradientsImporterEditor.cs.meta",
+      "sha256": "a682c5dc7da66a9c785be252a0a9d643370725c23fcb74d8d0b4e3fac1af4ec9"
+    },
+    {
+      "path": "Editor/CustomTextures/MaskGenerator.cs",
+      "sha256": "697dc67c8e7c1d0558fa86db435b162816cd083cae001041f0cfb8649805f16a"
+    },
+    {
+      "path": "Editor/CustomTextures/MaskGenerator.cs.meta",
+      "sha256": "587ebb6026dd8dd0f1c8d9954d57fdc03245dcb4df5ffbcc5797f19b1612653d"
+    },
+    {
+      "path": "Editor/CustomTextures/MaskImporter.cs",
+      "sha256": "e3e97f2b7b913d85f28f814f63c849a7d959fdd0fcd374c41ca261fe10bcd6c1"
+    },
+    {
+      "path": "Editor/CustomTextures/MaskImporter.cs.meta",
+      "sha256": "06ad7dba54b09e00a2040b0685027596db3fdd43892a66f8a0ce2ab1834924b9"
+    },
+    {
+      "path": "Editor/CustomTextures/MaskImporterEditor.cs",
+      "sha256": "a09519cce28b582c145255865ec81f45b529f801092405fded279e03819f312a"
+    },
+    {
+      "path": "Editor/CustomTextures/MaskImporterEditor.cs.meta",
+      "sha256": "80540230108d4fe5ce08cd3bda7edf0c4fedc89067faa6a99377e19ce553646c"
+    },
+    {
+      "path": "Editor/CustomTextures/MasksImporter.cs",
+      "sha256": "802ba768e2714b86ff46b1f34ae5de5cdd0090c47c9fbfbd0371af1c519a416a"
+    },
+    {
+      "path": "Editor/CustomTextures/MasksImporter.cs.meta",
+      "sha256": "8284ceded07928fbca7e3957bbc8dc9fa605ab49282023a40fc593089e923cec"
+    },
+    {
+      "path": "Editor/CustomTextures/MasksImporterEditor.cs",
+      "sha256": "ef48c7d6780cba08a9f475e5a2ce5978eb87c2ead4bd613425f382045162af05"
+    },
+    {
+      "path": "Editor/CustomTextures/MasksImporterEditor.cs.meta",
+      "sha256": "f6b3d8ae05f6da29b4efd811f6cd7799e5448e4192203e79ce5a94b5fabcd65e"
+    },
+    {
+      "path": "Editor/CustomTextures/TexturePacker.shader",
+      "sha256": "3d25addd95237a04cac28087f7e7a4ee022f98f604fed8935c23ec7ebe78b991"
+    },
+    {
+      "path": "Editor/CustomTextures/TexturePacker.shader.meta",
+      "sha256": "f170be60139cda29b0979a73dba0c68bf32eb7b1aed754a597713c4608f23a9d"
+    },
+    {
+      "path": "Editor/Importer.meta",
+      "sha256": "f0c48a7f4f24c832e22d4a2c9ad19edef3bdded897b25b8d586a10eb0bc51eae"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.BIRP.cs",
+      "sha256": "6f9211c65169db5a690ca26a53d83018def1e829f0e9f85cb26b97ff977f85b5"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.BIRP.cs.meta",
+      "sha256": "273bb95768dc1c4de0deab44fd14b2850adf3b003c5326b1d3801e2f36fc482b"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.ShaderLab.cs",
+      "sha256": "ea8fdeaf3b8201b85627e17ae3f082a5c2680d5d7d4379a1cfcdfff8b525cb40"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.ShaderLab.cs.meta",
+      "sha256": "8488c8e899d54443406bd3e408c4bbe1d6cf2725562939c6d1399ffdc3a41f31"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.URP.cs",
+      "sha256": "3d2efbfc5c585bbe3c237c6ddbd59bee902be69705161b3e1e7f8e40d44b095d"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.URP.cs.meta",
+      "sha256": "c8faeb6aa1d9642415128c37ab7766ac567a3ff323e37b2c8036d7572809fc46"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.cs",
+      "sha256": "3755508dfd6bce0f51295314ef3f6654090ee9e71614b7e2910aa121452273c9"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporter.cs.meta",
+      "sha256": "bc9e64acacba3081bbcf48cb43b3bf1f82bac1346a101fb0132fc3b91287a700"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporterEditor.cs",
+      "sha256": "b63d9004f329a5c7139d7c6f79f571a4f8b5976e3acf8d7cde170211448aea71"
+    },
+    {
+      "path": "Editor/Importer/SCShaderImporterEditor.cs.meta",
+      "sha256": "45e0835f676b93e7024b78bb13f90ee6952ff3e40bd31303d3ae479cb29953dd"
+    },
+    {
+      "path": "Editor/LegacySupport.meta",
+      "sha256": "382a23d2d7c12d33b7549f95600ac3b83eaf1b3c7776b60190adaf5f0ea3ee17"
+    },
+    {
+      "path": "Editor/LegacySupport/EntityIdSupport.cs",
+      "sha256": "86e19c0ed665b30650c578cca4dca18ffe3c654564f63ae9872f123adfee62b2"
+    },
+    {
+      "path": "Editor/LegacySupport/EntityIdSupport.cs.meta",
+      "sha256": "ddb68ba92dd83d777840d3c55be4fd272dee688451b36983bc82708213fe7118"
+    },
+    {
+      "path": "Editor/LegacySupport/MaterialPropertySupport.cs",
+      "sha256": "9aab006ec01458b61ab75e01262277c7141fd8002ae9b0a0e62be56b55a5a491"
+    },
+    {
+      "path": "Editor/LegacySupport/MaterialPropertySupport.cs.meta",
+      "sha256": "8f7369ccdaac47a2fb68a29d904b3359808cda95532f4e86e7aba3e4b153ce76"
+    },
+    {
+      "path": "Editor/Localization.cs",
+      "sha256": "0af28774c1bc104e4408e03834f4dae7b00655e888440dd0cb65eed60b579f4e"
+    },
+    {
+      "path": "Editor/Localization.cs.meta",
+      "sha256": "d9a94a1640cb61f7456ef622b0834b35261f93aad1e62f6e92aab62d8307dbb8"
+    },
+    {
+      "path": "Editor/MaterialEditor.meta",
+      "sha256": "36bd26ccc5ae082d816d8c226fd9ad5091a6c87f94c1e4d62e23f349a37e9bf2"
+    },
+    {
+      "path": "Editor/MaterialEditor/CustomAttributes.cs",
+      "sha256": "db1249e6cca82a012dd91fd625b6d2eb0b0f74ea414af1c508c2480c451e8ae0"
+    },
+    {
+      "path": "Editor/MaterialEditor/CustomAttributes.cs.meta",
+      "sha256": "03222b4ba89f0adc470b6b2808c2fc962b3aa4c9273d4dafad5a457c03cb861e"
+    },
+    {
+      "path": "Editor/MaterialEditor/EditorUpdater.cs",
+      "sha256": "1d3b3691522c26420bd6261ebc89648a53141572bad30a3d0f6679b6f4e45060"
+    },
+    {
+      "path": "Editor/MaterialEditor/EditorUpdater.cs.meta",
+      "sha256": "ba2e9cedf745c9deda61c4d302311e31fad428002a523bc1acdf09d9c5dd97cc"
+    },
+    {
+      "path": "Editor/MaterialEditor/FoldoutSaver.cs",
+      "sha256": "36174722e4ff1df66fa9e72a6c06a307c7252a341f394e1b5d093e7e934dcaa7"
+    },
+    {
+      "path": "Editor/MaterialEditor/FoldoutSaver.cs.meta",
+      "sha256": "f590deb2778858430afcaccb7b70b7f1a2fce32997dd8262c4355e3175f50055"
+    },
+    {
+      "path": "Editor/MaterialEditor/PropertyClipboard.cs",
+      "sha256": "72d52c1746ea0fffe81b1fa459aa72ee39b306a89c2d33fcf3d935852a2965d5"
+    },
+    {
+      "path": "Editor/MaterialEditor/PropertyClipboard.cs.meta",
+      "sha256": "ecc221f593154758f3aa107b23af271370afe558d8c42ad851986e5f75ce0ce5"
+    },
+    {
+      "path": "Editor/MaterialEditor/SCMaterialEditor.cs",
+      "sha256": "4220bb19ee4768d86ce9150f3f7a57a4f76e1fad27240d2193a0d0c1c708a233"
+    },
+    {
+      "path": "Editor/MaterialEditor/SCMaterialEditor.cs.meta",
+      "sha256": "97082771934e6bec0a05c1c662b771ff8fcec1403801579327acdd6a0ca53edc"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements.meta",
+      "sha256": "ba70042ecbe0c4b830458556d7d34b58d1b38c5357247969760c1e9b872a53df"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/IMaterialOtherPropertyElement.cs",
+      "sha256": "aeca2bb68a361a34efa40e43cae93fa6c82cea04faf204b404142371ca1515da"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/IMaterialOtherPropertyElement.cs.meta",
+      "sha256": "4fd54943d4a873a948786ab340f8766cf7e02074ac52e88df451270faa876cb3"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCBox.cs",
+      "sha256": "e73b39aba687571c85ac559db57192970be9cd19d499a939623ba81064805c0a"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCBox.cs.meta",
+      "sha256": "7a7d691ca64a36d4f1f05dc96ab0328539fb4c17c12f1d4598b43452ad58d797"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCColorField.cs",
+      "sha256": "743cec350d7bc1014a7c0af031b420cf61eb4ef5ef90dffd20fa173110bca051"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCColorField.cs.meta",
+      "sha256": "2bcf4e21e1436c5f1ec0fb92d1be73326d686088d98ad69ba057d546f4e7bbab"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCDoubleSidedGIField.cs",
+      "sha256": "aea9cdeba0ad1fcaf7151195401351b8ccad3e45bbb7420b97298e6d64ab39fd"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCDoubleSidedGIField.cs.meta",
+      "sha256": "6699eac6cd13baaa626f955bf9048c38361f543bf6e68ce5f55c3a2e611b1398"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCEditableTextureButton.cs",
+      "sha256": "31a8f70f488449e6a0678441e6d7347f9f6699323413dce98599e2eef36c045d"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCEditableTextureButton.cs.meta",
+      "sha256": "d3b6352dcaba3234eebbe327932deed3784a56bc1568ab43bb21ff28b8406bf1"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCEnableInstancingField.cs",
+      "sha256": "c87410bea175e62c8796f75d8c0b91e2de0b7e96eb535a99debfede663c54e37"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCEnableInstancingField.cs.meta",
+      "sha256": "9a0e58f027cf3a3da4ee40b1cd482740d0d3436b4d275262b33990a342d52ea2"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCFloatField.cs",
+      "sha256": "9da743ef46968680a185f650a5d434bbb13b88afcfacf6e0e0ded21bb51736fc"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCFloatField.cs.meta",
+      "sha256": "cdb0f0eb5b8f2c0ff6ea4ee4259f6bf75e31cd3812ebb991842f5921cc04d025"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCFoldout.cs",
+      "sha256": "a0e54bea253febfe1975ad00eaedae18c11648e7f25940a5bd6fcba9cfef02f6"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCFoldout.cs.meta",
+      "sha256": "2bb58a7d7093a84e8437188048f0bb3253073c32443ee4a0e8c6bb890a6cd83f"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCGradientSelect.cs",
+      "sha256": "52e0a5c9127801105e07cb4a3d5ec8c78e1c5f516b73e9d8ff3e85ee92f0d24f"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCGradientSelect.cs.meta",
+      "sha256": "de9c63793a24dadfbb5dd092ffe16ccdbaaef4ad6390487cd1a9de7010c5e648"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCIntField.cs",
+      "sha256": "6e802217d283cb0938abe43c8b3716006e28c2c225014d784e2573e283672c25"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCIntField.cs.meta",
+      "sha256": "bccb3fb96b412668ee2fe83d229dd621cd97fce924e4527dee9a5b541cac7a81"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCLockProperty.cs",
+      "sha256": "5a1cca21f854dccdf0cd9dab5a609998d809f3c8f99cd426f86673b5a769f619"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCLockProperty.cs.meta",
+      "sha256": "4239e30650c6bda35d6284c577aeec913287b56bdac3dfd6e36b96bece5da2e9"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCMaskChannel.cs",
+      "sha256": "fda0d689831d7c9fc49d0e908e36fc6b3f3f8e4ee16179ccffb45bed340e0244"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCMaskChannel.cs.meta",
+      "sha256": "d890f6354acc30ff0ebf58eb4718567e1e22923f49277157dce1e3891580860f"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCMinMax.cs",
+      "sha256": "ba9b13cbd3098c228e6ff02f2e4203d93f3ea80cd040e2b65470a0f94f897609"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCMinMax.cs.meta",
+      "sha256": "24c336c26afe57886ede3f4042203a98550ff27040cfe2b296954f3b57dde69e"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCPopupField.cs",
+      "sha256": "86dbcfef0850d70f89ad86a6af9a303ab9d598059dbbdbc7870624cb6b54da54"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCPopupField.cs.meta",
+      "sha256": "f383c9c5ae3363bd2190dfa4cc32d82412c01a888a9536c9b4b7fbd7477b60bb"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCPropertyContainer.cs",
+      "sha256": "ad41b5d334a8469169e38220a437a637dcc47fd15dcc6c342ba4ece718754a34"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCPropertyContainer.cs.meta",
+      "sha256": "8e35dc622878b25fc07cea8a4899bd0cddfda73be3596413dd065e5a7910f338"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCRenderQueueField.cs",
+      "sha256": "61cb5bb2088c1e24badeec52a6f39b3c86027a8028b77d7f3742b2299df3b983"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCRenderQueueField.cs.meta",
+      "sha256": "f9d37b9671f86bc3957239829433234c7f0ba5afd57e48939dd4353745549523"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCScaleOffset.cs",
+      "sha256": "744d8279451df453be19299c63af18e8ead3731f7634532ca3accaadab3769e1"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCScaleOffset.cs.meta",
+      "sha256": "40dd8d8ed4abd1811b2d4de30aca5255f09500d73bdd1f9e8acbd96459d6e1e0"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCSlider.cs",
+      "sha256": "b7b4dc25e27dae7f7d9c18ee04fac889ee9bfb5efe97d9f555d1b99a88c8c176"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCSlider.cs.meta",
+      "sha256": "a451f9aa3ab292dcced2888bac1b97b6aac39d3cdea89c0c56364a6aa8de9a66"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCSliderInt.cs",
+      "sha256": "fb887aac983255831d937777410383195b6ed5297bc30dc3c55343e41718ed52"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCSliderInt.cs.meta",
+      "sha256": "64d9e857799b10e810c737e9829cb40c8f49860ce7edb0bd30d53acd2404b667"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCTextureField.cs",
+      "sha256": "653f92b8661bd8d7866be42ad4d91f3143637fd2aa7ce0ce47197846a8bcdd7c"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCTextureField.cs.meta",
+      "sha256": "804f5947d5ee2d13d8a29dc7ecce79dc00285d4ff0179aece65f525ef2dc6478"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCToggleField.cs",
+      "sha256": "f493ddb9f4da5fe8647bd02fc5f4624066d8a7acdc70c8c7393ca36ea909f47e"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCToggleField.cs.meta",
+      "sha256": "95c471c2b8a0e4be930e0e07ea8a2caef7a3286a2562d8b590d45c5983f822d8"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCVector2Field.cs",
+      "sha256": "4140836a5c91fce4cae24930971bb5b99cfd581790eb0acd4d4f3a8361256a60"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCVector2Field.cs.meta",
+      "sha256": "bfff5b9159579ea522086f78ad6441099cf9eb545ce8817994c24d82d1177d06"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCVector3Field.cs",
+      "sha256": "3adee835f9be20f82df6f2d54e33e99eb21a73e0ca9ae6369eb6b5f3d0277d44"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCVector3Field.cs.meta",
+      "sha256": "c56906563ad61e4349bbb6457ff5c359ed7423695e08d2eeac334fcd8fb6f0d0"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCVector4Field.cs",
+      "sha256": "57afdc0594a2aa84fe2fec1dba5b8d1f7358e88240d960abb0c98c707bac1ca3"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCVector4Field.cs.meta",
+      "sha256": "c9076990a26146bac551f673e37bcdb8a9d544f03b9f86f71d665f9cb4276739"
+    },
+    {
+      "path": "Editor/ProjectSettings.cs",
+      "sha256": "ef84db54d6ddcb1261ece76fee2e4c768cfae124ffa28285aa0c45a70531fa5f"
+    },
+    {
+      "path": "Editor/ProjectSettings.cs.meta",
+      "sha256": "b00bbb040172abe9191fd73abd9917fe612610c497021880efcf1f51ca6f7a47"
+    },
+    {
+      "path": "Editor/Settings.cs",
+      "sha256": "c5ad348eebba2898773f627c45abeefdf54767ab1350ad31e53e8a82a61c616a"
+    },
+    {
+      "path": "Editor/Settings.cs.meta",
+      "sha256": "265231f421e2ba642bf25e81898594fa5efc0668ce77874c2225d1ab01cfe388"
+    },
+    {
+      "path": "Editor/Utils.meta",
+      "sha256": "8242a580f431417921d544b865ec08e746fe64654f8c1d8a1534527eccfa70f8"
+    },
+    {
+      "path": "Editor/Utils/AssetUtils.cs",
+      "sha256": "773fb85330bafd454a3333451a481d2ea2baf39b0b7116bf9f0bac199f3e783b"
+    },
+    {
+      "path": "Editor/Utils/AssetUtils.cs.meta",
+      "sha256": "22d0fd15f14a0d4f111f25ec165b99a57fa3cbfb80821918bc37bbd462c7718e"
+    },
+    {
+      "path": "Editor/Utils/FontFixer.cs",
+      "sha256": "db2704c16e5a24260e3c665c5c06e1937fda3ab6e71cb3817edfbd930c4eaa9b"
+    },
+    {
+      "path": "Editor/Utils/FontFixer.cs.meta",
+      "sha256": "0e2e5835e259553c06d68391ae6cb7556baa35ac3e67255c69edee33175889af"
+    },
+    {
+      "path": "Editor/Utils/MaterialPropertyUtils.cs",
+      "sha256": "9231b5ed15067d236a94ddf97bd88012bf582134682e4be155020df25702268c"
+    },
+    {
+      "path": "Editor/Utils/MaterialPropertyUtils.cs.meta",
+      "sha256": "9ce95732c5bee5582642b22d1db4221f8fc4a3bdd8558b5dae26fcb35e11b6b2"
+    },
+    {
+      "path": "Editor/Utils/PreviewTexture.shader",
+      "sha256": "85027eab870b6819c6ee0e177519db7a83129fb5b178ad71be2eb22c38856890"
+    },
+    {
+      "path": "Editor/Utils/PreviewTexture.shader.meta",
+      "sha256": "23d9f181b2b68c1e9f4f43e6d2024304482fda075b9d113858dfb6f138f42384"
+    },
+    {
+      "path": "Editor/Utils/TextureUtils.cs",
+      "sha256": "b5b87b4906689b678214390906e9498afc43c4b2a4917cce90a2b1ea543a0386"
+    },
+    {
+      "path": "Editor/Utils/TextureUtils.cs.meta",
+      "sha256": "b730cb9d281ddad832cc8e06192db5a2573fac094f029497b52a8ab795244c32"
+    },
+    {
+      "path": "Editor/jp.lilxyzw.shadercore.asmdef",
+      "sha256": "de64bf0bdb08e7c072280f618cbec19207f41aad0e0e62fe980f206a0aa9955f"
+    },
+    {
+      "path": "Editor/jp.lilxyzw.shadercore.asmdef.meta",
+      "sha256": "d3b1968d65aaf0a5e93dcc8f1962f09adbecd93995924c0d863f0ff6dd4b7c1e"
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "339362ca854423e0817a89ae8601a42c369d61e9d3f1ec87ff377825321f817e"
+    },
+    {
+      "path": "LICENSE.meta",
+      "sha256": "4ba808d7e438f7e437fbdec3f502dd3a16199d652cdb0e814047614f9f1fc967"
+    },
+    {
+      "path": "ShaderLibrary.meta",
+      "sha256": "e6d6b62e1e956c7ce32afa9c245e1d5904e8e8d9c27eb326968e0999bad27ac8"
+    },
+    {
+      "path": "ShaderLibrary/autoconvert.hlsl",
+      "sha256": "d035ff775c2cf92fe9d0c9dfab595568b3ab3fe512b225b784022d509300c2c2"
+    },
+    {
+      "path": "ShaderLibrary/autoconvert.hlsl.meta",
+      "sha256": "c4f9e9d02f4c5ec1b90ddffb7f25be6952cc50f781bda889bcbcbb8683849415"
+    },
+    {
+      "path": "ShaderLibrary/birp.hlsl",
+      "sha256": "174138657ac49927829efdfcd0c94c66a4bfbc0deb53bbdf0f46f258ecf6d106"
+    },
+    {
+      "path": "ShaderLibrary/birp.hlsl.meta",
+      "sha256": "cce5b67688767143558fc68766afb211f84df31f8f64a0b9eb46f47cc82e86d3"
+    },
+    {
+      "path": "ShaderLibrary/birp_forward.hlsl",
+      "sha256": "b62a823790445616c52314dcc0596c7a11e3ce94892820445e73bba0155a6f65"
+    },
+    {
+      "path": "ShaderLibrary/birp_forward.hlsl.meta",
+      "sha256": "79089a5da3f447ccced717fa54d3c146e5fe4b85d6ba131bd53ca4f3cfc34faa"
+    },
+    {
+      "path": "ShaderLibrary/birp_forwardadd.hlsl",
+      "sha256": "f4ba2f0453643f6e4f7f76013767640214fc095f77e0974c7d436a54d2db1bab"
+    },
+    {
+      "path": "ShaderLibrary/birp_forwardadd.hlsl.meta",
+      "sha256": "814b8b1921453737cb0aa0c39defe7a90493944e590ec2fed2c75f98206c279c"
+    },
+    {
+      "path": "ShaderLibrary/birp_lighting.hlsl",
+      "sha256": "49da6b41c914aaa2814fd63ff66a3397b660c8c9ef3fcd3428eaae0980745d09"
+    },
+    {
+      "path": "ShaderLibrary/birp_lighting.hlsl.meta",
+      "sha256": "2ae18a82d1e0a4dc63ccbd351be99241bdc33fe9e5c2c1411073e143db93078b"
+    },
+    {
+      "path": "ShaderLibrary/birp_shadowcaster.hlsl",
+      "sha256": "88d609fef837a5e83dfd2e123d597c2e67998ee8ae900149c9ac74d2c3f1eeaa"
+    },
+    {
+      "path": "ShaderLibrary/birp_shadowcaster.hlsl.meta",
+      "sha256": "aa2b3a68aa84aeba434be9abfda15cc24b6f2e55dfb5b4b8e1a04712a4c5a888"
+    },
+    {
+      "path": "ShaderLibrary/structs.hlsl",
+      "sha256": "ef1c2c20f1a460f076625867e7147ec19dd4542d33af349e20d0d4d4db3d5cb4"
+    },
+    {
+      "path": "ShaderLibrary/structs.hlsl.meta",
+      "sha256": "51f7997532b2815dde0a9311ff15c540c167bd1726cdd6f74dc46cbbd1b4b665"
+    },
+    {
+      "path": "ShaderLibrary/urp.hlsl",
+      "sha256": "4e63dc983589e4f2d6f3f6c92a0cad419028247201cb9197ef2e70f221c8dca2"
+    },
+    {
+      "path": "ShaderLibrary/urp.hlsl.meta",
+      "sha256": "2e1f1327321ff38d284b8ad65524a11d10eb406314d70c4cfc887e9695514260"
+    },
+    {
+      "path": "ShaderLibrary/urp_depthnormals.hlsl",
+      "sha256": "81d77b500c784514c5fe6b73c5b849f4563278d101e9af8b691c50c6e7b4bf0e"
+    },
+    {
+      "path": "ShaderLibrary/urp_depthnormals.hlsl.meta",
+      "sha256": "8fad3eb3c33c58655856a589b16ecfda842196344fb3feff1a8b364b47c6045b"
+    },
+    {
+      "path": "ShaderLibrary/urp_depthonly.hlsl",
+      "sha256": "54a079caaed3cd7bccc0863e06cb41f7ad470645ce821605d0260755f0177dc6"
+    },
+    {
+      "path": "ShaderLibrary/urp_depthonly.hlsl.meta",
+      "sha256": "011ee8942cf969bcab324a86f9cf23c304bbd3ccd6f27db99d1bc593d308aed5"
+    },
+    {
+      "path": "ShaderLibrary/urp_forward.hlsl",
+      "sha256": "9b8e4ad718e1862e343ce2d339abefe5c729e12e66454e1a839dcb3bfaf5f0d3"
+    },
+    {
+      "path": "ShaderLibrary/urp_forward.hlsl.meta",
+      "sha256": "06bd75607e5ee2726eb821bd9f53ce3fc068e6f8c5e844c116dec5d7066f066a"
+    },
+    {
+      "path": "ShaderLibrary/urp_lighting.hlsl",
+      "sha256": "84ac603ab9cc3e955cee1206a6718e24362a6d17592cc1086e0a6a89b9bc9ebe"
+    },
+    {
+      "path": "ShaderLibrary/urp_lighting.hlsl.meta",
+      "sha256": "6b4a9cdabd527d241150daee25a3ba185828defd7f8e62879bf7d3ce2597e0a4"
+    },
+    {
+      "path": "ShaderLibrary/urp_motionvectors.hlsl",
+      "sha256": "def83277dc466280ad28678844b246a55b14672c902f90c03fd47cfcdf7bf234"
+    },
+    {
+      "path": "ShaderLibrary/urp_motionvectors.hlsl.meta",
+      "sha256": "711d83d90d1ac7a1f21212508084e92160694c7f95d92a2bd21d90ee0575084e"
+    },
+    {
+      "path": "ShaderLibrary/urp_shadowcaster.hlsl",
+      "sha256": "f05c2a1e0bd84c2e1f1938889660a57aa643a8d5eb6362e38dfb0a86ec571171"
+    },
+    {
+      "path": "ShaderLibrary/urp_shadowcaster.hlsl.meta",
+      "sha256": "60a8ad6895663a54dcd5ac7e180cf8afcc3f2d5d610b2b14567a39f278f55b4a"
+    },
+    {
+      "path": "ShaderLibrary/urp_xrmotionvectors.hlsl",
+      "sha256": "5a9d4b3c50e44921d9baa4362a4ee32cd4c59b4af2e7763ab1833bc4577bbda7"
+    },
+    {
+      "path": "ShaderLibrary/urp_xrmotionvectors.hlsl.meta",
+      "sha256": "33a3524fa9a5157f325e9b42761e2de9dba89fc567627e97196f82cc983b9f9b"
+    },
+    {
+      "path": "ShaderLibrary/warnings.hlsl",
+      "sha256": "e164c7975144388f125b3196d74e8867f95289ff347c813d218338a669cc891e"
+    },
+    {
+      "path": "ShaderLibrary/warnings.hlsl.meta",
+      "sha256": "1891295cd49703bd049b652a1a538d5ce9ae2269d1301a44ba89fb3f15fb7173"
+    },
+    {
+      "path": "lang.meta",
+      "sha256": "8eafed70ba1cfc43a92a6454ce1371025e22599e607bfdb79f1f6afaeb0dbc22"
+    },
+    {
+      "path": "lang/en-US.po",
+      "sha256": "3b0f2b9421682a0abe8bcba38af33f41e7ef69408b0f448a4a2a980ead6a761f"
+    },
+    {
+      "path": "lang/en-US.po.meta",
+      "sha256": "8f595df7598728db589de55c822700bde33a9e00a89e8529172b28f09b8ab96b"
+    },
+    {
+      "path": "lang/ja-JP.po",
+      "sha256": "b1484816d89d2203efd04c0a38c5cf2aa47fee4d1acce639d3308d9d83537c32"
+    },
+    {
+      "path": "lang/ja-JP.po.meta",
+      "sha256": "e21a87f967fb83829c367a099c3c7518bcd639b188017bdc863b04f20633236f"
+    },
+    {
+      "path": "package.json",
+      "sha256": "33c295d8bf14bd11a827d609314baae01cb7182556b96d3fb8b9fd90bbb05951"
+    },
+    {
+      "path": "package.json.meta",
+      "sha256": "c4428b8b03dda5da8621ee96f7daf1af5a2277f63d80b25bc13d865bd706f8a8"
+    }
+  ]
+}

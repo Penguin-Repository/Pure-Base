@@ -134,7 +134,7 @@ function New-SyntheticArtifacts {
             unapprovedTrackedScmodulePaths = @()
             missingTrackedScmodulePaths = @()
             trackedScmodulePathsExactlyApproved = $true
-            shaderCoreDependency = '0.1.5'
+            shaderCoreDependency = '0.1.9'
             urpDependencyPresent = $false
             packageContainsPureBaseTestAssets = $false
             pbrHybridPropertiesByteIdentical = $true

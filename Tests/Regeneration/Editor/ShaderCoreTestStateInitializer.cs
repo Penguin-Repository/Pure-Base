@@ -217,7 +217,7 @@ namespace PureBase.Tests.Regeneration
             if (settingsType == null)
             {
                 throw new InvalidOperationException(
-                    $"Shader-Core 0.1.5 type '{ProjectSettingsTypeName}' was not loaded."
+                    $"The required Shader-Core ProjectSettings type '{ProjectSettingsTypeName}' was not loaded."
                 );
             }
 
@@ -241,7 +241,7 @@ namespace PureBase.Tests.Regeneration
             );
         }
 
-        /// <summary>Validates the exact Shader-Core 0.1.5 reflection field shape required before state writes.</summary>
+        /// <summary>Validates the required Shader-Core ProjectSettings shape: a shaderSettings field of type <c>List&lt;ShaderSettings&gt;</c> whose rows contain <c>shadername</c> and <c>modules</c>, plus a non-public parameterless <c>Save()</c> method.</summary>
         private static void ValidateProjectSettingsShape(Type settingsType)
         {
             var settingsField = settingsType.GetField(

@@ -271,8 +271,27 @@ function Assert-ForbiddenShaderProperties {
     }
 }
 
-function Get-RecursiveIdentityManifest {
+function Get-VerifiedShaderCorePackageIdentity {
     param([Parameter(Mandatory = $true)][string]$ShaderCoreRoot)
+
+    $shaderCorePackage = Get-Content -LiteralPath (Join-Path $ShaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
+    $packageName = [string]$shaderCorePackage.name
+    $packageVersion = [string]$shaderCorePackage.version
+    if ($packageName -ne 'jp.lilxyzw.shadercore' -or $packageVersion -ne '0.1.9') {
+        throw 'Local Shader-Core must be jp.lilxyzw.shadercore version 0.1.9.'
+    }
+
+    return [pscustomobject][ordered]@{
+        packageName = $packageName
+        packageVersion = $packageVersion
+    }
+}
+
+function Get-RecursiveIdentityManifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$ShaderCoreRoot,
+        [Parameter(Mandatory = $true)]$ShaderCorePackageIdentity
+    )
 
     $manifestEntries = New-Object System.Collections.Generic.List[object]
     foreach ($directory in Get-ChildItem -LiteralPath $ShaderCoreRoot -Directory -Recurse -Force) {
@@ -323,13 +342,24 @@ function Get-RecursiveIdentityManifest {
 
     return [pscustomobject][ordered]@{
         schemaVersion = 1
-        packageName = 'jp.lilxyzw.shadercore'
-        packageVersion = '0.1.5'
+        packageName = [string]$ShaderCorePackageIdentity.packageName
+        packageVersion = [string]$ShaderCorePackageIdentity.packageVersion
         scope = 'All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.'
         algorithm = "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\t<lowercase-file-sha256>\n' in ordinal path order."
         identitySha256 = $identityHash
         entries = $sortedManifestEntries.ToArray()
     }
+}
+
+function Write-ShaderCoreIdentityManifest {
+    param(
+        [Parameter(Mandatory = $true)][string]$ShaderCoreRoot,
+        [Parameter(Mandatory = $true)][string]$ManifestPath
+    )
+
+    $shaderCorePackageIdentity = Get-VerifiedShaderCorePackageIdentity -ShaderCoreRoot $ShaderCoreRoot
+    $manifest = Get-RecursiveIdentityManifest -ShaderCoreRoot $ShaderCoreRoot -ShaderCorePackageIdentity $shaderCorePackageIdentity
+    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
 }
 
 function Assert-ShaderCoreIdentity {
@@ -338,15 +368,15 @@ function Assert-ShaderCoreIdentity {
         [Parameter(Mandatory = $true)][string]$ManifestPath
     )
 
-    $shaderCorePackage = Get-Content -LiteralPath (Join-Path $ShaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
-    if ($shaderCorePackage.name -ne 'jp.lilxyzw.shadercore' -or $shaderCorePackage.version -ne '0.1.5') {
-        throw 'Local Shader-Core must be jp.lilxyzw.shadercore version 0.1.5.'
+    $shaderCorePackageIdentity = Get-VerifiedShaderCorePackageIdentity -ShaderCoreRoot $ShaderCoreRoot
+    $expectedManifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+    if ($expectedManifest.packageName -ne $shaderCorePackageIdentity.packageName -or $expectedManifest.packageVersion -ne $shaderCorePackageIdentity.packageVersion) {
+        throw 'Shader-Core identity manifest package metadata does not match the verified local package.'
     }
 
-    $expectedManifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
-    $actualManifest = Get-RecursiveIdentityManifest -ShaderCoreRoot $ShaderCoreRoot
+    $actualManifest = Get-RecursiveIdentityManifest -ShaderCoreRoot $ShaderCoreRoot -ShaderCorePackageIdentity $shaderCorePackageIdentity
     if ($expectedManifest.identitySha256 -ne $actualManifest.identitySha256 -or @($expectedManifest.entries).Count -ne @($actualManifest.entries).Count) {
-        throw 'Local Shader-Core identity does not match shader-core-0.1.5.sha256.json. Regenerate only after intentionally reviewing the dependency source.'
+        throw 'Local Shader-Core identity does not match shader-core-0.1.9.sha256.json. Regenerate only after intentionally reviewing the dependency source.'
     }
 
     for ($index = 0; $index -lt @($actualManifest.entries).Count; $index++) {
@@ -372,15 +402,14 @@ if (Test-ReparsePoint -Item (Get-Item -LiteralPath $packageRoot -Force)) {
 $workspaceRoot = Split-Path -Parent (Split-Path -Parent $packageRoot)
 $shaderCoreRoot = Join-Path (Join-Path $workspaceRoot 'Packages') 'jp.lilxyzw.shadercore'
 $contractPath = Join-Path $scriptRoot 'release-content.json'
-$manifestPath = Join-Path $scriptRoot 'shader-core-0.1.5.sha256.json'
+$manifestPath = Join-Path $scriptRoot 'shader-core-0.1.9.sha256.json'
 $contract = Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
 if ($contract.schemaVersion -ne 1) {
     throw "Unsupported release contract schema version '$($contract.schemaVersion)'."
 }
 
-$actualManifest = Get-RecursiveIdentityManifest -ShaderCoreRoot $shaderCoreRoot
 if ($WriteShaderCoreManifest) {
-    $actualManifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
     Write-Output "Wrote Shader-Core identity manifest: $manifestPath"
     return
 }

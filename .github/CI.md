@@ -32,8 +32,13 @@ executes repository code. The Daily workflow rejects fork pull requests and runs
 code only when the head branch belongs to this repository.
 
 The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
-embedded packages. Shader-Core is pinned to tag `0.1.5`, Git line-ending conversion is disabled,
-and the project is configured for Linear color space before Daily validation.
+embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.9`, matching the exact
+dependency identity required by Pure Base for both Daily and release validation. Git line-ending
+conversion is disabled, and the project is configured for Linear color space before Daily
+validation.
+Pure Base does not automatically accept future `0.1.x` versions because Shader-Core has no declared
+0.x compatibility guarantee, and its importer, ProjectSettings, and method-shape contracts are
+compatibility-sensitive. Each future version requires explicit review and an updated pin.
 
 ## Repository configuration
 

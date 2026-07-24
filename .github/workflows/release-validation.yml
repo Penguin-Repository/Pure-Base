@@ -59,11 +59,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout Shader-Core 0.1.5
+      - name: Checkout Shader-Core 0.1.9
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: lilxyzw/Shader-Core
-          ref: 0.1.5
+          ref: 0.1.9
           path: PureBaseCi/Packages/jp.lilxyzw.shadercore
           fetch-depth: 1
           persist-credentials: false
