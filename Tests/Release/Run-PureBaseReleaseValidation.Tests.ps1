@@ -88,6 +88,21 @@ function Assert-HarnessSemanticRejection {
                 $lock.dependencies.'com.unity.test-framework'.source = 'builtin'
                 [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
             }
+            'lock-newtonsoft-depth-mismatch' {
+                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                $lock.dependencies.'com.unity.nuget.newtonsoft-json'.depth = 2
+                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+            }
+            'lock-shader-core-newtonsoft-edge-missing' {
+                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                $lock.dependencies.'jp.lilxyzw.shadercore'.dependencies.PSObject.Properties.Remove('com.unity.nuget.newtonsoft-json')
+                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+            }
+            'lock-shader-core-newtonsoft-edge-mismatch' {
+                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                $lock.dependencies.'jp.lilxyzw.shadercore'.dependencies.'com.unity.nuget.newtonsoft-json' = '3.0.1'
+                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+            }
             'lock-added-entry' {
                 $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
                 $lock.dependencies | Add-Member -NotePropertyName 'com.unity.classifier-probe' -NotePropertyValue ([pscustomobject][ordered]@{ version = '1.0.0'; depth = 0; source = 'registry'; dependencies = [pscustomobject][ordered]@{} })
@@ -966,7 +981,7 @@ try {
     $settingsText = Get-Content -LiteralPath $fixturePreservation.settingsPath -Raw
     Assert-Harness -Condition ($settingsText -match '(?ms)^  - shadername: PureBase/Tests/ShaderCore/Phase/PostPixel\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.tests\.shadercore\.phase\.postpixel\r?$') -Message 'Shader-Core fixture registration was not preserved.'
     Assert-Harness -Condition ($settingsText -match '(?ms)^  - shadername: PureBase/Unlit\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.release\.fixture\.module\r?$') -Message 'Shader-Core product module selection was not applied.'
-    foreach ($mutation in @('source-mutation', 'uri-escape', 'unknown-unity-manifest-dependency', 'wrong-revision', 'lock-mismatch', 'lock-version-mismatch', 'lock-source-mismatch', 'lock-added-entry', 'invalid-meta', 'orphan-meta', 'generated-meta-item-type-mismatch', 'duplicate-meta', 'receipt-meta-collision', 'unknown-add', 'invalid-billing-mode', 'invalid-project-settings', 'invalid-shader-core-settings', 'missing-fixed-shader-core-host', 'reversed-shader-core-module-order', 'unexpected-shader-core-host')) {
+    foreach ($mutation in @('source-mutation', 'uri-escape', 'unknown-unity-manifest-dependency', 'wrong-revision', 'lock-mismatch', 'lock-version-mismatch', 'lock-source-mismatch', 'lock-newtonsoft-depth-mismatch', 'lock-shader-core-newtonsoft-edge-missing', 'lock-shader-core-newtonsoft-edge-mismatch', 'lock-added-entry', 'invalid-meta', 'orphan-meta', 'generated-meta-item-type-mismatch', 'duplicate-meta', 'receipt-meta-collision', 'unknown-add', 'invalid-billing-mode', 'invalid-project-settings', 'invalid-shader-core-settings', 'missing-fixed-shader-core-host', 'reversed-shader-core-module-order', 'unexpected-shader-core-host')) {
         Assert-HarnessSemanticRejection -SuccessfulCase $fixturePreservation -Mutation $mutation
     }
     foreach ($projectSettingsPath in (Get-FirstBootstrapProjectSettingsProfile).Keys) {
