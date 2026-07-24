@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-// Validates imported fixed Shader-Core hosts without changing module-selection state.
+// Validates imported fixed Shader-Core hosts and product source contracts without changing module-selection state.
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -27,7 +28,7 @@ using UnityEngine.Rendering;
 
 namespace PureBase.Tests.Daily
 {
-    /// <summary>Validates imported fixed Shader-Core hosts without changing editor state.</summary>
+    /// <summary>Validates imported fixed Shader-Core hosts and product source contracts without changing editor state.</summary>
     public sealed class ShaderCoreTestHostManifestTests
     {
         /// <summary>Identifies the generated Shader-Core source subasset.</summary>
@@ -198,6 +199,47 @@ namespace PureBase.Tests.Daily
                     source.IndexOf(TestSentinelPrefix, StringComparison.Ordinal),
                     Is.EqualTo(-1),
                     $"Product shader '{productShaderName}' imported a test sentinel."
+                );
+            }
+        }
+
+        /// <summary>Ensures each product shader declares one Shader-Core material editor at the outer Shader scope.</summary>
+        [Test]
+        public void ProductShadersDeclareShaderCoreMaterialEditorAtShaderScope()
+        {
+            const string expectedDirective = "CustomEditor \"SCMaterialEditor\"";
+            const string lineStartDeclarationPattern = @"^[ \t]*CustomEditor\b[^\r\n]*";
+            const string finalShaderScopePattern =
+                @"^[ \t]*}[ \t]*\r?\n[ \t]*CustomEditor ""SCMaterialEditor""[ \t]*\r?\n[ \t]*}\s*\z";
+
+            foreach (string productShaderName in ProductShaderNames)
+            {
+                string assetPath = FindShaderCoreAssetPath(
+                    productShaderName,
+                    "Packages/jp.penguin.purebase/Shaders"
+                );
+                string source = File.ReadAllText(assetPath);
+
+                Assert.That(
+                    CountOccurrences(source, expectedDirective),
+                    Is.EqualTo(1),
+                    $"Product shader '{productShaderName}' at '{assetPath}' must contain exactly one '{expectedDirective}' declaration."
+                );
+
+                Assert.That(
+                    Regex.Matches(
+                        source,
+                        lineStartDeclarationPattern,
+                        RegexOptions.Multiline
+                    ).Count,
+                    Is.EqualTo(1),
+                    $"Product shader '{productShaderName}' at '{assetPath}' must contain exactly one line-start CustomEditor declaration."
+                );
+
+                Assert.That(
+                    Regex.IsMatch(source, finalShaderScopePattern, RegexOptions.Multiline),
+                    Is.True,
+                    $"Product shader '{productShaderName}' at '{assetPath}' must end with the last SubShader close, '{expectedDirective}', and the outer Shader close."
                 );
             }
         }
