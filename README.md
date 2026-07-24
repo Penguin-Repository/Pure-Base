@@ -55,7 +55,7 @@ All four shaders expose the following common properties:
 
 `PureBase/Toon` additionally exposes `_NormalMap` and `_NormalScale`. `PureBase/PBR` and `PureBase/Hybrid` expose the same additional properties, plus `_Metallic` and `_Roughness`. The PBR and Hybrid property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
 
-The complete pass and property contract is documented in [Pure-Base shader contract](../../Docs/pure-base-shader-contract.md).
+The complete pass and property contract is documented in [Pure-Base shader contract](Docs/pure-base-shader-contract.md).
 
 ## Shader-Core Integration
 

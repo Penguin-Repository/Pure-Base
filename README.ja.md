@@ -55,7 +55,7 @@ release ZIP には `Tests/**` と test-only の `*.scmodule` files は含まれ�
 
 `PureBase/Toon` はさらに `_NormalMap` と `_NormalScale` を公開します。`PureBase/PBR` と `PureBase/Hybrid` は同じ追加 property に加えて、`_Metallic` と `_Roughness` を公開します。PBR と Hybrid の property declarations は byte-identical です。Roughness は `0.002` から `1` までに clamp されます。
 
-完全な pass と property の contract は [Pure-Base shader contract](../../Docs/pure-base-shader-contract.md) に記載されています。
+完全な pass と property の contract は [Pure-Base shader contract](Docs/pure-base-shader-contract.md) に記載されています。
 
 ## Shader-Core 連携
 

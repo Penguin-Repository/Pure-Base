@@ -1,0 +1,124 @@
+<!--
+Copyright 2026 Penguin
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+# Pure-Base Shader Contract
+
+This document defines the stable public contract of the Pure-Base shader package for users and Shader-Core module authors. Pure-Base is a minimal shader host, not a feature-complete material system.
+
+## Runtime Boundary
+
+- Target pipeline: Unity Built-in Render Pipeline only.
+- Integration validation editor: Unity `2022.3.22f1`.
+- Integration test graphics API: D3D11, forced by the harness.
+- Shader-Core dependency: exactly `jp.lilxyzw.shadercore` `0.1.5`.
+- Transparent material blending and URP are outside the supported contract.
+
+## Stable Shader Paths
+
+The package publishes exactly these shader paths:
+
+| Shader path | Contracted model |
+| --- | --- |
+| `PureBase/Unlit` | Ignores host direct and indirect lighting in the final output, except for module effects. |
+| `PureBase/Toon` | Uses binary direct diffuse response with ambient and lightmap lighting. |
+| `PureBase/PBR` | Uses a continuous direct metallic BRDF with Unity Standard indirect GI and reflection probes. |
+| `PureBase/Hybrid` | Replaces only the PBR direct diffuse response with Toon-style binary diffuse while sharing PBR specular and IBL. |
+
+Each shader is independently usable without an optional module.
+
+## Material and Pass Contract
+
+Every product shader has the fixed tags `RenderType=TransparentCutout` and `Queue=AlphaTest`. Each exposes exactly four passes:
+
+| Pass | Ownership and restrictions |
+| --- | --- |
+| `ForwardBase` | Builds the normal surface and lighting result. PBR and Hybrid own Unity Standard indirect GI and reflection-probe evaluation here. |
+| `ForwardAdd` | Additional direct-light contribution only, with black fog semantics. PBR and Hybrid must not duplicate indirect GI or reflection-probe lighting here. |
+| `ShadowCaster` | Retains fixed Cutout coverage for shadow casting. |
+| `Meta` | Retains fixed Cutout coverage for Meta/lightmap workflows. This is a dedicated pass and does not execute the standard phase ABI. |
+
+The fixed Cutout contract is not transparent blending support. The `ForwardAdd` additive blend state represents an additional direct-light pass, not a transparent material mode.
+
+## Public Property ABI
+
+All four shaders expose exactly these common properties:
+
+| Property | Applies to |
+| --- | --- |
+| `_BaseTexture` | All shaders |
+| `_BaseColor` | All shaders |
+| `_SharedMask` | All shaders |
+| `_SharedGradients` | All shaders |
+| `_Cutoff` | All shaders |
+| `_Cull` | All shaders |
+
+The model-specific properties are:
+
+| Shader path | Additional properties |
+| --- | --- |
+| `PureBase/Unlit` | None |
+| `PureBase/Toon` | `_NormalMap`, `_NormalScale` |
+| `PureBase/PBR` | `_NormalMap`, `_NormalScale`, `_Metallic`, `_Roughness` |
+| `PureBase/Hybrid` | `_NormalMap`, `_NormalScale`, `_Metallic`, `_Roughness` |
+
+PBR and Hybrid use byte-identical property declarations. `_Roughness` clamps from `0.002` to `1`.
+
+The forbidden release-boundary property names `_Emission`, `_Rim`, `_MatCap`, and `_ClearCoat` are not part of this ABI.
+
+## Shader-Core Phase ABI
+
+The standard insertion points are shared by the product hosts in this order:
+
+`morph` -> `postvertex` -> `base` -> `light` -> `customlight` -> `modifylight` -> `shade` -> `reflection` -> `add` -> `postpixel`
+
+External modules may target these standard phases. `Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, and `ShadowCaster` and `Meta` preserve Cutout coverage.
+
+## Model Semantics
+
+### Unlit
+
+Unlit returns the base surface without host direct, baked, ambient, or environmental lighting in its final output. Shader-Core module effects remain applicable. Its `ForwardAdd` result is black, preserving the additional-light pass contract without adding host lighting.
+
+### Toon
+
+Toon evaluates a binary direct diffuse response from the surface normal and light direction. `ForwardBase` combines the direct result with ambient and baked lightmap lighting. `ForwardAdd` contributes direct light only.
+
+### PBR
+
+PBR evaluates a continuous metallic BRDF for direct lighting. Its `ForwardBase` also evaluates Unity Standard indirect GI and reflection probes. Its `ForwardAdd` evaluates only the additional direct BRDF contribution.
+
+### Hybrid
+
+Hybrid uses the PBR metallic, specular, and indirect IBL implementation, but replaces only its direct diffuse response with the Toon-style binary response. It retains the PBR `ForwardBase` and `ForwardAdd` ownership rules.
+
+## Module Boundary
+
+The package-owned validation source of truth is `Packages/jp.penguin.purebase/Tests`. The release ZIP excludes `Tests/**` and test-only `*.scmodule` files. Tracked `.scmodule` files are allowed only within the package-owned `Tests/**` fixture boundary, and package-local `Assets/PureBase.Tests` assets are not part of the release package. Rim, MatCap, decals, detail, emission, dissolve, distance fade, parallax, hair, anisotropic specular, clear coat, glitter, and platform-specific integrations are separate-module concerns and are not additions to this package.
+
+## Validation Lanes
+
+- `Packages/jp.penguin.purebase/Tests/Run-PureBaseRegression.ps1 -Mode Daily` is the read-only Daily lane. It runs only `PureBase.Tests.Daily` and protects the project settings and tracked package tree before and after execution.
+- `Packages/jp.penguin.purebase/Tests/Run-PureBaseRegression.ps1 -Mode Initialize` is a separate write-capable setup lane for fixed Shader-Core test hosts. It is not part of Daily.
+- Fixture baking and canonical baseline regeneration are explicit write-capable operations separate from Daily. Daily reads `Tests/Baselines/birp-d3d11-2022.3.22f1.json` and does not create or replace it.
+- `Packages/jp.penguin.purebase/Tests/Release/Run-PureBaseReleaseValidation.ps1` builds and validates the release ZIP in one disposable external consumer directory. Cold resets remove only that consumer's `Library`; immutable consumer inputs are checked around the reset. The consumer directory is removed at the end unless `-KeepConsumer` is used.
+
+## Verification Evidence
+
+The final disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11. The matrix covers module-free imports, all ten standard external phase probes, PBR and Hybrid finite/reflection/`ForwardAdd`/specular behavior, Unlit and Toon regressions, a fixed validation-scene bake with Meta and shadow checks, and 56 Built-in Render Pipeline variants.
+
+The validation artifact records dynamic lightmap as `NOT_DETERMINISTIC_IN_BATCH_EDITMODE`. The result documents the deterministic limitation of batch EditMode; it does not verify runtime dynamic-lightmap rendering.
+
+The executable procedure and artifact layout are documented in [`Tests/README.md`](../Tests/README.md). Package-level usage and release scope are summarized in [the package README](../README.md).
