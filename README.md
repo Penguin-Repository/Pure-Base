@@ -16,6 +16,8 @@ limitations under the License.
 
 # Pure Base
 
+Language: [日本語](README.ja.md)
+
 Pure-Base provides four minimal Built-in Render Pipeline base shaders for Shader-Core. Each shader is independently usable without an optional module.
 
 > [!Important]
