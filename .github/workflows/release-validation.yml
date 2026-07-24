@@ -1,0 +1,108 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pure-base-release-validation
+  cancel-in-progress: false
+
+env:
+  GIT_CONFIG_COUNT: 2
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: "false"
+  GIT_CONFIG_KEY_1: core.eol
+  GIT_CONFIG_VALUE_1: lf
+  UNITY_EDITOR_PATH: C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe
+  CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+  ARTIFACT_ROOT: ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  validate:
+    name: Validate audited release package
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - unity-2022.3.22f1
+    timeout-minutes: 240
+    steps:
+      - name: Remove previous CI project shell
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath $env:CI_PROJECT_ROOT) {
+            Remove-Item -LiteralPath $env:CI_PROJECT_ROOT -Recurse -Force
+          }
+
+      - name: Checkout Pure-Base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: PureBaseCi/Packages/jp.penguin.purebase
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout Shader-Core 0.1.5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: lilxyzw/Shader-Core
+          ref: 0.1.5
+          path: PureBaseCi/Packages/jp.lilxyzw.shadercore
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare Unity project shell
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+            -ProjectRoot $env:CI_PROJECT_ROOT
+
+      - name: Verify Unity installation
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)) {
+            throw "Unity 2022.3.22f1 was not found at '$env:UNITY_EDITOR_PATH'."
+          }
+
+      - name: Run release validation
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          & "$env:PACKAGE_ROOT/Tests/Release/Run-PureBaseReleaseValidation.ps1" `
+            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Export versioned validation ZIP
+        if: success()
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/Export-PureBaseValidationZip.ps1" `
+            -PackageRoot $env:PACKAGE_ROOT `
+            -ValidationArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Upload release validation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: pure-base-release-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.ARTIFACT_ROOT }}
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
