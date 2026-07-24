@@ -132,7 +132,7 @@ function Invoke-PureBaseGit {
 
     if ($exitCode -ne 0 -and -not $AllowFailure) {
         $details = @($stderr, $stdout) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        throw "git $($Arguments -join ' ') failed with exit code $exitCode:`n$($details -join "`n")"
+        throw "git $($Arguments -join ' ') failed with exit code ${exitCode}:`n$($details -join "`n")"
     }
 
     return [pscustomobject][ordered]@{
