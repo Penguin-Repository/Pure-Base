@@ -175,4 +175,6 @@ Shader "PureBase/PBR"
             ENDHLSL
         }
     }
+
+    CustomEditor "SCMaterialEditor"
 }

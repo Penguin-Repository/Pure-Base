@@ -210,7 +210,7 @@ namespace PureBase.Tests.Daily
             const string expectedDirective = "CustomEditor \"SCMaterialEditor\"";
             const string lineStartDeclarationPattern = @"^[ \t]*CustomEditor\b[^\r\n]*";
             const string finalShaderScopePattern =
-                @"^[ \t]*}[ \t]*\r?\n[ \t]*CustomEditor ""SCMaterialEditor""[ \t]*\r?\n[ \t]*}\s*\z";
+                @"^[ \t]*}[ \t]*\r?\n(?:[ \t]*\r?\n)?    CustomEditor ""SCMaterialEditor""[ \t]*\r?\n[ \t]*}\s*\z";
 
             foreach (string productShaderName in ProductShaderNames)
             {

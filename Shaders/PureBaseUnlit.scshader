@@ -164,4 +164,6 @@ Shader "PureBase/Unlit"
             ENDHLSL
         }
     }
+
+    CustomEditor "SCMaterialEditor"
 }

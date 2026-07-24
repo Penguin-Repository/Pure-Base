@@ -175,4 +175,6 @@ Shader "PureBase/Hybrid"
             ENDHLSL
         }
     }
+
+    CustomEditor "SCMaterialEditor"
 }

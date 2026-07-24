@@ -167,4 +167,6 @@ Shader "PureBase/Toon"
             ENDHLSL
         }
     }
+
+    CustomEditor "SCMaterialEditor"
 }
