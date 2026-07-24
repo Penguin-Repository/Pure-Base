@@ -40,7 +40,34 @@ This lane is write-capable because it updates the Shader-Core ProjectSettings st
 .\Tests\Run-PureBaseRegression.ps1 -Mode Daily
 ```
 
-Daily requires the Unity Editor to be closed. The runner rejects an open project, captures its NUnit and Unity log artifacts outside the package Git root, and verifies the protected state before and after the run.
+For local LLM-assisted development, the same Daily assembly may instead be run through
+[Unity MCP](https://github.com/CoplayDev/unity-mcp) while the Editor remains open:
+
+1. Wait until Unity is neither compiling nor importing assets.
+2. Call `run_tests` with `mode: EditMode` and
+   `assembly_names: PureBase.Tests.Daily`.
+3. Poll the returned job with `get_test_job` until it reaches `succeeded` or `failed`.
+   A `wait_timeout` of 30 to 60 seconds is recommended.
+4. Do not edit tracked package files or Shader-Core ProjectSettings while the job is
+   running. The Daily assembly verifies their before/after hashes and fails if they change.
+
+Example tool arguments:
+
+```json
+{
+  "mode": "EditMode",
+  "assembly_names": "PureBase.Tests.Daily",
+  "include_failed_tests": true,
+  "include_details": false
+}
+```
+
+The Unity MCP lane is intended for interactive local validation by an LLM. It does not
+replace the PowerShell runner: CI/CD and other isolated validation must continue to use
+`Run-PureBaseRegression.ps1 -Mode Daily`, which additionally owns external NUnit and log
+artifacts and independently verifies the same protected state around the Unity process.
+
+The PowerShell Daily runner requires the Unity Editor to be closed. It rejects an open project, captures its NUnit and Unity log artifacts outside the package Git root, and verifies the protected state before and after the run.
 
 Daily does not:
 

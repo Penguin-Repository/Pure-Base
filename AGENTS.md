@@ -93,7 +93,6 @@ For example, use `Add the minimal BIRP forward pass` instead of `Implement Phase
 
 This restriction applies to temporary development and orchestration phases. It does not prohibit Shader-Core phase names such as `base`, `light`, `shade`, or `postpixel`, which are part of the technical API.
 
-
 ## Validation
 
 Before completing a change, verify that:
@@ -103,6 +102,18 @@ Before completing a change, verify that:
 * Every base shader works without optional modules.
 * External Shader-Core phases remain available.
 * No unintended shader variants, passes, dependencies, or features were added.
+
+### Daily validation from an open Unity Editor
+
+When Unity MCP is connected to the project and the Editor is already open, prefer its
+asynchronous test tools for LLM-driven local validation instead of starting a second Unity
+process:
+
+* wait for compilation and asset import to finish;
+* run only the `PureBase.Tests.Daily` EditMode assembly;
+* poll the returned test job until completion and report failed-test details;
+* do not modify tracked package files or Shader-Core ProjectSettings while the job runs; and
+* use `Tests/Run-PureBaseRegression.ps1 -Mode Daily` for CI/CD or isolated batch validation.
 
 ## License headers
 
