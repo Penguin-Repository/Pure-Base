@@ -53,11 +53,7 @@ function Write-State([string]$Phase, [hashtable]$Data = @{}) {
 }
 
 function Invoke-Git([string[]]$Arguments, [switch]$AllowFailure) {
-    $output = @(& git -C $PackageRoot @Arguments 2>&1)
-    if ($LASTEXITCODE -ne 0 -and -not $AllowFailure) {
-        throw "git $($Arguments -join ' ') failed:`n$($output -join "`n")"
-    }
-    [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = ($output -join "`n").Trim() }
+    Invoke-PureBaseGit -PackageRoot $PackageRoot -Arguments $Arguments -AllowFailure:$AllowFailure
 }
 
 function Invoke-Api([string]$Method, [string]$Uri, [string]$Token, $Body = $null, [string]$File = '') {
@@ -139,20 +135,19 @@ function Build-Zip([string]$Version) {
     Copy-Item $zips[0].FullName $path -Force
     $sha = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText($path + '.sha256', $sha + "`n", [Text.ASCIIEncoding]::new())
-    [pscustomobject]@{ Name = $name; Path = $path; Sha256 = $sha }
+    [pscustomobject]@{ Name = $name; Path = $path; Sha256 = $sha; DownloadUrl = ''; Source = 'rebuilt' }
 }
 
 function Assert-Asset($Release, $Artifact) {
-    $asset = @($Release.assets | Where-Object name -eq $Artifact.Name | Select-Object -First 1)
-    if ($asset.Count -ne 1) { throw "Release asset '$($Artifact.Name)' is missing." }
-    if ($asset[0].digest -and $asset[0].digest -ne "sha256:$($Artifact.Sha256)") { throw 'Existing release asset digest does not match the rebuilt ZIP.' }
+    $asset = @($Release.assets | Where-Object name -eq $Artifact.Name)
+    if ($asset.Count -ne 1) { throw "Release asset '$($Artifact.Name)' is missing or duplicated." }
+    if ([string]$asset[0].digest -ne "sha256:$($Artifact.Sha256)") { throw 'Release asset digest does not match the audited ZIP.' }
 }
 
 function Publish-Release([string]$Version, [string]$CommitSha, $Artifact, [bool]$IsResume) {
     $release = Get-Release $Version
     if ($release -and -not $release.draft) {
         if (-not $IsResume) { throw "Release '$Version' already exists." }
-        Assert-Asset $release $Artifact
         return $release
     }
     if (-not $release) {
@@ -208,10 +203,19 @@ Write-State 'release-mode-resolved' @{
 Invoke-Validation
 $commitSha = if ($isResume) { Ensure-ResumeTag $targetText } else { Commit-And-Tag $targetText }
 Write-State 'version-committed-and-tagged' @{ commitSha=$commitSha; resume=$isResume }
-$artifact = Build-Zip $targetText
-Write-State 'final-archive-built' @{ commitSha=$commitSha; assetName=$artifact.Name; sha256=$artifact.Sha256 }
-$release = Publish-Release $targetText $commitSha $artifact $isResume
-Write-State 'immutable-release-published' @{ commitSha=$commitSha; releaseUrl=[string]$release.html_url; sha256=$artifact.Sha256 }
+
+$assetName = "$packageName-$targetText.zip"
+if ($isResume -and $releaseMode.ReleaseState -eq 'published') {
+    $artifact = Resolve-PureBasePublishedArtifact -Release $existingRelease -AssetName $assetName
+    $release = $existingRelease
+    Write-State 'published-asset-reused' @{ commitSha=$commitSha; assetName=$artifact.Name; sha256=$artifact.Sha256; downloadUrl=$artifact.DownloadUrl }
+}
+else {
+    $artifact = Build-Zip $targetText
+    Write-State 'final-archive-built' @{ commitSha=$commitSha; assetName=$artifact.Name; sha256=$artifact.Sha256 }
+    $release = Publish-Release $targetText $commitSha $artifact $isResume
+    Write-State 'immutable-release-published' @{ commitSha=$commitSha; releaseUrl=[string]$release.html_url; sha256=$artifact.Sha256 }
+}
 
 $dispatchPayload = New-PureBaseDispatchPayload `
     -PackageName $packageName `
@@ -222,5 +226,5 @@ $dispatchPayload = New-PureBaseDispatchPayload `
     -Sha256 $artifact.Sha256 `
     -ReleaseUrl ([string]$release.html_url)
 Invoke-Api POST "$apiRoot/repos/$VpmRepository/dispatches" $dispatchToken $dispatchPayload | Out-Null
-Write-State 'completed' @{ commitSha=$commitSha; releaseUrl=[string]$release.html_url; vpmRepository=$VpmRepository; sha256=$artifact.Sha256 }
+Write-State 'completed' @{ commitSha=$commitSha; releaseUrl=[string]$release.html_url; vpmRepository=$VpmRepository; sha256=$artifact.Sha256; assetSource=$artifact.Source }
 Write-Output "Release completed: $($release.html_url)"
