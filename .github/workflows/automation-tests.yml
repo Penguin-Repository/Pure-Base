@@ -50,4 +50,18 @@ jobs:
           $configuration.Run.Path = '.github/tests'
           $configuration.Run.Exit = $true
           $configuration.Output.Verbosity = 'Detailed'
+          $configuration.Output.CIFormat = 'GithubActions'
+          $configuration.TestResult.Enabled = $true
+          $configuration.TestResult.OutputFormat = 'NUnitXml'
+          $configuration.TestResult.OutputPath = 'TestResults/Pester.NUnit.xml'
+          New-Item -ItemType Directory -Path TestResults -Force | Out-Null
           Invoke-Pester -Configuration $configuration
+
+      - name: Upload Pester results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: pure-base-pester-${{ github.run_id }}-${{ github.run_attempt }}
+          path: TestResults/Pester.NUnit.xml
+          if-no-files-found: warn
+          retention-days: 14
