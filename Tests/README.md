@@ -89,6 +89,9 @@ Fixed test-host module selections belong to the Initialize lane. They must not l
 
 ## Release validation
 
+> [!Important]
+> Since release validation involves extensive read and write operations, it is recommended to perform it in a CI/CD environment rather than locally.
+
 `Tests/Release/Run-PureBaseReleaseValidation.ps1` is the release consumer lane. It requires `-UnityEditorPath` and accepts an external `-ArtifactDirectory`; `-KeepConsumer` retains the consumer directory for inspection.
 
 The runner builds the audited release ZIP and validates it in one disposable external `ConsumerProject` directory. Cold resets remove only that consumer directory's `Library`, while the runner verifies the remaining immutable consumer inputs. Unless `-KeepConsumer` is specified, the consumer directory is removed after validation.
