@@ -548,7 +548,7 @@ function New-HarnessStandardMorphContract {
     $module = [ordered]@{
         label = 'standard-morph'
         phase = 'morph'
-        uniqueId = 'jp.penguin.purebase.integration.products.morph'
+        uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'
         propertyName = ''
         sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH'
     }
@@ -640,7 +640,7 @@ function Invoke-HarnessCompletionPath {
     $failed = $true
     $comparisonVerdict = $null
     $failure = $null
-    $outcomes = @([ordered]@{ label = 'synthetic-success'; nunit = [ordered]@{ result = 'Passed' } })
+    $outcomes = @([ordered]@{ label = 'synthetic-success'; runDirectoryLabel = 'synthetic-success'; nunit = [ordered]@{ result = 'Passed' } })
     try {
         if ($ForceRunSummaryFailure) {
             New-Item -ItemType Directory -Path (Join-Path $runRoot 'run-summary.json') -Force | Out-Null
@@ -724,10 +724,10 @@ try {
     }
 
     $toonPropertyMappings = @(
-        [ordered]@{ phase = 'base'; uniqueId = 'jp.penguin.purebase.integration.toon.phase.base'; expectedPropertyName = '_jp_penguin_purebase_integration_toon_phase_base_ProductPhaseValue' },
-        [ordered]@{ phase = 'light'; uniqueId = 'jp.penguin.purebase.integration.toon.phase.light'; expectedPropertyName = '_jp_penguin_purebase_integration_toon_phase_light_ProductPhaseValue' },
-        [ordered]@{ phase = 'modifylight'; uniqueId = 'jp.penguin.purebase.integration.toon.phase.modifylight'; expectedPropertyName = '_jp_penguin_purebase_integration_toon_phase_modifylight_ProductPhaseValue' },
-        [ordered]@{ phase = 'shade'; uniqueId = 'jp.penguin.purebase.integration.toon.phase.shade'; expectedPropertyName = '_jp_penguin_purebase_integration_toon_phase_shade_ProductPhaseValue' }
+        [ordered]@{ phase = 'base'; uniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.base'; expectedPropertyName = '_jp_penguin_purebase_release_fixture_toon_phase_base_ProductPhaseValue' },
+        [ordered]@{ phase = 'light'; uniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.light'; expectedPropertyName = '_jp_penguin_purebase_release_fixture_toon_phase_light_ProductPhaseValue' },
+        [ordered]@{ phase = 'modifylight'; uniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.modifylight'; expectedPropertyName = '_jp_penguin_purebase_release_fixture_toon_phase_modifylight_ProductPhaseValue' },
+        [ordered]@{ phase = 'shade'; uniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.shade'; expectedPropertyName = '_jp_penguin_purebase_release_fixture_toon_phase_shade_ProductPhaseValue' }
     )
     foreach ($mapping in $toonPropertyMappings) {
         $propertyName = Get-ShaderCoreNamespacedPropertyName -ModuleUniqueId $mapping.uniqueId -RawPropertyName '_ProductPhaseValue'
@@ -739,9 +739,9 @@ try {
     }
     $fogContract = New-FogContract
     $fogAssignmentPropertyName = $fogContract.unlitForwardAddFog.floatAssignments[0].propertyName
-    Assert-Harness -Condition ($fogAssignmentPropertyName -eq '_jp_penguin_purebase_integration_unlit_forwardaddfog_ForwardAddFogSignalProperty') -Message 'Fog contract did not map its float assignment to the expected namespaced property ABI.'
+    Assert-Harness -Condition ($fogAssignmentPropertyName -eq '_jp_penguin_purebase_release_fixture_unlit_forwardaddfog_ForwardAddFogSignalProperty') -Message 'Fog contract did not map its float assignment to the expected namespaced property ABI.'
     Assert-Harness -Condition ($fogAssignmentPropertyName -ne '_ForwardAddFogSignalProperty') -Message 'Fog contract regressed to the raw property name.'
-    $toonBaseModule = [ordered]@{ label = 'toon-base'; phase = 'base'; uniqueId = 'jp.penguin.purebase.integration.toon.phase.base'; propertyName = '_jp_penguin_purebase_integration_toon_phase_base_ProductPhaseValue'; sentinel = 'PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_BASE' }
+    $toonBaseModule = [ordered]@{ label = 'toon-base'; phase = 'base'; uniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.base'; propertyName = '_jp_penguin_purebase_release_fixture_toon_phase_base_ProductPhaseValue'; sentinel = 'PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_BASE' }
     $toonBaseRuntimeContract = New-ToonRuntimeContract -Module $toonBaseModule
     $toonBaseRuntimeSample = $toonBaseRuntimeContract.runtimeSamples[0]
     $toonBaseRuntimeDelta = $toonBaseRuntimeContract.runtimeDelta.selectedMinusModuleFree
@@ -774,6 +774,7 @@ try {
         Assert-Harness -Condition ($null -eq $completion.failure) -Message "Non-comparison completion '$($completionCase.validationScope)' unexpectedly failed under StrictMode."
         Assert-Harness -Condition ($null -ne $completion.summary) -Message "Non-comparison completion '$($completionCase.validationScope)' did not persist run-summary.json."
         Assert-Harness -Condition ($completion.summary.validationScope -eq $completionCase.validationScope) -Message "Non-comparison completion '$($completionCase.validationScope)' changed validationScope."
+        Assert-Harness -Condition ($completion.summary.outcomes[0].runDirectoryLabel -eq 'synthetic-success') -Message "Non-comparison completion '$($completionCase.validationScope)' did not preserve the run directory label."
         Assert-Harness -Condition ($completion.summary.consumerDirectoryCreationCount -eq 1 -and $completion.summary.consumerDirectoryRemovalCount -eq 1) -Message "Non-comparison completion '$($completionCase.validationScope)' changed consumer lifecycle counts."
         Assert-Harness -Condition (-not $completion.summary.comparisonMode -and ([bool]$completion.summary.moduleFreeOnly -eq [bool]$completionCase.moduleFreeOnly)) -Message "Non-comparison completion '$($completionCase.validationScope)' changed comparison flags."
         Assert-Harness -Condition ($null -eq $completion.summary.comparisonVerdict) -Message "Non-comparison completion '$($completionCase.validationScope)' claimed a comparison verdict."
@@ -960,11 +961,11 @@ try {
     Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $missingCanonicalConfig.bootstrapDirectory 'shader-core-state-initialization-config.json') -PathType Leaf) -Message 'Missing canonical Shader-Core config did not persist its config receipt artifact.'
     Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $missingCanonicalConfig.bootstrapDirectory 'failure-evidence/shader-core-state-initialization-config.json') -PathType Leaf) -Message 'Missing canonical Shader-Core config did not retain its config receipt in bootstrap failure evidence.'
 
-    $fixturePreservation = Invoke-HarnessCase -Label 'fixture-preservation' -Selections @{ 'PureBase/Unlit' = @('jp.penguin.purebase.integration.module') } -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row', 'row')
+    $fixturePreservation = Invoke-HarnessCase -Label 'fixture-preservation' -Selections @{ 'PureBase/Unlit' = @('jp.penguin.purebase.release.fixture.module') } -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row', 'row')
     Assert-Harness -Condition ($null -eq $fixturePreservation.failure) -Message 'Fixture registration preservation case unexpectedly failed.'
     $settingsText = Get-Content -LiteralPath $fixturePreservation.settingsPath -Raw
     Assert-Harness -Condition ($settingsText -match '(?ms)^  - shadername: PureBase/Tests/ShaderCore/Phase/PostPixel\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.tests\.shadercore\.phase\.postpixel\r?$') -Message 'Shader-Core fixture registration was not preserved.'
-    Assert-Harness -Condition ($settingsText -match '(?ms)^  - shadername: PureBase/Unlit\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.integration\.module\r?$') -Message 'Shader-Core product module selection was not applied.'
+    Assert-Harness -Condition ($settingsText -match '(?ms)^  - shadername: PureBase/Unlit\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.release\.fixture\.module\r?$') -Message 'Shader-Core product module selection was not applied.'
     foreach ($mutation in @('source-mutation', 'uri-escape', 'unknown-unity-manifest-dependency', 'wrong-revision', 'lock-mismatch', 'lock-version-mismatch', 'lock-source-mismatch', 'lock-added-entry', 'invalid-meta', 'orphan-meta', 'generated-meta-item-type-mismatch', 'duplicate-meta', 'receipt-meta-collision', 'unknown-add', 'invalid-billing-mode', 'invalid-project-settings', 'invalid-shader-core-settings', 'missing-fixed-shader-core-host', 'reversed-shader-core-module-order', 'unexpected-shader-core-host')) {
         Assert-HarnessSemanticRejection -SuccessfulCase $fixturePreservation -Mutation $mutation
     }

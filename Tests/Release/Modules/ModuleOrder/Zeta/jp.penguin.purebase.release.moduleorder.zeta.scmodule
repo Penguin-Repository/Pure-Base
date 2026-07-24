@@ -1,0 +1,13 @@
+{
+  "name": "PureBase Release Fixture Zeta Base Order",
+  "uniqueID": "jp.penguin.purebase.release.fixture.module-order.zeta",
+  "phases": [
+    {
+      "phase": "base",
+      "path": "base.hlsl",
+      "befores": [
+        "PureBase Release Fixture Alpha Base Order"
+      ]
+    }
+  ]
+}

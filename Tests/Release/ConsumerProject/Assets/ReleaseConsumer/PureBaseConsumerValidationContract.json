@@ -1,0 +1,18 @@
+{
+  "runLabel": "",
+  "runKind": "",
+  "products": [],
+  "hasSelectedModule": false,
+  "selectedModule": {
+    "phase": "",
+    "moduleUniqueId": "",
+    "propertyName": "",
+    "sentinel": ""
+  },
+  "moduleOrder": null,
+  "inactiveSentinels": [],
+  "runtimeSamples": [],
+  "runtimeDelta": null,
+  "bake": null,
+  "unlitForwardAddFog": null
+}

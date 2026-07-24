@@ -1812,7 +1812,7 @@ function New-ModuleOrderContract {
 }
 
 function New-FogContract {
-    $moduleUniqueId = 'jp.penguin.purebase.integration.unlit.forwardaddfog'
+    $moduleUniqueId = 'jp.penguin.purebase.release.fixture.unlit.forwardaddfog'
     $rawPropertyName = '_ForwardAddFogSignalProperty'
     $product = New-ProductContract -ShaderName 'PureBase/Unlit'
     return [ordered]@{
@@ -2526,14 +2526,14 @@ try {
     if (-not $ModuleFreeOnly) {
         $standardPhases = @('morph', 'postvertex', 'base', 'light', 'customlight', 'modifylight', 'shade', 'reflection', 'add', 'postpixel')
         if ($ToonBaseOnly) {
-            $moduleUniqueId = 'jp.penguin.purebase.integration.toon.phase.base'
+            $moduleUniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.base'
             $rawPropertyName = '_ProductPhaseValue'
             $module = [ordered]@{ label = 'toon-base'; phase = 'base'; uniqueId = $moduleUniqueId; propertyName = Get-ShaderCoreNamespacedPropertyName -ModuleUniqueId $moduleUniqueId -RawPropertyName $rawPropertyName; sentinel = 'PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_BASE' }
             $matrix.Add([ordered]@{ label = $module.label + '-phase'; contract = New-PhaseContract -Module $module -SelectedProducts @('PureBase/Toon'); filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = @{ 'PureBase/Toon' = @($module.uniqueId) }; skipColdLibraryReset = $false })
             $matrix.Add([ordered]@{ label = $module.label + '-runtime'; contract = New-ToonRuntimeContract -Module $module; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{ 'PureBase/Toon' = @($module.uniqueId) }; skipColdLibraryReset = $false })
         }
         elseif ($CompareWarmAndColdStandardMorph) {
-            $module = [ordered]@{ label = 'standard-morph'; phase = 'morph'; uniqueId = 'jp.penguin.purebase.integration.products.morph'; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH' }
+            $module = [ordered]@{ label = 'standard-morph'; phase = 'morph'; uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH' }
             $selections = @{ 'PureBase/Unlit' = @($module.uniqueId); 'PureBase/Toon' = @($module.uniqueId); 'PureBase/PBR' = @($module.uniqueId); 'PureBase/Hybrid' = @($module.uniqueId) }
             $warmContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
             $warmContract.runLabel = 'standard-morph-warm-library-duplicate-evidence'
@@ -2546,13 +2546,13 @@ try {
         }
         else {
             foreach ($phase in $standardPhases) {
-                $module = [ordered]@{ label = 'standard-' + $phase; phase = $phase; uniqueId = 'jp.penguin.purebase.integration.products.' + $phase; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_' + $phase.ToUpperInvariant() }
+                $module = [ordered]@{ label = 'standard-' + $phase; phase = $phase; uniqueId = 'jp.penguin.purebase.release.fixture.products.' + $phase; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_' + $phase.ToUpperInvariant() }
                 $matrix.Add([ordered]@{ label = $module.label; contract = New-PhaseContract -Module $module -SelectedProducts $ProductNames; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = @{ 'PureBase/Unlit' = @($module.uniqueId); 'PureBase/Toon' = @($module.uniqueId); 'PureBase/PBR' = @($module.uniqueId); 'PureBase/Hybrid' = @($module.uniqueId) }; skipColdLibraryReset = $false })
             }
         }
         if (-not $ToonBaseOnly -and -not $CompareWarmAndColdStandardMorph) {
             foreach ($phase in @('base', 'light', 'modifylight', 'shade')) {
-                $moduleUniqueId = 'jp.penguin.purebase.integration.toon.phase.' + $phase
+                $moduleUniqueId = 'jp.penguin.purebase.release.fixture.toon.phase.' + $phase
                 $rawPropertyName = '_ProductPhaseValue'
                 $module = [ordered]@{ label = 'toon-' + $phase; phase = $phase; uniqueId = $moduleUniqueId; propertyName = Get-ShaderCoreNamespacedPropertyName -ModuleUniqueId $moduleUniqueId -RawPropertyName $rawPropertyName; sentinel = 'PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_' + $phase.ToUpperInvariant() }
                 $phaseContract = New-PhaseContract -Module $module -SelectedProducts @('PureBase/Toon')
@@ -2560,8 +2560,8 @@ try {
                 $matrix.Add([ordered]@{ label = $module.label + '-phase'; contract = $phaseContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = @{ 'PureBase/Toon' = @($module.uniqueId) }; skipColdLibraryReset = $false })
                 $matrix.Add([ordered]@{ label = $module.label + '-runtime'; contract = $runtimeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{ 'PureBase/Toon' = @($module.uniqueId) }; skipColdLibraryReset = $false })
             }
-            $matrix.Add([ordered]@{ label = 'unlit-forward-add-fog'; contract = New-FogContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerUnlitForwardAddFogTests.SelectedForwardAddSignalAttenuatesTowardBlackWithControlledFog'; selections = @{ 'PureBase/Unlit' = @('jp.penguin.purebase.integration.unlit.forwardaddfog') }; skipColdLibraryReset = $false })
-            $matrix.Add([ordered]@{ label = 'module-order'; contract = New-ModuleOrderContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleOrderTests.ConfiguredModuleOrderAppearsOnlyInExpectedProductPasses'; selections = @{ 'PureBase/Unlit' = @('jp.penguin.purebase.integration.module-order.alpha', 'jp.penguin.purebase.integration.module-order.zeta'); 'PureBase/Toon' = @('jp.penguin.purebase.integration.module-order.alpha', 'jp.penguin.purebase.integration.module-order.zeta'); 'PureBase/PBR' = @('jp.penguin.purebase.integration.module-order.alpha', 'jp.penguin.purebase.integration.module-order.zeta'); 'PureBase/Hybrid' = @('jp.penguin.purebase.integration.module-order.alpha', 'jp.penguin.purebase.integration.module-order.zeta') }; skipColdLibraryReset = $false })
+            $matrix.Add([ordered]@{ label = 'unlit-forward-add-fog'; contract = New-FogContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerUnlitForwardAddFogTests.SelectedForwardAddSignalAttenuatesTowardBlackWithControlledFog'; selections = @{ 'PureBase/Unlit' = @('jp.penguin.purebase.release.fixture.unlit.forwardaddfog') }; skipColdLibraryReset = $false })
+            $matrix.Add([ordered]@{ label = 'module-order'; contract = New-ModuleOrderContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleOrderTests.ConfiguredModuleOrderAppearsOnlyInExpectedProductPasses'; selections = @{ 'PureBase/Unlit' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta'); 'PureBase/Toon' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta'); 'PureBase/PBR' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta'); 'PureBase/Hybrid' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta') }; skipColdLibraryReset = $false })
             $matrix.Add([ordered]@{ label = 'progressive-cpu-bake'; contract = New-BakeContract -ConsumerRoot $consumerRoot; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerBakeEvidenceTests.ConfiguredValidationSceneBakesAndExportsEvidence'; selections = @{}; skipColdLibraryReset = $false })
         }
     }
@@ -2577,7 +2577,7 @@ try {
         if ($entry.Contains('allowObservationEvidence')) {
             $allowObservationEvidence = [bool]$entry.allowObservationEvidence
         }
-        $outcomes += [ordered]@{ label = $entry.label; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
+        $outcomes += [ordered]@{ label = $entry.label; runDirectoryLabel = $entry.contract.runLabel; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
     }
     if ($CompareWarmAndColdStandardMorph) {
         if ($matrix.Count -ne 3 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract) {

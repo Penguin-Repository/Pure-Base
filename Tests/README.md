@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-# The `Tests/` directory provides deterministic Pure-Base regression checks, fixed Shader-Core test hosts, and explicit tooling for observing and regenerating the canonical validation baseline
+# The package-owned `Tests/` directory provides deterministic Pure-Base regression checks, fixed Shader-Core test hosts, and explicit tooling for observing and regenerating the canonical validation baseline
+
+This directory is the source of truth for persistent Pure-Base validation: test assemblies, fixtures, baselines, test-only modules, and validation runners are maintained here.
 
 ## Operating lanes
 
@@ -22,7 +24,7 @@ These lanes have different write boundaries. Run the commands below from the pac
 
 ### Initialize
 
-`Initialize` is an explicit setup lane. It configures the fixed Shader-Core test hosts from the package manifest and applies their serialized module selections. It is not part of normal Daily validation.
+`Initialize` is an explicit setup lane. It configures the fixed Shader-Core test hosts from the package manifest and applies their serialized module selections. It is not part of normal Daily validation or baseline regeneration.
 
 ```powershell
 .\Tests\Run-PureBaseRegression.ps1 -Mode Initialize
@@ -32,7 +34,7 @@ This lane is write-capable because it updates the Shader-Core ProjectSettings st
 
 ### Daily
 
-`Daily` is the normal read-only lane. It runs the current Unity project once and executes only the `PureBase.Tests.Daily` EditMode test assembly.
+`Daily` is the normal read-only lane driven by `Tests/Run-PureBaseRegression.ps1`. It runs the current Unity project once and executes only the `PureBase.Tests.Daily` EditMode test assembly.
 
 ```powershell
 .\Tests\Run-PureBaseRegression.ps1 -Mode Daily
@@ -87,4 +89,8 @@ Fixed test-host module selections belong to the Initialize lane. They must not l
 
 ## Release validation
 
-Consumer and release validation is a separate future/release lane. It is not part of Daily. This package does not claim an implemented release runner or baseline command here.
+`Tests/Release/Run-PureBaseReleaseValidation.ps1` is the release consumer lane. It requires `-UnityEditorPath` and accepts an external `-ArtifactDirectory`; `-KeepConsumer` retains the consumer directory for inspection.
+
+The runner builds the audited release ZIP and validates it in one disposable external `ConsumerProject` directory. Cold resets remove only that consumer directory's `Library`, while the runner verifies the remaining immutable consumer inputs. Unless `-KeepConsumer` is specified, the consumer directory is removed after validation.
+
+The release ZIP excludes `Tests/**` and test-only `*.scmodule` files. Tracked `.scmodule` files are allowed only within the package-owned `Tests/**` fixture boundary.

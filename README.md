@@ -25,7 +25,9 @@ Pure-Base provides four minimal Built-in Render Pipeline base shaders for Shader
 - The integration harness is fixed to Unity `2022.3.22f1` and forces D3D11 for test execution.
 - Material transparency and transparent blending are not supported. All product shaders use fixed Cutout coverage.
 
-The package metadata identifies this package as `jp.penguin.purebase` version `0.1.0`. The release package contains no optional tracked `.scmodule` files.
+The package metadata identifies this package as `jp.penguin.purebase` version `0.1.0`. The package-owned validation source of truth is `Packages/jp.penguin.purebase/Tests`.
+
+The release ZIP excludes `Tests/**` and test-only `*.scmodule` files. Tracked `.scmodule` files are test fixtures and are allowed only within the package-owned `Tests/**` fixture boundary.
 
 ## Shader Paths
 
@@ -63,6 +65,15 @@ The shared standard phase ABI is, in order:
 
 Optional visual features belong in separate Shader-Core modules. Pure-Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
 
+## Validation Lanes
+
+The package-owned persistent validation lanes are defined under `Tests/`.
+
+- `Tests/Run-PureBaseRegression.ps1 -Mode Daily` is the read-only Daily lane. It runs only the `PureBase.Tests.Daily` EditMode assembly and protects the project settings and tracked package tree before and after execution.
+- `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` is a separate write-capable setup lane for fixed Shader-Core test hosts. It is not part of Daily.
+- Fixture baking and canonical baseline regeneration are explicit write-capable operations separate from Daily. Daily reads `Tests/Baselines/birp-d3d11-2022.3.22f1.json` and never creates or replaces it.
+- `Tests/Release/Run-PureBaseReleaseValidation.ps1` builds and validates the release ZIP in one disposable external consumer directory. Its cold resets remove only that consumer's `Library`; the runner verifies the remaining immutable consumer inputs and removes the consumer directory at the end unless `-KeepConsumer` is used.
+
 ## Validation
 
 The final disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11. It covers module-free imports, all ten standard external phase probes, PBR and Hybrid finite/reflection/`ForwardAdd`/specular behavior, Unlit and Toon regressions, a fixed validation-scene bake with Meta and shadow checks, and 56 Built-in Render Pipeline variants.
@@ -71,10 +82,11 @@ The validation result records dynamic lightmap as `NOT_DETERMINISTIC_IN_BATCH_ED
 
 Release-boundary checks also passed:
 
-- no tracked `.scmodule` files;
+- release ZIP excludes `Tests/**` and test-only `*.scmodule` files;
+- tracked `.scmodule` files are confined to the `Tests/**` fixture boundary;
 - no `Assets/PureBase.Tests` inside the package;
 - no URP dependency;
 - PBR and Hybrid public property ABI byte-identical;
 - `_Emission`, `_Rim`, `_MatCap`, and `_ClearCoat` absent.
 
-The integration harness and its exact scopes are described in [Pure-Base Integration Harness](../../Tests/PureBase.Integration/README.md).
+The package-owned test lanes and their write boundaries are described in [`Tests/README.md`](Tests/README.md).
