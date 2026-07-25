@@ -66,6 +66,11 @@ Describe 'Pure-Base CI Unity project generation' {
         Assert-CiProjectHarness -Condition ($bootstrap -match 'Application\.unityVersion != "2022\.3\.22f1"') -Message 'Generated CI bootstrap does not pin the Unity version.'
         Assert-CiProjectHarness -Condition ($bootstrap -match 'PlayerSettings\.colorSpace = ColorSpace\.Linear;') -Message 'Generated CI bootstrap does not require Linear color space.'
         Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorSettings\.serializationMode = SerializationMode\.ForceText;') -Message 'Generated CI bootstrap does not require text serialization.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match '\[InitializeOnLoad\]') -Message 'Generated CI bootstrap does not wait for initial Unity import.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'PURE_BASE_CI_PRIME') -Message 'Generated CI bootstrap does not gate automatic execution to the prime run.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorApplication\.isCompiling \|\| EditorApplication\.isUpdating') -Message 'Generated CI bootstrap does not wait for compilation and asset updates.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorApplication\.Exit\(0\)') -Message 'Generated CI bootstrap does not terminate a successful prime run.'
+        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorApplication\.Exit\(1\)') -Message 'Generated CI bootstrap does not report a failed prime run.'
     }
 
     It 'rejects an unexpected Shader-Core version' {
