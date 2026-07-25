@@ -44,7 +44,7 @@ namespace PureBase.Tests.Daily
             "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json";
 
         /// <summary>Defines the supported baseline schema.</summary>
-        public const int BaselineSchemaVersion = 1;
+        public const int BaselineSchemaVersion = 2;
 
         /// <summary>Defines the expected baseline Unity version.</summary>
         public const string ExpectedUnityVersion = "2022.3.22f1";
@@ -367,7 +367,9 @@ namespace PureBase.Tests.Daily
             var baseline = new SceneRegressionBaseline
             {
                 metaAlbedo = null,
-                shadowChangedPixelCount = MinimumShadowChangedPixelCount + 1,
+                shadowChangedPixelCount = IntRange.Exact(
+                    MinimumShadowChangedPixelCount + 1
+                ),
             };
 
             Assert.Throws<AssertionException>(() =>
@@ -392,7 +394,7 @@ namespace PureBase.Tests.Daily
         public void BaselineRejectsZeroShadowSilhouette()
         {
             SceneRegressionBaseline baseline = CreateObservableBaseline();
-            baseline.shadowChangedPixelCount = 0;
+            baseline.shadowChangedPixelCount = IntRange.Exact(0);
 
             Assert.Throws<AssertionException>(() =>
                 ValidateBaselineObservability(baseline, "test baseline")
@@ -550,10 +552,15 @@ namespace PureBase.Tests.Daily
                 }
             }
 
-            if (baseline.shadowChangedPixelCount <= MinimumShadowChangedPixelCount)
+            if (
+                baseline.shadowChangedPixelCount == null
+                || baseline.shadowChangedPixelCount.minimum <= MinimumShadowChangedPixelCount
+                || baseline.shadowChangedPixelCount.maximum
+                    < baseline.shadowChangedPixelCount.minimum
+            )
             {
                 throw new AssertionException(
-                    $"{baselineLabel} must contain more than {MinimumShadowChangedPixelCount} changed directional-shadow pixels."
+                    $"{baselineLabel} must contain a reviewed directional-shadow range above {MinimumShadowChangedPixelCount} changed pixels."
                 );
             }
         }
@@ -640,9 +647,13 @@ namespace PureBase.Tests.Daily
                 observation.staticRendererAssignmentCount,
                 Is.EqualTo(baseline.staticRendererAssignmentCount)
             );
-            Assert.That(
+            // Hard-shadow rasterization differs slightly between physical GPUs and the
+            // Microsoft Basic Render Driver used by GitHub-hosted runners. Keep the
+            // reviewed bounds narrow so real silhouette regressions still fail.
+            AssertRange(
                 observation.shadowChangedPixelCount,
-                Is.EqualTo(baseline.shadowChangedPixelCount)
+                baseline.shadowChangedPixelCount,
+                "directional-shadow changed pixel count"
             );
             Assert.That(observation.warmedVariantCount, Is.EqualTo(baseline.warmedVariantCount));
             Assert.That(
@@ -693,7 +704,11 @@ namespace PureBase.Tests.Daily
                 staticLightmapCount = observation.staticLightmapCount,
                 staticRendererAssignmentCount = observation.staticRendererAssignmentCount,
                 sceneVisiblePixelCount = IntRange.Exact(observation.sceneVisiblePixelCount),
-                shadowChangedPixelCount = observation.shadowChangedPixelCount,
+                // Regeneration starts from an exact observation. Reviewers may widen
+                // this range only after validating another supported D3D11 renderer.
+                shadowChangedPixelCount = IntRange.Exact(
+                    observation.shadowChangedPixelCount
+                ),
                 warmedVariantCount = observation.warmedVariantCount,
                 dynamicLightmapStatus = "NOT_DETERMINISTIC_IN_BATCH_EDITMODE",
                 metaAlbedo = new MetaAlbedoBaseline[observation.metaAlbedo.Length],
@@ -1529,7 +1544,9 @@ namespace PureBase.Tests.Daily
             return new SceneRegressionBaseline
             {
                 metaAlbedo = metaAlbedo,
-                shadowChangedPixelCount = MinimumShadowChangedPixelCount + 1,
+                shadowChangedPixelCount = IntRange.Exact(
+                    MinimumShadowChangedPixelCount + 1
+                ),
             };
         }
 
@@ -2507,8 +2524,12 @@ namespace PureBase.Tests.Daily
         /// <summary>Stores the reviewed visible scene-pixel range.</summary>
         public IntRange sceneVisiblePixelCount;
 
-        /// <summary>Stores the committed shadow silhouette pixel count.</summary>
-        public int shadowChangedPixelCount;
+        /// <summary>
+        /// Stores the reviewed shadow silhouette range. The narrow range accounts for
+        /// deterministic rasterization differences between physical D3D11 GPUs and
+        /// GitHub-hosted runners using Microsoft Basic Render Driver.
+        /// </summary>
+        public IntRange shadowChangedPixelCount;
 
         /// <summary>Stores the committed representative warmed variant count.</summary>
         public int warmedVariantCount;
