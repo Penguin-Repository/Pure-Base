@@ -18,18 +18,22 @@ limitations under the License.
 
 ## Unity runner
 
-Daily and release validation use a dedicated Windows x64 runner with all of these labels:
+Daily and release validation run on GitHub-hosted `windows-latest` runners. Each run installs Unity
+2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal, and exports the discovered
+Editor path to the existing validation scripts. The Unity Editor installation is cached by operating
+system, architecture, and Unity version to avoid repeating the full Editor installation on every run.
 
-- `self-hosted`
-- `Windows`
-- `X64`
-- `unity-2022.3.22f1`
+Create these Actions secrets for Unity Personal activation:
 
-The runner must provide an activated Unity Editor at
-`C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe`.
-Use an ephemeral or disposable runner image. The repository is public, and Unity validation
-executes repository code. The Daily workflow rejects fork pull requests and runs pull request
-code only when the head branch belongs to this repository.
+- `UNITY_EMAIL`: email address of the Unity ID used for CI.
+- `UNITY_PASSWORD`: password of the Unity ID used for CI.
+- `UNITY_SERIAL`: Personal-tier serial extracted from an existing activated `.ulf` license.
+
+Use a real human Unity ID. Service accounts do not have a Unity Personal entitlement. The workflows
+pin `yamachu/unity-cli-actions` to an audited commit rather than a moving tag.
+
+The repository is public, and Unity validation executes repository code. The Daily workflow rejects
+fork pull requests and runs pull request code only when the head branch belongs to this repository.
 
 The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
 embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.9`, matching the exact
@@ -71,8 +75,8 @@ validation and stops without changing the repository when the setting is not ena
 `Daily` runs `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` followed by `-Mode Daily` on every
 push and on non-draft pull requests whose head branch belongs to Pure-Base. The authorization job
 uses the tested `Resolve-PureBaseDailySource` helper from the base workflow checkout. Fork pull
-requests are rejected before a self-hosted runner is allocated and without checking out or
-executing their code on the Unity runner.
+requests are rejected before Unity is installed and without checking out or executing their code on
+the Windows runner.
 
 `Release validation` is manual and read-only. It runs the full release consumer validation and
 uploads the complete evidence directory, including a versioned copy of the audited package ZIP.
