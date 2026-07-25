@@ -43,8 +43,6 @@ env:
   UNITY_EDITOR_PATH: C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe
   CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
   PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
-  VALIDATION_ARTIFACT_ROOT: ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
-  RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}
   RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
   VPM_REPOSITORY: ${{ vars.VPM_REPOSITORY }}
 
@@ -59,6 +57,12 @@ jobs:
       - unity-2022.3.22f1
     timeout-minutes: 480
     steps:
+      - name: Initialize artifact roots
+        shell: pwsh
+        run: |
+          "VALIDATION_ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
+          "RELEASE_ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
+
       - name: Validate release configuration
         id: release-config
         shell: pwsh
@@ -168,8 +172,8 @@ jobs:
         with:
           name: pure-base-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ env.VALIDATION_ARTIFACT_ROOT }}
-            ${{ env.RELEASE_ARTIFACT_ROOT }}
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
+            ${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 30
           compression-level: 0
