@@ -52,7 +52,7 @@ Describe 'Pure-Base CI Unity project generation' {
         )
     }
 
-    It 'pins Unity, Linear color space, text serialization, and test framework version' {
+    It 'pins Unity and test framework version without generating project code' {
         & $projectBuilder -ProjectRoot $projectRoot
 
         $projectVersion = Get-Content -LiteralPath (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt') -Raw
@@ -61,16 +61,7 @@ Describe 'Pure-Base CI Unity project generation' {
 
         $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'Packages/manifest.json') -Raw | ConvertFrom-Json
         Assert-CiProjectHarness -Condition ([string]$manifest.dependencies.'com.unity.test-framework' -eq '1.1.33') -Message 'Generated CI manifest does not pin the Unity Test Framework.'
-
-        $bootstrap = Get-Content -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs') -Raw
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'Application\.unityVersion != "2022\.3\.22f1"') -Message 'Generated CI bootstrap does not pin the Unity version.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'PlayerSettings\.colorSpace = ColorSpace\.Linear;') -Message 'Generated CI bootstrap does not require Linear color space.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorSettings\.serializationMode = SerializationMode\.ForceText;') -Message 'Generated CI bootstrap does not require text serialization.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match '\[InitializeOnLoad\]') -Message 'Generated CI bootstrap does not wait for initial Unity import.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'PURE_BASE_CI_PRIME') -Message 'Generated CI bootstrap does not gate automatic execution to the prime run.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorApplication\.isCompiling \|\| EditorApplication\.isUpdating') -Message 'Generated CI bootstrap does not wait for compilation and asset updates.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorApplication\.Exit\(0\)') -Message 'Generated CI bootstrap does not terminate a successful prime run.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorApplication\.Exit\(1\)') -Message 'Generated CI bootstrap does not report a failed prime run.'
+        Assert-CiProjectHarness -Condition (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs'))) -Message 'Generated CI project must not create transient bootstrap code.'
     }
 
     It 'rejects an unexpected Shader-Core version' {
