@@ -1,0 +1,74 @@
+# One-shot trusted maintenance workflow. It applies exact replacements and removes itself.
+name: Apply generator range fix
+
+on:
+  push:
+    branches:
+      - agent/use-github-hosted-unity
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout maintenance branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/use-github-hosted-unity
+          fetch-depth: 0
+
+      - name: Apply exact generator replacements
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs")
+          source = path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  """                || baseline.shadowChangedPixelCount != observation.shadowChangedPixelCount
+                || baseline.warmedVariantCount != observation.warmedVariantCount""",
+                  """                // A freshly regenerated baseline must remain exact until a reviewer
+                // explicitly approves a renderer-specific tolerance range.
+                || baseline.shadowChangedPixelCount == null
+                || baseline.shadowChangedPixelCount.minimum
+                    != observation.shadowChangedPixelCount
+                || baseline.shadowChangedPixelCount.maximum
+                    != observation.shadowChangedPixelCount
+                || baseline.warmedVariantCount != observation.warmedVariantCount""",
+              ),
+              (
+                  "candidate.exactBaseline.shadowChangedPixelCount = 0;",
+                  "candidate.exactBaseline.shadowChangedPixelCount = IntRange.Exact(0);",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise RuntimeError(
+                      f"Expected exactly one replacement, found {count}: {old[:100]!r}"
+                  )
+              source = source.replace(old, new, 1)
+
+          path.write_text(source, encoding="utf-8", newline="\n")
+
+      - name: Verify no legacy generator comparisons remain
+        shell: bash
+        run: |
+          ! grep -nF 'baseline.shadowChangedPixelCount != observation.shadowChangedPixelCount' Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
+          ! grep -nF 'exactBaseline.shadowChangedPixelCount = 0;' Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
+
+      - name: Remove one-shot workflow
+        run: git rm .github/workflows/apply-generator-range-fix.yml
+
+      - name: Commit generator range fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
+          git diff --cached --check
+          git commit -m "Update baseline generator for shadow ranges"
+          git push origin HEAD:agent/use-github-hosted-unity
