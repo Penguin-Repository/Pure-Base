@@ -50,9 +50,34 @@ Describe 'Pure-Base CI Unity project generation' {
             "m_EditorVersion: 2022.3.22f1`nm_EditorVersionWithRevision: 2022.3.22f1 (887be4894c44)`n",
             [Text.UTF8Encoding]::new($false)
         )
+        $qualitySettingsFixture = @'
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!47 &1
+QualitySettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 5
+  m_CurrentQuality: 2
+  m_QualitySettings:
+  - serializedVersion: 3
+    name: VRC High
+    pixelLightCount: 8
+    shadows: 2
+    shadowResolution: 3
+    shadowProjection: 1
+    shadowCascades: 4
+    shadowDistance: 150
+    shadowNearPlaneOffset: 2
+    antiAliasing: 4
+'@
+        [IO.File]::WriteAllText(
+            (Join-Path $consumerSettings 'QualitySettings.asset'),
+            $qualitySettingsFixture + "`n",
+            [Text.UTF8Encoding]::new($false)
+        )
     }
 
-    It 'pins Unity and test framework version without generating project code' {
+    It 'pins Unity, test framework, owner scene, and reviewed quality settings' {
         & $projectBuilder -ProjectRoot $projectRoot
 
         $projectVersion = Get-Content -LiteralPath (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt') -Raw
@@ -68,6 +93,16 @@ Describe 'Pure-Base CI Unity project generation' {
         $ownerScene = Get-Content -LiteralPath $ownerScenePath -Raw
         Assert-CiProjectHarness -Condition ($ownerScene -match 'SceneRoots:') -Message 'Generated owner scene is not a serialized Unity scene.'
         Assert-CiProjectHarness -Condition ($ownerScene -match 'm_Roots: \[\]') -Message 'Generated owner scene must remain empty.'
+
+        $qualitySettingsPath = Join-Path $projectRoot 'ProjectSettings/QualitySettings.asset'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $qualitySettingsPath -PathType Leaf) -Message 'Generated CI project is missing the reviewed QualitySettings asset.'
+        $qualitySettings = Get-Content -LiteralPath $qualitySettingsPath -Raw
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'm_CurrentQuality: 2') -Message 'Generated CI project must select the reviewed VRC High quality level.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'name: VRC High') -Message 'Generated CI project is missing the VRC High profile.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowResolution: 3') -Message 'Generated CI project must preserve the reviewed shadow resolution.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowCascades: 4') -Message 'Generated CI project must preserve four shadow cascades.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowDistance: 150') -Message 'Generated CI project must preserve the reviewed shadow distance.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'antiAliasing: 4') -Message 'Generated CI project must preserve 4x MSAA.'
     }
 
     It 'rejects an unexpected Shader-Core version' {
