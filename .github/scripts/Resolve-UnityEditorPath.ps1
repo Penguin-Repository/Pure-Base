@@ -22,6 +22,54 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+
+function Invoke-DownloadWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$OutFile,
+        [ValidateRange(1, 5)][int]$MaximumAttempts = 3
+    )
+
+    for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $OutFile -PathType Leaf) {
+                Remove-Item -LiteralPath $OutFile -Force
+            }
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            return
+        }
+        catch {
+            if ($attempt -eq $MaximumAttempts) {
+                throw "Download failed after $MaximumAttempts attempts: '$Uri'. $($_.Exception.Message)"
+            }
+
+            $delaySeconds = [Math]::Pow(2, $attempt)
+            Write-Warning "Download attempt $attempt failed for '$Uri': $($_.Exception.Message). Retrying in $delaySeconds seconds."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+}
+
+function Resolve-WindowsAbsolutePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $candidate = $Path.Trim().Trim('"')
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+        throw 'Unity Editor path output was empty.'
+    }
+
+    # setup-unity-cli may report an MSYS-style /c/... path even though this script
+    # runs in native Windows PowerShell. Convert only that well-defined drive form,
+    # then let System.IO perform all remaining canonicalization and validation.
+    if ($candidate -match '^[/\\]([A-Za-z])(?:[/\\](.*))?$') {
+        $drive = $Matches[1].ToUpperInvariant()
+        $tail = if ($Matches.Count -gt 2 -and $null -ne $Matches[2]) { $Matches[2] } else { '' }
+        $candidate = '{0}:\{1}' -f $drive, $tail.Replace('/', '\')
+    }
+
+    return [System.IO.Path]::GetFullPath($candidate)
+}
 
 function Assert-MicrosoftRuntime {
     param(
@@ -47,7 +95,7 @@ function Assert-MicrosoftRuntime {
 
     $installerPath = Join-Path $env:RUNNER_TEMP $InstallerFileName
     Write-Host "Installing $DisplayName because these files are missing: $($missingRuntimeFiles -join ', ')"
-    Invoke-WebRequest -Uri $InstallerUri -OutFile $installerPath
+    Invoke-DownloadWithRetry -Uri $InstallerUri -OutFile $installerPath
 
     $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
     if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
@@ -97,18 +145,7 @@ Assert-MicrosoftRuntime `
     -InstallerUri 'https://download.microsoft.com/download/0/5/6/056DCDA9-D667-4E27-8001-8A0C6971D6B1/vcredist_x64.exe' `
     -InstallerArguments @('/install', '/quiet', '/norestart')
 
-$normalizedPath = $EditorPath.Trim()
-if ([string]::IsNullOrWhiteSpace($normalizedPath)) {
-    throw 'Unity Editor path output was empty.'
-}
-
-if ($normalizedPath -match '^/([A-Za-z])(?:/(.*))?$') {
-    $drive = $Matches[1].ToUpperInvariant()
-    $tail = if ($Matches.Count -gt 2 -and $null -ne $Matches[2]) { $Matches[2] } else { '' }
-    $normalizedPath = '{0}:\{1}' -f $drive, $tail.Replace('/', '\')
-}
-
-$normalizedPath = [System.IO.Path]::GetFullPath($normalizedPath)
+$normalizedPath = Resolve-WindowsAbsolutePath -Path $EditorPath
 if (-not (Test-Path -LiteralPath $normalizedPath -PathType Leaf)) {
     throw "Unity Editor executable was not found at '$normalizedPath' (raw output: '$EditorPath')."
 }
