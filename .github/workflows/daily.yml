@@ -91,9 +91,36 @@ jobs:
           echo "Rejected source: $REASON"
           exit 1
 
+  unity-editor-cache:
+    name: Prepare Unity 2022.3.22f1 cache
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Restore or create Unity Editor cache
+        id: unity
+        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          unity-version: "2022.3.22f1"
+          cli-channel: beta
+          cache: "true"
+
+      - name: Report Unity Editor cache status
+        shell: pwsh
+        run: |
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache hit for 2022.3.22f1." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache miss for 2022.3.22f1. The installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
+          }
+
   unity-daily:
     name: Unity 2022.3.22f1 / D3D11
-    needs: authorize
+    needs:
+      - authorize
+      - unity-editor-cache
     if: needs.authorize.outputs.allowed == 'true'
     runs-on: windows-latest
     timeout-minutes: 120
@@ -121,13 +148,20 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Install Unity 2022.3.22f1
+      - name: Restore Unity 2022.3.22f1
         id: unity
         uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
         with:
           unity-version: "2022.3.22f1"
           cli-channel: beta
           cache: "true"
+
+      - name: Verify Unity Editor cache handoff
+        shell: pwsh
+        run: |
+          if ("${{ steps.unity.outputs.cache-hit }}" -ne "true") {
+            throw "Unity Editor cache was not available after the preparation job completed."
+          }
 
       - name: Activate Unity Personal license
         uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
