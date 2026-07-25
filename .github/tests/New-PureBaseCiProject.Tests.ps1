@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-function Assert-CiProjectHarness {
-    param(
-        [Parameter(Mandatory = $true)][bool]$Condition,
-        [Parameter(Mandatory = $true)][string]$Message
-    )
-
-    if (-not $Condition) {
-        throw $Message
-    }
-}
-
 Describe 'Pure-Base CI Unity project generation' {
     BeforeAll {
+        function Assert-CiProjectHarness {
+            param(
+                [Parameter(Mandatory = $true)][bool]$Condition,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            if (-not $Condition) {
+                throw $Message
+            }
+        }
+
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $projectBuilder = Join-Path $repositoryRoot '.github/scripts/New-PureBaseCiProject.ps1'
     }
