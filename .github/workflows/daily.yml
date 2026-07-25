@@ -210,17 +210,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
           $logPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Unity.log'
+          $processLogPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Process.log'
           & $env:UNITY_EDITOR_PATH `
             -batchmode `
-            -quit `
             -force-d3d11 `
             -accept-apiupdate `
             -projectPath $env:CI_PROJECT_ROOT `
             -executeMethod PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode `
-            -logFile $logPath
+            -logFile $logPath 2>&1 | Tee-Object -FilePath $processLogPath -Append | Out-Host
           if ($LASTEXITCODE -ne 0) {
             if (Test-Path -LiteralPath $logPath) {
-              Get-Content -LiteralPath $logPath -Tail 200
+              Get-Content -LiteralPath $logPath -Tail 300
             }
             throw "Unity project configuration failed with exit code $LASTEXITCODE."
           }
