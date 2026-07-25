@@ -1,0 +1,134 @@
+# One-shot trusted maintenance workflow. It restores the exact reviewed shadow value and removes itself.
+name: Apply exact shadow baseline
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/use-github-hosted-unity'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout maintenance branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/use-github-hosted-unity
+          fetch-depth: 0
+
+      - name: Restore exact reviewed shadow value
+        shell: python
+        run: |
+          from pathlib import Path
+          import json
+
+          baseline_path = Path("Tests/Baselines/birp-d3d11-2022.3.22f1.json")
+          baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+          shadow_range = baseline.get("shadowChangedPixelCount")
+          if shadow_range != {"minimum": 341, "maximum": 352}:
+              raise RuntimeError(f"Unexpected reviewed shadow range: {shadow_range!r}")
+          baseline["shadowChangedPixelCount"] = {"minimum": 341, "maximum": 341}
+          baseline_path.write_text(
+              json.dumps(baseline, indent=4, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          regression_path = Path(
+              "Tests/Daily/Editor/PureBaseValidationSceneRegressionTests.cs"
+          )
+          regression = regression_path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  """            // Hard-shadow rasterization differs slightly between physical GPUs and the
+            // Microsoft Basic Render Driver used by GitHub-hosted runners. Keep the
+            // reviewed bounds narrow so real silhouette regressions still fail.""",
+                  """            // Local and GitHub-hosted runs both produce 341 changed pixels after the CI
+            // project imports the reviewed VRC High QualitySettings. Keep the baseline as
+            // an IntRange for schema consistency, but require the reviewed exact value.""",
+              ),
+              (
+                  """        /// <summary>
+        /// Stores the reviewed shadow silhouette range. The narrow range accounts for
+        /// deterministic rasterization differences between physical D3D11 GPUs and
+        /// GitHub-hosted runners using Microsoft Basic Render Driver.
+        /// </summary>""",
+                  """        /// <summary>
+        /// Stores the reviewed shadow silhouette range. Local and GitHub-hosted D3D11
+        /// validation agree on an exact value after sharing VRC High QualitySettings.
+        /// </summary>""",
+              ),
+          ]
+          for old, new in replacements:
+              count = regression.count(old)
+              if count != 1:
+                  raise RuntimeError(
+                      f"Expected exactly one regression comment replacement, found {count}."
+                  )
+              regression = regression.replace(old, new, 1)
+          regression_path.write_text(
+              regression,
+              encoding="utf-8",
+              newline="\n",
+          )
+
+          diagnostics_path = Path(
+              "Tests/Daily/Editor/PureBaseShadowObservationDiagnosticsTests.cs"
+          )
+          diagnostics = diagnostics_path.read_text(encoding="utf-8")
+          diagnostic_replacements = [
+              (
+                  "Emits successful shadow observations so reviewed renderer tolerances remain auditable.",
+                  "Emits successful shadow observations so the exact reviewed result remains auditable.",
+              ),
+              (
+                  """                // This diagnostic intentionally does not widen or rewrite the baseline. It
+                // records whether the reviewed 341-352 range is still needed after local and
+                // GitHub-hosted projects use the same VRC High quality configuration.""",
+                  """                // This diagnostic intentionally does not widen or rewrite the baseline. It
+                // confirms that local and GitHub-hosted projects still agree after both use
+                // the reviewed VRC High quality configuration.""",
+              ),
+          ]
+          for old, new in diagnostic_replacements:
+              count = diagnostics.count(old)
+              if count != 1:
+                  raise RuntimeError(
+                      f"Expected exactly one diagnostics comment replacement, found {count}."
+                  )
+              diagnostics = diagnostics.replace(old, new, 1)
+          diagnostics_path.write_text(
+              diagnostics,
+              encoding="utf-8",
+              newline="\n",
+          )
+
+      - name: Verify exact baseline and comments
+        shell: bash
+        run: |
+          grep -nA3 '"shadowChangedPixelCount"' Tests/Baselines/birp-d3d11-2022.3.22f1.json
+          ! grep -nF '341-352' Tests/Daily/Editor/PureBaseShadowObservationDiagnosticsTests.cs
+          ! grep -nF 'Hard-shadow rasterization differs' Tests/Daily/Editor/PureBaseValidationSceneRegressionTests.cs
+          ! grep -nF 'Microsoft Basic Render Driver used by GitHub-hosted runners' Tests/Daily/Editor/PureBaseValidationSceneRegressionTests.cs
+          git diff --check
+
+      - name: Remove one-shot workflow
+        run: git rm .github/workflows/apply-exact-shadow-baseline.yml
+
+      - name: Commit exact shadow baseline
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Tests/Baselines/birp-d3d11-2022.3.22f1.json
+          git add Tests/Daily/Editor/PureBaseValidationSceneRegressionTests.cs
+          git add Tests/Daily/Editor/PureBaseShadowObservationDiagnosticsTests.cs
+          git diff --cached --check
+          git commit -m "Restore exact shadow baseline after quality alignment"
+          git push origin HEAD:agent/use-github-hosted-unity
