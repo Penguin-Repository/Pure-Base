@@ -88,8 +88,25 @@ using System;
 using UnityEditor;
 using UnityEngine;
 
+[InitializeOnLoad]
 public static class PureBaseCiBootstrap
 {
+    private const string PrimeEnvironmentVariable = "PURE_BASE_CI_PRIME";
+
+    static PureBaseCiBootstrap()
+    {
+        if (!Application.isBatchMode)
+            return;
+
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable(PrimeEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+            return;
+
+        EditorApplication.update += CompletePrimeWhenReady;
+    }
+
     public static void Configure()
     {
         if (Application.unityVersion != "2022.3.22f1")
@@ -100,6 +117,26 @@ public static class PureBaseCiBootstrap
         PlayerSettings.colorSpace = ColorSpace.Linear;
         EditorSettings.serializationMode = SerializationMode.ForceText;
         AssetDatabase.SaveAssets();
+    }
+
+    private static void CompletePrimeWhenReady()
+    {
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            return;
+
+        EditorApplication.update -= CompletePrimeWhenReady;
+
+        try
+        {
+            Configure();
+            Debug.Log("Pure-Base CI project import and configuration completed.");
+            EditorApplication.Exit(0);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+            EditorApplication.Exit(1);
+        }
     }
 }
 '@
