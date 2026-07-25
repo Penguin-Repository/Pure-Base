@@ -36,7 +36,6 @@ env:
   GIT_CONFIG_VALUE_0: "false"
   GIT_CONFIG_KEY_1: core.eol
   GIT_CONFIG_VALUE_1: lf
-  UNITY_EDITOR_PATH: C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe
   CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
   PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
 
@@ -96,24 +95,13 @@ jobs:
     name: Unity 2022.3.22f1 / D3D11
     needs: authorize
     if: needs.authorize.outputs.allowed == 'true'
-    runs-on:
-      - self-hosted
-      - Windows
-      - X64
-      - unity-2022.3.22f1
+    runs-on: windows-latest
     timeout-minutes: 120
     steps:
       - name: Initialize artifact root
         shell: pwsh
         run: |
           "ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Daily-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
-
-      - name: Remove previous CI project shell
-        shell: pwsh
-        run: |
-          if (Test-Path -LiteralPath $env:CI_PROJECT_ROOT) {
-            Remove-Item -LiteralPath $env:CI_PROJECT_ROOT -Recurse -Force
-          }
 
       - name: Checkout Pure-Base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,18 +121,32 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Install Unity 2022.3.22f1
+        id: unity
+        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          unity-version: "2022.3.22f1"
+          cli-channel: beta
+          cache: "true"
+
+      - name: Activate Unity Personal license
+        uses: yamachu/unity-cli-actions/activate-unity-license@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          editor-path: ${{ steps.unity.outputs.editor-path }}
+          serial: ${{ secrets.UNITY_SERIAL }}
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+
+      - name: Export Unity editor path
+        shell: pwsh
+        run: |
+          "UNITY_EDITOR_PATH=${{ steps.unity.outputs.editor-path }}" >> $env:GITHUB_ENV
+
       - name: Prepare Unity project shell
         shell: pwsh
         run: |
           & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT
-
-      - name: Verify Unity installation
-        shell: pwsh
-        run: |
-          if (-not (Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)) {
-            throw "Unity 2022.3.22f1 was not found at '$env:UNITY_EDITOR_PATH'."
-          }
 
       - name: Configure deterministic project settings
         shell: pwsh
