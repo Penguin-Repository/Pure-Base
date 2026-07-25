@@ -193,7 +193,10 @@ jobs:
       - name: Export Unity editor path
         shell: pwsh
         run: |
-          "UNITY_EDITOR_PATH=${{ steps.unity.outputs.editor-path }}" >> $env:GITHUB_ENV
+          $resolvedEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
+            -EditorPath '${{ steps.unity.outputs.editor-path }}'
+          "UNITY_EDITOR_PATH=$resolvedEditorPath" >> $env:GITHUB_ENV
+          "Resolved Unity Editor path: $resolvedEditorPath" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Prepare Unity project shell
         shell: pwsh
