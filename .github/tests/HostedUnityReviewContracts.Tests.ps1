@@ -24,42 +24,42 @@ Describe 'Hosted Unity review contracts' {
     }
 
     It 'uses repository-unique PR concurrency for Daily' {
-        $dailyWorkflow | Should -Match [regex]::Escape('group: daily-${{ github.event.pull_request.number || github.ref }}')
-        $dailyWorkflow | Should -Not -Match [regex]::Escape('group: daily-${{ github.event.pull_request.head.ref || github.ref_name }}')
+        $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.number || github.ref }}') | Should -BeTrue
+        $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.head.ref || github.ref_name }}') | Should -BeFalse
     }
 
     It 'treats Unity editor cache misses as telemetry instead of fatal errors' {
-        $dailyWorkflow | Should -Match 'cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue'
-        $releaseWorkflow | Should -Match 'cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue'
-        $dailyWorkflow | Should -Not -Match 'throw "Unity Editor cache was not available'
-        $releaseWorkflow | Should -Not -Match 'throw "Unity Editor cache was not available'
+        $dailyWorkflow.Contains('cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue') | Should -BeTrue
+        $releaseWorkflow.Contains('cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue') | Should -BeTrue
+        $dailyWorkflow.Contains('throw "Unity Editor cache was not available') | Should -BeFalse
+        $releaseWorkflow.Contains('throw "Unity Editor cache was not available') | Should -BeFalse
     }
 
     It 'passes a real Unity.exe only to audited release validation' {
-        $releaseWorkflow | Should -Match '-RealEditorPathOutputFile \$realEditorPathFile'
-        $releaseWorkflow | Should -Match 'REAL_UNITY_EDITOR_PATH=\$realEditorPath'
-        $releaseWorkflow | Should -Match '-UnityEditorPath \$env:REAL_UNITY_EDITOR_PATH'
-        $releaseWorkflow | Should -Match '& \$env:UNITY_EDITOR_PATH\s+`\s*-batchmode'
-        $resolverScript | Should -Match 'RealEditorPathOutputFile'
-        $resolverScript | Should -Match 'real Unity\.exe because its audited runner intentionally rejects wrapper executables'
+        $releaseWorkflow.Contains('-RealEditorPathOutputFile $realEditorPathFile') | Should -BeTrue
+        $releaseWorkflow.Contains('REAL_UNITY_EDITOR_PATH=$realEditorPath') | Should -BeTrue
+        $releaseWorkflow.Contains('-UnityEditorPath $env:REAL_UNITY_EDITOR_PATH') | Should -BeTrue
+        $releaseWorkflow.Contains('& $env:UNITY_EDITOR_PATH `') | Should -BeTrue
+        $resolverScript.Contains('RealEditorPathOutputFile') | Should -BeTrue
+        $resolverScript.Contains('real Unity.exe because its audited runner intentionally rejects wrapper executables') | Should -BeTrue
     }
 
     It 'uses pwsh-compatible retried runtime downloads' {
-        $resolverScript | Should -Match "\$ProgressPreference = 'SilentlyContinue'"
-        $resolverScript | Should -Match 'function Invoke-DownloadWithRetry'
-        $resolverScript | Should -Match 'MaximumAttempts = 3'
-        $resolverScript | Should -Not -Match 'UseBasicParsing'
+        $resolverScript.Contains("`$ProgressPreference = 'SilentlyContinue'") | Should -BeTrue
+        $resolverScript.Contains('function Invoke-DownloadWithRetry') | Should -BeTrue
+        $resolverScript.Contains('MaximumAttempts = 3') | Should -BeTrue
+        $resolverScript.Contains('UseBasicParsing') | Should -BeFalse
     }
 
     It 'aligns the configure watchdog with the workflow timeout' {
-        $watchdogScript | Should -Match "if \(\$UnityArguments -contains '-runTests'\) \{ 3600 \} else \{ 1800 \}"
-        $watchdogScript | Should -Match 'same 30-minute'
+        $watchdogScript.Contains("`$timeoutSeconds = if (`$UnityArguments -contains '-runTests') { 3600 } else { 1800 }") | Should -BeTrue
+        $watchdogScript.Contains('same 30-minute') | Should -BeTrue
     }
 
     It 'keeps documentation and diagnostics free of stale reviewed values' {
-        $ciDocumentation | Should -Match 'GitHub-hosted `windows-2022` runners'
-        $ciDocumentation | Should -Not -Match 'GitHub-hosted `windows-latest` runners'
-        $shadowDiagnostics | Should -Not -Match '341-352'
-        $shadowDiagnostics | Should -Match 'committed range'
+        $ciDocumentation.Contains('GitHub-hosted `windows-2022` runners') | Should -BeTrue
+        $ciDocumentation.Contains('GitHub-hosted `windows-latest` runners') | Should -BeFalse
+        $shadowDiagnostics.Contains('341-352') | Should -BeFalse
+        $shadowDiagnostics.Contains('committed range') | Should -BeTrue
     }
 }
