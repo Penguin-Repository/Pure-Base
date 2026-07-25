@@ -1,4 +1,4 @@
-# One-shot trusted maintenance workflow. It applies exact replacements and removes itself.
+# One-shot trusted maintenance workflow. It applies exact semantic replacements and removes itself.
 name: Apply generator range fix
 
 on:
@@ -23,47 +23,59 @@ jobs:
           ref: agent/use-github-hosted-unity
           fetch-depth: 0
 
-      - name: Apply exact generator replacements
+      - name: Apply validated generator replacements
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           path = Path("Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs")
           source = path.read_text(encoding="utf-8")
-          replacements = [
-              (
-                  """                || baseline.shadowChangedPixelCount != observation.shadowChangedPixelCount
-                || baseline.warmedVariantCount != observation.warmedVariantCount""",
-                  """                // A freshly regenerated baseline must remain exact until a reviewer
-                // explicitly approves a renderer-specific tolerance range.
-                || baseline.shadowChangedPixelCount == null
-                || baseline.shadowChangedPixelCount.minimum
-                    != observation.shadowChangedPixelCount
-                || baseline.shadowChangedPixelCount.maximum
-                    != observation.shadowChangedPixelCount
-                || baseline.warmedVariantCount != observation.warmedVariantCount""",
-              ),
-              (
-                  "candidate.exactBaseline.shadowChangedPixelCount = 0;",
-                  "candidate.exactBaseline.shadowChangedPixelCount = IntRange.Exact(0);",
-              ),
-          ]
 
-          for old, new in replacements:
-              count = source.count(old)
-              if count != 1:
-                  raise RuntimeError(
-                      f"Expected exactly one replacement, found {count}: {old[:100]!r}"
-                  )
-              source = source.replace(old, new, 1)
+          comparison_pattern = re.compile(
+              r"(?m)^(?P<indent>\s*)\|\| baseline\.shadowChangedPixelCount != observation\.shadowChangedPixelCount\s*\n"
+              r"(?P=indent)\|\| baseline\.warmedVariantCount != observation\.warmedVariantCount$"
+          )
+          comparison_replacement = (
+              r"\g<indent>// A freshly regenerated baseline must remain exact until a reviewer\n"
+              r"\g<indent>// explicitly approves a renderer-specific tolerance range.\n"
+              r"\g<indent>|| baseline.shadowChangedPixelCount == null\n"
+              r"\g<indent>|| baseline.shadowChangedPixelCount.minimum\n"
+              r"\g<indent>    != observation.shadowChangedPixelCount\n"
+              r"\g<indent>|| baseline.shadowChangedPixelCount.maximum\n"
+              r"\g<indent>    != observation.shadowChangedPixelCount\n"
+              r"\g<indent>|| baseline.warmedVariantCount != observation.warmedVariantCount"
+          )
+          source, comparison_count = comparison_pattern.subn(
+              comparison_replacement,
+              source,
+              count=1,
+          )
+          if comparison_count != 1:
+              raise RuntimeError(
+                  f"Expected one legacy shadow comparison, replaced {comparison_count}."
+              )
+
+          assignment_pattern = re.compile(
+              r"candidate\.exactBaseline\.shadowChangedPixelCount\s*=\s*0\s*;"
+          )
+          source, assignment_count = assignment_pattern.subn(
+              "candidate.exactBaseline.shadowChangedPixelCount = IntRange.Exact(0);",
+              source,
+              count=1,
+          )
+          if assignment_count != 1:
+              raise RuntimeError(
+                  f"Expected one legacy zero-shadow assignment, replaced {assignment_count}."
+              )
 
           path.write_text(source, encoding="utf-8", newline="\n")
 
-      - name: Verify no legacy generator comparisons remain
+      - name: Verify no legacy generator references remain
         shell: bash
         run: |
-          ! grep -nF 'baseline.shadowChangedPixelCount != observation.shadowChangedPixelCount' Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
-          ! grep -nF 'exactBaseline.shadowChangedPixelCount = 0;' Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
+          ! grep -nE 'shadowChangedPixelCount[[:space:]]*!=[[:space:]]*observation\.shadowChangedPixelCount' Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
+          ! grep -nE 'exactBaseline\.shadowChangedPixelCount[[:space:]]*=[[:space:]]*0[[:space:]]*;' Tests/Regeneration/Editor/PureBaseRegressionBaselineGenerator.cs
 
       - name: Remove one-shot workflow
         run: git rm .github/workflows/apply-generator-range-fix.yml
