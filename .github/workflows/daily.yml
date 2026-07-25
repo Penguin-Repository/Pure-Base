@@ -210,19 +210,52 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
           $logPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Unity.log'
-          & $env:UNITY_EDITOR_PATH `
-            -batchmode `
-            -nographics `
-            -accept-apiupdate `
-            -projectPath $env:CI_PROJECT_ROOT `
-            -executeMethod PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode `
-            -logFile $logPath
-          $unityExitCode = $LASTEXITCODE
-          if (Test-Path -LiteralPath $logPath) {
-            Get-Content -LiteralPath $logPath -Tail 300 | Out-Host
+          $diagnosticPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Diagnostics.txt'
+          $unityArguments = @(
+            '-batchmode',
+            '-nographics',
+            '-accept-apiupdate',
+            '-projectPath',
+            "`"$env:CI_PROJECT_ROOT`"",
+            '-executeMethod',
+            'PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode',
+            '-logFile',
+            "`"$logPath`""
+          )
+          @(
+            "UnityEditorPath=$env:UNITY_EDITOR_PATH",
+            "UnityEditorExists=$(Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)",
+            "ProjectRoot=$env:CI_PROJECT_ROOT",
+            "ProjectRootExists=$(Test-Path -LiteralPath $env:CI_PROJECT_ROOT -PathType Container)",
+            "Arguments=$($unityArguments -join ' ')"
+          ) | Set-Content -LiteralPath $diagnosticPath
+
+          try {
+            $process = Start-Process `
+              -FilePath $env:UNITY_EDITOR_PATH `
+              -ArgumentList $unityArguments `
+              -Wait `
+              -PassThru `
+              -NoNewWindow
+            $unityExitCode = $process.ExitCode
+            "ExitCode=$unityExitCode" | Add-Content -LiteralPath $diagnosticPath
           }
+          catch {
+            "LaunchException=$($_ | Out-String)" | Add-Content -LiteralPath $diagnosticPath
+            Get-Content -LiteralPath $diagnosticPath | Out-Host
+            throw
+          }
+
+          if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath -Tail 500 | Out-Host
+          }
+          else {
+            "Unity did not create '$logPath'." | Add-Content -LiteralPath $diagnosticPath
+          }
+          Get-Content -LiteralPath $diagnosticPath | Out-Host
+
           if ($unityExitCode -ne 0) {
-            throw "Unity project configuration failed with exit code $unityExitCode. Unity log: '$logPath'."
+            throw "Unity project configuration failed with exit code $unityExitCode. Diagnostics: '$diagnosticPath'."
           }
 
       - name: Initialize fixed Shader-Core test hosts
