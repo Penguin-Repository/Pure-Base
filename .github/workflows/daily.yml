@@ -27,7 +27,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: daily-${{ github.event.pull_request.head.ref || github.ref_name }}
+  # PR numbers are repository-unique and avoid unrelated branches with the same
+  # head name cancelling one another. Pushes retain a ref-scoped group.
+  group: daily-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -159,11 +161,14 @@ jobs:
           cli-channel: beta
           cache: "true"
 
-      - name: Verify Unity Editor cache handoff
+      - name: Report Unity Editor cache handoff
         shell: pwsh
         run: |
-          if ("${{ steps.unity.outputs.cache-hit }}" -ne "true") {
-            throw "Unity Editor cache was not available after the preparation job completed."
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue." >> $env:GITHUB_STEP_SUMMARY
           }
 
       - name: Activate Unity Personal license
