@@ -46,6 +46,29 @@ Pure Base does not automatically accept future `0.1.x` versions because Shader-C
 0.x compatibility guarantee, and its importer, ProjectSettings, and method-shape contracts are
 compatibility-sensitive. Each future version requires explicit review and an updated pin.
 
+## VRChat SDK parity boundary
+
+The generated CI project intentionally does **not** install `com.vrchat.base`,
+`com.vrchat.avatars`, or `com.vrchat.worlds`. No VRChat SDK editor initialization or Project Setup
+code runs in CI.
+
+`Tests/Release/ConsumerProject/ProjectSettings/QualitySettings.asset` is a reviewed snapshot copied
+from a local Unity 2022.3.22f1 VRChat project after its VRC-named quality profiles had been
+established. CI copies that snapshot into the generated project and validates the selected
+`VRC High` profile and its exact shadow and MSAA values at runtime.
+
+This distinction is intentional:
+
+- The name `VRC High` records the snapshot's project provenance; it does not prove that the VRChat
+  SDK is installed in CI.
+- Daily validates Pure-Base rendering under the captured Unity `QualitySettings` values. It does not
+  claim full behavioral equivalence with a project containing the VRChat SDK.
+- After a VRChat SDK upgrade, reimport, or Project Setup operation, compare the local
+  `ProjectSettings/QualitySettings.asset` with the committed snapshot. If any profile name or value
+  changes, update the snapshot, the CI assertions, and any affected reviewed rendering baseline.
+- Tests that depend on VRChat SDK APIs, scripting defines, import hooks, or build behavior must add
+  separately pinned SDK packages. The QualitySettings snapshot is not a substitute for those tests.
+
 ## Repository configuration
 
 Create a protected `release` environment. Requiring an approval before deployment is strongly
