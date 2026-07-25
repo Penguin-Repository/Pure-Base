@@ -48,11 +48,22 @@ foreach ($directory in @($assetsRoot, $projectSettingsRoot, $packagesRoot)) {
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 }
 
-$projectVersionSource = Join-Path $packageRoot 'Tests/Release/ConsumerProject/ProjectSettings/ProjectVersion.txt'
+$consumerProjectSettingsRoot = Join-Path $packageRoot 'Tests/Release/ConsumerProject/ProjectSettings'
+$projectVersionSource = Join-Path $consumerProjectSettingsRoot 'ProjectVersion.txt'
 if (-not (Test-Path -LiteralPath $projectVersionSource -PathType Leaf)) {
     throw "Pinned Unity ProjectVersion source is missing: '$projectVersionSource'."
 }
 Copy-Item -LiteralPath $projectVersionSource -Destination (Join-Path $projectSettingsRoot 'ProjectVersion.txt') -Force
+
+# Daily render observations must use the same reviewed VRC quality profile as local
+# validation. Without this file Unity creates a fresh-project QualitySettings asset,
+# so shadow resolution, cascades, distance, and MSAA can differ before GPU effects
+# are considered.
+$qualitySettingsSource = Join-Path $consumerProjectSettingsRoot 'QualitySettings.asset'
+if (-not (Test-Path -LiteralPath $qualitySettingsSource -PathType Leaf)) {
+    throw "Reviewed QualitySettings source is missing: '$qualitySettingsSource'."
+}
+Copy-Item -LiteralPath $qualitySettingsSource -Destination (Join-Path $projectSettingsRoot 'QualitySettings.asset') -Force
 
 $manifest = [ordered]@{
     dependencies = [ordered]@{
@@ -206,3 +217,4 @@ SceneRoots:
 Write-Output "Prepared Pure-Base CI Unity project: $projectRootFullPath"
 Write-Output "Pure-Base package version: $($packageJson.version)"
 Write-Output "Shader-Core package version: $($shaderCoreJson.version)"
+Write-Output "QualitySettings fixture: $qualitySettingsSource"
