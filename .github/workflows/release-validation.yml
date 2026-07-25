@@ -87,10 +87,29 @@ jobs:
           & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT
 
-      - name: Run release validation
+      - name: Prime Unity project import
+        timeout-minutes: 30
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          $logPath = Join-Path $env:ARTIFACT_ROOT 'Prime.Unity.log'
+          & $env:UNITY_EDITOR_PATH `
+            -batchmode `
+            -quit `
+            -force-d3d11 `
+            -accept-apiupdate `
+            -projectPath $env:CI_PROJECT_ROOT `
+            -logFile $logPath
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path -LiteralPath $logPath) {
+              Get-Content -LiteralPath $logPath -Tail 200
+            }
+            throw "Unity project import failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Run release validation
+        shell: pwsh
+        run: |
           & "$env:PACKAGE_ROOT/Tests/Release/Run-PureBaseReleaseValidation.ps1" `
             -UnityEditorPath $env:UNITY_EDITOR_PATH `
             -ArtifactDirectory $env:ARTIFACT_ROOT
