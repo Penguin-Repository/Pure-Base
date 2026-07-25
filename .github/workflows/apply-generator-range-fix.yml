@@ -2,15 +2,19 @@
 name: Apply generator range fix
 
 on:
-  push:
-    branches:
-      - agent/use-github-hosted-unity
+  pull_request:
+    types:
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/use-github-hosted-unity'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout maintenance branch
