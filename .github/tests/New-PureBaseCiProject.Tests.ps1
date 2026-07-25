@@ -62,6 +62,12 @@ Describe 'Pure-Base CI Unity project generation' {
         $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'Packages/manifest.json') -Raw | ConvertFrom-Json
         Assert-CiProjectHarness -Condition ([string]$manifest.dependencies.'com.unity.test-framework' -eq '1.1.33') -Message 'Generated CI manifest does not pin the Unity Test Framework.'
         Assert-CiProjectHarness -Condition (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs'))) -Message 'Generated CI project must not create transient bootstrap code.'
+
+        $ownerScenePath = Join-Path $projectRoot 'Assets/Pure-Base.unity'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $ownerScenePath -PathType Leaf) -Message 'Generated CI project must include the persisted owner scene required by Daily restoration tests.'
+        $ownerScene = Get-Content -LiteralPath $ownerScenePath -Raw
+        Assert-CiProjectHarness -Condition ($ownerScene -match 'SceneRoots:') -Message 'Generated owner scene is not a serialized Unity scene.'
+        Assert-CiProjectHarness -Condition ($ownerScene -match 'm_Roots: \[\]') -Message 'Generated owner scene must remain empty.'
     }
 
     It 'rejects an unexpected Shader-Core version' {
