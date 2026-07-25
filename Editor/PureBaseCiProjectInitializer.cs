@@ -25,6 +25,8 @@ namespace PureBase.Tests.Regeneration
     public static class PureBaseCiProjectInitializer
     {
         private const string ExitPendingKey = "PureBase.CiProjectInitializer.ExitPending";
+        private const int ExpectedQualityLevel = 2;
+        private const string ExpectedQualityName = "VRC High";
 
         static PureBaseCiProjectInitializer()
         {
@@ -50,6 +52,7 @@ namespace PureBase.Tests.Regeneration
                 if (PlayerSettings.colorSpace != ColorSpace.Linear)
                     PlayerSettings.colorSpace = ColorSpace.Linear;
 
+                ValidateQualitySettings();
                 AssetDatabase.SaveAssets();
                 SubscribeForStableExit();
             }
@@ -59,6 +62,57 @@ namespace PureBase.Tests.Regeneration
                 Debug.LogException(exception);
                 EditorApplication.Exit(1);
             }
+        }
+
+        /// <summary>
+        /// Ensures CI loaded the reviewed local VRC High profile instead of Unity's
+        /// fresh-project defaults. These values affect the directional-shadow readback,
+        /// so renderer differences must only be evaluated after this contract matches.
+        /// </summary>
+        private static void ValidateQualitySettings()
+        {
+            int qualityLevel = QualitySettings.GetQualityLevel();
+            string[] qualityNames = QualitySettings.names;
+            string qualityName =
+                qualityLevel >= 0 && qualityLevel < qualityNames.Length
+                    ? qualityNames[qualityLevel]
+                    : "<out-of-range>";
+
+            if (qualityLevel != ExpectedQualityLevel || qualityName != ExpectedQualityName)
+            {
+                throw new InvalidOperationException(
+                    $"Pure-Base CI requires quality level {ExpectedQualityLevel} '{ExpectedQualityName}', received {qualityLevel} '{qualityName}'."
+                );
+            }
+
+            if (
+                QualitySettings.pixelLightCount != 8
+                || QualitySettings.shadows != ShadowQuality.All
+                || QualitySettings.shadowResolution != ShadowResolution.VeryHigh
+                || QualitySettings.shadowProjection != ShadowProjection.StableFit
+                || QualitySettings.shadowCascades != 4
+                || !Mathf.Approximately(QualitySettings.shadowDistance, 150.0f)
+                || !Mathf.Approximately(QualitySettings.shadowNearPlaneOffset, 2.0f)
+                || QualitySettings.antiAliasing != 4
+            )
+            {
+                throw new InvalidOperationException(
+                    "Pure-Base CI did not load the reviewed VRC High shadow and MSAA settings."
+                );
+            }
+
+            Debug.Log(
+                "Pure-Base CI quality settings: "
+                    + $"level={qualityLevel} name={qualityName} "
+                    + $"pixelLights={QualitySettings.pixelLightCount} "
+                    + $"shadows={QualitySettings.shadows} "
+                    + $"shadowResolution={QualitySettings.shadowResolution} "
+                    + $"shadowProjection={QualitySettings.shadowProjection} "
+                    + $"shadowCascades={QualitySettings.shadowCascades} "
+                    + $"shadowDistance={QualitySettings.shadowDistance} "
+                    + $"shadowNearPlaneOffset={QualitySettings.shadowNearPlaneOffset} "
+                    + $"antiAliasing={QualitySettings.antiAliasing}"
+            );
         }
 
         private static void SubscribeForStableExit()
