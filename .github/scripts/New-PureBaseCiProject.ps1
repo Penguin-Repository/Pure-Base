@@ -55,13 +55,15 @@ if (-not (Test-Path -LiteralPath $projectVersionSource -PathType Leaf)) {
 }
 Copy-Item -LiteralPath $projectVersionSource -Destination (Join-Path $projectSettingsRoot 'ProjectVersion.txt') -Force
 
-# Daily render observations must use the same reviewed VRC quality profile as local
-# validation. Without this file Unity creates a fresh-project QualitySettings asset,
-# so shadow resolution, cascades, distance, and MSAA can differ before GPU effects
-# are considered.
+# This is a reviewed ProjectSettings snapshot from a local project after VRChat SDK
+# setup established the VRC-named quality profiles. CI intentionally does not install
+# com.vrchat.base, com.vrchat.avatars, or com.vrchat.worlds, so copying this file only
+# reproduces the captured Unity QualitySettings values; it does not reproduce VRChat
+# SDK editor initialization, scripting defines, import hooks, or build behavior.
+# Recompare and refresh this fixture whenever the VRChat SDK or its Project Setup changes.
 $qualitySettingsSource = Join-Path $consumerProjectSettingsRoot 'QualitySettings.asset'
 if (-not (Test-Path -LiteralPath $qualitySettingsSource -PathType Leaf)) {
-    throw "Reviewed QualitySettings source is missing: '$qualitySettingsSource'."
+    throw "Reviewed VRChat-project QualitySettings snapshot is missing: '$qualitySettingsSource'."
 }
 Copy-Item -LiteralPath $qualitySettingsSource -Destination (Join-Path $projectSettingsRoot 'QualitySettings.asset') -Force
 
@@ -217,4 +219,5 @@ SceneRoots:
 Write-Output "Prepared Pure-Base CI Unity project: $projectRootFullPath"
 Write-Output "Pure-Base package version: $($packageJson.version)"
 Write-Output "Shader-Core package version: $($shaderCoreJson.version)"
-Write-Output "QualitySettings fixture: $qualitySettingsSource"
+Write-Output "VRChat-project QualitySettings snapshot: $qualitySettingsSource"
+Write-Output "VRChat SDK packages installed in generated CI project: none"
