@@ -182,25 +182,25 @@ jobs:
           & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT
 
-      - name: Import and configure Unity project
+      - name: Configure Unity project
         timeout-minutes: 30
         shell: pwsh
-        env:
-          PURE_BASE_CI_PRIME: "1"
         run: |
           New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
-          $logPath = Join-Path $env:ARTIFACT_ROOT 'Prime.Unity.log'
+          $logPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Unity.log'
           & $env:UNITY_EDITOR_PATH `
             -batchmode `
+            -quit `
             -force-d3d11 `
             -accept-apiupdate `
             -projectPath $env:CI_PROJECT_ROOT `
+            -executeMethod PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode `
             -logFile $logPath
           if ($LASTEXITCODE -ne 0) {
             if (Test-Path -LiteralPath $logPath) {
               Get-Content -LiteralPath $logPath -Tail 200
             }
-            throw "Unity project import and configuration failed with exit code $LASTEXITCODE."
+            throw "Unity project configuration failed with exit code $LASTEXITCODE."
           }
 
       - name: Initialize fixed Shader-Core test hosts
