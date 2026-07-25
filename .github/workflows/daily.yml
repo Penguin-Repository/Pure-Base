@@ -95,7 +95,7 @@ jobs:
     name: Prepare Unity 2022.3.22f1 cache
     needs: authorize
     if: needs.authorize.outputs.allowed == 'true'
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
     steps:
       - name: Restore or create Unity Editor cache
@@ -125,7 +125,7 @@ jobs:
     concurrency:
       group: pure-base-unity-personal-license
       cancel-in-progress: false
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 120
     steps:
       - name: Initialize artifact root
