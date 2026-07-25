@@ -77,7 +77,7 @@ QualitySettings:
         )
     }
 
-    It 'pins Unity, test framework, owner scene, and reviewed quality settings' {
+    It 'pins Unity, test framework, owner scene, and reviewed VRChat-project quality snapshot without installing the SDK' {
         & $projectBuilder -ProjectRoot $projectRoot
 
         $projectVersion = Get-Content -LiteralPath (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt') -Raw
@@ -86,6 +86,9 @@ QualitySettings:
 
         $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'Packages/manifest.json') -Raw | ConvertFrom-Json
         Assert-CiProjectHarness -Condition ([string]$manifest.dependencies.'com.unity.test-framework' -eq '1.1.33') -Message 'Generated CI manifest does not pin the Unity Test Framework.'
+        foreach ($vrchatPackage in @('com.vrchat.base', 'com.vrchat.avatars', 'com.vrchat.worlds')) {
+            Assert-CiProjectHarness -Condition ($null -eq $manifest.dependencies.$vrchatPackage) -Message "Generated CI project must not imply full VRChat SDK parity by installing '$vrchatPackage'."
+        }
         Assert-CiProjectHarness -Condition (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs'))) -Message 'Generated CI project must not create transient bootstrap code.'
 
         $ownerScenePath = Join-Path $projectRoot 'Assets/Pure-Base.unity'
@@ -95,10 +98,10 @@ QualitySettings:
         Assert-CiProjectHarness -Condition ($ownerScene -match 'm_Roots: \[\]') -Message 'Generated owner scene must remain empty.'
 
         $qualitySettingsPath = Join-Path $projectRoot 'ProjectSettings/QualitySettings.asset'
-        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $qualitySettingsPath -PathType Leaf) -Message 'Generated CI project is missing the reviewed QualitySettings asset.'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $qualitySettingsPath -PathType Leaf) -Message 'Generated CI project is missing the reviewed VRChat-project QualitySettings snapshot.'
         $qualitySettings = Get-Content -LiteralPath $qualitySettingsPath -Raw
-        Assert-CiProjectHarness -Condition ($qualitySettings -match 'm_CurrentQuality: 2') -Message 'Generated CI project must select the reviewed VRC High quality level.'
-        Assert-CiProjectHarness -Condition ($qualitySettings -match 'name: VRC High') -Message 'Generated CI project is missing the VRC High profile.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'm_CurrentQuality: 2') -Message 'Generated CI project must select the reviewed VRC High snapshot level.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'name: VRC High') -Message 'Generated CI project is missing the VRC High snapshot profile.'
         Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowResolution: 3') -Message 'Generated CI project must preserve the reviewed shadow resolution.'
         Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowCascades: 4') -Message 'Generated CI project must preserve four shadow cascades.'
         Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowDistance: 150') -Message 'Generated CI project must preserve the reviewed shadow distance.'
