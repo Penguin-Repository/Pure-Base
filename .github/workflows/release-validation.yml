@@ -95,11 +95,14 @@ jobs:
           cli-channel: beta
           cache: "true"
 
-      - name: Verify Unity Editor cache handoff
+      - name: Report Unity Editor cache handoff
         shell: pwsh
         run: |
-          if ("${{ steps.unity.outputs.cache-hit }}" -ne "true") {
-            throw "Unity Editor cache was not available after the preparation job completed."
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue." >> $env:GITHUB_STEP_SUMMARY
           }
 
       - name: Activate Unity Personal license
@@ -126,13 +129,18 @@ jobs:
           password: ${{ secrets.UNITY_PASSWORD }}
           license-version: "6.x"
 
-      - name: Export Unity editor path
+      - name: Export Unity editor paths
         shell: pwsh
         run: |
-          $resolvedEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
-            -EditorPath '${{ steps.unity.outputs.editor-path }}'
-          "UNITY_EDITOR_PATH=$resolvedEditorPath" >> $env:GITHUB_ENV
-          "Resolved Unity Editor path: $resolvedEditorPath" >> $env:GITHUB_STEP_SUMMARY
+          $realEditorPathFile = Join-Path $env:RUNNER_TEMP 'PureBase.RealUnityEditorPath.txt'
+          $watchdogEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
+            -EditorPath '${{ steps.unity.outputs.editor-path }}' `
+            -RealEditorPathOutputFile $realEditorPathFile
+          $realEditorPath = (Get-Content -LiteralPath $realEditorPathFile -Raw).Trim()
+          "UNITY_EDITOR_PATH=$watchdogEditorPath" >> $env:GITHUB_ENV
+          "REAL_UNITY_EDITOR_PATH=$realEditorPath" >> $env:GITHUB_ENV
+          "Configure Unity watchdog path: $watchdogEditorPath" >> $env:GITHUB_STEP_SUMMARY
+          "Release validation Unity.exe path: $realEditorPath" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Prepare Unity project shell
         shell: pwsh
@@ -165,7 +173,7 @@ jobs:
         shell: pwsh
         run: |
           & "$env:PACKAGE_ROOT/Tests/Release/Run-PureBaseReleaseValidation.ps1" `
-            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -UnityEditorPath $env:REAL_UNITY_EDITOR_PATH `
             -ArtifactDirectory $env:ARTIFACT_ROOT
 
       - name: Export versioned validation ZIP
