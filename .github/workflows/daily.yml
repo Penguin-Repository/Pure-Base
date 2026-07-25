@@ -130,6 +130,7 @@ jobs:
           cache: "true"
 
       - name: Activate Unity Personal license
+        id: activate_unity_license
         uses: yamachu/unity-cli-actions/activate-unity-license@e0f32f7e273329bbe99af5bf5809bf1056935556
         with:
           editor-path: ${{ steps.unity.outputs.editor-path }}
@@ -182,6 +183,31 @@ jobs:
             -Mode Daily `
             -UnityEditorPath $env:UNITY_EDITOR_PATH `
             -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Return Unity license
+        if: always() && steps.activate_unity_license.outcome == 'success'
+        timeout-minutes: 5
+        shell: pwsh
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          $logPath = Join-Path $env:ARTIFACT_ROOT 'ReturnLicense.Unity.log'
+          & "${{ steps.unity.outputs.editor-path }}" `
+            -batchmode `
+            -nographics `
+            -quit `
+            -returnlicense `
+            -username $env:UNITY_EMAIL `
+            -password $env:UNITY_PASSWORD `
+            -logFile $logPath
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path -LiteralPath $logPath) {
+              Get-Content -LiteralPath $logPath -Tail 200
+            }
+            throw "Unity license return failed with exit code $LASTEXITCODE."
+          }
 
       - name: Upload Daily evidence
         if: always()
