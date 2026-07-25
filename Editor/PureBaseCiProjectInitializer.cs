@@ -52,7 +52,7 @@ namespace PureBase.Tests.Regeneration
                 if (PlayerSettings.colorSpace != ColorSpace.Linear)
                     PlayerSettings.colorSpace = ColorSpace.Linear;
 
-                ValidateQualitySettings();
+                ValidateQualitySettingsSnapshot();
                 AssetDatabase.SaveAssets();
                 SubscribeForStableExit();
             }
@@ -65,11 +65,12 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>
-        /// Ensures CI loaded the reviewed local VRC High profile instead of Unity's
-        /// fresh-project defaults. These values affect the directional-shadow readback,
-        /// so renderer differences must only be evaluated after this contract matches.
+        /// Ensures CI loaded the reviewed QualitySettings snapshot captured from a local
+        /// VRChat SDK project instead of Unity's fresh-project defaults. The generated CI
+        /// project does not install or initialize the VRChat SDK, so this validation proves
+        /// only the captured Unity quality values, not full VRChat SDK environment parity.
         /// </summary>
-        private static void ValidateQualitySettings()
+        private static void ValidateQualitySettingsSnapshot()
         {
             int qualityLevel = QualitySettings.GetQualityLevel();
             string[] qualityNames = QualitySettings.names;
@@ -81,7 +82,7 @@ namespace PureBase.Tests.Regeneration
             if (qualityLevel != ExpectedQualityLevel || qualityName != ExpectedQualityName)
             {
                 throw new InvalidOperationException(
-                    $"Pure-Base CI requires quality level {ExpectedQualityLevel} '{ExpectedQualityName}', received {qualityLevel} '{qualityName}'."
+                    $"Pure-Base CI requires VRChat-project QualitySettings snapshot level {ExpectedQualityLevel} '{ExpectedQualityName}', received {qualityLevel} '{qualityName}'."
                 );
             }
 
@@ -97,12 +98,13 @@ namespace PureBase.Tests.Regeneration
             )
             {
                 throw new InvalidOperationException(
-                    "Pure-Base CI did not load the reviewed VRC High shadow and MSAA settings."
+                    "Pure-Base CI did not load the reviewed VRChat-project VRC High shadow and MSAA snapshot."
                 );
             }
 
             Debug.Log(
-                "Pure-Base CI quality settings: "
+                "Pure-Base CI VRChat-project QualitySettings snapshot: "
+                    + "vrchatSdkInstalled=false "
                     + $"level={qualityLevel} name={qualityName} "
                     + $"pixelLights={QualitySettings.pixelLightCount} "
                     + $"shadows={QualitySettings.shadows} "
