@@ -21,54 +21,79 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Assert-VisualCpp2013Runtime {
-    $runtimeDirectory = Join-Path $env:WINDIR 'System32'
-    $requiredRuntimeFiles = @(
-        (Join-Path $runtimeDirectory 'msvcr120.dll'),
-        (Join-Path $runtimeDirectory 'msvcp120.dll')
+function Assert-MicrosoftRuntime {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DisplayName,
+        [Parameter(Mandatory = $true)]
+        [string[]]$RequiredFiles,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallerFileName,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallerUri,
+        [Parameter(Mandatory = $true)]
+        [string[]]$InstallerArguments
     )
 
-    $missingRuntimeFiles = @($requiredRuntimeFiles | Where-Object {
+    $missingRuntimeFiles = @($RequiredFiles | Where-Object {
         -not (Test-Path -LiteralPath $_ -PathType Leaf)
     })
     if ($missingRuntimeFiles.Count -eq 0) {
-        Write-Host 'Microsoft Visual C++ 2013 x64 runtime is already available.'
+        Write-Host "$DisplayName is already available."
         return
     }
 
-    $installerPath = Join-Path $env:RUNNER_TEMP 'vcredist-2013-x64.exe'
-    $installerUri = 'https://download.microsoft.com/download/0/5/6/056DCDA9-D667-4E27-8001-8A0C6971D6B1/vcredist_x64.exe'
-    Write-Host "Installing Microsoft Visual C++ 2013 x64 runtime because these files are missing: $($missingRuntimeFiles -join ', ')"
-    Invoke-WebRequest -UseBasicParsing -Uri $installerUri -OutFile $installerPath
+    $installerPath = Join-Path $env:RUNNER_TEMP $InstallerFileName
+    Write-Host "Installing $DisplayName because these files are missing: $($missingRuntimeFiles -join ', ')"
+    Invoke-WebRequest -UseBasicParsing -Uri $InstallerUri -OutFile $installerPath
 
     $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
     if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
         $null -eq $signature.SignerCertificate -or
         $signature.SignerCertificate.Subject -notlike '*Microsoft Corporation*') {
-        throw "Downloaded Visual C++ 2013 installer did not have a valid Microsoft signature. Status: $($signature.Status)."
+        throw "Downloaded $DisplayName installer did not have a valid Microsoft signature. Status: $($signature.Status)."
     }
 
     $installerProcess = Start-Process `
         -FilePath $installerPath `
-        -ArgumentList @('/install', '/quiet', '/norestart') `
+        -ArgumentList $InstallerArguments `
         -Wait `
         -PassThru `
         -NoNewWindow
     if ($installerProcess.ExitCode -notin @(0, 1638, 3010)) {
-        throw "Visual C++ 2013 x64 runtime installer failed with exit code $($installerProcess.ExitCode)."
+        throw "$DisplayName installer failed with exit code $($installerProcess.ExitCode)."
     }
 
-    $missingAfterInstall = @($requiredRuntimeFiles | Where-Object {
+    $missingAfterInstall = @($RequiredFiles | Where-Object {
         -not (Test-Path -LiteralPath $_ -PathType Leaf)
     })
     if ($missingAfterInstall.Count -gt 0) {
-        throw "Visual C++ 2013 x64 runtime installation completed but required files are still missing: $($missingAfterInstall -join ', ')."
+        throw "$DisplayName installation completed but required files are still missing: $($missingAfterInstall -join ', ')."
     }
 
-    Write-Host "Microsoft Visual C++ 2013 x64 runtime installed successfully (exit code $($installerProcess.ExitCode))."
+    Write-Host "$DisplayName installed successfully (exit code $($installerProcess.ExitCode))."
 }
 
-Assert-VisualCpp2013Runtime
+$runtimeDirectory = Join-Path $env:WINDIR 'System32'
+Assert-MicrosoftRuntime `
+    -DisplayName 'Microsoft Visual C++ 2010 SP1 x64 runtime' `
+    -RequiredFiles @(
+        (Join-Path $runtimeDirectory 'msvcr100.dll'),
+        (Join-Path $runtimeDirectory 'msvcp100.dll')
+    ) `
+    -InstallerFileName 'vcredist-2010-sp1-x64.exe' `
+    -InstallerUri 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe' `
+    -InstallerArguments @('/quiet', '/norestart')
+
+Assert-MicrosoftRuntime `
+    -DisplayName 'Microsoft Visual C++ 2013 x64 runtime' `
+    -RequiredFiles @(
+        (Join-Path $runtimeDirectory 'msvcr120.dll'),
+        (Join-Path $runtimeDirectory 'msvcp120.dll')
+    ) `
+    -InstallerFileName 'vcredist-2013-x64.exe' `
+    -InstallerUri 'https://download.microsoft.com/download/0/5/6/056DCDA9-D667-4E27-8001-8A0C6971D6B1/vcredist_x64.exe' `
+    -InstallerArguments @('/install', '/quiet', '/norestart')
 
 $normalizedPath = $EditorPath.Trim()
 if ([string]::IsNullOrWhiteSpace($normalizedPath)) {
