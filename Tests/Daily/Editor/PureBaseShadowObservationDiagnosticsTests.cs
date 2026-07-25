@@ -62,8 +62,8 @@ namespace PureBase.Tests.Daily
                         : "<invalid>";
 
                 // This diagnostic intentionally does not widen or rewrite the baseline. It
-                // records whether the reviewed 341-352 range is still needed after local and
-                // GitHub-hosted projects use the same VRC High quality configuration.
+                // records the current value and the committed range after local and
+                // GitHub-hosted projects apply the same reviewed quality configuration.
                 Debug.Log(
                     $"Pure-Base Daily shadow observation: changedPixels={observation.shadowChangedPixelCount}, "
                         + $"reviewedRange=[{baseline.shadowChangedPixelCount.minimum}, {baseline.shadowChangedPixelCount.maximum}], "
