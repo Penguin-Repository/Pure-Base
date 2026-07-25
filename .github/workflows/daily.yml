@@ -212,7 +212,7 @@ jobs:
           $logPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Unity.log'
           & $env:UNITY_EDITOR_PATH `
             -batchmode `
-            -force-d3d11 `
+            -nographics `
             -accept-apiupdate `
             -projectPath $env:CI_PROJECT_ROOT `
             -executeMethod PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode `
