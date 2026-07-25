@@ -115,4 +115,26 @@ if ([System.IO.Path]::GetFileName($normalizedPath) -ine 'Unity.exe') {
     throw "Resolved Unity Editor path does not point to Unity.exe: '$normalizedPath'."
 }
 
-Write-Output $normalizedPath
+$proxyScriptPath = Join-Path $PSScriptRoot 'UnityWatchdogProxy.ps1'
+if (-not (Test-Path -LiteralPath $proxyScriptPath -PathType Leaf)) {
+    throw "Unity watchdog proxy script was not found at '$proxyScriptPath'."
+}
+
+$pwshPath = (Get-Command pwsh -ErrorAction Stop).Source
+$proxyRoot = Join-Path $env:RUNNER_TEMP 'PureBaseUnityProxy/2022.3.22f1/Editor'
+New-Item -ItemType Directory -Path $proxyRoot -Force | Out-Null
+$proxyCommandPath = Join-Path $proxyRoot 'Unity.cmd'
+$proxyCommand = @"
+@echo off
+"$pwshPath" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$proxyScriptPath" -UnityEditorPath "$normalizedPath" %*
+exit /b %ERRORLEVEL%
+"@
+[System.IO.File]::WriteAllText(
+    $proxyCommandPath,
+    $proxyCommand.Replace("`n", "`r`n"),
+    [System.Text.ASCIIEncoding]::new()
+)
+
+Write-Host "Unity watchdog proxy: $proxyCommandPath"
+Write-Host "Unity watchdog target: $normalizedPath"
+Write-Output $proxyCommandPath
