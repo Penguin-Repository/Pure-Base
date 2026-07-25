@@ -19,18 +19,20 @@ limitations under the License.
 ## Unity runner
 
 Daily and release validation run on GitHub-hosted `windows-latest` runners. Each run installs Unity
-2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal, and exports the discovered
-Editor path to the existing validation scripts. The Unity Editor installation is cached by operating
-system, architecture, and Unity version to avoid repeating the full Editor installation on every run.
+2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal through
+`buildalon/activate-unity-license`, and exports the discovered Editor path to the existing validation
+scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
+to avoid repeating the full Editor installation on every run.
 
 Create these Actions secrets for Unity Personal activation:
 
 - `UNITY_EMAIL`: email address of the Unity ID used for CI.
 - `UNITY_PASSWORD`: password of the Unity ID used for CI.
-- `UNITY_SERIAL`: Personal-tier serial extracted from an existing activated `.ulf` license.
 
-Use a real human Unity ID. Service accounts do not have a Unity Personal entitlement. The workflows
-pin `yamachu/unity-cli-actions` to an audited commit rather than a moving tag.
+Use a real human Unity ID. Service accounts do not have a Unity Personal entitlement. Personal
+activation does not use a serial number. The activation Action uses Unity Licensing Client and its
+post-job handler releases the ephemeral runner's entitlement automatically. Third-party Actions are
+pinned to audited commits rather than moving tags.
 
 The repository is public, and Unity validation executes repository code. The Daily workflow rejects
 fork pull requests and runs pull request code only when the head branch belongs to this repository.
