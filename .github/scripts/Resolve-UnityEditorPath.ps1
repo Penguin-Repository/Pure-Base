@@ -15,7 +15,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$EditorPath
+    [string]$EditorPath,
+
+    [string]$RealEditorPathOutputFile
 )
 
 Set-StrictMode -Version Latest
@@ -45,7 +47,7 @@ function Assert-MicrosoftRuntime {
 
     $installerPath = Join-Path $env:RUNNER_TEMP $InstallerFileName
     Write-Host "Installing $DisplayName because these files are missing: $($missingRuntimeFiles -join ', ')"
-    Invoke-WebRequest -UseBasicParsing -Uri $InstallerUri -OutFile $installerPath
+    Invoke-WebRequest -Uri $InstallerUri -OutFile $installerPath
 
     $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
     if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
@@ -113,6 +115,22 @@ if (-not (Test-Path -LiteralPath $normalizedPath -PathType Leaf)) {
 
 if ([System.IO.Path]::GetFileName($normalizedPath) -ine 'Unity.exe') {
     throw "Resolved Unity Editor path does not point to Unity.exe: '$normalizedPath'."
+}
+
+# Configure and Daily use the watchdog proxy, while release validation retains the
+# real Unity.exe because its audited runner intentionally rejects wrapper executables.
+if (-not [string]::IsNullOrWhiteSpace($RealEditorPathOutputFile)) {
+    $realEditorOutputPath = [System.IO.Path]::GetFullPath($RealEditorPathOutputFile)
+    $realEditorOutputDirectory = Split-Path -Parent $realEditorOutputPath
+    if (-not [string]::IsNullOrEmpty($realEditorOutputDirectory)) {
+        New-Item -ItemType Directory -Path $realEditorOutputDirectory -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText(
+        $realEditorOutputPath,
+        $normalizedPath + "`n",
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    Write-Host "Real Unity Editor path output: $realEditorOutputPath"
 }
 
 $proxyScriptPath = Join-Path $PSScriptRoot 'UnityWatchdogProxy.ps1'
