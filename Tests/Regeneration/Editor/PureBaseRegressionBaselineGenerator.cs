@@ -411,7 +411,13 @@ namespace PureBase.Tests.Regeneration
                 || baseline.sceneVisiblePixelCount == null
                 || baseline.sceneVisiblePixelCount.minimum != observation.sceneVisiblePixelCount
                 || baseline.sceneVisiblePixelCount.maximum != observation.sceneVisiblePixelCount
-                || baseline.shadowChangedPixelCount != observation.shadowChangedPixelCount
+                // A freshly regenerated baseline must remain exact until a reviewer
+                // explicitly approves a renderer-specific tolerance range.
+                || baseline.shadowChangedPixelCount == null
+                || baseline.shadowChangedPixelCount.minimum
+                    != observation.shadowChangedPixelCount
+                || baseline.shadowChangedPixelCount.maximum
+                    != observation.shadowChangedPixelCount
                 || baseline.warmedVariantCount != observation.warmedVariantCount
                 || !string.Equals(
                     baseline.dynamicLightmapStatus,
@@ -1841,7 +1847,7 @@ namespace PureBase.Tests.Regeneration
             PureBaseRegressionBaselineGenerator.ObservationCandidate candidate =
                 CreateValidCandidate();
             candidate.observation.shadowChangedPixelCount = 0;
-            candidate.exactBaseline.shadowChangedPixelCount = 0;
+            candidate.exactBaseline.shadowChangedPixelCount = IntRange.Exact(0);
 
             AssertApplyFailsBeforeWrite(candidate);
         }
