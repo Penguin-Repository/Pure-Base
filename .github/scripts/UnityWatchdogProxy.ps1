@@ -98,7 +98,10 @@ if (-not [string]::IsNullOrEmpty($logDirectory)) {
 }
 
 $diagnosticPath = [System.IO.Path]::ChangeExtension($logPath, 'Watchdog.txt')
-$timeoutSeconds = if ($UnityArguments -contains '-runTests') { 3600 } else { 900 }
+# Test execution receives one hour. Configure/import receives the same 30-minute
+# ceiling as the workflow step, so the watchdog catches hangs without preempting a
+# legitimately slow first import.
+$timeoutSeconds = if ($UnityArguments -contains '-runTests') { 3600 } else { 1800 }
 $argumentText = ($UnityArguments | ForEach-Object { ConvertTo-NativeArgument -Value $_ }) -join ' '
 $fatalPattern = '(?im)(Scripts have compiler errors\.|Aborting batchmode due to failure:|\berror CS\d{4}:)'
 
