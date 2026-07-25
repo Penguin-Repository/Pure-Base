@@ -27,32 +27,35 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           path = Path("Tests/Daily/Editor/PureBaseValidationSceneRegressionTests.cs")
           source = path.read_text(encoding="utf-8")
-          old = """                SceneRegressionObservation observation = CaptureObservation(validationScene);
-                AssertObservationMatchesBaseline(observation, baseline);"""
-          new = """                SceneRegressionObservation observation = CaptureObservation(validationScene);
-                // Keep successful runs measurable so reviewers can determine whether the
-                // cross-renderer shadow range is still necessary after local and CI quality
-                // settings have been aligned.
-                int qualityLevel = QualitySettings.GetQualityLevel();
-                string qualityName =
-                    qualityLevel >= 0 && qualityLevel < QualitySettings.names.Length
-                        ? QualitySettings.names[qualityLevel]
-                        : \"<invalid>\";
-                Debug.Log(
-                    $\"Pure-Base Daily shadow observation: changedPixels={observation.shadowChangedPixelCount}, \"
-                        + $\"reviewedRange=[{baseline.shadowChangedPixelCount.minimum}, {baseline.shadowChangedPixelCount.maximum}], \"
-                        + $\"graphicsDevice='{SystemInfo.graphicsDeviceName}', graphicsDeviceType={SystemInfo.graphicsDeviceType}, \"
-                        + $\"qualityLevel={qualityLevel} ('{qualityName}').\"
-                );
-                AssertObservationMatchesBaseline(observation, baseline);"""
+          pattern = re.compile(
+              r"(?P<indent>\s*)SceneRegressionObservation observation = CaptureObservation\(validationScene\);\s*"
+              r"AssertObservationMatchesBaseline\(observation, baseline\);"
+          )
+          replacement = """\g<indent>SceneRegressionObservation observation = CaptureObservation(validationScene);
+\g<indent>// Keep successful runs measurable so reviewers can determine whether the
+\g<indent>// cross-renderer shadow range is still necessary after local and CI quality
+\g<indent>// settings have been aligned.
+\g<indent>int qualityLevel = QualitySettings.GetQualityLevel();
+\g<indent>string qualityName =
+\g<indent>    qualityLevel >= 0 && qualityLevel < QualitySettings.names.Length
+\g<indent>        ? QualitySettings.names[qualityLevel]
+\g<indent>        : \"<invalid>\";
+\g<indent>Debug.Log(
+\g<indent>    $\"Pure-Base Daily shadow observation: changedPixels={observation.shadowChangedPixelCount}, \"
+\g<indent>        + $\"reviewedRange=[{baseline.shadowChangedPixelCount.minimum}, {baseline.shadowChangedPixelCount.maximum}], \"
+\g<indent>        + $\"graphicsDevice='{SystemInfo.graphicsDeviceName}', graphicsDeviceType={SystemInfo.graphicsDeviceType}, \"
+\g<indent>        + $\"qualityLevel={qualityLevel} ('{qualityName}').\"
+\g<indent>);
+\g<indent>AssertObservationMatchesBaseline(observation, baseline);"""
 
-          count = source.count(old)
+          source, count = pattern.subn(replacement, source, count=1)
           if count != 1:
               raise RuntimeError(f"Expected exactly one observation insertion point, found {count}.")
-          path.write_text(source.replace(old, new, 1), encoding="utf-8", newline="\n")
+          path.write_text(source, encoding="utf-8", newline="\n")
 
       - name: Verify observation log
         shell: bash
