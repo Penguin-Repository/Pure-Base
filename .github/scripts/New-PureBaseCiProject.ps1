@@ -42,10 +42,9 @@ if ([string]$shaderCoreJson.name -ne 'jp.lilxyzw.shadercore' -or [string]$shader
 }
 
 $assetsRoot = Join-Path $projectRootFullPath 'Assets'
-$editorRoot = Join-Path $assetsRoot 'Editor'
 $projectSettingsRoot = Join-Path $projectRootFullPath 'ProjectSettings'
 $packagesRoot = Join-Path $projectRootFullPath 'Packages'
-foreach ($directory in @($assetsRoot, $editorRoot, $projectSettingsRoot, $packagesRoot)) {
+foreach ($directory in @($assetsRoot, $projectSettingsRoot, $packagesRoot)) {
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 }
 
@@ -64,85 +63,6 @@ $manifestText = ($manifest | ConvertTo-Json -Depth 4) + "`n"
 [System.IO.File]::WriteAllText(
     (Join-Path $packagesRoot 'manifest.json'),
     $manifestText,
-    [System.Text.UTF8Encoding]::new($false)
-)
-
-$bootstrapSource = @'
-/*
- * Copyright 2026 Penguin
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-using System;
-using UnityEditor;
-using UnityEngine;
-
-[InitializeOnLoad]
-public static class PureBaseCiBootstrap
-{
-    private const string PrimeEnvironmentVariable = "PURE_BASE_CI_PRIME";
-
-    static PureBaseCiBootstrap()
-    {
-        if (!Application.isBatchMode)
-            return;
-
-        if (!string.Equals(
-                Environment.GetEnvironmentVariable(PrimeEnvironmentVariable),
-                "1",
-                StringComparison.Ordinal))
-            return;
-
-        EditorApplication.update += CompletePrimeWhenReady;
-    }
-
-    public static void Configure()
-    {
-        if (Application.unityVersion != "2022.3.22f1")
-            throw new InvalidOperationException(
-                $"Pure-Base CI requires Unity 2022.3.22f1, received {Application.unityVersion}."
-            );
-
-        PlayerSettings.colorSpace = ColorSpace.Linear;
-        EditorSettings.serializationMode = SerializationMode.ForceText;
-        AssetDatabase.SaveAssets();
-    }
-
-    private static void CompletePrimeWhenReady()
-    {
-        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-            return;
-
-        EditorApplication.update -= CompletePrimeWhenReady;
-
-        try
-        {
-            Configure();
-            Debug.Log("Pure-Base CI project import and configuration completed.");
-            EditorApplication.Exit(0);
-        }
-        catch (Exception exception)
-        {
-            Debug.LogException(exception);
-            EditorApplication.Exit(1);
-        }
-    }
-}
-'@
-[System.IO.File]::WriteAllText(
-    (Join-Path $editorRoot 'PureBaseCiBootstrap.cs'),
-    $bootstrapSource + "`n",
     [System.Text.UTF8Encoding]::new($false)
 )
 
