@@ -18,11 +18,12 @@ limitations under the License.
 
 ## Unity runner
 
-Daily and release validation run on GitHub-hosted `windows-latest` runners. Each run installs Unity
+Daily and release validation run on GitHub-hosted `windows-2022` runners. Each run installs Unity
 2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal through
 `buildalon/activate-unity-license`, and exports the discovered Editor path to the existing validation
 scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
-to avoid repeating the full Editor installation on every run.
+to avoid repeating the full Editor installation on every run. Cache misses are reported but do not
+fail validation because `setup-unity-cli` can install or restore the Editor in the current job.
 
 Create these Actions secrets for Unity Personal activation:
 
@@ -103,8 +104,11 @@ uses the tested `Resolve-PureBaseDailySource` helper from the base workflow chec
 requests are rejected before Unity is installed and without checking out or executing their code on
 the Windows runner.
 
-`Release validation` is manual and read-only. It runs the full release consumer validation and
-uploads the complete evidence directory, including a versioned copy of the audited package ZIP.
+`Release validation` is manual and read-only. Configure/import runs through the Unity watchdog
+proxy. The audited release-validation runner receives the real `Unity.exe`, because it intentionally
+rejects wrapper executables while proving the required Unity version from the editor path. The
+workflow uploads the complete evidence directory, including a versioned copy of the audited package
+ZIP.
 
 `Release` is manual and requires the exact version currently stored in `update_trigger.json`.
 For a new release, that version must be newer than `package.json`. The workflow validates the
@@ -121,7 +125,8 @@ filling a draft before publication minimizes the immutable release failure windo
 `Automation tests` runs Pester on GitHub-hosted Linux runners. The tests cover stable version
 validation, fresh and resume release mode decisions, missing and mismatched tags, VPM dispatch URLs
 and hashes, fork and draft PR rejection, immutable-release preflight behavior, and the generated
-Unity project version, Linear color space, text serialization, and Shader-Core pin.
+Unity project version, QualitySettings snapshot, VRChat SDK exclusion, test framework, and
+Shader-Core pin.
 
 `CodeQL` runs on GitHub-hosted Linux runners for C# and GitHub Actions. HLSL and PowerShell are not
 CodeQL languages and remain covered by the Unity, release validation, and Pester automation tests.
