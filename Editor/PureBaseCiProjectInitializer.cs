@@ -18,7 +18,7 @@ using System;
 using UnityEditor;
 using UnityEngine;
 
-namespace PureBase.Editor
+namespace PureBase.Tests.Regeneration
 {
     /// <summary>Configures the generated CI project from a normal Editor assembly.</summary>
     public static class PureBaseCiProjectInitializer
