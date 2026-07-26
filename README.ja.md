@@ -18,7 +18,7 @@ limitations under the License.
 
 言語: [English](README.md)
 
-Pure-Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限の base shader を4つ提供します。各 shader は optional module なしで独立して使用できます。
+Pure Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限の base shader を4つ提供します。各 shader は optional module なしで独立して使用できます。
 
 > [!Important]
 > Pure Base は Shader-Core、NonToon、lilToon から独立しており、かつそれらとは無関係な非公式プロジェクトです。
@@ -56,7 +56,7 @@ release ZIP には `Tests/**` と test-only の `*.scmodule` files は含まれ�
 
 `PureBase/Toon` はさらに `_NormalMap` と `_NormalScale` を公開します。`PureBase/PBR` と `PureBase/Hybrid` は同じ追加 property に加えて、`_Metallic` と `_Roughness` を公開します。PBR と Hybrid の property declarations は byte-identical です。Roughness は `0.002` から `1` までに clamp されます。
 
-完全な pass と property の contract は [Pure-Base shader contract](Docs/pure-base-shader-contract.md) に記載されています。
+完全な pass と property の contract は [Pure Base shader contract](Docs/pure-base-shader-contract.md) に記載されています。
 
 ## Shader-Core 連携
 
@@ -71,7 +71,7 @@ release ZIP には `Tests/**` と test-only の `*.scmodule` files は含まれ�
 - `ShadowCaster` と `Meta` は固定の Cutout coverage contract を維持します。
 - PBR と Hybrid の `ForwardBase` は Unity Standard の indirect GI と reflection-probe evaluation を担います。それらの `ForwardAdd` pass は indirect lighting を重複させません。
 
-Optional visual features は separate Shader-Core modules に属します。Pure-Base には rim lighting、MatCap、decals、detail textures、emission、dissolve、distance fade、parallax、hair または anisotropic specular、clear coat、glitter、platform-specific integrations は含まれません。
+Optional visual features は separate Shader-Core modules に属します。Pure Base には rim lighting、MatCap、decals、detail textures、emission、dissolve、distance fade、parallax、hair または anisotropic specular、clear coat、glitter、platform-specific integrations は含まれません。
 
 ## 検証レーン
 

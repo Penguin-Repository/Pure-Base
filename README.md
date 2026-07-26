@@ -18,7 +18,7 @@ limitations under the License.
 
 Language: [日本語](README.ja.md)
 
-Pure-Base provides four minimal Built-in Render Pipeline base shaders for Shader-Core. Each shader is independently usable without an optional module.
+Pure Base provides four minimal Built-in Render Pipeline base shaders for Shader-Core. Each shader is independently usable without an optional module.
 
 > [!Important]
 > Pure Base is an unofficial project that is independent of and unrelated to Shader-Core, NonToon, and lilToon.
@@ -56,7 +56,7 @@ All four shaders expose the following common properties:
 
 `PureBase/Toon` additionally exposes `_NormalMap` and `_NormalScale`. `PureBase/PBR` and `PureBase/Hybrid` expose the same additional properties, plus `_Metallic` and `_Roughness`. The PBR and Hybrid property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
 
-The complete pass and property contract is documented in [Pure-Base shader contract](Docs/pure-base-shader-contract.md).
+The complete pass and property contract is documented in [Pure Base shader contract](Docs/pure-base-shader-contract.md).
 
 ## Shader-Core Integration
 
@@ -71,7 +71,7 @@ The shared standard phase ABI is, in order:
 - `ShadowCaster` and `Meta` preserve the fixed Cutout coverage contract.
 - PBR and Hybrid `ForwardBase` own Unity Standard indirect GI and reflection-probe evaluation. Their `ForwardAdd` passes do not duplicate indirect lighting.
 
-Optional visual features belong in separate Shader-Core modules. Pure-Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
+Optional visual features belong in separate Shader-Core modules. Pure Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
 
 ## Validation Lanes
 
