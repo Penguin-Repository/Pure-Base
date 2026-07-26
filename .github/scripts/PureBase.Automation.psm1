@@ -197,6 +197,7 @@ function Resolve-PureBaseDailySource {
         [Parameter()][AllowEmptyString()][string]$PushSha = '',
         [Parameter()][AllowEmptyString()][string]$PullRequestHeadRepository = '',
         [Parameter()][AllowEmptyString()][string]$PullRequestHeadSha = '',
+        [Parameter()][AllowEmptyString()][string]$PullRequestAuthor = '',
         [Parameter()][bool]$PullRequestDraft = $false
     )
 
@@ -206,7 +207,7 @@ function Resolve-PureBaseDailySource {
         }
         return [pscustomobject][ordered]@{ Allowed = $true; CheckoutRef = $PushSha; Reason = 'push' }
     }
-    if ($EventName -ne 'pull_request_target') {
+    if ($EventName -ne 'pull_request') {
         throw "Unsupported Daily event '$EventName'."
     }
     if (-not [string]::Equals($PullRequestHeadRepository, $Repository, [StringComparison]::OrdinalIgnoreCase)) {
@@ -214,6 +215,9 @@ function Resolve-PureBaseDailySource {
     }
     if ($PullRequestDraft) {
         return [pscustomobject][ordered]@{ Allowed = $false; CheckoutRef = ''; Reason = 'draft pull request' }
+    }
+    if ([string]::Equals($PullRequestAuthor, 'dependabot[bot]', [StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject][ordered]@{ Allowed = $false; CheckoutRef = ''; Reason = 'dependabot pull request' }
     }
     if ([string]::IsNullOrWhiteSpace($PullRequestHeadSha)) {
         throw 'Trusted pull requests require a head commit SHA.'

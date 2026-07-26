@@ -35,8 +35,12 @@ activation does not use a serial number. The activation Action uses Unity Licens
 post-job handler releases the ephemeral runner's entitlement automatically. Third-party Actions are
 pinned to audited commits rather than moving tags.
 
-The repository is public, and Unity validation executes repository code. The Daily workflow rejects
-fork pull requests and runs pull request code only when the head branch belongs to this repository.
+The repository is public, and Unity validation executes repository code. Daily uses GitHub's
+`pull_request` event. For fork-originated pull requests, GitHub withholds repository secrets and
+provides only a read-only `GITHUB_TOKEN`; GitHub Actions treats Dependabot pull requests as
+fork-originated for these secret restrictions. This repository's policy separately trusts ordinary
+non-draft branches in this repository: their writers may run their pull request head code with the
+Unity activation credentials.
 
 The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
 embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.9`, matching the exact
@@ -100,9 +104,12 @@ validation and stops without changing the repository when the setting is not ena
 
 `Daily` runs `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` followed by `-Mode Daily` on every
 push and on non-draft pull requests whose head branch belongs to Pure-Base. The authorization job
-uses the tested `Resolve-PureBaseDailySource` helper from the base workflow checkout. Fork pull
-requests are rejected before Unity is installed and without checking out or executing their code on
-the Windows runner.
+uses the tested `Resolve-PureBaseDailySource` helper as a best-effort operational source-selection
+and runner-cost gate under the checked-in workflow. It rejects fork, draft, and Dependabot pull
+requests before Unity runner allocation. Dependabot receives Unity coverage only after its change
+is merged, through the unchanged `push` path. This resolver is not a protection against a malicious
+pull request that changes workflow or helper code; the Unity credentials for trusted same-repository
+branches rely on the repository's branch-writer trust policy.
 
 `Release validation` is manual and read-only. Configure/import runs through the Unity watchdog
 proxy. The audited release-validation runner receives the real `Unity.exe`, because it intentionally

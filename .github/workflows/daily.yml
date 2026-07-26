@@ -16,7 +16,7 @@ name: Daily
 
 on:
   push:
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - synchronize
@@ -64,6 +64,7 @@ jobs:
           PUSH_SHA: ${{ github.sha }}
           PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/PureBase.Automation.psm1" -Force
@@ -73,6 +74,7 @@ jobs:
             -PushSha $env:PUSH_SHA `
             -PullRequestHeadRepository $env:PR_HEAD_REPOSITORY `
             -PullRequestHeadSha $env:PR_HEAD_SHA `
+            -PullRequestAuthor $env:PR_AUTHOR `
             -PullRequestDraft ($env:PR_DRAFT -eq 'true')
           "allowed=$($source.Allowed.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "checkout_ref=$($source.CheckoutRef)" >> $env:GITHUB_OUTPUT
@@ -81,7 +83,7 @@ jobs:
   reject-untrusted-pull-request:
     name: Reject unsupported PR source
     needs: authorize
-    if: github.event_name == 'pull_request_target' && needs.authorize.outputs.allowed != 'true'
+    if: github.event_name == 'pull_request' && needs.authorize.outputs.allowed != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Explain restriction
@@ -142,7 +144,6 @@ jobs:
           path: PureBaseCi/Packages/jp.penguin.purebase
           fetch-depth: 0
           persist-credentials: false
-          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
 
       - name: Checkout Shader-Core 0.1.9
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
