@@ -475,10 +475,14 @@ namespace PureBase.Tests.Regeneration
             if (arguments == null)
                 throw new ArgumentNullException(nameof(arguments));
             string candidatePath = null;
-            for (int index = 0; index < arguments.Length; index++)
+            int index = 0;
+            while (index < arguments.Length)
             {
                 if (!string.Equals(arguments[index], argumentName, StringComparison.Ordinal))
+                {
+                    index++;
                     continue;
+                }
                 if (
                     candidatePath != null
                     || index + 1 >= arguments.Length
@@ -490,7 +494,8 @@ namespace PureBase.Tests.Regeneration
                     );
                 }
 
-                candidatePath = arguments[++index];
+                candidatePath = arguments[index + 1];
+                index += 2;
             }
 
             if (candidatePath == null)
@@ -1721,6 +1726,68 @@ namespace PureBase.Tests.Regeneration
     /// <summary>Verifies external observation candidate validation and explicit apply seams through Unity-discoverable EditMode tests.</summary>
     public sealed class PureBaseRegressionObservationCandidateTests
     {
+        /// <summary>Ensures one external candidate path is normalized while unrelated arguments are ignored.</summary>
+        [Test]
+        public void CandidatePathReturnsNormalizedExternalPathAmongUnrelatedArguments()
+        {
+            string suppliedPath = Path.Combine(
+                Path.GetTempPath(),
+                "purebase-observation-candidate",
+                "..",
+                "candidate.json"
+            );
+            string expectedPath = Path.GetFullPath(suppliedPath);
+
+            string actualPath =
+                PureBaseRegressionBaselineGenerator.GetRequiredExternalCandidatePath(
+                    new[]
+                    {
+                        "-batchmode",
+                        "-logFile",
+                        "editor.log",
+                        PureBaseRegressionBaselineGenerator.ObservationCandidatePathArgument,
+                        suppliedPath,
+                        "-quit",
+                    },
+                    PureBaseRegressionBaselineGenerator.ObservationCandidatePathArgument
+                );
+
+            Assert.That(actualPath, Is.EqualTo(expectedPath));
+        }
+
+        /// <summary>Ensures duplicate, empty, whitespace, and missing candidate path values are rejected.</summary>
+        [Test]
+        public void CandidatePathRejectsDuplicateEmptyWhitespaceAndMissingValues()
+        {
+            string argumentName =
+                PureBaseRegressionBaselineGenerator.ObservationCandidatePathArgument;
+
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.GetRequiredExternalCandidatePath(
+                    new[] { argumentName, Path.GetTempPath(), argumentName, Path.GetTempPath() },
+                    argumentName
+                )
+            );
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.GetRequiredExternalCandidatePath(
+                    new[] { argumentName, string.Empty },
+                    argumentName
+                )
+            );
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.GetRequiredExternalCandidatePath(
+                    new[] { argumentName, "   " },
+                    argumentName
+                )
+            );
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.GetRequiredExternalCandidatePath(
+                    new[] { "-batchmode", argumentName },
+                    argumentName
+                )
+            );
+        }
+
         /// <summary>Ensures the batch entries reject missing and relative path arguments before scene mutation.</summary>
         [Test]
         public void CandidatePathsRejectMissingAndRelativeArguments()

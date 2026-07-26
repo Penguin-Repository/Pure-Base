@@ -306,7 +306,7 @@ function Get-ValidationSceneOracleValue {
             $items = Get-ArrayPropertyItems -Object $Scene -Name 'variants' -Failures $Failures -Code $Code
             if ($null -eq $items) { return $null }
             foreach ($item in $items) {
-                if ($null -eq $item -or $item.PSObject.Properties['warmed'] -eq $null -or $item.warmed -ne $true -or $item.PSObject.Properties['variantCount'] -eq $null) {
+                if ($null -eq $item -or $null -eq $item.PSObject.Properties['warmed'] -or $item.warmed -ne $true -or $null -eq $item.PSObject.Properties['variantCount']) {
                     Add-Failure -Failures $Failures -Code $Code -Message 'Variant evidence is missing a warmed representative variant.'
                     return $null
                 }

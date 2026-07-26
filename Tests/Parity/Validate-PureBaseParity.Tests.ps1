@@ -18,8 +18,10 @@
 [CmdletBinding()]
 param()
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+Describe 'Validate-PureBaseParity synthetic artifact contracts' {
+    BeforeAll {
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
 
 function Assert-Harness {
     param([Parameter(Mandatory = $true)][bool]$Condition, [Parameter(Mandatory = $true)][string]$Message)
@@ -226,38 +228,78 @@ function Invoke-ValidatorCase {
     }
 }
 
-$scriptRoot = Split-Path -Parent $PSCommandPath
-$validatorPath = Join-Path $scriptRoot 'Validate-PureBaseParity.ps1'
-$manifestPath = Join-Path $scriptRoot 'pure-base-validation-parity.json'
-$packageRoot = [System.IO.Path]::GetFullPath((Join-Path $scriptRoot '../..'))
-$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-$releaseContentContractPath = Join-Path $scriptRoot '../Release/release-content.json'
+$script:scriptRoot = Split-Path -Parent $PSCommandPath
+$script:validatorPath = Join-Path $script:scriptRoot 'Validate-PureBaseParity.ps1'
+$script:manifestPath = Join-Path $script:scriptRoot 'pure-base-validation-parity.json'
+$script:packageRoot = [System.IO.Path]::GetFullPath((Join-Path $script:scriptRoot '../..'))
+$script:manifest = Get-Content -LiteralPath $script:manifestPath -Raw | ConvertFrom-Json
+$releaseContentContractPath = Join-Path $script:scriptRoot '../Release/release-content.json'
 $script:releaseContentContract = Get-Content -LiteralPath $releaseContentContractPath -Raw | ConvertFrom-Json
 
-Describe 'release-boundary package test-assets audit' {
-    It 'accepts the valid fixture' {
-        Invoke-ValidatorCase -Name 'happy-path' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $true
+function Invoke-ValidationSceneOracleCase {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$MissingProperty,
+        [Parameter(Mandatory = $true)][string]$ValidatorPath
+    )
+
+    $source = [System.IO.File]::ReadAllText($ValidatorPath)
+    $tokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$parseErrors)
+    Assert-Harness -Condition (@($parseErrors).Count -eq 0) -Message "Case '$Name' could not parse validator source."
+
+    foreach ($functionName in @('Add-Failure', 'Get-ArrayPropertyItems', 'Get-ValidationSceneOracleValue')) {
+        $functionAst = @($ast.FindAll({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
+            }, $true)) | Select-Object -First 1
+        Assert-Harness -Condition ($null -ne $functionAst) -Message "Case '$Name' could not locate validator function '$functionName'."
+        Invoke-Expression -Command $functionAst.Extent.Text
     }
 
-    It 'rejects a missing packageContainsPureBaseTestAssets field' {
-        Invoke-ValidatorCase -Name 'missing-package-test-assets-boolean' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'legacy-release-boundary-test-assets' -Mutate {
-            param($artifacts)
-            $auditPath = Join-Path $artifacts.legacy 'release-boundary-audit.json'
-            $audit = Get-Content -LiteralPath $auditPath -Raw | ConvertFrom-Json
-            $audit.PSObject.Properties.Remove('packageContainsPureBaseTestAssets')
-            Write-Json -Path $auditPath -Value $audit
-        }
+    $variant = [pscustomobject][ordered]@{
+        shader = 'PureBase/Unlit'
+        pass = 'ForwardBase'
+        label = 'DirectOracleVariant'
+        keywords = @()
+        added = $true
+        warmed = $true
+        variantCount = 1
+    }
+    $variant.PSObject.Properties.Remove($MissingProperty)
+    $scene = [pscustomobject][ordered]@{ variants = @($variant) }
+    $failures = New-Object 'System.Collections.Generic.List[object]'
+    $actual = Get-ValidationSceneOracleValue -Scene $scene -Name 'warmedRepresentativeVariantCount' -Failures $failures -Code 'direct-oracle'
+
+    Assert-Harness -Condition ($null -eq $actual) -Message "Case '$Name' did not reject the malformed oracle fixture."
+    Assert-Harness -Condition ($failures.Count -eq 1) -Message "Case '$Name' recorded an unexpected number of oracle failures."
+    Assert-Harness -Condition ([string]$failures[0].code -eq 'direct-oracle') -Message "Case '$Name' recorded an unexpected oracle failure code."
+    Assert-Harness -Condition ([string]$failures[0].message -eq 'Variant evidence is missing a warmed representative variant.') -Message "Case '$Name' recorded an unexpected oracle failure message."
+}
+
     }
 
-    It 'rejects true packageContainsPureBaseTestAssets' {
-        Invoke-ValidatorCase -Name 'package-test-assets-present' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'legacy-release-boundary-test-assets' -Mutate {
-            param($artifacts)
-            $auditPath = Join-Path $artifacts.legacy 'release-boundary-audit.json'
-            $audit = Get-Content -LiteralPath $auditPath -Raw | ConvertFrom-Json
-            $audit.packageContainsPureBaseTestAssets = $true
-            Write-Json -Path $auditPath -Value $audit
-        }
-    }
+    It 'preserves all synthetic parity acceptance and rejection contracts' {
+        $manifest = $script:manifest
+        $validatorPath = $script:validatorPath
+        $manifestPath = $script:manifestPath
+        $packageRoot = $script:packageRoot
+
+Invoke-ValidatorCase -Name 'happy-path' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $true
+Invoke-ValidatorCase -Name 'missing-package-test-assets-boolean' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'legacy-release-boundary-test-assets' -Mutate {
+    param($artifacts)
+    $auditPath = Join-Path $artifacts.legacy 'release-boundary-audit.json'
+    $audit = Get-Content -LiteralPath $auditPath -Raw | ConvertFrom-Json
+    $audit.PSObject.Properties.Remove('packageContainsPureBaseTestAssets')
+    Write-Json -Path $auditPath -Value $audit
+}
+Invoke-ValidatorCase -Name 'package-test-assets-present' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'legacy-release-boundary-test-assets' -Mutate {
+    param($artifacts)
+    $auditPath = Join-Path $artifacts.legacy 'release-boundary-audit.json'
+    $audit = Get-Content -LiteralPath $auditPath -Raw | ConvertFrom-Json
+    $audit.packageContainsPureBaseTestAssets = $true
+    Write-Json -Path $auditPath -Value $audit
 }
 Invoke-ValidatorCase -Name 'incomplete-legacy-row' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -Mutate {
     param($artifacts)
@@ -356,6 +398,22 @@ Invoke-ValidatorCase -Name 'unwarmed-variant-evidence' -Manifest $manifest -Vali
     $scene.variants[0].warmed = $false
     Write-Json -Path $scenePath -Value $scene
 }
+Invoke-ValidatorCase -Name 'missing-warmed-variant-evidence' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -Mutate {
+    param($artifacts)
+    $scenePath = Join-Path $artifacts.legacy 'validation-scene-birp/Artifacts/purebase-validation-scene-birp.json'
+    $scene = Get-Content -LiteralPath $scenePath -Raw | ConvertFrom-Json
+    $scene.variants[0].PSObject.Properties.Remove('warmed')
+    Write-Json -Path $scenePath -Value $scene
+}
+Invoke-ValidatorCase -Name 'missing-variant-count-evidence' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -Mutate {
+    param($artifacts)
+    $scenePath = Join-Path $artifacts.legacy 'validation-scene-birp/Artifacts/purebase-validation-scene-birp.json'
+    $scene = Get-Content -LiteralPath $scenePath -Raw | ConvertFrom-Json
+    $scene.variants[0].PSObject.Properties.Remove('variantCount')
+    Write-Json -Path $scenePath -Value $scene
+}
+Invoke-ValidationSceneOracleCase -Name 'direct-missing-warmed-property' -MissingProperty 'warmed' -ValidatorPath $validatorPath
+Invoke-ValidationSceneOracleCase -Name 'direct-missing-variant-count-property' -MissingProperty 'variantCount' -ValidatorPath $validatorPath
 Invoke-ValidatorCase -Name 'fixed-evidence-mismatch' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -Mutate {
     param($artifacts)
     $scenePath = Join-Path $artifacts.legacy 'validation-scene-birp/Artifacts/purebase-validation-scene-birp.json'
@@ -493,4 +551,5 @@ Invoke-ValidatorCase -Name 'semantic-unclassified' -Manifest $manifest -Validato
     Write-Json -Path (Join-Path $artifacts.release 'bootstrap/semantic-transition-report.json') -Value ([ordered]@{ schemaName = 'purebase-first-bootstrap-semantic-transition'; schemaVersion = 1; verdict = 'accepted'; summary = [ordered]@{ accepted = 33; rejected = 0; unclassified = 1 } })
 }
 Invoke-ValidatorCase -Name 'package-root-report' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ReportUnderPackageRoot
-Write-Output 'Validate-PureBaseParity.Tests.ps1 passed.'
+    }
+}
