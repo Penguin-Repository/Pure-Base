@@ -50,9 +50,34 @@ Describe 'Pure-Base CI Unity project generation' {
             "m_EditorVersion: 2022.3.22f1`nm_EditorVersionWithRevision: 2022.3.22f1 (887be4894c44)`n",
             [Text.UTF8Encoding]::new($false)
         )
+        $qualitySettingsFixture = @'
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!47 &1
+QualitySettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 5
+  m_CurrentQuality: 2
+  m_QualitySettings:
+  - serializedVersion: 3
+    name: VRC High
+    pixelLightCount: 8
+    shadows: 2
+    shadowResolution: 3
+    shadowProjection: 1
+    shadowCascades: 4
+    shadowDistance: 150
+    shadowNearPlaneOffset: 2
+    antiAliasing: 4
+'@
+        [IO.File]::WriteAllText(
+            (Join-Path $consumerSettings 'QualitySettings.asset'),
+            $qualitySettingsFixture + "`n",
+            [Text.UTF8Encoding]::new($false)
+        )
     }
 
-    It 'pins Unity, Linear color space, text serialization, and test framework version' {
+    It 'pins Unity, test framework, owner scene, and reviewed VRChat-project quality snapshot without installing the SDK' {
         & $projectBuilder -ProjectRoot $projectRoot
 
         $projectVersion = Get-Content -LiteralPath (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt') -Raw
@@ -61,11 +86,26 @@ Describe 'Pure-Base CI Unity project generation' {
 
         $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'Packages/manifest.json') -Raw | ConvertFrom-Json
         Assert-CiProjectHarness -Condition ([string]$manifest.dependencies.'com.unity.test-framework' -eq '1.1.33') -Message 'Generated CI manifest does not pin the Unity Test Framework.'
+        foreach ($vrchatPackage in @('com.vrchat.base', 'com.vrchat.avatars', 'com.vrchat.worlds')) {
+            Assert-CiProjectHarness -Condition ($null -eq $manifest.dependencies.$vrchatPackage) -Message "Generated CI project must not imply full VRChat SDK parity by installing '$vrchatPackage'."
+        }
+        Assert-CiProjectHarness -Condition (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs'))) -Message 'Generated CI project must not create transient bootstrap code.'
 
-        $bootstrap = Get-Content -LiteralPath (Join-Path $projectRoot 'Assets/Editor/PureBaseCiBootstrap.cs') -Raw
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'Application\.unityVersion != "2022\.3\.22f1"') -Message 'Generated CI bootstrap does not pin the Unity version.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'PlayerSettings\.colorSpace = ColorSpace\.Linear;') -Message 'Generated CI bootstrap does not require Linear color space.'
-        Assert-CiProjectHarness -Condition ($bootstrap -match 'EditorSettings\.serializationMode = SerializationMode\.ForceText;') -Message 'Generated CI bootstrap does not require text serialization.'
+        $ownerScenePath = Join-Path $projectRoot 'Assets/Pure-Base.unity'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $ownerScenePath -PathType Leaf) -Message 'Generated CI project must include the persisted owner scene required by Daily restoration tests.'
+        $ownerScene = Get-Content -LiteralPath $ownerScenePath -Raw
+        Assert-CiProjectHarness -Condition ($ownerScene -match 'SceneRoots:') -Message 'Generated owner scene is not a serialized Unity scene.'
+        Assert-CiProjectHarness -Condition ($ownerScene -match 'm_Roots: \[\]') -Message 'Generated owner scene must remain empty.'
+
+        $qualitySettingsPath = Join-Path $projectRoot 'ProjectSettings/QualitySettings.asset'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $qualitySettingsPath -PathType Leaf) -Message 'Generated CI project is missing the reviewed VRChat-project QualitySettings snapshot.'
+        $qualitySettings = Get-Content -LiteralPath $qualitySettingsPath -Raw
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'm_CurrentQuality: 2') -Message 'Generated CI project must select the reviewed VRC High snapshot level.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'name: VRC High') -Message 'Generated CI project is missing the VRC High snapshot profile.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowResolution: 3') -Message 'Generated CI project must preserve the reviewed shadow resolution.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowCascades: 4') -Message 'Generated CI project must preserve four shadow cascades.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowDistance: 150') -Message 'Generated CI project must preserve the reviewed shadow distance.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'antiAliasing: 4') -Message 'Generated CI project must preserve 4x MSAA.'
     }
 
     It 'rejects an unexpected Shader-Core version' {

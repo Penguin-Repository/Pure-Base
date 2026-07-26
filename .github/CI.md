@@ -18,18 +18,25 @@ limitations under the License.
 
 ## Unity runner
 
-Daily and release validation use a dedicated Windows x64 runner with all of these labels:
+Daily and release validation run on GitHub-hosted `windows-2022` runners. Each run installs Unity
+2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal through
+`buildalon/activate-unity-license`, and exports the discovered Editor path to the existing validation
+scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
+to avoid repeating the full Editor installation on every run. Cache misses are reported but do not
+fail validation because `setup-unity-cli` can install or restore the Editor in the current job.
 
-- `self-hosted`
-- `Windows`
-- `X64`
-- `unity-2022.3.22f1`
+Create these Actions secrets for Unity Personal activation:
 
-The runner must provide an activated Unity Editor at
-`C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe`.
-Use an ephemeral or disposable runner image. The repository is public, and Unity validation
-executes repository code. The Daily workflow rejects fork pull requests and runs pull request
-code only when the head branch belongs to this repository.
+- `UNITY_EMAIL`: email address of the Unity ID used for CI.
+- `UNITY_PASSWORD`: password of the Unity ID used for CI.
+
+Use a real human Unity ID. Service accounts do not have a Unity Personal entitlement. Personal
+activation does not use a serial number. The activation Action uses Unity Licensing Client and its
+post-job handler releases the ephemeral runner's entitlement automatically. Third-party Actions are
+pinned to audited commits rather than moving tags.
+
+The repository is public, and Unity validation executes repository code. The Daily workflow rejects
+fork pull requests and runs pull request code only when the head branch belongs to this repository.
 
 The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
 embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.9`, matching the exact
@@ -39,6 +46,29 @@ validation.
 Pure Base does not automatically accept future `0.1.x` versions because Shader-Core has no declared
 0.x compatibility guarantee, and its importer, ProjectSettings, and method-shape contracts are
 compatibility-sensitive. Each future version requires explicit review and an updated pin.
+
+## VRChat SDK parity boundary
+
+The generated CI project intentionally does **not** install `com.vrchat.base`,
+`com.vrchat.avatars`, or `com.vrchat.worlds`. No VRChat SDK editor initialization or Project Setup
+code runs in CI.
+
+`Tests/Release/ConsumerProject/ProjectSettings/QualitySettings.asset` is a reviewed snapshot copied
+from a local Unity 2022.3.22f1 VRChat project after its VRC-named quality profiles had been
+established. CI copies that snapshot into the generated project and validates the selected
+`VRC High` profile and its exact shadow and MSAA values at runtime.
+
+This distinction is intentional:
+
+- The name `VRC High` records the snapshot's project provenance; it does not prove that the VRChat
+  SDK is installed in CI.
+- Daily validates Pure-Base rendering under the captured Unity `QualitySettings` values. It does not
+  claim full behavioral equivalence with a project containing the VRChat SDK.
+- After a VRChat SDK upgrade, reimport, or Project Setup operation, compare the local
+  `ProjectSettings/QualitySettings.asset` with the committed snapshot. If any profile name or value
+  changes, update the snapshot, the CI assertions, and any affected reviewed rendering baseline.
+- Tests that depend on VRChat SDK APIs, scripting defines, import hooks, or build behavior must add
+  separately pinned SDK packages. The QualitySettings snapshot is not a substitute for those tests.
 
 ## Repository configuration
 
@@ -71,11 +101,14 @@ validation and stops without changing the repository when the setting is not ena
 `Daily` runs `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` followed by `-Mode Daily` on every
 push and on non-draft pull requests whose head branch belongs to Pure-Base. The authorization job
 uses the tested `Resolve-PureBaseDailySource` helper from the base workflow checkout. Fork pull
-requests are rejected before a self-hosted runner is allocated and without checking out or
-executing their code on the Unity runner.
+requests are rejected before Unity is installed and without checking out or executing their code on
+the Windows runner.
 
-`Release validation` is manual and read-only. It runs the full release consumer validation and
-uploads the complete evidence directory, including a versioned copy of the audited package ZIP.
+`Release validation` is manual and read-only. Configure/import runs through the Unity watchdog
+proxy. The audited release-validation runner receives the real `Unity.exe`, because it intentionally
+rejects wrapper executables while proving the required Unity version from the editor path. The
+workflow uploads the complete evidence directory, including a versioned copy of the audited package
+ZIP.
 
 `Release` is manual and requires the exact version currently stored in `update_trigger.json`.
 For a new release, that version must be newer than `package.json`. The workflow validates the
@@ -92,7 +125,8 @@ filling a draft before publication minimizes the immutable release failure windo
 `Automation tests` runs Pester on GitHub-hosted Linux runners. The tests cover stable version
 validation, fresh and resume release mode decisions, missing and mismatched tags, VPM dispatch URLs
 and hashes, fork and draft PR rejection, immutable-release preflight behavior, and the generated
-Unity project version, Linear color space, text serialization, and Shader-Core pin.
+Unity project version, QualitySettings snapshot, VRChat SDK exclusion, test framework, and
+Shader-Core pin.
 
 `CodeQL` runs on GitHub-hosted Linux runners for C# and GitHub Actions. HLSL and PowerShell are not
 CodeQL languages and remain covered by the Unity, release validation, and Pester automation tests.
