@@ -151,29 +151,32 @@ Describe 'Daily source authorization' {
 
     It 'accepts a non-draft branch from the same repository' {
         $result = Resolve-PureBaseDailySource `
-            -EventName pull_request_target `
+            -EventName pull_request `
             -Repository 'PenguinDOOM/Pure-Base' `
             -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
-            -PullRequestHeadSha 'abc123'
+            -PullRequestHeadSha 'abc123' `
+            -PullRequestAuthor 'octocat'
         $result.Allowed | Should -BeTrue
         $result.CheckoutRef | Should -Be 'abc123'
     }
 
     It 'accepts repository identity with different owner or repository casing' {
         $result = Resolve-PureBaseDailySource `
-            -EventName pull_request_target `
+            -EventName pull_request `
             -Repository 'PenguinDOOM/Pure-Base' `
             -PullRequestHeadRepository 'penguindoom/pure-base' `
-            -PullRequestHeadSha 'abc123'
+            -PullRequestHeadSha 'abc123' `
+            -PullRequestAuthor 'octocat'
         $result.Allowed | Should -BeTrue
     }
 
     It 'rejects an external fork before runner allocation' {
         $result = Resolve-PureBaseDailySource `
-            -EventName pull_request_target `
+            -EventName pull_request `
             -Repository 'PenguinDOOM/Pure-Base' `
             -PullRequestHeadRepository 'someone/Pure-Base' `
-            -PullRequestHeadSha 'abc123'
+            -PullRequestHeadSha 'abc123' `
+            -PullRequestAuthor 'octocat'
         $result.Allowed | Should -BeFalse
         $result.CheckoutRef | Should -BeNullOrEmpty
         $result.Reason | Should -Be 'external pull request'
@@ -181,13 +184,62 @@ Describe 'Daily source authorization' {
 
     It 'rejects draft pull requests' {
         $result = Resolve-PureBaseDailySource `
-            -EventName pull_request_target `
+            -EventName pull_request `
             -Repository 'PenguinDOOM/Pure-Base' `
             -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
             -PullRequestHeadSha 'abc123' `
+            -PullRequestAuthor 'octocat' `
             -PullRequestDraft $true
         $result.Allowed | Should -BeFalse
         $result.Reason | Should -Be 'draft pull request'
+    }
+
+    It 'rejects Dependabot pull requests' {
+        $result = Resolve-PureBaseDailySource `
+            -EventName pull_request `
+            -Repository 'PenguinDOOM/Pure-Base' `
+            -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+            -PullRequestHeadSha 'abc123' `
+            -PullRequestAuthor 'dependabot[bot]'
+        $result.Allowed | Should -BeFalse
+        $result.CheckoutRef | Should -BeNullOrEmpty
+        $result.Reason | Should -Be 'dependabot pull request'
+    }
+
+    It 'rejects the legacy pull request target event' {
+        {
+            Resolve-PureBaseDailySource `
+                -EventName pull_request_target `
+                -Repository 'PenguinDOOM/Pure-Base' `
+                -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+                -PullRequestHeadSha 'abc123'
+        } | Should -Throw "*Unsupported Daily event 'pull_request_target'*"
+    }
+
+    It 'rejects unknown events' {
+        {
+            Resolve-PureBaseDailySource `
+                -EventName workflow_dispatch `
+                -Repository 'PenguinDOOM/Pure-Base'
+        } | Should -Throw "*Unsupported Daily event 'workflow_dispatch'*"
+    }
+
+    It 'rejects pushes without a commit SHA' {
+        {
+            Resolve-PureBaseDailySource `
+                -EventName push `
+                -Repository 'PenguinDOOM/Pure-Base'
+        } | Should -Throw '*Push events require a commit SHA*'
+    }
+
+    It 'rejects pull requests without a head SHA' {
+        {
+            Resolve-PureBaseDailySource `
+                -EventName pull_request `
+                -Repository 'PenguinDOOM/Pure-Base' `
+                -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+                -PullRequestAuthor 'octocat'
+        } | Should -Throw '*Trusted pull requests require a head commit SHA*'
     }
 }
 
@@ -306,5 +358,40 @@ Describe 'Production workflow integration' {
         $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
         $dailyWorkflow | Should -Match 'Resolve-PureBaseDailySource'
         $dailyWorkflow | Should -Match "needs: authorize\s+if: needs\.authorize\.outputs\.allowed == 'true'\s+runs-on:"
+        $dailyWorkflow | Should -Match 'ref: \$\{\{ needs\.authorize\.outputs\.checkout_ref \}\}'
+    }
+
+    It 'uses the pull request trigger with exactly the supported activity types' {
+        $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
+        $triggerMatch = [regex]::Match($dailyWorkflow, '(?ms)^  pull_request:\r?\n(?<body>.*?)(?=^permissions:)')
+        $triggerMatch.Success | Should -BeTrue
+
+        $activityTypes = @(
+            [regex]::Matches($triggerMatch.Groups['body'].Value, '(?m)^\s+-\s+([^\s]+)\s*$') |
+                ForEach-Object { $_.Groups[1].Value }
+        )
+        $activityTypes.Count | Should -Be 4
+        ($activityTypes -join ',') | Should -Be 'opened,synchronize,reopened,ready_for_review'
+    }
+
+    It 'does not use the privileged pull request target event' {
+        $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
+        $dailyWorkflow | Should -Not -Match 'pull_request_target'
+    }
+
+    It 'does not opt into unsafe pull request checkout' {
+        $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
+        $dailyWorkflow | Should -Not -Match 'allow-unsafe-pr-checkout'
+    }
+
+    It 'rejects unauthorized pull requests in the rejection job' {
+        $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
+        $dailyWorkflow | Should -Match "(?ms)reject-untrusted-pull-request:.*?needs: authorize\s+if: github\.event_name == 'pull_request' && needs\.authorize\.outputs\.allowed != 'true'"
+    }
+
+    It 'passes the pull request author from the event into the resolver' {
+        $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
+        $dailyWorkflow | Should -Match 'PR_AUTHOR: \$\{\{ github\.event\.pull_request\.user\.login \}\}'
+        $dailyWorkflow | Should -Match '(?ms)Resolve-PureBaseDailySource.*-PullRequestAuthor\s+\$env:PR_AUTHOR'
     }
 }
