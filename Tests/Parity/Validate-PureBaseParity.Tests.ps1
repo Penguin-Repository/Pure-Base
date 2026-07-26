@@ -22,6 +22,7 @@ Describe 'Validate-PureBaseParity synthetic artifact contracts' {
     BeforeAll {
         Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
+    . (Join-Path $PSScriptRoot 'Validate-PureBaseParity.Oracle.ps1')
 
 function Assert-Harness {
     param([Parameter(Mandatory = $true)][bool]$Condition, [Parameter(Mandatory = $true)][string]$Message)
@@ -242,21 +243,6 @@ function Invoke-ValidationSceneOracleCase {
         [Parameter(Mandatory = $true)][string]$MissingProperty,
         [Parameter(Mandatory = $true)][string]$ValidatorPath
     )
-
-    $source = [System.IO.File]::ReadAllText($ValidatorPath)
-    $tokens = $null
-    $parseErrors = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseInput($source, [ref]$tokens, [ref]$parseErrors)
-    Assert-Harness -Condition (@($parseErrors).Count -eq 0) -Message "Case '$Name' could not parse validator source."
-
-    foreach ($functionName in @('Add-Failure', 'Get-ArrayPropertyItems', 'Get-ValidationSceneOracleValue')) {
-        $functionAst = @($ast.FindAll({
-                param($node)
-                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName
-            }, $true)) | Select-Object -First 1
-        Assert-Harness -Condition ($null -ne $functionAst) -Message "Case '$Name' could not locate validator function '$functionName'."
-        Invoke-Expression -Command $functionAst.Extent.Text
-    }
 
     $variant = [pscustomobject][ordered]@{
         shader = 'PureBase/Unlit'
