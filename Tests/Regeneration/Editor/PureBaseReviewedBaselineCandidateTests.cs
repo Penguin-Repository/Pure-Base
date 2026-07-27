@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Defines reviewed-baseline contracts before merge, validation, or persistence behavior is implemented.
+// Defines reviewed-baseline merge, validation, and pre-write rejection contracts.
 
 using System;
 using System.Security.Cryptography;
@@ -26,7 +26,7 @@ using UnityEngine.Rendering;
 
 namespace PureBase.Tests.Regeneration
 {
-    /// <summary>Defines reviewed-baseline artifact contracts before their implementation is available.</summary>
+    /// <summary>Defines reviewed-baseline artifact merge and validation contracts.</summary>
     public sealed class PureBaseReviewedBaselineCandidateTests
     {
         /// <summary>Requires the merge to preserve every canonical field except exact PBR and Hybrid observations.</summary>
@@ -43,6 +43,8 @@ namespace PureBase.Tests.Regeneration
 
             Assert.That(candidate.schemaVersion, Is.EqualTo(PureBaseReviewedBaselineCandidate.SchemaVersion));
             Assert.That(candidate.approvedBaseline, Is.Not.SameAs(canonical));
+            AssertRange(candidate.canonicalPbrRange, canonical.metaAlbedo[2].meanLuminance);
+            AssertRange(candidate.canonicalHybridRange, canonical.metaAlbedo[3].meanLuminance);
             AssertCanonicalPreservation(canonical, candidate.approvedBaseline, observation);
         }
 
@@ -84,6 +86,25 @@ namespace PureBase.Tests.Regeneration
             );
         }
 
+        /// <summary>Requires the builder to reject bytes that deserialize to different source observation evidence.</summary>
+        [Test]
+        public void CreateRejectsRawObservationBytesThatDoNotMatchItsSourceObservation()
+        {
+            PureBaseRegressionBaselineGenerator.ObservationCandidate differentObservation =
+                CreateObservation();
+            differentObservation.observation.metaAlbedo[2].meanLuminance = 0.9f;
+            differentObservation.exactBaseline.metaAlbedo[2].meanLuminance = FloatRange.Exact(0.9f);
+
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    PureBaseReviewedBaselineCandidate.Create(
+                        CreateObservation(),
+                        CreateCanonicalBaseline(),
+                        SerializeObservation(differentObservation)
+                    )
+            );
+        }
+
         /// <summary>Requires the public SHA-256 API to use a known lowercase hexadecimal vector.</summary>
         [Test]
         public void ComputeSha256UsesKnownLowercaseHexadecimalVector()
@@ -119,6 +140,7 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Requires missing, unsupported, and malformed observation schemas to reject before any write.</summary>
         /// <param name="condition">The single observation schema condition to invalidate.</param>
         [TestCase("missing")]
+        [TestCase("legacy")]
         [TestCase("unsupported")]
         [TestCase("malformed")]
         public void ApplyFromArtifactsRejectsObservationSchemaFailuresBeforeWrites(string condition)
@@ -143,6 +165,7 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Requires missing, unsupported, and malformed reviewed schemas to reject before any write.</summary>
         /// <param name="condition">The single reviewed schema condition to invalidate.</param>
         [TestCase("missing")]
+        [TestCase("legacy")]
         [TestCase("unsupported")]
         [TestCase("malformed")]
         public void ApplyFromArtifactsRejectsReviewedSchemaFailuresBeforeWrites(string condition)
@@ -157,7 +180,9 @@ namespace PureBase.Tests.Regeneration
                 PureBaseReviewedBaselineCandidate candidate = CreateReviewedCandidate();
                 candidate.schemaVersion = condition == "missing"
                     ? 0
-                    : PureBaseReviewedBaselineCandidate.SchemaVersion + 1;
+                    : condition == "legacy"
+                        ? PureBaseReviewedBaselineCandidate.SchemaVersion - 1
+                        : PureBaseReviewedBaselineCandidate.SchemaVersion + 1;
                 reviewedBytes = SerializeReviewed(candidate);
             }
 
@@ -334,6 +359,18 @@ namespace PureBase.Tests.Regeneration
             AssertApplyRejection(CreateReviewedCandidate(), CreateObservation(), staleCanonical);
         }
 
+        /// <summary>Requires either reviewed writable target range to remain unchanged from artifact creation.</summary>
+        /// <param name="index">The sole canonical PBR or Hybrid target index to change.</param>
+        [TestCase(2)]
+        [TestCase(3)]
+        public void ApplyRejectsChangedCanonicalTargetRangeBeforeWrites(int index)
+        {
+            SceneRegressionBaseline changedCanonical = CreateCanonicalBaseline();
+            changedCanonical.metaAlbedo[index].meanLuminance.maximum += 0.01f;
+
+            AssertApplyRejection(CreateReviewedCandidate(), CreateObservation(), changedCanonical);
+        }
+
         /// <summary>Requires each artifact path to be read exactly once even if a second read would change content.</summary>
         [Test]
         public void ApplyFromArtifactsReadsEachArtifactPathExactlyOnce()
@@ -341,51 +378,164 @@ namespace PureBase.Tests.Regeneration
             var reader = CreateReader(CreateObservationBytes(), CreateReviewedBytes());
             var writer = new RecordingWriter();
             var boundary = new RecordingWriteBoundary();
-            try
-            {
-                PureBaseReviewedBaselineCandidate.ApplyFromArtifacts(
-                    reader,
-                    ObservationPath,
-                    ReviewedPath,
-                    CreateCanonicalBaseline(),
-                    writer,
-                    boundary
-                );
-            }
-            catch (NotSupportedException exception)
-            {
-                AssertUnimplemented(exception);
-                AssertNoWrites(writer, boundary);
-                Assert.That(reader.ObservationReads, Is.Zero);
-                Assert.That(reader.ReviewedReads, Is.Zero);
-                Assert.Fail("Reviewed-baseline apply behavior is intentionally RED until reviewed-artifact operations are implemented.");
-            }
+            PureBaseReviewedBaselineCandidate.ApplyFromArtifacts(
+                reader,
+                ObservationPath,
+                ReviewedPath,
+                CreateCanonicalBaseline(),
+                writer,
+                boundary
+            );
 
             Assert.That(reader.ObservationReads, Is.EqualTo(1));
             Assert.That(reader.ReviewedReads, Is.EqualTo(1));
         }
 
-        /// <summary>Creates a candidate while preserving the deterministic deliberately-unimplemented RED checkpoint.</summary>
+        /// <summary>Requires reviewed-artifact creation to read a valid raw observation exactly once before one output.</summary>
+        [Test]
+        public void CreateFromArtifactsReadsObservationExactlyOnceBeforeWritingReviewedArtifact()
+        {
+            var reader = CreateReader(CreateObservationBytes(), CreateReviewedBytes());
+            var writer = new RecordingArtifactWriter();
+
+            PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                reader,
+                ObservationPath,
+                ReviewedPath,
+                CreateValidEnvironment(),
+                CreateCanonicalBaseline(),
+                writer
+            );
+
+            Assert.That(reader.ObservationReads, Is.EqualTo(1));
+            Assert.That(reader.ReviewedReads, Is.Zero);
+            Assert.That(writer.WriteCalls, Is.EqualTo(1));
+            Assert.That(writer.LastPath, Is.EqualTo(ReviewedPath));
+        }
+
+        /// <summary>Requires each invalid create command line to reject before artifact reads or output.</summary>
+        /// <param name="condition">The single command-line condition to invalidate.</param>
+        /// <param name="observationPath">Whether to invalidate the observation path.</param>
+        [TestCase("missing", true)]
+        [TestCase("duplicate", true)]
+        [TestCase("empty", true)]
+        [TestCase("trailing", true)]
+        [TestCase("missing", false)]
+        [TestCase("duplicate", false)]
+        [TestCase("empty", false)]
+        [TestCase("trailing", false)]
+        public void CreateFromCommandLineRejectsArgumentFailuresBeforeReadsOrOutput(
+            string condition,
+            bool observationPath
+        )
+        {
+            var reader = CreateReader(CreateObservationBytes(), CreateReviewedBytes());
+            var writer = new RecordingArtifactWriter();
+
+            AssertCreateRejectedBeforeOutput(
+                () => PureBaseReviewedBaselineCandidate.CreateFromCommandLine(
+                    reader,
+                    CreateInvalidArguments(condition, observationPath),
+                    CreateValidEnvironment(),
+                    CreateCanonicalBaseline(),
+                    writer
+                ),
+                reader,
+                writer,
+                0
+            );
+        }
+
+        /// <summary>Requires raw schema and cross-use failures to reject after one reached read and before output.</summary>
+        /// <param name="condition">The single raw artifact condition to invalidate.</param>
+        [TestCase("schema")]
+        [TestCase("cross-use")]
+        public void CreateFromArtifactsRejectsSchemaAndCrossUseBeforeOutput(string condition)
+        {
+            byte[] observationBytes = condition == "schema"
+                ? Encoding.UTF8.GetBytes("{\"schemaVersion\":0}")
+                : CreateReviewedBytes();
+            var reader = CreateReader(observationBytes, CreateReviewedBytes());
+            var writer = new RecordingArtifactWriter();
+
+            AssertCreateRejectedBeforeOutput(
+                () => PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                    reader,
+                    ObservationPath,
+                    ReviewedPath,
+                    CreateValidEnvironment(),
+                    CreateCanonicalBaseline(),
+                    writer
+                ),
+                reader,
+                writer,
+                1
+            );
+        }
+
+        /// <summary>Requires an incompatible create environment to reject before input reads or output.</summary>
+        [Test]
+        public void CreateFromArtifactsRejectsEnvironmentFailureBeforeReadsOrOutput()
+        {
+            var reader = CreateReader(CreateObservationBytes(), CreateReviewedBytes());
+            var writer = new RecordingArtifactWriter();
+
+            AssertCreateRejectedBeforeOutput(
+                () => PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                    reader,
+                    ObservationPath,
+                    ReviewedPath,
+                    new CandidateEnvironment("different", true, GraphicsDeviceType.Direct3D11, ColorSpace.Linear),
+                    CreateCanonicalBaseline(),
+                    writer
+                ),
+                reader,
+                writer,
+                0
+            );
+        }
+
+        /// <summary>Requires invalid observation diagnostics and identities to reject after one reached read and before output.</summary>
+        /// <param name="condition">The single raw observation condition to invalidate.</param>
+        [TestCase("observation")]
+        [TestCase("identity")]
+        public void CreateFromArtifactsRejectsObservationAndIdentityFailuresBeforeOutput(string condition)
+        {
+            PureBaseRegressionBaselineGenerator.ObservationCandidate observation = CreateObservation();
+            if (condition == "observation")
+                observation.observation.dynamicLightmapStatus = "different";
+            else
+                observation.observation.metaAlbedo[2].shaderName = "PureBase/Unexpected";
+            var reader = CreateReader(SerializeObservation(observation), CreateReviewedBytes());
+            var writer = new RecordingArtifactWriter();
+
+            AssertCreateRejectedBeforeOutput(
+                () => PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                    reader,
+                    ObservationPath,
+                    ReviewedPath,
+                    CreateValidEnvironment(),
+                    CreateCanonicalBaseline(),
+                    writer
+                ),
+                reader,
+                writer,
+                1
+            );
+        }
+
+        /// <summary>Creates a reviewed candidate through the merge boundary.</summary>
         /// <param name="observation">The complete valid observation fixture.</param>
         /// <param name="canonical">The complete valid canonical baseline fixture.</param>
         /// <param name="bytes">The exact serialized observation bytes.</param>
-        /// <returns>The created candidate after behavior is implemented.</returns>
+        /// <returns>The created reviewed candidate.</returns>
         private static PureBaseReviewedBaselineCandidate CreateUnderTest(
             PureBaseRegressionBaselineGenerator.ObservationCandidate observation,
             SceneRegressionBaseline canonical,
             byte[] bytes
         )
         {
-            try
-            {
-                return PureBaseReviewedBaselineCandidate.Create(observation, canonical, bytes);
-            }
-            catch (NotSupportedException exception)
-            {
-                AssertUnimplemented(exception);
-                Assert.Fail("Reviewed-baseline merge behavior is intentionally RED until reviewed-artifact operations are implemented.");
-                return null;
-            }
+            return PureBaseReviewedBaselineCandidate.Create(observation, canonical, bytes);
         }
 
         /// <summary>Asserts a command-line input rejects before transaction, writer, and storage access.</summary>
@@ -469,6 +619,24 @@ namespace PureBase.Tests.Regeneration
             );
         }
 
+        /// <summary>Asserts create input rejection reaches no output operation after the expected raw read count.</summary>
+        /// <param name="operation">The create operation expected to reject.</param>
+        /// <param name="reader">The artifact reader whose observation reads are counted.</param>
+        /// <param name="writer">The reviewed artifact writer that must remain unused.</param>
+        /// <param name="expectedObservationReads">The expected observation-path reads.</param>
+        private static void AssertCreateRejectedBeforeOutput(
+            Action operation,
+            RecordingArtifactReader reader,
+            RecordingArtifactWriter writer,
+            int expectedObservationReads
+        )
+        {
+            Assert.Throws<InvalidOperationException>(() => operation());
+            Assert.That(reader.ObservationReads, Is.EqualTo(expectedObservationReads));
+            Assert.That(reader.ReviewedReads, Is.Zero);
+            Assert.That(writer.WriteCalls, Is.Zero);
+        }
+
         /// <summary>Asserts an invalid input does not reach any mutable boundary.</summary>
         /// <param name="operation">The operation expected to reject.</param>
         /// <param name="writer">The writer that must remain unused.</param>
@@ -490,29 +658,12 @@ namespace PureBase.Tests.Regeneration
                 operation();
                 Assert.Fail("Invalid reviewed-baseline input reached a write boundary.");
             }
-            catch (NotSupportedException exception)
-            {
-                AssertUnimplemented(exception);
-                AssertNoWrites(writer, boundary);
-                AssertArtifactReads(reader, 0, 0);
-                Assert.Fail("Reviewed-baseline validation behavior is intentionally RED until reviewed-artifact operations are implemented.");
-            }
             catch (InvalidOperationException)
             {
             }
 
             AssertNoWrites(writer, boundary);
             AssertArtifactReads(reader, expectedObservationReads, expectedReviewedReads);
-        }
-
-        /// <summary>Asserts the deterministic exception emitted by every unavailable reviewed-baseline operation.</summary>
-        /// <param name="exception">The unavailable-operation exception.</param>
-        private static void AssertUnimplemented(NotSupportedException exception)
-        {
-            Assert.That(
-                exception.Message,
-                Is.EqualTo(PureBaseReviewedBaselineCandidate.UnimplementedOperationMessage)
-            );
         }
 
         /// <summary>Asserts no transaction, writer, or simulated storage backend call occurred.</summary>
@@ -715,8 +866,22 @@ namespace PureBase.Tests.Regeneration
             {
                 schemaVersion = PureBaseReviewedBaselineCandidate.SchemaVersion,
                 sourceObservationSha256 = ComputeFixtureSha256(CreateObservationBytes()),
+                canonicalPbrRange = new FloatRange { minimum = 0.05f, maximum = 0.06f },
+                canonicalHybridRange = new FloatRange { minimum = 0.07f, maximum = 0.08f },
                 approvedBaseline = approved,
             };
+        }
+
+        /// <summary>Creates the fixed compatible environment used by reviewed-artifact creation tests.</summary>
+        /// <returns>The compatible editor environment.</returns>
+        private static PureBaseRegressionBaselineGenerator.IEnvironment CreateValidEnvironment()
+        {
+            return new CandidateEnvironment(
+                PureBaseValidationSceneRegressionTests.ExpectedUnityVersion,
+                true,
+                GraphicsDeviceType.Direct3D11,
+                ColorSpace.Linear
+            );
         }
 
         /// <summary>Creates a Meta observation entry.</summary>
@@ -895,6 +1060,53 @@ namespace PureBase.Tests.Regeneration
 
                 throw new InvalidOperationException($"Unexpected artifact path '{path}'.");
             }
+        }
+
+        /// <summary>Records reviewed-artifact output without writing to the filesystem.</summary>
+        private sealed class RecordingArtifactWriter : PureBaseReviewedBaselineCandidate.IArtifactWriter
+        {
+            /// <summary>Gets the number of output calls.</summary>
+            public int WriteCalls { get; private set; }
+
+            /// <summary>Gets the most recent output path.</summary>
+            public string LastPath { get; private set; }
+
+            /// <inheritdoc />
+            public void WriteAllText(string path, string contents)
+            {
+                WriteCalls++;
+                LastPath = path;
+            }
+        }
+
+        /// <summary>Supplies fixed environment values without reading or changing the Unity editor.</summary>
+        private sealed class CandidateEnvironment : PureBaseRegressionBaselineGenerator.IEnvironment
+        {
+            /// <summary>Initializes fixed environment values.</summary>
+            public CandidateEnvironment(
+                string unityVersion,
+                bool isBuiltInRenderPipeline,
+                GraphicsDeviceType graphicsDeviceType,
+                ColorSpace colorSpace
+            )
+            {
+                UnityVersion = unityVersion;
+                IsBuiltInRenderPipeline = isBuiltInRenderPipeline;
+                GraphicsDeviceType = graphicsDeviceType;
+                ColorSpace = colorSpace;
+            }
+
+            /// <inheritdoc />
+            public string UnityVersion { get; }
+
+            /// <inheritdoc />
+            public bool IsBuiltInRenderPipeline { get; }
+
+            /// <inheritdoc />
+            public GraphicsDeviceType GraphicsDeviceType { get; }
+
+            /// <inheritdoc />
+            public ColorSpace ColorSpace { get; }
         }
 
         /// <summary>Records reviewed-writer and simulated storage-backend calls without persistence.</summary>
