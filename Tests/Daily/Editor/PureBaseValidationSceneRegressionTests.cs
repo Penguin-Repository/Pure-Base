@@ -52,8 +52,14 @@ namespace PureBase.Tests.Daily
         /// <summary>Defines the fixed readback dimension.</summary>
         public const int RenderSize = 160;
 
+        /// <summary>Defines the fixed pixel coverage of the Meta mesh after Unity maps its lightmap UVs.</summary>
+        private const int MetaMeshPixelCount = (RenderSize * RenderSize) / 4;
+
         /// <summary>Defines the lowest accepted mean luminance for each Meta material observation.</summary>
         public const float MinimumMetaLuminance = 0.001f;
+
+        /// <summary>Defines the absolute tolerance for transient Meta RGB and luminance readback contracts.</summary>
+        private const float MetaCaptureTolerance = 0.002f;
 
         /// <summary>Defines the lowest accepted changed-pixel count for the directional shadow observation.</summary>
         public const int MinimumShadowChangedPixelCount = 32;
@@ -69,6 +75,22 @@ namespace PureBase.Tests.Daily
             "PureBase/PBR",
             "PureBase/Hybrid",
         };
+
+        /// <summary>Selects Meta albedo output from Unity's Meta fragment.</summary>
+        private static readonly Vector4 MetaAlbedoFragmentControl = new Vector4(
+            1.0f,
+            0.0f,
+            0.0f,
+            0.0f
+        );
+
+        /// <summary>Selects Meta emission output from Unity's Meta fragment.</summary>
+        private static readonly Vector4 MetaEmissionFragmentControl = new Vector4(
+            0.0f,
+            1.0f,
+            0.0f,
+            0.0f
+        );
 
         /// <summary>Stores the one allocation point that focused cleanup tests force to fail.</summary>
         private static CaptureAllocationFault injectedCaptureAllocationFault;
@@ -141,6 +163,310 @@ namespace PureBase.Tests.Daily
                 UnityEngine.Object.DestroyImmediate(mesh);
                 state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
             }
+        }
+
+        /// <summary>Ensures the PBR hosts aggregate their clamped metallic BRDF terms using squared perceptual roughness.</summary>
+        [Test]
+        public void PbrAndHybridMetaAlbedoFollowsMetallicRoughnessFormula()
+        {
+            WithPbrAndHybridMaterials(materials =>
+            {
+                MetaFormulaCase[] cases =
+                {
+                    new MetaFormulaCase(
+                        "dielectric minimum roughness",
+                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                        -0.25f,
+                        -0.5f
+                    ),
+                    new MetaFormulaCase(
+                        "metallic quarter roughness",
+                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                        1.25f,
+                        0.25f
+                    ),
+                    new MetaFormulaCase(
+                        "metallic three-quarter roughness",
+                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                        1.25f,
+                        0.75f
+                    ),
+                    new MetaFormulaCase(
+                        "metallic maximum roughness",
+                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                        1.25f,
+                        2.0f
+                    ),
+                };
+
+                foreach (Material sourceMaterial in materials)
+                {
+                    foreach (MetaFormulaCase formulaCase in cases)
+                    {
+                        MetaCaptureReadback actual = RenderMetaCapture(
+                            sourceMaterial,
+                            material =>
+                                ConfigureMetaMaterial(
+                                    material,
+                                    formulaCase.albedo,
+                                    formulaCase.metallic,
+                                    formulaCase.roughness,
+                                    0.0f
+                                ),
+                            false,
+                            null,
+                            MetaAlbedoFragmentControl
+                        );
+                        Color expected = EvaluateExpectedMetaAlbedo(
+                            formulaCase.albedo,
+                            formulaCase.metallic,
+                            formulaCase.roughness,
+                            true
+                        );
+                        AssertMetaReadback(
+                            actual,
+                            expected,
+                            $"{sourceMaterial.shader.name} {formulaCase.name}"
+                        );
+
+                        if (formulaCase.metallic >= 1.0f && formulaCase.roughness < 1.0f)
+                        {
+                            Color unsquaredRoughness = EvaluateExpectedMetaAlbedo(
+                                formulaCase.albedo,
+                                formulaCase.metallic,
+                                formulaCase.roughness,
+                                false
+                            );
+                            Assert.That(
+                                MaximumAbsoluteRgbDifference(expected, unsquaredRoughness),
+                                Is.GreaterThanOrEqualTo(0.02f),
+                                $"{sourceMaterial.shader.name} {formulaCase.name} does not discriminate squared roughness."
+                            );
+                        }
+                    }
+                }
+            });
+        }
+
+        /// <summary>Ensures editor visualization receives the metallic diffuse term rather than raw albedo.</summary>
+        [Test]
+        public void PbrAndHybridMetaEditorVisualizationUsesDiffuseColor()
+        {
+            WithPbrAndHybridMaterials(materials =>
+            {
+                foreach (Material sourceMaterial in materials)
+                {
+                    MetaCaptureReadback actual = RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureMetaMaterial(
+                                material,
+                                new Color(0.6f, 0.6f, 0.6f, 1.0f),
+                                0.5f,
+                                0.002f,
+                                0.0f
+                            ),
+                        true,
+                        () => ConfigureEditorVisualizationGlobals(0.0f, 0.0f, 0.0f),
+                        MetaAlbedoFragmentControl
+                    );
+                    Assert.That(
+                        actual.finitePixelCount,
+                        Is.EqualTo(RenderSize * RenderSize),
+                        $"{sourceMaterial.shader.name} editor diffuse visualization produced non-finite samples."
+                    );
+                    Assert.That(
+                        actual.visiblePixelCount,
+                        Is.EqualTo(RenderSize * RenderSize),
+                        $"{sourceMaterial.shader.name} editor diffuse visualization did not cover the complete target."
+                    );
+                    AssertMetaColor(
+                        new Color(0.3f, 0.3f, 0.3f, 1.0f),
+                        actual.fullFrameMeanColor,
+                        $"{sourceMaterial.shader.name} editor diffuse visualization"
+                    );
+                }
+            });
+        }
+
+        /// <summary>Ensures pure-metal editor validation receives the BRDF specular color instead of a zero placeholder.</summary>
+        [Test]
+        public void PbrAndHybridMetaEditorVisualizationUsesSpecularColor()
+        {
+            WithPbrAndHybridMaterials(materials =>
+            {
+                foreach (Material sourceMaterial in materials)
+                {
+                    MetaCaptureReadback actual = RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureMetaMaterial(
+                                material,
+                                new Color(0.6f, 0.6f, 0.6f, 1.0f),
+                                1.0f,
+                                0.002f,
+                                0.0f
+                            ),
+                        true,
+                        () => ConfigureEditorVisualizationGlobals(1.0f, 0.0f, 1.0f),
+                        MetaAlbedoFragmentControl
+                    );
+                    Assert.That(
+                        actual.finitePixelCount,
+                        Is.EqualTo(RenderSize * RenderSize),
+                        $"{sourceMaterial.shader.name} pure-metal visualization produced non-finite samples."
+                    );
+                    Assert.That(
+                        actual.opaquePixelCount,
+                        Is.EqualTo(RenderSize * RenderSize),
+                        $"{sourceMaterial.shader.name} pure-metal visualization did not cover the complete transient mesh."
+                    );
+                    AssertMetaColor(
+                        Color.black,
+                        actual.meanColor,
+                        $"{sourceMaterial.shader.name} pure-metal visualization"
+                    );
+                }
+            });
+        }
+
+        /// <summary>Locks the Meta Cutout coverage and zero-emission behavior for both metallic shader hosts.</summary>
+        [Test]
+        public void PbrAndHybridMetaPreservesCutoutCoverageAndZeroEmission()
+        {
+            WithPbrAndHybridMaterials(materials =>
+            {
+                foreach (Material sourceMaterial in materials)
+                {
+                    MetaCaptureReadback discarded = RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureMetaMaterial(
+                                material,
+                                new Color(0.2f, 0.2f, 0.2f, 0.25f),
+                                0.0f,
+                                0.002f,
+                                0.5f
+                            ),
+                        false,
+                        null,
+                        MetaAlbedoFragmentControl
+                    );
+                    Assert.That(
+                        discarded.opaquePixelCount,
+                        Is.Zero,
+                        $"{sourceMaterial.shader.name} Meta pass ignored alpha cutoff."
+                    );
+
+                    MetaCaptureReadback visible = RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureMetaMaterial(
+                                material,
+                                new Color(0.2f, 0.2f, 0.2f, 0.75f),
+                                0.0f,
+                                0.002f,
+                                0.5f
+                            ),
+                        false,
+                        null,
+                        MetaAlbedoFragmentControl
+                    );
+                    Assert.That(
+                        visible.opaquePixelCount,
+                            Is.EqualTo(MetaMeshPixelCount),
+                        $"{sourceMaterial.shader.name} Meta pass did not render above alpha cutoff."
+                    );
+                    Assert.That(
+                        visible.visiblePixelCount,
+                            Is.EqualTo(MetaMeshPixelCount),
+                        $"{sourceMaterial.shader.name} Meta albedo was not visible above alpha cutoff."
+                    );
+
+                    MetaCaptureReadback emission = RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureMetaMaterial(
+                                material,
+                                new Color(0.2f, 0.2f, 0.2f, 0.75f),
+                                0.0f,
+                                0.002f,
+                                0.5f
+                            ),
+                        false,
+                        null,
+                        MetaEmissionFragmentControl
+                    );
+                    Assert.That(
+                        emission.finitePixelCount,
+                        Is.EqualTo(RenderSize * RenderSize),
+                        $"{sourceMaterial.shader.name} Meta emission produced non-finite samples."
+                    );
+                    Assert.That(
+                        emission.opaquePixelCount,
+                            Is.EqualTo(MetaMeshPixelCount),
+                        $"{sourceMaterial.shader.name} Meta emission did not cover the complete transient mesh."
+                    );
+                    AssertMetaColor(
+                        Color.black,
+                        emission.meanColor,
+                        $"{sourceMaterial.shader.name} Meta emission"
+                    );
+                }
+            });
+        }
+
+        /// <summary>Ensures visualization capture changes only its transient clone and restores every Meta and visualization global after success and readback failure.</summary>
+        [Test]
+        public void PbrAndHybridMetaCaptureRestoresVisualizationStateAfterSuccessAndReadbackFailure()
+        {
+            WithPbrAndHybridMaterials(materials =>
+            {
+                MetaGlobalState originalGlobals = MetaGlobalState.Capture();
+                foreach (Material sourceMaterial in materials)
+                {
+                    MetaSourceMaterialState originalMaterial = MetaSourceMaterialState.Capture(
+                        sourceMaterial
+                    );
+                    RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureMetaMaterial(
+                                material,
+                                new Color(0.6f, 0.6f, 0.6f, 1.0f),
+                                0.5f,
+                                0.002f,
+                                0.0f
+                            ),
+                        true,
+                        () => ConfigureEditorVisualizationGlobals(0.0f, 0.0f, 0.0f),
+                        MetaAlbedoFragmentControl
+                    );
+                    originalMaterial.AssertRestored(sourceMaterial);
+                    originalGlobals.AssertRestored();
+
+                    AssertCaptureAllocationFailure(
+                        CaptureAllocationFault.MetaBeforeReadback,
+                        () =>
+                            RenderMetaCapture(
+                                sourceMaterial,
+                                material =>
+                                    ConfigureMetaMaterial(
+                                        material,
+                                        new Color(0.6f, 0.6f, 0.6f, 1.0f),
+                                        0.5f,
+                                        0.002f,
+                                        0.0f
+                                    ),
+                                true,
+                                () => ConfigureEditorVisualizationGlobals(1.0f, 0.0f, 1.0f),
+                                MetaAlbedoFragmentControl
+                            )
+                    );
+                    originalMaterial.AssertRestored(sourceMaterial);
+                    originalGlobals.AssertRestored();
+                }
+            });
         }
 
         /// <summary>Ensures the regular additive-scene shadow capture is selected after an identical fixture confirms preview rendering has no silhouette.</summary>
@@ -934,6 +1260,30 @@ namespace PureBase.Tests.Daily
         /// <returns>The mean RGB luminance.</returns>
         private static float RenderMetaAlbedo(Material sourceMaterial)
         {
+            return RenderMetaCapture(
+                sourceMaterial,
+                null,
+                false,
+                null,
+                MetaAlbedoFragmentControl
+            ).fullFrameLuminance;
+        }
+
+        /// <summary>Renders a transient material clone through the actual Meta pass and returns its complete readback metrics.</summary>
+        /// <param name="sourceMaterial">The persistent material whose Meta pass is observed.</param>
+        /// <param name="configureMaterial">Configures the transient material clone before rendering.</param>
+        /// <param name="enableEditorVisualization">Enables editor visualization only on the transient material clone.</param>
+        /// <param name="configureGlobals">Configures temporary global visualization state after it is captured.</param>
+        /// <param name="fragmentControl">Selects the requested Unity Meta fragment output.</param>
+        /// <returns>The complete finite, visible, opaque, mean-RGB, and luminance readback.</returns>
+        private static MetaCaptureReadback RenderMetaCapture(
+            Material sourceMaterial,
+            Action<Material> configureMaterial,
+            bool enableEditorVisualization,
+            Action configureGlobals,
+            Vector4 fragmentControl
+        )
+        {
             using (var resources = new CaptureResourceScope())
             using (var temporaryScene = new TemporaryCaptureScene())
             {
@@ -942,18 +1292,16 @@ namespace PureBase.Tests.Daily
                 GameObject cameraObject = null;
                 RenderTexture target = null;
                 Texture2D readback = null;
-                Vector4 originalVertexControl = default;
-                Vector4 originalFragmentControl = default;
-                Vector4 originalLightmapSt = default;
-                float originalOutputBoost = default;
-                float originalMaximumOutput = default;
-                bool metaGlobalsCaptured = false;
+                MetaGlobalState originalGlobals = null;
                 try
                 {
                     material = resources.Track(
                         new Material(sourceMaterial),
                         CaptureAllocationFault.MetaMaterial
                     );
+                    configureMaterial?.Invoke(material);
+                    if (enableEditorVisualization)
+                        material.EnableKeyword("EDITOR_VISUALIZATION");
                     mesh = resources.Track(CreateScreenMesh(), CaptureAllocationFault.MetaMesh);
                     cameraObject = resources.Track(
                         temporaryScene.CreateGameObject(
@@ -977,12 +1325,7 @@ namespace PureBase.Tests.Daily
                         CaptureAllocationFault.MetaReadback
                     );
                     Camera camera = cameraObject.GetComponent<Camera>();
-                    originalVertexControl = Shader.GetGlobalVector("unity_MetaVertexControl");
-                    originalFragmentControl = Shader.GetGlobalVector("unity_MetaFragmentControl");
-                    originalLightmapSt = Shader.GetGlobalVector("unity_LightmapST");
-                    originalOutputBoost = Shader.GetGlobalFloat("unity_OneOverOutputBoost");
-                    originalMaximumOutput = Shader.GetGlobalFloat("unity_MaxOutputValue");
-                    metaGlobalsCaptured = true;
+                    originalGlobals = MetaGlobalState.Capture();
                     int pass = material.FindPass("Meta");
                     Assert.That(
                         pass,
@@ -1005,16 +1348,17 @@ namespace PureBase.Tests.Daily
                     );
                     Shader.SetGlobalVector(
                         "unity_MetaFragmentControl",
-                        new Vector4(1.0f, 0.0f, 0.0f, 0.0f)
+                        fragmentControl
                     );
                     Shader.SetGlobalVector("unity_LightmapST", new Vector4(1.0f, 1.0f, 0.0f, 0.0f));
                     Shader.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
                     Shader.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
+                    configureGlobals?.Invoke();
                     var commandBuffer = new CommandBuffer { name = "PureBase Daily Meta Readback" };
                     try
                     {
                         commandBuffer.SetRenderTarget(target);
-                        commandBuffer.ClearRenderTarget(true, true, Color.black);
+                        commandBuffer.ClearRenderTarget(true, true, Color.clear);
                         commandBuffer.DrawMesh(mesh, Matrix4x4.identity, material, 0, pass);
                         camera.AddCommandBuffer(CameraEvent.BeforeImageEffects, commandBuffer);
                         camera.Render();
@@ -1025,34 +1369,42 @@ namespace PureBase.Tests.Daily
                         commandBuffer.Release();
                     }
 
+                    ThrowIfCaptureAllocationFaultInjected(CaptureAllocationFault.MetaBeforeReadback);
                     Color[] pixels = ReadPixels(target, readback);
                     Assert.That(
                         CountFinitePixels(pixels),
                         Is.EqualTo(pixels.Length),
                         $"Material '{sourceMaterial.name}' produced non-finite Meta samples."
                     );
-                    float luminance = 0.0f;
+                    Color fullFrameMeanColor = Color.black;
+                    Color opaqueMeanColor = Color.black;
+                    int opaquePixelCount = 0;
                     foreach (Color pixel in pixels)
                     {
-                        luminance +=
-                            (pixel.r * 0.2126f) + (pixel.g * 0.7152f) + (pixel.b * 0.0722f);
+                        fullFrameMeanColor += pixel;
+                        if (pixel.a > 0.99f)
+                        {
+                            opaqueMeanColor += pixel;
+                            opaquePixelCount++;
+                        }
                     }
 
-                    return luminance / pixels.Length;
+                    fullFrameMeanColor /= pixels.Length;
+                    if (opaquePixelCount > 0)
+                        opaqueMeanColor /= opaquePixelCount;
+                    return new MetaCaptureReadback(
+                        pixels.Length,
+                        CountVisiblePixels(pixels),
+                        opaquePixelCount,
+                        opaqueMeanColor,
+                        CalculateLuminance(opaqueMeanColor),
+                        fullFrameMeanColor,
+                        CalculateLuminance(fullFrameMeanColor)
+                    );
                 }
                 finally
                 {
-                    if (metaGlobalsCaptured)
-                    {
-                        Shader.SetGlobalVector("unity_MetaVertexControl", originalVertexControl);
-                        Shader.SetGlobalVector(
-                            "unity_MetaFragmentControl",
-                            originalFragmentControl
-                        );
-                        Shader.SetGlobalVector("unity_LightmapST", originalLightmapSt);
-                        Shader.SetGlobalFloat("unity_OneOverOutputBoost", originalOutputBoost);
-                        Shader.SetGlobalFloat("unity_MaxOutputValue", originalMaximumOutput);
-                    }
+                    originalGlobals?.Restore();
                 }
             }
         }
@@ -1302,6 +1654,30 @@ namespace PureBase.Tests.Daily
             return materials;
         }
 
+        /// <summary>Runs a focused assertion while the canonical scene exposes its PBR and Hybrid source materials.</summary>
+        /// <param name="assertion">The assertion that observes the two persistent source materials.</param>
+        private static void WithPbrAndHybridMaterials(Action<IReadOnlyList<Material>> assertion)
+        {
+            EditorStateSnapshot state = EditorStateSnapshot.Capture();
+            Scene validationScene = default;
+            bool sceneWasLoaded = false;
+            bool sceneWasDirty = false;
+            try
+            {
+                validationScene = SceneManager.GetSceneByPath(ScenePath);
+                sceneWasLoaded = validationScene.isLoaded;
+                if (!sceneWasLoaded)
+                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                sceneWasDirty = validationScene.isDirty;
+                List<Material> materials = GetProductMaterials(validationScene);
+                assertion(new[] { materials[2], materials[3] });
+            }
+            finally
+            {
+                state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
+            }
+        }
+
         /// <summary>Builds the fixed screen quad used for transient Meta rendering.</summary>
         /// <returns>A transient mesh.</returns>
         private static Mesh CreateScreenMesh()
@@ -1386,6 +1762,187 @@ namespace PureBase.Tests.Daily
             }
 
             return count;
+        }
+
+        /// <summary>Counts pixels written by the transient Meta mesh after the transparent clear color.</summary>
+        /// <param name="pixels">The samples to inspect.</param>
+        /// <returns>The number of opaque geometry samples.</returns>
+        private static int CountOpaquePixels(Color[] pixels)
+        {
+            var count = 0;
+            foreach (Color pixel in pixels)
+            {
+                if (pixel.a > 0.99f)
+                    count++;
+            }
+
+            return count;
+        }
+
+        /// <summary>Configures the transient material clone used by one controlled Meta capture.</summary>
+        /// <param name="material">The transient material clone.</param>
+        /// <param name="albedo">The linear base color and alpha.</param>
+        /// <param name="metallic">The material metallic input.</param>
+        /// <param name="roughness">The material perceptual roughness input.</param>
+        /// <param name="cutoff">The alpha cutoff input.</param>
+        private static void ConfigureMetaMaterial(
+            Material material,
+            Color albedo,
+            float metallic,
+            float roughness,
+            float cutoff
+        )
+        {
+            AssertMetaMaterialProperties(material);
+            material.SetTexture("_BaseTexture", Texture2D.whiteTexture);
+            material.SetColor("_BaseColor", EncodeLinearBaseColor(albedo));
+            material.SetFloat("_Metallic", metallic);
+            material.SetFloat("_Roughness", roughness);
+            material.SetFloat("_Cutoff", cutoff);
+        }
+
+        /// <summary>Requires the material properties used by the shared PBR and Hybrid Meta contract.</summary>
+        /// <param name="material">The material whose compatible property surface is required.</param>
+        private static void AssertMetaMaterialProperties(Material material)
+        {
+            Assert.That(material.HasProperty("_BaseColor"), Is.True);
+            Assert.That(material.HasProperty("_BaseTexture"), Is.True);
+            Assert.That(material.HasProperty("_Metallic"), Is.True);
+            Assert.That(material.HasProperty("_Roughness"), Is.True);
+            Assert.That(material.HasProperty("_Cutoff"), Is.True);
+        }
+
+        /// <summary>Encodes a controlled linear base color for the shader's gamma-space material property without changing alpha coverage.</summary>
+        /// <param name="linearColor">The desired linear shader albedo and unmodified alpha coverage.</param>
+        /// <returns>The material-property color that evaluates to the desired linear shader albedo.</returns>
+        private static Color EncodeLinearBaseColor(Color linearColor)
+        {
+            return new Color(
+                Mathf.LinearToGammaSpace(linearColor.r),
+                Mathf.LinearToGammaSpace(linearColor.g),
+                Mathf.LinearToGammaSpace(linearColor.b),
+                linearColor.a
+            );
+        }
+
+        /// <summary>Sets Unity's complete material-validation global state to the controlled values used by editor visualization capture.</summary>
+        /// <param name="visualizationMode">The Unity visualization mode.</param>
+        /// <param name="checkAlbedo">The Unity albedo-validation switch.</param>
+        /// <param name="checkPureMetal">The Unity pure-metal-validation switch.</param>
+        private static void ConfigureEditorVisualizationGlobals(
+            float visualizationMode,
+            float checkAlbedo,
+            float checkPureMetal
+        )
+        {
+            Shader.SetGlobalFloat("unity_VisualizationMode", visualizationMode);
+            Shader.SetGlobalFloat("_CheckPureMetal", checkPureMetal);
+            Shader.SetGlobalFloat("_CheckAlbedo", checkAlbedo);
+            Shader.SetGlobalColor("_AlbedoCompareColor", Color.clear);
+            Shader.SetGlobalFloat("_AlbedoMinLuminance", 0.0f);
+            Shader.SetGlobalFloat("_AlbedoMaxLuminance", 1.0f);
+            Shader.SetGlobalFloat("_AlbedoHueTolerance", 0.1f);
+            Shader.SetGlobalFloat("_AlbedoSaturationTolerance", 0.1f);
+            Shader.SetGlobalColor("unity_MaterialValidateLowColor", Color.red);
+            Shader.SetGlobalColor("unity_MaterialValidateHighColor", Color.blue);
+            Shader.SetGlobalColor("unity_MaterialValidatePureMetalColor", Color.yellow);
+        }
+
+        /// <summary>Evaluates the PBR hosts' expected Unity Meta albedo from their runtime metallic BRDF terms.</summary>
+        /// <param name="albedo">The linear albedo input.</param>
+        /// <param name="metallic">The metallic input before saturation.</param>
+        /// <param name="roughness">The perceptual roughness input before clamping.</param>
+        /// <param name="squareRoughness">Selects actual roughness instead of the intentionally incorrect perceptual value.</param>
+        /// <returns>The expected linear Meta RGB value.</returns>
+        private static Color EvaluateExpectedMetaAlbedo(
+            Color albedo,
+            float metallic,
+            float roughness,
+            bool squareRoughness
+        )
+        {
+            Color saturatedAlbedo = new Color(
+                Mathf.Clamp01(albedo.r),
+                Mathf.Clamp01(albedo.g),
+                Mathf.Clamp01(albedo.b),
+                1.0f
+            );
+            float saturatedMetallic = Mathf.Clamp01(metallic);
+            float perceptualRoughness = Mathf.Clamp(roughness, 0.002f, 1.0f);
+            float actualRoughness =
+                squareRoughness
+                    ? perceptualRoughness * perceptualRoughness
+                    : perceptualRoughness;
+            Color diffuse = new Color(
+                saturatedAlbedo.r * (1.0f - saturatedMetallic),
+                saturatedAlbedo.g * (1.0f - saturatedMetallic),
+                saturatedAlbedo.b * (1.0f - saturatedMetallic),
+                1.0f
+            );
+            Color specular = new Color(
+                Mathf.Lerp(0.04f, saturatedAlbedo.r, saturatedMetallic),
+                Mathf.Lerp(0.04f, saturatedAlbedo.g, saturatedMetallic),
+                Mathf.Lerp(0.04f, saturatedAlbedo.b, saturatedMetallic),
+                1.0f
+            );
+            return new Color(
+                diffuse.r + (specular.r * actualRoughness * 0.5f),
+                diffuse.g + (specular.g * actualRoughness * 0.5f),
+                diffuse.b + (specular.b * actualRoughness * 0.5f),
+                1.0f
+            );
+        }
+
+        /// <summary>Asserts a finite full-mesh Meta readback against expected linear RGB and luminance.</summary>
+        /// <param name="actual">The observed readback.</param>
+        /// <param name="expected">The expected Meta RGB value.</param>
+        /// <param name="context">The material and controlled-case diagnostic context.</param>
+        private static void AssertMetaReadback(
+            MetaCaptureReadback actual,
+            Color expected,
+            string context
+        )
+        {
+            Assert.That(actual.finitePixelCount, Is.EqualTo(RenderSize * RenderSize), context);
+            Assert.That(actual.visiblePixelCount, Is.EqualTo(MetaMeshPixelCount), context);
+            AssertMetaColor(expected, actual.meanColor, context);
+            Assert.That(
+                actual.meanLuminance,
+                Is.EqualTo(CalculateLuminance(expected)).Within(MetaCaptureTolerance),
+                context
+            );
+        }
+
+        /// <summary>Asserts linear RGB using the controlled absolute Meta readback tolerance.</summary>
+        /// <param name="expected">The expected linear RGB value.</param>
+        /// <param name="actual">The observed linear RGB value.</param>
+        /// <param name="context">The material and controlled-case diagnostic context.</param>
+        private static void AssertMetaColor(Color expected, Color actual, string context)
+        {
+            Assert.That(actual.r, Is.EqualTo(expected.r).Within(MetaCaptureTolerance), context);
+            Assert.That(actual.g, Is.EqualTo(expected.g).Within(MetaCaptureTolerance), context);
+            Assert.That(actual.b, Is.EqualTo(expected.b).Within(MetaCaptureTolerance), context);
+        }
+
+        /// <summary>Calculates linear luminance using the baseline's fixed RGB coefficients.</summary>
+        /// <param name="color">The linear color to measure.</param>
+        /// <returns>The corresponding linear luminance.</returns>
+        private static float CalculateLuminance(Color color)
+        {
+            return (color.r * 0.2126f) + (color.g * 0.7152f) + (color.b * 0.0722f);
+        }
+
+        /// <summary>Calculates the largest per-channel absolute RGB difference.</summary>
+        /// <param name="first">The first color.</param>
+        /// <param name="second">The second color.</param>
+        /// <returns>The largest absolute RGB difference.</returns>
+        private static float MaximumAbsoluteRgbDifference(Color first, Color second)
+        {
+            return Mathf.Max(
+                Mathf.Abs(first.r - second.r),
+                Mathf.Abs(first.g - second.g),
+                Mathf.Abs(first.b - second.b)
+            );
         }
 
         /// <summary>Calculates the normalized centroid of visible scene samples.</summary>
@@ -2312,6 +2869,286 @@ namespace PureBase.Tests.Daily
             RegularAdditive,
         }
 
+        /// <summary>Stores one controlled material input used to distinguish the PBR hosts' Meta formula.</summary>
+        private sealed class MetaFormulaCase
+        {
+            /// <summary>Initializes one controlled PBR Meta formula input.</summary>
+            /// <param name="name">The descriptive case name.</param>
+            /// <param name="albedo">The linear base color to render.</param>
+            /// <param name="metallic">The metallic input to clamp and evaluate.</param>
+            /// <param name="roughness">The perceptual roughness input to clamp and square.</param>
+            public MetaFormulaCase(string name, Color albedo, float metallic, float roughness)
+            {
+                this.name = name;
+                this.albedo = albedo;
+                this.metallic = metallic;
+                this.roughness = roughness;
+            }
+
+            /// <summary>Gets the descriptive formula-case name.</summary>
+            public string name { get; }
+
+            /// <summary>Gets the linear base color to render.</summary>
+            public Color albedo { get; }
+
+            /// <summary>Gets the metallic input to clamp and evaluate.</summary>
+            public float metallic { get; }
+
+            /// <summary>Gets the perceptual roughness input to clamp and square.</summary>
+            public float roughness { get; }
+        }
+
+        /// <summary>Stores the complete linear result of one transient actual-Meta readback.</summary>
+        private sealed class MetaCaptureReadback
+        {
+            /// <summary>Initializes one transient actual-Meta readback result.</summary>
+            /// <param name="finitePixelCount">The number of finite pixels in the readback.</param>
+            /// <param name="visiblePixelCount">The number of visible pixels in the readback.</param>
+            /// <param name="opaquePixelCount">The number of opaque pixels in the readback.</param>
+            /// <param name="meanColor">The mean linear RGB value over visible pixels.</param>
+            /// <param name="meanLuminance">The mean linear luminance over visible pixels.</param>
+            /// <param name="fullFrameMeanColor">The mean linear RGB value over the full target.</param>
+            /// <param name="fullFrameLuminance">The mean linear luminance over the full target.</param>
+            public MetaCaptureReadback(
+                int finitePixelCount,
+                int visiblePixelCount,
+                int opaquePixelCount,
+                Color meanColor,
+                float meanLuminance,
+                Color fullFrameMeanColor,
+                float fullFrameLuminance
+            )
+            {
+                this.finitePixelCount = finitePixelCount;
+                this.visiblePixelCount = visiblePixelCount;
+                this.opaquePixelCount = opaquePixelCount;
+                this.meanColor = meanColor;
+                this.meanLuminance = meanLuminance;
+                this.fullFrameMeanColor = fullFrameMeanColor;
+                this.fullFrameLuminance = fullFrameLuminance;
+            }
+
+            /// <summary>Gets the number of finite pixels in the readback.</summary>
+            public int finitePixelCount { get; }
+
+            /// <summary>Gets the number of visible pixels in the readback.</summary>
+            public int visiblePixelCount { get; }
+
+            /// <summary>Gets the number of opaque pixels in the readback.</summary>
+            public int opaquePixelCount { get; }
+
+            /// <summary>Gets the mean linear RGB value over visible pixels.</summary>
+            public Color meanColor { get; }
+
+            /// <summary>Gets the mean linear luminance over visible pixels.</summary>
+            public float meanLuminance { get; }
+
+            /// <summary>Gets the mean linear RGB value over the full target.</summary>
+            public Color fullFrameMeanColor { get; }
+
+            /// <summary>Gets the mean linear luminance over the full target.</summary>
+            public float fullFrameLuminance { get; }
+        }
+
+        /// <summary>Snapshots the persistent source-material state used by transient Meta capture.</summary>
+        private sealed class MetaSourceMaterialState
+        {
+            /// <summary>Stores the source material base color.</summary>
+            private readonly Color baseColor;
+
+            /// <summary>Stores the source material base texture.</summary>
+            private readonly Texture baseTexture;
+
+            /// <summary>Stores the source material metallic value.</summary>
+            private readonly float metallic;
+
+            /// <summary>Stores the source material roughness value.</summary>
+            private readonly float roughness;
+
+            /// <summary>Stores the source material alpha-cutoff value.</summary>
+            private readonly float cutoff;
+
+            /// <summary>Stores whether editor visualization is enabled on the source material.</summary>
+            private readonly bool editorVisualizationEnabled;
+
+            /// <summary>Captures the persistent properties and editor-visualization keyword from one source material.</summary>
+            /// <param name="material">The source material whose state is captured.</param>
+            private MetaSourceMaterialState(Material material)
+            {
+                baseColor = material.GetColor("_BaseColor");
+                baseTexture = material.GetTexture("_BaseTexture");
+                metallic = material.GetFloat("_Metallic");
+                roughness = material.GetFloat("_Roughness");
+                cutoff = material.GetFloat("_Cutoff");
+                editorVisualizationEnabled = material.IsKeywordEnabled("EDITOR_VISUALIZATION");
+            }
+
+            /// <summary>Captures the source-material state required to verify transient Meta capture cleanup.</summary>
+            /// <param name="material">The source material whose state is captured.</param>
+            /// <returns>The captured source-material state.</returns>
+            public static MetaSourceMaterialState Capture(Material material)
+            {
+                AssertMetaMaterialProperties(material);
+                return new MetaSourceMaterialState(material);
+            }
+
+            /// <summary>Asserts that a source material matches this captured state.</summary>
+            /// <param name="material">The source material to verify after transient capture.</param>
+            public void AssertRestored(Material material)
+            {
+                Assert.That(material.GetColor("_BaseColor"), Is.EqualTo(baseColor));
+                Assert.That(material.GetTexture("_BaseTexture"), Is.EqualTo(baseTexture));
+                Assert.That(material.GetFloat("_Metallic"), Is.EqualTo(metallic));
+                Assert.That(material.GetFloat("_Roughness"), Is.EqualTo(roughness));
+                Assert.That(material.GetFloat("_Cutoff"), Is.EqualTo(cutoff));
+                Assert.That(
+                    material.IsKeywordEnabled("EDITOR_VISUALIZATION"),
+                    Is.EqualTo(editorVisualizationEnabled)
+                );
+            }
+        }
+
+        /// <summary>Snapshots every Meta and editor-visualization global changed by transient capture.</summary>
+        private sealed class MetaGlobalState
+        {
+            /// <summary>Stores the Meta vertex control global.</summary>
+            private Vector4 metaVertexControl;
+
+            /// <summary>Stores the Meta fragment control global.</summary>
+            private Vector4 metaFragmentControl;
+
+            /// <summary>Stores the lightmap texture transform global.</summary>
+            private Vector4 lightmapSt;
+
+            /// <summary>Stores the reciprocal Meta output boost global.</summary>
+            private float oneOverOutputBoost;
+
+            /// <summary>Stores the maximum Meta output value global.</summary>
+            private float maximumOutput;
+
+            /// <summary>Stores the editor visualization mode global.</summary>
+            private float visualizationMode;
+
+            /// <summary>Stores the pure-metal validation toggle global.</summary>
+            private float checkPureMetal;
+
+            /// <summary>Stores the albedo validation toggle global.</summary>
+            private float checkAlbedo;
+
+            /// <summary>Stores the albedo comparison color global.</summary>
+            private Color albedoCompareColor;
+
+            /// <summary>Stores the minimum albedo luminance global.</summary>
+            private float albedoMinimumLuminance;
+
+            /// <summary>Stores the maximum albedo luminance global.</summary>
+            private float albedoMaximumLuminance;
+
+            /// <summary>Stores the albedo hue tolerance global.</summary>
+            private float albedoHueTolerance;
+
+            /// <summary>Stores the albedo saturation tolerance global.</summary>
+            private float albedoSaturationTolerance;
+
+            /// <summary>Stores the material validation low color global.</summary>
+            private Color materialValidateLowColor;
+
+            /// <summary>Stores the material validation high color global.</summary>
+            private Color materialValidateHighColor;
+
+            /// <summary>Stores the material validation pure-metal color global.</summary>
+            private Color materialValidatePureMetalColor;
+
+            /// <summary>Captures every Meta and editor-visualization global used by transient capture.</summary>
+            /// <returns>The captured global shader state.</returns>
+            public static MetaGlobalState Capture()
+            {
+                return new MetaGlobalState
+                {
+                    metaVertexControl = Shader.GetGlobalVector("unity_MetaVertexControl"),
+                    metaFragmentControl = Shader.GetGlobalVector("unity_MetaFragmentControl"),
+                    lightmapSt = Shader.GetGlobalVector("unity_LightmapST"),
+                    oneOverOutputBoost = Shader.GetGlobalFloat("unity_OneOverOutputBoost"),
+                    maximumOutput = Shader.GetGlobalFloat("unity_MaxOutputValue"),
+                    visualizationMode = Shader.GetGlobalFloat("unity_VisualizationMode"),
+                    checkPureMetal = Shader.GetGlobalFloat("_CheckPureMetal"),
+                    checkAlbedo = Shader.GetGlobalFloat("_CheckAlbedo"),
+                    albedoCompareColor = Shader.GetGlobalColor("_AlbedoCompareColor"),
+                    albedoMinimumLuminance = Shader.GetGlobalFloat("_AlbedoMinLuminance"),
+                    albedoMaximumLuminance = Shader.GetGlobalFloat("_AlbedoMaxLuminance"),
+                    albedoHueTolerance = Shader.GetGlobalFloat("_AlbedoHueTolerance"),
+                    albedoSaturationTolerance = Shader.GetGlobalFloat("_AlbedoSaturationTolerance"),
+                    materialValidateLowColor = Shader.GetGlobalColor(
+                        "unity_MaterialValidateLowColor"
+                    ),
+                    materialValidateHighColor = Shader.GetGlobalColor(
+                        "unity_MaterialValidateHighColor"
+                    ),
+                    materialValidatePureMetalColor = Shader.GetGlobalColor(
+                        "unity_MaterialValidatePureMetalColor"
+                    ),
+                };
+            }
+
+            /// <summary>Restores every captured Meta and editor-visualization global shader value.</summary>
+            public void Restore()
+            {
+                Shader.SetGlobalVector("unity_MetaVertexControl", metaVertexControl);
+                Shader.SetGlobalVector("unity_MetaFragmentControl", metaFragmentControl);
+                Shader.SetGlobalVector("unity_LightmapST", lightmapSt);
+                Shader.SetGlobalFloat("unity_OneOverOutputBoost", oneOverOutputBoost);
+                Shader.SetGlobalFloat("unity_MaxOutputValue", maximumOutput);
+                Shader.SetGlobalFloat("unity_VisualizationMode", visualizationMode);
+                Shader.SetGlobalFloat("_CheckPureMetal", checkPureMetal);
+                Shader.SetGlobalFloat("_CheckAlbedo", checkAlbedo);
+                Shader.SetGlobalColor("_AlbedoCompareColor", albedoCompareColor);
+                Shader.SetGlobalFloat("_AlbedoMinLuminance", albedoMinimumLuminance);
+                Shader.SetGlobalFloat("_AlbedoMaxLuminance", albedoMaximumLuminance);
+                Shader.SetGlobalFloat("_AlbedoHueTolerance", albedoHueTolerance);
+                Shader.SetGlobalFloat("_AlbedoSaturationTolerance", albedoSaturationTolerance);
+                Shader.SetGlobalColor("unity_MaterialValidateLowColor", materialValidateLowColor);
+                Shader.SetGlobalColor("unity_MaterialValidateHighColor", materialValidateHighColor);
+                Shader.SetGlobalColor(
+                    "unity_MaterialValidatePureMetalColor",
+                    materialValidatePureMetalColor
+                );
+            }
+
+            /// <summary>Asserts that current Meta and editor-visualization globals match this captured state.</summary>
+            public void AssertRestored()
+            {
+                MetaGlobalState current = Capture();
+                Assert.That(current.metaVertexControl, Is.EqualTo(metaVertexControl));
+                Assert.That(current.metaFragmentControl, Is.EqualTo(metaFragmentControl));
+                Assert.That(current.lightmapSt, Is.EqualTo(lightmapSt));
+                Assert.That(current.oneOverOutputBoost, Is.EqualTo(oneOverOutputBoost));
+                Assert.That(current.maximumOutput, Is.EqualTo(maximumOutput));
+                Assert.That(current.visualizationMode, Is.EqualTo(visualizationMode));
+                Assert.That(current.checkPureMetal, Is.EqualTo(checkPureMetal));
+                Assert.That(current.checkAlbedo, Is.EqualTo(checkAlbedo));
+                Assert.That(current.albedoCompareColor, Is.EqualTo(albedoCompareColor));
+                Assert.That(current.albedoMinimumLuminance, Is.EqualTo(albedoMinimumLuminance));
+                Assert.That(current.albedoMaximumLuminance, Is.EqualTo(albedoMaximumLuminance));
+                Assert.That(current.albedoHueTolerance, Is.EqualTo(albedoHueTolerance));
+                Assert.That(
+                    current.albedoSaturationTolerance,
+                    Is.EqualTo(albedoSaturationTolerance)
+                );
+                Assert.That(
+                    current.materialValidateLowColor,
+                    Is.EqualTo(materialValidateLowColor)
+                );
+                Assert.That(
+                    current.materialValidateHighColor,
+                    Is.EqualTo(materialValidateHighColor)
+                );
+                Assert.That(
+                    current.materialValidatePureMetalColor,
+                    Is.EqualTo(materialValidatePureMetalColor)
+                );
+            }
+        }
+
         /// <summary>Identifies a transient resource acquisition that focused tests can interrupt.</summary>
         private enum CaptureAllocationFault
         {
@@ -2332,6 +3169,9 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Interrupts Meta readback allocation.</summary>
             MetaReadback,
+
+            /// <summary>Interrupts Meta capture after drawing but before GPU readback.</summary>
+            MetaBeforeReadback,
 
             /// <summary>Interrupts Shadow caster-material allocation.</summary>
             ShadowCasterMaterial,

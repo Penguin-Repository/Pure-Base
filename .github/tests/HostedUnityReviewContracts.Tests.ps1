@@ -56,6 +56,33 @@ Describe 'Hosted Unity review contracts' {
         $watchdogScript.Contains('same 30-minute') | Should -BeTrue
     }
 
+    It 'preserves the original watchdog start failure without an unstarted process error' {
+        $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Watchdog-Test-' + [guid]::NewGuid().ToString('N'))
+        $fixturePath = Join-Path $temporaryRoot 'not-an-executable.txt'
+        $logPath = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Watchdog-Log-' + [guid]::NewGuid().ToString('N') + '.log')
+        $diagnosticPath = [IO.Path]::ChangeExtension($logPath, 'Watchdog.txt')
+
+        try {
+            New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+            Set-Content -LiteralPath $fixturePath -Value 'not an executable'
+
+            $childOutput = & pwsh -NoLogo -NoProfile -NonInteractive `
+                -File (Join-Path $repositoryRoot '.github/scripts/UnityWatchdogProxy.ps1') `
+                -UnityEditorPath $fixturePath `
+                -logFile $logPath 2>&1 | Out-String
+            $exitCode = $LASTEXITCODE
+
+            $exitCode | Should -Be 1
+            Test-Path -LiteralPath $diagnosticPath -PathType Leaf | Should -BeTrue
+            $diagnostic = Get-Content -LiteralPath $diagnosticPath -Raw
+            $diagnostic | Should -Match '(?m)^Exception=Exception calling "Start"'
+            $childOutput | Should -Not -Match '(?i)(No process associated with this object|Process has not been started|The Process object must have an associated process|process.*not.*started)'
+        }
+        finally {
+            Remove-Item -LiteralPath $temporaryRoot,$logPath,$diagnosticPath -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It 'keeps documentation and diagnostics free of stale reviewed values' {
         $ciDocumentation.Contains('GitHub-hosted `windows-2022` runners') | Should -BeTrue
         $ciDocumentation.Contains('GitHub-hosted `windows-latest` runners') | Should -BeFalse
