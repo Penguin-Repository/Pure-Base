@@ -1,0 +1,1 @@
+SC_float(_ProductPhaseValue, 0.25, [], "Product Phase Value", "")

@@ -1,0 +1,10 @@
+{
+  "name": "PureBase Release Fixture Unlit ForwardAdd Fog Signal",
+  "uniqueID": "jp.penguin.purebase.release.fixture.unlit.forwardaddfog",
+  "phases": [
+    {
+      "phase": "add",
+      "path": "add.hlsl"
+    }
+  ]
+}

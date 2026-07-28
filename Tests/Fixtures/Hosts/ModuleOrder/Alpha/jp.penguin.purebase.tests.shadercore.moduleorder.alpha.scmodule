@@ -1,0 +1,10 @@
+{
+  "name": "PureBase Test Module Order Alpha",
+  "uniqueID": "jp.penguin.purebase.tests.shadercore.moduleorder.alpha",
+  "phases": [
+    {
+      "phase": "base",
+      "path": "Sources/phase_base.hlsl"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+SC_Texture2D(_BaseTexture, "white", [SCMainTexture], "Base Texture", "")
+SC_SamplerState(sampler_BaseTexture)
+SC_ScaleOffset(_BaseTexture)
+SC_color(_BaseColor, (1,1,1,1), [], "Base Color", "")
+SC_Texture2D(_SharedMask, "white", [SCMask], "__SharedMask", "")
+SC_Texture2DArray(_SharedGradients, "white", [SCGradients], "__SharedGradients", "")
+SC_float(_Cutoff, 0.5, [SCRange(-0.001,1.001)], "Cutoff", "")
+SC_float(_Cull, 2, [SCEnum(Off, 0, Front, 1, Back, 2)], "Cull", "")

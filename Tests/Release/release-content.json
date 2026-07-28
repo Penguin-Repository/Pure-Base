@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "packageName": "jp.penguin.purebase",
+  "requiredEntries": [
+    "package.json",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "Editor/.gitkeep",
+    "Shaders/PureBaseUnlit.scshader",
+    "Shaders/PureBaseToon.scshader",
+    "Shaders/PureBasePBR.scshader",
+    "Shaders/PureBaseHybrid.scshader"
+  ],
+  "allowedExactPaths": [
+    "package.json",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "allowedPathPrefixes": [
+    "Editor/",
+    "Shaders/"
+  ],
+  "excludedPathPatterns": [
+    "Tests/**",
+    ".git/**",
+    ".serena/**",
+    "AGENTS.md",
+    "**/AGENTS.md",
+    "*.agent.md",
+    "**/*.agent.md",
+    "*.instructions.md",
+    "**/*.instructions.md",
+    "*.scmodule",
+    "**/*.scmodule",
+    "*.zip",
+    "*.sha256",
+    "*.sha256.json",
+    "release-output/**",
+    "Release/**"
+  ],
+  "requiredVpmDependencies": {
+    "jp.lilxyzw.shadercore": "0.1.9"
+  },
+  "forbiddenDependencyNames": [
+    "com.unity.render-pipelines.universal",
+    "com.unity.render-pipelines.core",
+    "com.unity.shadergraph"
+  ],
+  "forbiddenShaderPropertyNames": [
+    "_Emission",
+    "_Rim",
+    "_MatCap",
+    "_ClearCoat"
+  ]
+}

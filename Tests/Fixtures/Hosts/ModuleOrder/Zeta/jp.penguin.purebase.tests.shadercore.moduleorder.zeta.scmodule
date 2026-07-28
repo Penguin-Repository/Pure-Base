@@ -1,0 +1,13 @@
+{
+  "name": "PureBase Test Module Order Zeta",
+  "uniqueID": "jp.penguin.purebase.tests.shadercore.moduleorder.zeta",
+  "phases": [
+    {
+      "phase": "base",
+      "path": "Sources/phase_base.hlsl",
+      "befores": [
+        "PureBase Test Module Order Alpha"
+      ]
+    }
+  ]
+}

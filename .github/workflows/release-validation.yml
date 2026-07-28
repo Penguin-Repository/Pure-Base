@@ -1,0 +1,195 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pure-base-release-validation
+  cancel-in-progress: false
+
+env:
+  GIT_CONFIG_COUNT: 2
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: "false"
+  GIT_CONFIG_KEY_1: core.eol
+  GIT_CONFIG_VALUE_1: lf
+  CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+
+jobs:
+  unity-editor-cache:
+    name: Prepare Unity 2022.3.22f1 cache
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Restore or create Unity Editor cache
+        id: unity
+        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          unity-version: "2022.3.22f1"
+          cli-channel: beta
+          cache: "true"
+
+      - name: Report Unity Editor cache status
+        shell: pwsh
+        run: |
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache hit for 2022.3.22f1." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache miss for 2022.3.22f1. The installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
+          }
+
+  validate:
+    name: Validate audited release package
+    needs: unity-editor-cache
+    concurrency:
+      group: pure-base-unity-personal-license
+      cancel-in-progress: false
+    runs-on: windows-2022
+    timeout-minutes: 240
+    steps:
+      - name: Initialize artifact root
+        shell: pwsh
+        run: |
+          "ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
+
+      - name: Checkout Pure-Base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: PureBaseCi/Packages/jp.penguin.purebase
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout Shader-Core 0.1.9
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: lilxyzw/Shader-Core
+          ref: 0.1.9
+          path: PureBaseCi/Packages/jp.lilxyzw.shadercore
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Restore Unity 2022.3.22f1
+        id: unity
+        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          unity-version: "2022.3.22f1"
+          cli-channel: beta
+          cache: "true"
+
+      - name: Report Unity Editor cache handoff
+        shell: pwsh
+        run: |
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue." >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Activate Unity Personal license
+        id: unity_license
+        continue-on-error: true
+        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+          license-version: "6.x"
+
+      - name: Wait before retrying Unity license activation
+        if: steps.unity_license.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 45
+
+      - name: Retry Unity Personal license activation
+        if: steps.unity_license.outcome == 'failure'
+        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+          license-version: "6.x"
+
+      - name: Export Unity editor paths
+        shell: pwsh
+        run: |
+          $realEditorPathFile = Join-Path $env:RUNNER_TEMP 'PureBase.RealUnityEditorPath.txt'
+          $watchdogEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
+            -EditorPath '${{ steps.unity.outputs.editor-path }}' `
+            -RealEditorPathOutputFile $realEditorPathFile
+          $realEditorPath = (Get-Content -LiteralPath $realEditorPathFile -Raw).Trim()
+          "UNITY_EDITOR_PATH=$watchdogEditorPath" >> $env:GITHUB_ENV
+          "REAL_UNITY_EDITOR_PATH=$realEditorPath" >> $env:GITHUB_ENV
+          "Configure Unity watchdog path: $watchdogEditorPath" >> $env:GITHUB_STEP_SUMMARY
+          "Release validation Unity.exe path: $realEditorPath" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Prepare Unity project shell
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+            -ProjectRoot $env:CI_PROJECT_ROOT
+
+      - name: Configure Unity project
+        timeout-minutes: 30
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          $logPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Unity.log'
+          & $env:UNITY_EDITOR_PATH `
+            -batchmode `
+            -nographics `
+            -accept-apiupdate `
+            -projectPath $env:CI_PROJECT_ROOT `
+            -executeMethod PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode `
+            -logFile $logPath
+          $unityExitCode = $LASTEXITCODE
+          if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath -Tail 300 | Out-Host
+          }
+          if ($unityExitCode -ne 0) {
+            throw "Unity project configuration failed with exit code $unityExitCode. Unity log: '$logPath'."
+          }
+
+      - name: Run release validation
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/Tests/Release/Run-PureBaseReleaseValidation.ps1" `
+            -UnityEditorPath $env:REAL_UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Export versioned validation ZIP
+        if: success()
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/Export-PureBaseValidationZip.ps1" `
+            -PackageRoot $env:PACKAGE_ROOT `
+            -ValidationArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Upload release validation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: pure-base-release-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0

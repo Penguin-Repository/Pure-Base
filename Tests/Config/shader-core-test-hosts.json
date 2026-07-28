@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "hosts": [
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/Morph",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.morph",
+      "phase": "morph",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 1,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meshCentroidY",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.001
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/PostVertex",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.postvertex",
+      "phase": "postvertex",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 1,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meshCentroidX",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.001
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/Base",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.base",
+      "phase": "base",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 1,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meshCoverage",
+        "direction": "decrease",
+        "minimumAbsoluteDelta": 8.0
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/Light",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.light",
+      "phase": "light",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanGreen",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/CustomLight",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.customlight",
+      "phase": "customlight",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanBlue",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/ModifyLight",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.modifylight",
+      "phase": "modifylight",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanRed",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/Shade",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.shade",
+      "phase": "shade",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanGreen",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/Reflection",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.reflection",
+      "phase": "reflection",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanBlue",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/Add",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.add",
+      "phase": "add",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanRed",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/Phase/PostPixel",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.phase.postpixel",
+      "phase": "postpixel",
+      "expectedSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeDelta": {
+        "metric": "meanGreen",
+        "direction": "increase",
+        "minimumAbsoluteDelta": 0.05
+      }
+    },
+    {
+      "shaderName": "PureBase/Tests/ShaderCore/ModuleOrder",
+      "moduleUniqueIds": [
+        "jp.penguin.purebase.tests.shadercore.moduleorder.zeta",
+        "jp.penguin.purebase.tests.shadercore.moduleorder.alpha"
+      ],
+      "phase": "base",
+      "expectedSentinels": [
+        "PUREBASE_TEST_MODULE_ORDER_ZETA",
+        "PUREBASE_TEST_MODULE_ORDER_ALPHA"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 1,
+        "Meta": 0
+      },
+      "moduleOrder": {
+        "firstModuleName": "PureBase Test Module Order Zeta",
+        "secondModuleName": "PureBase Test Module Order Alpha",
+        "firstSentinel": "PUREBASE_TEST_MODULE_ORDER_ZETA",
+        "secondSentinel": "PUREBASE_TEST_MODULE_ORDER_ALPHA",
+        "befores": [
+          "PureBase Test Module Order Alpha"
+        ]
+      }
+    }
+  ]
+}

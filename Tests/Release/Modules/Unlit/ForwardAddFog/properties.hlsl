@@ -1,0 +1,1 @@
+SC_float(_ForwardAddFogSignalProperty, 0.25, [], "ForwardAdd Fog Signal Property", "")

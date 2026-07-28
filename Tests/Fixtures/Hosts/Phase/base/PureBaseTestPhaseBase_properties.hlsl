@@ -1,0 +1,5 @@
+SC_color(_PhaseHostColor, (0.125,0.125,0.125,1), [], "Phase Host Color", "")
+SC_float(_PhaseHostCutoff, 0.5, [SCRange(0,1)], "Phase Host Cutoff", "")
+SC_float(_PhaseHostRuntimeGate, 0, [], "Phase Host Runtime Gate", "")
+SC_Texture2D(_PhaseHostMask, "white", [SCMask], "__PhaseHostMask", "")
+SC_Texture2DArray(_PhaseHostGradients, "white", [SCGradients], "__PhaseHostGradients", "")

@@ -1,0 +1,290 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Daily
+
+on:
+  push:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  # PR numbers are repository-unique and avoid unrelated branches with the same
+  # head name cancelling one another. Pushes retain a ref-scoped group.
+  group: daily-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  GIT_CONFIG_COUNT: 2
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: "false"
+  GIT_CONFIG_KEY_1: core.eol
+  GIT_CONFIG_VALUE_1: lf
+  CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+
+jobs:
+  authorize:
+    name: Authorize source
+    runs-on: ubuntu-latest
+    outputs:
+      allowed: ${{ steps.source.outputs.allowed }}
+      checkout_ref: ${{ steps.source.outputs.checkout_ref }}
+      reason: ${{ steps.source.outputs.reason }}
+    steps:
+      - name: Checkout trusted workflow helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve trusted source
+        id: source
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          PUSH_SHA: ${{ github.sha }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          Import-Module "$env:GITHUB_WORKSPACE/.github/scripts/PureBase.Automation.psm1" -Force
+          $source = Resolve-PureBaseDailySource `
+            -EventName $env:EVENT_NAME `
+            -Repository $env:REPOSITORY `
+            -PushSha $env:PUSH_SHA `
+            -PullRequestHeadRepository $env:PR_HEAD_REPOSITORY `
+            -PullRequestHeadSha $env:PR_HEAD_SHA `
+            -PullRequestAuthor $env:PR_AUTHOR `
+            -PullRequestDraft ($env:PR_DRAFT -eq 'true')
+          "allowed=$($source.Allowed.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "checkout_ref=$($source.CheckoutRef)" >> $env:GITHUB_OUTPUT
+          "reason=$($source.Reason)" >> $env:GITHUB_OUTPUT
+
+  reject-untrusted-pull-request:
+    name: Reject unsupported PR source
+    needs: authorize
+    if: github.event_name == 'pull_request' && needs.authorize.outputs.allowed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain restriction
+        shell: bash
+        env:
+          REASON: ${{ needs.authorize.outputs.reason }}
+        run: |
+          echo "Daily Unity validation is restricted to non-draft branches inside this repository."
+          echo "Rejected source: $REASON"
+          exit 1
+
+  unity-editor-cache:
+    name: Prepare Unity 2022.3.22f1 cache
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - name: Restore or create Unity Editor cache
+        id: unity
+        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          unity-version: "2022.3.22f1"
+          cli-channel: beta
+          cache: "true"
+
+      - name: Report Unity Editor cache status
+        shell: pwsh
+        run: |
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache hit for 2022.3.22f1." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache miss for 2022.3.22f1. The installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
+          }
+
+  unity-daily:
+    name: Unity 2022.3.22f1 / D3D11
+    needs:
+      - authorize
+      - unity-editor-cache
+    if: needs.authorize.outputs.allowed == 'true'
+    concurrency:
+      group: pure-base-unity-personal-license
+      cancel-in-progress: false
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Initialize artifact root
+        shell: pwsh
+        run: |
+          "ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Daily-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
+
+      - name: Checkout Pure-Base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.checkout_ref }}
+          path: PureBaseCi/Packages/jp.penguin.purebase
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout Shader-Core 0.1.9
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: lilxyzw/Shader-Core
+          ref: 0.1.9
+          path: PureBaseCi/Packages/jp.lilxyzw.shadercore
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Restore Unity 2022.3.22f1
+        id: unity
+        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
+        with:
+          unity-version: "2022.3.22f1"
+          cli-channel: beta
+          cache: "true"
+
+      - name: Report Unity Editor cache handoff
+        shell: pwsh
+        run: |
+          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
+          }
+          else {
+            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue." >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Activate Unity Personal license
+        id: unity_license
+        continue-on-error: true
+        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+          license-version: "6.x"
+
+      - name: Wait before retrying Unity license activation
+        if: steps.unity_license.outcome == 'failure'
+        shell: pwsh
+        run: Start-Sleep -Seconds 45
+
+      - name: Retry Unity Personal license activation
+        if: steps.unity_license.outcome == 'failure'
+        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
+        with:
+          license: personal
+          username: ${{ secrets.UNITY_EMAIL }}
+          password: ${{ secrets.UNITY_PASSWORD }}
+          license-version: "6.x"
+
+      - name: Export Unity editor path
+        shell: pwsh
+        run: |
+          $resolvedEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
+            -EditorPath '${{ steps.unity.outputs.editor-path }}'
+          "UNITY_EDITOR_PATH=$resolvedEditorPath" >> $env:GITHUB_ENV
+          "Resolved Unity Editor path: $resolvedEditorPath" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Prepare Unity project shell
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+            -ProjectRoot $env:CI_PROJECT_ROOT
+
+      - name: Configure Unity project
+        timeout-minutes: 30
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          $logPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Unity.log'
+          $diagnosticPath = Join-Path $env:ARTIFACT_ROOT 'Configure.Diagnostics.txt'
+          $unityArguments = @(
+            '-batchmode',
+            '-nographics',
+            '-accept-apiupdate',
+            '-projectPath',
+            "`"$env:CI_PROJECT_ROOT`"",
+            '-executeMethod',
+            'PureBase.Tests.Regeneration.PureBaseCiProjectInitializer.InitializeForBatchMode',
+            '-logFile',
+            "`"$logPath`""
+          )
+          @(
+            "UnityEditorPath=$env:UNITY_EDITOR_PATH",
+            "UnityEditorExists=$(Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)",
+            "ProjectRoot=$env:CI_PROJECT_ROOT",
+            "ProjectRootExists=$(Test-Path -LiteralPath $env:CI_PROJECT_ROOT -PathType Container)",
+            "Arguments=$($unityArguments -join ' ')"
+          ) | Set-Content -LiteralPath $diagnosticPath
+
+          try {
+            $process = Start-Process `
+              -FilePath $env:UNITY_EDITOR_PATH `
+              -ArgumentList $unityArguments `
+              -Wait `
+              -PassThru `
+              -NoNewWindow
+            $unityExitCode = $process.ExitCode
+            "ExitCode=$unityExitCode" | Add-Content -LiteralPath $diagnosticPath
+          }
+          catch {
+            "LaunchException=$($_ | Out-String)" | Add-Content -LiteralPath $diagnosticPath
+            Get-Content -LiteralPath $diagnosticPath | Out-Host
+            throw
+          }
+
+          if (Test-Path -LiteralPath $logPath) {
+            Get-Content -LiteralPath $logPath -Tail 500 | Out-Host
+          }
+          else {
+            "Unity did not create '$logPath'." | Add-Content -LiteralPath $diagnosticPath
+          }
+          Get-Content -LiteralPath $diagnosticPath | Out-Host
+
+          if ($unityExitCode -ne 0) {
+            throw "Unity project configuration failed with exit code $unityExitCode. Diagnostics: '$diagnosticPath'."
+          }
+
+      - name: Initialize fixed Shader-Core test hosts
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/Tests/Run-PureBaseRegression.ps1" `
+            -Mode Initialize `
+            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Run Daily tests
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/Tests/Run-PureBaseRegression.ps1" `
+            -Mode Daily `
+            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
+      - name: Upload Daily evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: pure-base-daily-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\PureBase-Daily-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14

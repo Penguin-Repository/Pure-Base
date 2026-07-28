@@ -1,0 +1,179 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact version from update_trigger.json
+        required: true
+        type: string
+      resume:
+        description: Resume after the package version commit, tag, draft release, or published release
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pure-base-release
+  cancel-in-progress: false
+
+env:
+  GIT_CONFIG_COUNT: 2
+  GIT_CONFIG_KEY_0: core.autocrlf
+  GIT_CONFIG_VALUE_0: "false"
+  GIT_CONFIG_KEY_1: core.eol
+  GIT_CONFIG_VALUE_1: lf
+  UNITY_EDITOR_PATH: C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe
+  CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+  RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
+  VPM_REPOSITORY: ${{ vars.VPM_REPOSITORY }}
+
+jobs:
+  release:
+    name: Validate and publish immutable release
+    environment: release
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - unity-2022.3.22f1
+    timeout-minutes: 480
+    steps:
+      - name: Initialize artifact roots
+        shell: pwsh
+        run: |
+          "VALIDATION_ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
+          "RELEASE_ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
+
+      - name: Validate release configuration
+        id: release-config
+        shell: pwsh
+        env:
+          SELECTED_BRANCH: ${{ github.ref_name }}
+          SELECTED_REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if ($env:SELECTED_REF_TYPE -ne 'branch') {
+            throw 'The release workflow must be dispatched from a branch.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:RELEASE_BRANCH)) {
+            throw 'Repository variable RELEASE_BRANCH must contain the only branch allowed to publish releases.'
+          }
+          if ($env:SELECTED_BRANCH -ne $env:RELEASE_BRANCH) {
+            throw "Selected branch '$env:SELECTED_BRANCH' is not configured release branch '$env:RELEASE_BRANCH'."
+          }
+          if ($env:VPM_REPOSITORY -notmatch '^[^/]+/[^/]+$') {
+            throw 'Repository variable VPM_REPOSITORY must use owner/name form.'
+          }
+          $vpmOwner, $vpmRepository = $env:VPM_REPOSITORY -split '/', 2
+          "vpm_owner=$vpmOwner" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "vpm_repository=$vpmRepository" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Create release GitHub App token
+        id: release-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-administration: read
+
+      - name: Create VPM dispatch GitHub App token
+        id: dispatch-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ steps.release-config.outputs.vpm_owner }}
+          repositories: ${{ steps.release-config.outputs.vpm_repository }}
+          permission-contents: write
+
+      - name: Remove previous CI project shell
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath $env:CI_PROJECT_ROOT) {
+            Remove-Item -LiteralPath $env:CI_PROJECT_ROOT -Recurse -Force
+          }
+
+      - name: Checkout Pure-Base release branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+          path: PureBaseCi/Packages/jp.penguin.purebase
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.release-app-token.outputs.token }}
+          persist-credentials: true
+
+      - name: Checkout Shader-Core 0.1.9
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: lilxyzw/Shader-Core
+          ref: 0.1.9
+          path: PureBaseCi/Packages/jp.lilxyzw.shadercore
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prepare Unity project shell
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+            -ProjectRoot $env:CI_PROJECT_ROOT
+
+      - name: Verify Unity installation
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath $env:UNITY_EDITOR_PATH -PathType Leaf)) {
+            throw "Unity 2022.3.22f1 was not found at '$env:UNITY_EDITOR_PATH'."
+          }
+
+      - name: Validate, version, tag, publish, and dispatch
+        shell: pwsh
+        env:
+          PUREBASE_RELEASE_TOKEN: ${{ steps.release-app-token.outputs.token }}
+          PUREBASE_DISPATCH_TOKEN: ${{ steps.dispatch-app-token.outputs.token }}
+          APP_SLUG: ${{ steps.release-app-token.outputs.app-slug }}
+          CONFIRMED_VERSION: ${{ inputs.version }}
+          RESUME_RELEASE: ${{ inputs.resume }}
+        run: |
+          $resume = $env:RESUME_RELEASE -eq 'true'
+          & "$env:PACKAGE_ROOT/.github/scripts/Invoke-PureBaseRelease.ps1" `
+            -PackageRoot $env:PACKAGE_ROOT `
+            -UnityEditorPath $env:UNITY_EDITOR_PATH `
+            -ValidationArtifactDirectory $env:VALIDATION_ARTIFACT_ROOT `
+            -ReleaseArtifactDirectory $env:RELEASE_ARTIFACT_ROOT `
+            -Repository '${{ github.repository }}' `
+            -Branch $env:RELEASE_BRANCH `
+            -ConfirmedVersion $env:CONFIRMED_VERSION `
+            -VpmRepository $env:VPM_REPOSITORY `
+            -AppSlug $env:APP_SLUG `
+            -Resume:$resume
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: pure-base-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
+            ${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 30
+          compression-level: 0

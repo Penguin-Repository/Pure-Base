@@ -1,0 +1,54 @@
+{
+    "schemaVersion": 2,
+    "unityVersion": "2022.3.22f1",
+    "graphicsDevice": "Direct3D11",
+    "colorSpace": "Linear",
+    "renderPipeline": "BuiltIn",
+    "renderSize": 160,
+    "staticLightmapCount": 2,
+    "staticRendererAssignmentCount": 20,
+    "sceneVisiblePixelCount": {
+        "minimum": 12623,
+        "maximum": 12623
+    },
+    "shadowChangedPixelCount": {
+        "minimum": 341,
+        "maximum": 352
+    },
+    "warmedVariantCount": 56,
+    "dynamicLightmapStatus": "NOT_DETERMINISTIC_IN_BATCH_EDITMODE",
+    "metaAlbedo": [
+        {
+            "materialName": "PureBaseValidationUnlit",
+            "shaderName": "PureBase/Unlit",
+            "meanLuminance": {
+                "minimum": 0.04757252708077431,
+                "maximum": 0.04757445678114891
+            }
+        },
+        {
+            "materialName": "PureBaseValidationToon",
+            "shaderName": "PureBase/Toon",
+            "meanLuminance": {
+                "minimum": 0.08925478160381317,
+                "maximum": 0.08925552666187286
+            }
+        },
+        {
+            "materialName": "PureBaseValidationPbr",
+            "shaderName": "PureBase/PBR",
+            "meanLuminance": {
+                "minimum": 0.0477057620882988,
+                "maximum": 0.0477057620882988
+            }
+        },
+        {
+            "materialName": "PureBaseValidationHybrid",
+            "shaderName": "PureBase/Hybrid",
+            "meanLuminance": {
+                "minimum": 0.12078462541103363,
+                "maximum": 0.12078462541103363
+            }
+        }
+    ]
+}
