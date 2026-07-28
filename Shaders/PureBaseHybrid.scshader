@@ -104,6 +104,7 @@ Shader "PureBase/Hybrid"
             #include "UnityCG.cginc"
             #include "UnityMetaPass.cginc"
             #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp.hlsl"
+            #include "Common/pbr_brdf.hlsl"
             __SC_BIRP_properties__
 
             /// <summary>Defines the bind-pose vertex and lightmap UV inputs for Unity's Meta pass.</summary>
@@ -156,15 +157,20 @@ Shader "PureBase/Hybrid"
                 return output;
             }
 
-            /// <summary>Returns albedo-only Meta data using the fixed Cutout coverage contract.</summary>
+            /// <summary>Returns metallic BRDF Meta data using the fixed Cutout coverage contract.</summary>
             float4 PureBaseHybridMetaFragment(PureBaseHybridMetaVaryings input) : SV_Target
             {
                 half4 albedoAlpha = SCSample(_BaseTexture, sampler_BaseTexture, input.uv) * _BaseColor;
                 clip(albedoAlpha.a - _Cutoff);
+                PureBasePbrBrdfData brdf = PureBasePbrCreateBrdf(albedoAlpha.rgb, _Metallic, _Roughness);
                 UnityMetaInput output;
                 UNITY_INITIALIZE_OUTPUT(UnityMetaInput, output);
-                output.Albedo = albedoAlpha.rgb;
-                output.SpecularColor = 0;
+                #ifdef EDITOR_VISUALIZATION
+                output.Albedo = brdf.diffuseColor;
+                #else
+                output.Albedo = PureBasePbrEvaluateLightmappingAlbedo(brdf);
+                #endif
+                output.SpecularColor = brdf.specularColor;
                 output.Emission = 0;
                 #ifdef EDITOR_VISUALIZATION
                 output.VizUV = input.visualizationUv;

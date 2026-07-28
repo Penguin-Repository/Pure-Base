@@ -22,7 +22,7 @@
             "materialName": "PureBaseValidationUnlit",
             "shaderName": "PureBase/Unlit",
             "meanLuminance": {
-                "minimum": 0.04757445678114891,
+                "minimum": 0.04757252708077431,
                 "maximum": 0.04757445678114891
             }
         },
@@ -30,7 +30,7 @@
             "materialName": "PureBaseValidationToon",
             "shaderName": "PureBase/Toon",
             "meanLuminance": {
-                "minimum": 0.08925552666187286,
+                "minimum": 0.08925478160381317,
                 "maximum": 0.08925552666187286
             }
         },
@@ -38,16 +38,16 @@
             "materialName": "PureBaseValidationPbr",
             "shaderName": "PureBase/PBR",
             "meanLuminance": {
-                "minimum": 0.046457771211862564,
-                "maximum": 0.046457771211862564
+                "minimum": 0.0477057620882988,
+                "maximum": 0.0477057620882988
             }
         },
         {
             "materialName": "PureBaseValidationHybrid",
             "shaderName": "PureBase/Hybrid",
             "meanLuminance": {
-                "minimum": 0.11952719837427139,
-                "maximum": 0.11952719837427139
+                "minimum": 0.12078462541103363,
+                "maximum": 0.12078462541103363
             }
         }
     ]

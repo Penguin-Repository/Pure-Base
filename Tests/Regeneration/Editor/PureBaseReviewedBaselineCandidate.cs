@@ -72,6 +72,20 @@ namespace PureBase.Tests.Regeneration
             void WriteAllText(string path, string contents);
         }
 
+        /// <summary>Defines the reviewed Meta writer that preserves raw canonical baseline bytes outside approved numeric ranges.</summary>
+        internal interface ILosslessReviewedCandidateWriter
+        {
+            /// <summary>Writes one validated reviewed baseline with only its approved target numeric literals replaced.</summary>
+            /// <param name="expectedCanonicalBaselineBytes">The exact canonical bytes used for candidate validation.</param>
+            /// <param name="reviewedCanonicalBaselineBytes">The fully validated canonical bytes with exactly four approved literals replaced.</param>
+            /// <param name="writeBoundary">The active audited write boundary.</param>
+            void WriteLosslessReviewedBaseline(
+                byte[] expectedCanonicalBaselineBytes,
+                byte[] reviewedCanonicalBaselineBytes,
+                PureBaseRegressionBaselineGenerator.IWriteBoundary writeBoundary
+            );
+        }
+
         /// <summary>Creates a reviewed artifact from a raw observation, the current canonical baseline, and exact source bytes.</summary>
         /// <param name="observationCandidate">The validated raw observation candidate.</param>
         /// <param name="canonicalBaseline">The current canonical baseline whose unrelated ranges must be preserved.</param>
@@ -260,6 +274,54 @@ namespace PureBase.Tests.Regeneration
             }
         }
 
+        /// <summary>Applies a reviewed Meta baseline while preserving all non-target canonical source bytes.</summary>
+        /// <param name="candidate">The reviewed artifact to apply.</param>
+        /// <param name="observationCandidate">The raw observation represented by the source bytes.</param>
+        /// <param name="canonicalBaseline">The parsed current canonical baseline.</param>
+        /// <param name="rawCanonicalBaselineBytes">The exact current canonical baseline UTF-8 bytes.</param>
+        /// <param name="rawObservationBytes">The exact raw observation bytes used to bind the artifact.</param>
+        /// <param name="writer">The lossless reviewed Meta writer.</param>
+        /// <param name="writeBoundary">The audited transaction boundary.</param>
+        internal static void ApplyLosslessly(
+            PureBaseReviewedBaselineCandidate candidate,
+            PureBaseRegressionBaselineGenerator.ObservationCandidate observationCandidate,
+            SceneRegressionBaseline canonicalBaseline,
+            byte[] rawCanonicalBaselineBytes,
+            byte[] rawObservationBytes,
+            ILosslessReviewedCandidateWriter writer,
+            PureBaseRegressionBaselineGenerator.IWriteBoundary writeBoundary
+        )
+        {
+            if (rawCanonicalBaselineBytes == null)
+                throw new ArgumentNullException(nameof(rawCanonicalBaselineBytes));
+            if (writer == null)
+                throw new ArgumentNullException(nameof(writer));
+            if (writeBoundary == null)
+                throw new ArgumentNullException(nameof(writeBoundary));
+
+            Validate(candidate, observationCandidate, canonicalBaseline, rawObservationBytes);
+            byte[] reviewedCanonicalBaselineBytes =
+                PureBaseRegressionBaselineStorage.CreateLosslessReviewedBaselineBytes(
+                    canonicalBaseline,
+                    rawCanonicalBaselineBytes,
+                    candidate.approvedBaseline
+                );
+            writeBoundary.BeginTransaction();
+            try
+            {
+                writer.WriteLosslessReviewedBaseline(
+                    rawCanonicalBaselineBytes,
+                    reviewedCanonicalBaselineBytes,
+                    writeBoundary
+                );
+                writeBoundary.VerifyNoUnrelatedChanges();
+            }
+            finally
+            {
+                writeBoundary.VerifyNoUnrelatedChanges();
+            }
+        }
+
         /// <summary>Reads each source artifact once before validating and applying a reviewed baseline.</summary>
         /// <param name="reader">The external artifact reader.</param>
         /// <param name="observationCandidatePath">The raw observation artifact path.</param>
@@ -288,6 +350,43 @@ namespace PureBase.Tests.Regeneration
                 reviewedCandidate,
                 observationCandidate,
                 canonicalBaseline,
+                observationBytes,
+                writer,
+                writeBoundary
+            );
+        }
+
+        /// <summary>Reads each reviewed artifact once before applying it through a byte-preserving canonical writer.</summary>
+        /// <param name="reader">The external artifact reader.</param>
+        /// <param name="observationCandidatePath">The raw observation artifact path.</param>
+        /// <param name="reviewedCandidatePath">The reviewed artifact path.</param>
+        /// <param name="canonicalBaseline">The parsed current canonical baseline.</param>
+        /// <param name="rawCanonicalBaselineBytes">The exact current canonical baseline UTF-8 bytes.</param>
+        /// <param name="writer">The lossless reviewed Meta writer.</param>
+        /// <param name="writeBoundary">The audited transaction boundary.</param>
+        internal static void ApplyFromArtifactsLosslessly(
+            IArtifactReader reader,
+            string observationCandidatePath,
+            string reviewedCandidatePath,
+            SceneRegressionBaseline canonicalBaseline,
+            byte[] rawCanonicalBaselineBytes,
+            ILosslessReviewedCandidateWriter writer,
+            PureBaseRegressionBaselineGenerator.IWriteBoundary writeBoundary
+        )
+        {
+            if (reader == null)
+                throw new ArgumentNullException(nameof(reader));
+
+            byte[] observationBytes = reader.ReadAllBytes(observationCandidatePath);
+            byte[] reviewedBytes = reader.ReadAllBytes(reviewedCandidatePath);
+            PureBaseRegressionBaselineGenerator.ObservationCandidate observationCandidate =
+                DeserializeObservationCandidate(observationBytes);
+            PureBaseReviewedBaselineCandidate reviewedCandidate = Deserialize(reviewedBytes);
+            ApplyLosslessly(
+                reviewedCandidate,
+                observationCandidate,
+                canonicalBaseline,
+                rawCanonicalBaselineBytes,
                 observationBytes,
                 writer,
                 writeBoundary

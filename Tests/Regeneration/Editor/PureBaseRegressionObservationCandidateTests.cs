@@ -252,7 +252,7 @@ namespace PureBase.Tests.Regeneration
             return new SceneRegressionObservation
             {
                 staticLightmapCount = 2, staticRendererAssignmentCount = 20, sceneFinitePixelCount = 4096, sceneVisiblePixelCount = 1024, sceneVisibleCoverage = 0.25f, sceneVisibleCentroidX = 0.5f, sceneVisibleCentroidY = 0.5f, shadowChangedPixelCount = 33, shadowCoveragePixelCount = 64, shadowCoverage = 0.015625f, shadowCentroidX = 0.5f, shadowCentroidY = 0.5f, shadowMaxAbsoluteRgbDelta = 0.2f, warmedVariantCount = 56, dynamicLightmapStatus = PureBaseRegressionBaselineGenerator.DynamicLightmapLimitation,
-                metaAlbedo = new[] { new MetaAlbedoObservation { materialName = "Unlit", shaderName = "PureBase/Unlit", meanLuminance = 0.01f }, new MetaAlbedoObservation { materialName = "Toon", shaderName = "PureBase/Toon", meanLuminance = 0.02f }, new MetaAlbedoObservation { materialName = "PBR", shaderName = "PureBase/PBR", meanLuminance = 0.03f }, new MetaAlbedoObservation { materialName = "Hybrid", shaderName = "PureBase/Hybrid", meanLuminance = 0.04f } },
+                metaAlbedo = new[] { new MetaAlbedoObservation { materialName = "PureBaseValidationUnlit", shaderName = "PureBase/Unlit", meanLuminance = 0.01f }, new MetaAlbedoObservation { materialName = "PureBaseValidationToon", shaderName = "PureBase/Toon", meanLuminance = 0.02f }, new MetaAlbedoObservation { materialName = "PureBaseValidationPbr", shaderName = "PureBase/PBR", meanLuminance = 0.03f }, new MetaAlbedoObservation { materialName = "PureBaseValidationHybrid", shaderName = "PureBase/Hybrid", meanLuminance = 0.04f } },
             };
         }
 

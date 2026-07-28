@@ -200,12 +200,15 @@ namespace PureBase.Tests.Regeneration
                     PureBaseReviewedBaselineCandidate.ReviewedMetaBaselinePathArgument
                 );
                 var writeBoundary = new UnityWriteBoundary();
-                PureBaseReviewedBaselineCandidate.ApplyFromArtifacts(
+                CanonicalBaselineSnapshot canonicalSnapshot =
+                    PureBaseRegressionBaselineStorage.ReadCanonicalBaselineSnapshot();
+                PureBaseReviewedBaselineCandidate.ApplyFromArtifactsLosslessly(
                     new FileArtifactReader(),
                     observationCandidatePath,
                     reviewedMetaBaselinePath,
-                    PureBaseValidationSceneRegressionTests.LoadBaseline(),
-                    new UnityReviewedCandidateWriter(),
+                    canonicalSnapshot.Baseline,
+                    canonicalSnapshot.RawBytes,
+                    new UnityLosslessReviewedCandidateWriter(),
                     writeBoundary
                 );
                 Debug.Log(
@@ -1326,6 +1329,26 @@ namespace PureBase.Tests.Regeneration
             )
             {
                 WriteReviewedCandidateBaseline(baseline, writeBoundary);
+            }
+        }
+
+        /// <summary>Writes only validated PBR and Hybrid Meta literal ranges while preserving all other canonical baseline bytes.</summary>
+        private sealed class UnityLosslessReviewedCandidateWriter :
+            PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
+        {
+            /// <inheritdoc />
+            public void WriteLosslessReviewedBaseline(
+                byte[] expectedCanonicalBaselineBytes,
+                byte[] reviewedCanonicalBaselineBytes,
+                IWriteBoundary writeBoundary
+            )
+            {
+                PureBaseRegressionBaselineStorage.WriteReviewedCanonicalBaselineBytesIfCurrent(
+                    expectedCanonicalBaselineBytes,
+                    reviewedCanonicalBaselineBytes,
+                    writeBoundary,
+                    new UnityCanonicalBaselineStorageBackend()
+                );
             }
         }
 

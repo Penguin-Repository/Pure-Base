@@ -76,6 +76,21 @@ namespace PureBase.Tests.Daily
             "PureBase/Hybrid",
         };
 
+        /// <summary>Lists the committed product material identities in fixed shader order.</summary>
+        private static readonly string[] ProductMaterialNames =
+        {
+            "PureBaseValidationUnlit",
+            "PureBaseValidationToon",
+            "PureBaseValidationPbr",
+            "PureBaseValidationHybrid",
+        };
+
+        /// <summary>Defines the largest reviewed Unlit Meta luminance range width.</summary>
+        private const float MaximumUnlitMetaRangeWidth = 0.000002f;
+
+        /// <summary>Defines the largest reviewed Toon Meta luminance range width.</summary>
+        private const float MaximumToonMetaRangeWidth = 0.0000008f;
+
         /// <summary>Selects Meta albedo output from Unity's Meta fragment.</summary>
         private static readonly Vector4 MetaAlbedoFragmentControl = new Vector4(
             1.0f,
@@ -469,6 +484,211 @@ namespace PureBase.Tests.Daily
             });
         }
 
+        /// <summary>Ensures the non-metallic Meta hosts multiply the base texture and color while preserving Cutout coverage and zero emission.</summary>
+        [Test]
+        public void UnlitAndToonMetaPreserveBaseColorCutoutAndZeroEmission()
+        {
+            WithUnlitAndToonMaterials(materials =>
+            {
+                Texture2D baseTexture = CreateControlledBaseTexture(
+                    new Color(0.5f, 0.25f, 0.75f, 1.0f)
+                );
+                try
+                {
+                    Color baseColor = new Color(0.8f, 0.4f, 0.6f, 1.0f);
+                    Color expected = new Color(0.4f, 0.1f, 0.45f, 1.0f);
+                    foreach (Material sourceMaterial in materials)
+                    {
+                        MetaCaptureReadback albedo = RenderMetaCapture(
+                            sourceMaterial,
+                            material =>
+                                ConfigureBaseMetaMaterial(
+                                    material,
+                                    baseTexture,
+                                    baseColor,
+                                    0.0f
+                                ),
+                            false,
+                            null,
+                            MetaAlbedoFragmentControl
+                        );
+                        AssertMetaReadback(
+                            albedo,
+                            expected,
+                            $"{sourceMaterial.shader.name} base texture multiplied by base color"
+                        );
+
+                        MetaCaptureReadback discarded = RenderMetaCapture(
+                            sourceMaterial,
+                            material =>
+                                ConfigureBaseMetaMaterial(
+                                    material,
+                                    baseTexture,
+                                    new Color(0.8f, 0.4f, 0.6f, 0.25f),
+                                    0.5f
+                                ),
+                            false,
+                            null,
+                            MetaAlbedoFragmentControl
+                        );
+                        Assert.That(
+                            discarded.opaquePixelCount,
+                            Is.Zero,
+                            $"{sourceMaterial.shader.name} Meta pass ignored alpha cutoff."
+                        );
+
+                        MetaCaptureReadback visible = RenderMetaCapture(
+                            sourceMaterial,
+                            material =>
+                                ConfigureBaseMetaMaterial(
+                                    material,
+                                    baseTexture,
+                                    new Color(0.8f, 0.4f, 0.6f, 0.75f),
+                                    0.5f
+                                ),
+                            false,
+                            null,
+                            MetaAlbedoFragmentControl
+                        );
+                        Assert.That(
+                            visible.opaquePixelCount,
+                            Is.EqualTo(MetaMeshPixelCount),
+                            $"{sourceMaterial.shader.name} Meta pass did not render above alpha cutoff."
+                        );
+
+                        MetaCaptureReadback emission = RenderMetaCapture(
+                            sourceMaterial,
+                            material =>
+                                ConfigureBaseMetaMaterial(
+                                    material,
+                                    baseTexture,
+                                    new Color(0.8f, 0.4f, 0.6f, 0.75f),
+                                    0.5f
+                                ),
+                            false,
+                            null,
+                            MetaEmissionFragmentControl
+                        );
+                        Assert.That(
+                            emission.opaquePixelCount,
+                            Is.EqualTo(MetaMeshPixelCount),
+                            $"{sourceMaterial.shader.name} Meta emission did not cover the complete transient mesh."
+                        );
+                        AssertMetaColor(
+                            Color.black,
+                            emission.meanColor,
+                            $"{sourceMaterial.shader.name} Meta emission"
+                        );
+                    }
+                }
+                finally
+                {
+                    UnityEngine.Object.DestroyImmediate(baseTexture);
+                }
+            });
+        }
+
+        /// <summary>Ensures the committed Unlit and Toon endpoints are accepted and immediately adjacent values are rejected.</summary>
+        [Test]
+        public void UnlitAndToonMetaRangeEndpointsRejectOutsideValues()
+        {
+            SceneRegressionBaseline baseline = LoadBaseline();
+            for (int index = 0; index < 2; index++)
+            {
+                FloatRange range = baseline.metaAlbedo[index].meanLuminance;
+                AssertMetaLuminanceInRange(
+                    range.minimum,
+                    range,
+                    $"{baseline.metaAlbedo[index].shaderName} lower endpoint"
+                );
+                AssertMetaLuminanceInRange(
+                    range.maximum,
+                    range,
+                    $"{baseline.metaAlbedo[index].shaderName} upper endpoint"
+                );
+                Assert.Throws<AssertionException>(() =>
+                    AssertMetaLuminanceInRange(
+                        range.minimum - 0.00000001f,
+                        range,
+                        $"{baseline.metaAlbedo[index].shaderName} below range"
+                    )
+                );
+                Assert.Throws<AssertionException>(() =>
+                    AssertMetaLuminanceInRange(
+                        range.maximum + 0.00000001f,
+                        range,
+                        $"{baseline.metaAlbedo[index].shaderName} above range"
+                    )
+                );
+            }
+        }
+
+        /// <summary>Ensures Unlit and Toon transient capture restores source-material and global state after success and a readback failure.</summary>
+        [Test]
+        public void UnlitAndToonMetaCaptureRestoresProtectedStateAfterSuccessAndReadbackFailure()
+        {
+            WithUnlitAndToonMaterials(materials =>
+            {
+                MetaGlobalState originalGlobals = MetaGlobalState.Capture();
+                foreach (Material sourceMaterial in materials)
+                {
+                    Color originalBaseColor = sourceMaterial.GetColor("_BaseColor");
+                    Texture originalBaseTexture = sourceMaterial.GetTexture("_BaseTexture");
+                    float originalCutoff = sourceMaterial.GetFloat("_Cutoff");
+                    bool originalVisualization = sourceMaterial.IsKeywordEnabled(
+                        "EDITOR_VISUALIZATION"
+                    );
+                    RenderMetaCapture(
+                        sourceMaterial,
+                        material =>
+                            ConfigureBaseMetaMaterial(
+                                material,
+                                Texture2D.whiteTexture,
+                                new Color(0.6f, 0.6f, 0.6f, 1.0f),
+                                0.0f
+                            ),
+                        true,
+                        () => ConfigureEditorVisualizationGlobals(0.0f, 0.0f, 0.0f),
+                        MetaAlbedoFragmentControl
+                    );
+                    AssertBaseMetaSourceMaterialRestored(
+                        sourceMaterial,
+                        originalBaseColor,
+                        originalBaseTexture,
+                        originalCutoff,
+                        originalVisualization
+                    );
+                    originalGlobals.AssertRestored();
+
+                    AssertCaptureAllocationFailure(
+                        CaptureAllocationFault.MetaBeforeReadback,
+                        () =>
+                            RenderMetaCapture(
+                                sourceMaterial,
+                                material =>
+                                    ConfigureBaseMetaMaterial(
+                                        material,
+                                        Texture2D.whiteTexture,
+                                        new Color(0.6f, 0.6f, 0.6f, 1.0f),
+                                        0.0f
+                                    ),
+                                true,
+                                () => ConfigureEditorVisualizationGlobals(0.0f, 0.0f, 0.0f),
+                                MetaAlbedoFragmentControl
+                            )
+                    );
+                    AssertBaseMetaSourceMaterialRestored(
+                        sourceMaterial,
+                        originalBaseColor,
+                        originalBaseTexture,
+                        originalCutoff,
+                        originalVisualization
+                    );
+                    originalGlobals.AssertRestored();
+                }
+            });
+        }
+
         /// <summary>Ensures the regular additive-scene shadow capture is selected after an identical fixture confirms preview rendering has no silhouette.</summary>
         [Test]
         public void ShadowCaptureUsesRegularAdditiveSceneWhenPreviewSceneHasNoSilhouette()
@@ -715,6 +935,58 @@ namespace PureBase.Tests.Daily
             );
         }
 
+        /// <summary>Ensures Meta baseline roles enforce their reviewed range widths, exactness, and identities.</summary>
+        [Test]
+        public void BaselineMetaRangePolicyRejectsUnexpectedIdentityWidthAndNonExactPbrHosts()
+        {
+            SceneRegressionBaseline baseline = CreateObservableBaseline();
+
+            baseline.metaAlbedo[0].meanLuminance.minimum = 0.01f;
+            baseline.metaAlbedo[0].meanLuminance.maximum =
+                baseline.metaAlbedo[0].meanLuminance.minimum + MaximumUnlitMetaRangeWidth;
+            baseline.metaAlbedo[1].meanLuminance.minimum = 0.02f;
+            baseline.metaAlbedo[1].meanLuminance.maximum =
+                baseline.metaAlbedo[1].meanLuminance.minimum + MaximumToonMetaRangeWidth;
+            Assert.DoesNotThrow(() => ValidateBaselineObservability(baseline, "test baseline"));
+
+            baseline = CreateObservableBaseline();
+            baseline.metaAlbedo[0].meanLuminance.maximum =
+                baseline.metaAlbedo[0].meanLuminance.minimum + 0.000003f;
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
+
+            baseline = CreateObservableBaseline();
+            baseline.metaAlbedo[1].meanLuminance.maximum += 0.000001f;
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
+
+            baseline = CreateObservableBaseline();
+            baseline.metaAlbedo[2].meanLuminance.maximum += 0.000001f;
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
+
+            baseline = CreateObservableBaseline();
+            baseline.metaAlbedo[3].meanLuminance.maximum += 0.000001f;
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
+
+            baseline = CreateObservableBaseline();
+            baseline.metaAlbedo[0].shaderName = "PureBase/PBR";
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
+
+            baseline = CreateObservableBaseline();
+            baseline.metaAlbedo[0].materialName = "PureBaseValidationToon";
+            Assert.Throws<AssertionException>(() =>
+                ValidateBaselineObservability(baseline, "test baseline")
+            );
+        }
+
         /// <summary>Ensures a baseline with no changed shadow pixels cannot be accepted.</summary>
         [Test]
         public void BaselineRejectsZeroShadowSilhouette()
@@ -876,6 +1148,38 @@ namespace PureBase.Tests.Daily
                         $"{baselineLabel} has an unobservable Meta luminance range at index {index}."
                     );
                 }
+
+                if (
+                    meta.materialName != ProductMaterialNames[index]
+                    || meta.shaderName != ProductShaderNames[index]
+                )
+                {
+                    throw new AssertionException(
+                        $"{baselineLabel} has an unexpected Meta material identity at index {index}."
+                    );
+                }
+
+                float rangeWidth = meta.meanLuminance.maximum - meta.meanLuminance.minimum;
+                if (index == 0 && rangeWidth > MaximumUnlitMetaRangeWidth)
+                {
+                    throw new AssertionException(
+                        $"{baselineLabel} has an Unlit Meta luminance range wider than {MaximumUnlitMetaRangeWidth}."
+                    );
+                }
+
+                if (index == 1 && rangeWidth > MaximumToonMetaRangeWidth)
+                {
+                    throw new AssertionException(
+                        $"{baselineLabel} has a Toon Meta luminance range wider than {MaximumToonMetaRangeWidth}."
+                    );
+                }
+
+                if (index >= 2 && rangeWidth != 0.0f)
+                {
+                    throw new AssertionException(
+                        $"{baselineLabel} requires an exact Meta luminance for '{meta.shaderName}'."
+                    );
+                }
             }
 
             if (
@@ -1003,7 +1307,7 @@ namespace PureBase.Tests.Daily
                 MetaAlbedoObservation actual = observation.metaAlbedo[index];
                 Assert.That(actual.materialName, Is.EqualTo(expected.materialName));
                 Assert.That(actual.shaderName, Is.EqualTo(expected.shaderName));
-                AssertRange(
+                AssertMetaLuminanceInRange(
                     actual.meanLuminance,
                     expected.meanLuminance,
                     $"Meta luminance for '{actual.materialName}'"
@@ -1678,6 +1982,30 @@ namespace PureBase.Tests.Daily
             }
         }
 
+        /// <summary>Runs a focused assertion while the canonical scene exposes its Unlit and Toon source materials.</summary>
+        /// <param name="assertion">The assertion that observes the two persistent source materials.</param>
+        private static void WithUnlitAndToonMaterials(Action<IReadOnlyList<Material>> assertion)
+        {
+            EditorStateSnapshot state = EditorStateSnapshot.Capture();
+            Scene validationScene = default;
+            bool sceneWasLoaded = false;
+            bool sceneWasDirty = false;
+            try
+            {
+                validationScene = SceneManager.GetSceneByPath(ScenePath);
+                sceneWasLoaded = validationScene.isLoaded;
+                if (!sceneWasLoaded)
+                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                sceneWasDirty = validationScene.isDirty;
+                List<Material> materials = GetProductMaterials(validationScene);
+                assertion(new[] { materials[0], materials[1] });
+            }
+            finally
+            {
+                state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
+            }
+        }
+
         /// <summary>Builds the fixed screen quad used for transient Meta rendering.</summary>
         /// <returns>A transient mesh.</returns>
         private static Mesh CreateScreenMesh()
@@ -1801,15 +2129,87 @@ namespace PureBase.Tests.Daily
             material.SetFloat("_Cutoff", cutoff);
         }
 
+        /// <summary>Configures the common base-texture, color, and Cutout inputs used by Unlit and Toon Meta capture.</summary>
+        /// <param name="material">The transient material clone.</param>
+        /// <param name="baseTexture">The controlled linear base texture.</param>
+        /// <param name="baseColor">The linear base color and alpha.</param>
+        /// <param name="cutoff">The alpha cutoff input.</param>
+        private static void ConfigureBaseMetaMaterial(
+            Material material,
+            Texture baseTexture,
+            Color baseColor,
+            float cutoff
+        )
+        {
+            AssertBaseMetaMaterialProperties(material);
+            material.SetTexture("_BaseTexture", baseTexture);
+            material.SetColor("_BaseColor", EncodeLinearBaseColor(baseColor));
+            material.SetFloat("_Cutoff", cutoff);
+        }
+
+        /// <summary>Creates a single-pixel linear texture for deterministic base-texture Meta capture.</summary>
+        /// <param name="color">The linear texture color.</param>
+        /// <returns>The transient texture.</returns>
+        private static Texture2D CreateControlledBaseTexture(Color color)
+        {
+            var texture = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            texture.SetPixel(0, 0, color);
+            texture.Apply(false, true);
+            return texture;
+        }
+
         /// <summary>Requires the material properties used by the shared PBR and Hybrid Meta contract.</summary>
         /// <param name="material">The material whose compatible property surface is required.</param>
         private static void AssertMetaMaterialProperties(Material material)
         {
-            Assert.That(material.HasProperty("_BaseColor"), Is.True);
-            Assert.That(material.HasProperty("_BaseTexture"), Is.True);
+            AssertBaseMetaMaterialProperties(material);
             Assert.That(material.HasProperty("_Metallic"), Is.True);
             Assert.That(material.HasProperty("_Roughness"), Is.True);
+        }
+
+        /// <summary>Requires the shared base property surface used by every product Meta shader.</summary>
+        /// <param name="material">The material whose compatible property surface is required.</param>
+        private static void AssertBaseMetaMaterialProperties(Material material)
+        {
+            Assert.That(material.HasProperty("_BaseColor"), Is.True);
+            Assert.That(material.HasProperty("_BaseTexture"), Is.True);
             Assert.That(material.HasProperty("_Cutoff"), Is.True);
+        }
+
+        /// <summary>Asserts that transient capture did not mutate the persistent base material or visualization keyword.</summary>
+        /// <param name="material">The persistent source material.</param>
+        /// <param name="baseColor">The original base color.</param>
+        /// <param name="baseTexture">The original base texture.</param>
+        /// <param name="cutoff">The original alpha cutoff.</param>
+        /// <param name="editorVisualizationEnabled">The original editor-visualization keyword state.</param>
+        private static void AssertBaseMetaSourceMaterialRestored(
+            Material material,
+            Color baseColor,
+            Texture baseTexture,
+            float cutoff,
+            bool editorVisualizationEnabled
+        )
+        {
+            Assert.That(material.GetColor("_BaseColor"), Is.EqualTo(baseColor));
+            Assert.That(material.GetTexture("_BaseTexture"), Is.EqualTo(baseTexture));
+            Assert.That(material.GetFloat("_Cutoff"), Is.EqualTo(cutoff));
+            Assert.That(
+                material.IsKeywordEnabled("EDITOR_VISUALIZATION"),
+                Is.EqualTo(editorVisualizationEnabled)
+            );
+        }
+
+        /// <summary>Asserts one Meta luminance value against a committed inclusive range without a tolerance expansion.</summary>
+        /// <param name="value">The observed or endpoint luminance.</param>
+        /// <param name="range">The committed inclusive range.</param>
+        /// <param name="context">The diagnostic context.</param>
+        private static void AssertMetaLuminanceInRange(float value, FloatRange range, string context)
+        {
+            Assert.That(value, Is.InRange(range.minimum, range.maximum), context);
         }
 
         /// <summary>Encodes a controlled linear base color for the shader's gamma-space material property without changing alpha coverage.</summary>
@@ -2094,6 +2494,8 @@ namespace PureBase.Tests.Daily
             {
                 metaAlbedo[index] = new MetaAlbedoBaseline
                 {
+                    materialName = ProductMaterialNames[index],
+                    shaderName = ProductShaderNames[index],
                     meanLuminance = FloatRange.Exact(MinimumMetaLuminance + 0.001f),
                 };
             }

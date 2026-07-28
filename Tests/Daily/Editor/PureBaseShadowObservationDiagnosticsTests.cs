@@ -15,16 +15,17 @@
  */
 
 using NUnit.Framework;
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace PureBase.Tests.Daily
 {
-    /// <summary>Emits successful shadow observations so reviewed renderer tolerances remain auditable.</summary>
+    /// <summary>Emits successful rendering observations so reviewed renderer tolerances remain auditable.</summary>
     public sealed class PureBaseShadowObservationDiagnosticsTests
     {
-        /// <summary>Logs the current shadow count, reviewed range, renderer, and active quality profile.</summary>
+        /// <summary>Logs one stable record containing the complete current rendering observation and its reviewed ranges.</summary>
         [Test]
         public void LogReviewedShadowObservationEnvironment()
         {
@@ -61,14 +62,19 @@ namespace PureBase.Tests.Daily
                         ? QualitySettings.names[qualityLevel]
                         : "<invalid>";
 
-                // This diagnostic intentionally does not widen or rewrite the baseline. It
-                // records the current value and the committed range after local and
-                // GitHub-hosted projects apply the same reviewed quality configuration.
+                MetaAlbedoObservation[] meta = observation.metaAlbedo;
+
+                // This diagnostic intentionally does not widen or rewrite the baseline.
                 Debug.Log(
-                    $"Pure-Base Daily shadow observation: changedPixels={observation.shadowChangedPixelCount}, "
-                        + $"reviewedRange=[{baseline.shadowChangedPixelCount.minimum}, {baseline.shadowChangedPixelCount.maximum}], "
-                        + $"graphicsDevice='{SystemInfo.graphicsDeviceName}', graphicsDeviceType={SystemInfo.graphicsDeviceType}, "
-                        + $"qualityLevel={qualityLevel} ('{qualityName}')."
+                    $"Pure-Base Daily observation: unityVersion='{Application.unityVersion}', renderPipeline='BuiltIn', "
+                        + $"graphicsApi='{SystemInfo.graphicsDeviceType}', colorSpace='{PlayerSettings.colorSpace}', "
+                        + $"graphicsDeviceName='{SystemInfo.graphicsDeviceName}', graphicsDeviceVersion='{SystemInfo.graphicsDeviceVersion}', "
+                        + $"qualityLevel={qualityLevel}, qualityName='{qualityName}', "
+                        + $"metaUnlit={meta[0].meanLuminance}, metaUnlitRange=[{baseline.metaAlbedo[0].meanLuminance.minimum}, {baseline.metaAlbedo[0].meanLuminance.maximum}], "
+                        + $"metaToon={meta[1].meanLuminance}, metaToonRange=[{baseline.metaAlbedo[1].meanLuminance.minimum}, {baseline.metaAlbedo[1].meanLuminance.maximum}], "
+                        + $"metaPbr={meta[2].meanLuminance}, metaPbrRange=[{baseline.metaAlbedo[2].meanLuminance.minimum}, {baseline.metaAlbedo[2].meanLuminance.maximum}], "
+                        + $"metaHybrid={meta[3].meanLuminance}, metaHybridRange=[{baseline.metaAlbedo[3].meanLuminance.minimum}, {baseline.metaAlbedo[3].meanLuminance.maximum}], "
+                        + $"shadowChangedPixels={observation.shadowChangedPixelCount}, shadowRange=[{baseline.shadowChangedPixelCount.minimum}, {baseline.shadowChangedPixelCount.maximum}]."
                 );
 
                 Assert.That(

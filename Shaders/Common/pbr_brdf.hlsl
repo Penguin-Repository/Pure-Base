@@ -56,6 +56,14 @@ PureBasePbrBrdfData PureBasePbrCreateBrdf(half3 albedo, half metallic, half roug
     return brdf;
 }
 
+/// <summary>Aggregates the PureBase material diffuse and specular decomposition with Unity Standard's Meta lightmapping roughness rule.</summary>
+/// <param name="brdf">The PureBase material BRDF terms; this function does not recreate Unity Standard metallic terms.</param>
+/// <returns>The Unity Standard Meta lightmapping albedo using actual squared roughness.</returns>
+half3 PureBasePbrEvaluateLightmappingAlbedo(PureBasePbrBrdfData brdf)
+{
+    return brdf.diffuseColor + brdf.specularColor * brdf.roughnessSquared * 0.5;
+}
+
 /// <summary>Evaluates Schlick Fresnel for a shared metallic GGX BRDF.</summary>
 /// <param name="specularColor">The material F0 reflectance.</param>
 /// <param name="cosine">The clamped incident half-angle cosine.</param>

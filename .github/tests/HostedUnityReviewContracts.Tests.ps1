@@ -87,6 +87,10 @@ Describe 'Hosted Unity review contracts' {
         $ciDocumentation.Contains('GitHub-hosted `windows-2022` runners') | Should -BeTrue
         $ciDocumentation.Contains('GitHub-hosted `windows-latest` runners') | Should -BeFalse
         $shadowDiagnostics.Contains('341-352') | Should -BeFalse
-        $shadowDiagnostics.Contains('committed range') | Should -BeTrue
+        $shadowDiagnostics.Contains('metaUnlitRange') | Should -BeTrue
+        $shadowDiagnostics.Contains('metaToonRange') | Should -BeTrue
+        $shadowDiagnostics.Contains('metaPbrRange') | Should -BeTrue
+        $shadowDiagnostics.Contains('metaHybridRange') | Should -BeTrue
+        $shadowDiagnostics.Contains('shadowRange') | Should -BeTrue
     }
 }

@@ -66,7 +66,7 @@ namespace PureBase.Tests.Regeneration
 
             Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance, Is.Not.SameAs(originalRange));
             Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance.minimum, Is.EqualTo(0.01f));
-            Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance.maximum, Is.EqualTo(0.02f));
+            Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance.maximum, Is.EqualTo(0.010001f));
         }
 
         /// <summary>Requires reviewed candidates to bind the exact observation bytes with SHA-256.</summary>
@@ -369,6 +369,222 @@ namespace PureBase.Tests.Regeneration
             changedCanonical.metaAlbedo[index].meanLuminance.maximum += 0.01f;
 
             AssertApplyRejection(CreateReviewedCandidate(), CreateObservation(), changedCanonical);
+        }
+
+        /// <summary>Requires lossless reviewed apply preparation to preserve every non-target literal and terminal newline.</summary>
+        [Test]
+        public void CreateLosslessReviewedBaselineBytesPreservesNonTargetTextAndOnlyChangesApprovedRanges()
+        {
+            SceneRegressionBaseline canonical = CreateCanonicalBaseline();
+            SceneRegressionBaseline approved = CreateReviewedCandidate().approvedBaseline;
+            string rawText = CreateRawCanonicalBaselineText();
+
+            string rewrittenText = Encoding.UTF8.GetString(
+                PureBaseRegressionBaselineStorage.CreateLosslessReviewedBaselineBytes(
+                    canonical,
+                    Encoding.UTF8.GetBytes(rawText),
+                    approved
+                )
+            );
+
+            string pbrMinimum = ExtractMetaRangeLiteral(
+                rewrittenText,
+                "PureBaseValidationPbr",
+                "minimum"
+            );
+            string pbrMaximum = ExtractMetaRangeLiteral(
+                rewrittenText,
+                "PureBaseValidationPbr",
+                "maximum"
+            );
+            string hybridMinimum = ExtractMetaRangeLiteral(
+                rewrittenText,
+                "PureBaseValidationHybrid",
+                "minimum"
+            );
+            string hybridMaximum = ExtractMetaRangeLiteral(
+                rewrittenText,
+                "PureBaseValidationHybrid",
+                "maximum"
+            );
+            string expectedText = rawText
+                .Replace("5.0e-2", pbrMinimum)
+                .Replace("6.0e-2", pbrMaximum)
+                .Replace("7.0e-2", hybridMinimum)
+                .Replace("8.0e-2", hybridMaximum);
+
+            Assert.That(rewrittenText, Is.EqualTo(expectedText));
+            Assert.That(rewrittenText, Does.Contain("\"minimum\": 3.0e-2"));
+            Assert.That(rewrittenText, Does.Contain("\"maximum\": 3.00005e-2"));
+            Assert.That(rewrittenText.EndsWith("\n", StringComparison.Ordinal), Is.True);
+            Assert.That(ParseInvariantSingle(pbrMinimum), Is.EqualTo(approved.metaAlbedo[2].meanLuminance.minimum));
+            Assert.That(ParseInvariantSingle(pbrMaximum), Is.EqualTo(approved.metaAlbedo[2].meanLuminance.maximum));
+            Assert.That(ParseInvariantSingle(hybridMinimum), Is.EqualTo(approved.metaAlbedo[3].meanLuminance.minimum));
+            Assert.That(ParseInvariantSingle(hybridMaximum), Is.EqualTo(approved.metaAlbedo[3].meanLuminance.maximum));
+        }
+
+        /// <summary>Requires the approved Unlit and Toon migration to replace only its four validated Meta token spans.</summary>
+        [Test]
+        public void CreateApprovedUnlitToonRangeMigrationBytesPreservesAllOtherCanonicalBytes()
+        {
+            string rawText = CreateApprovedUnlitToonMigrationSourceText();
+            string rewrittenText = Encoding.UTF8.GetString(
+                PureBaseRegressionBaselineStorage.CreateApprovedUnlitToonRangeMigrationBytes(
+                    Encoding.UTF8.GetBytes(rawText)
+                )
+            );
+            string expectedText = rawText
+                .Replace(
+                    "\"minimum\": 0.04757445678114891",
+                    "\"minimum\": 0.04757252708077431"
+                )
+                .Replace(
+                    "\"minimum\": 0.08925552666187286",
+                    "\"minimum\": 0.08925478160381317"
+                );
+
+            Assert.That(rewrittenText, Is.EqualTo(expectedText));
+            Assert.That(
+                ExtractMetaRangeLiteral(rewrittenText, "PureBaseValidationUnlit", "minimum"),
+                Is.EqualTo("0.04757252708077431")
+            );
+            Assert.That(
+                ExtractMetaRangeLiteral(rewrittenText, "PureBaseValidationUnlit", "maximum"),
+                Is.EqualTo("0.04757445678114891")
+            );
+            Assert.That(
+                ExtractMetaRangeLiteral(rewrittenText, "PureBaseValidationToon", "minimum"),
+                Is.EqualTo("0.08925478160381317")
+            );
+            Assert.That(
+                ExtractMetaRangeLiteral(rewrittenText, "PureBaseValidationToon", "maximum"),
+                Is.EqualTo("0.08925552666187286")
+            );
+            Assert.That(
+                ExtractMetaRangeLiteral(rewrittenText, "PureBaseValidationPbr", "minimum"),
+                Is.EqualTo("0.0477057620882988")
+            );
+            Assert.That(
+                ExtractMetaRangeLiteral(rewrittenText, "PureBaseValidationHybrid", "maximum"),
+                Is.EqualTo("0.12078462541103363")
+            );
+            Assert.That(rewrittenText, Does.Contain("\"minimum\": 341, \"maximum\": 352"));
+            Assert.That(rewrittenText.EndsWith("\n", StringComparison.Ordinal), Is.True);
+        }
+
+        /// <summary>Requires stale migration source literals and every Meta identity failure to reject before producing bytes.</summary>
+        /// <param name="condition">The one source or identity invariant to invalidate.</param>
+        [TestCase("stale")]
+        [TestCase("missing")]
+        [TestCase("duplicate")]
+        [TestCase("reordered")]
+        [TestCase("unexpected")]
+        public void CreateApprovedUnlitToonRangeMigrationBytesRejectsInvalidSourceOrIdentity(
+            string condition
+        )
+        {
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    PureBaseRegressionBaselineStorage.CreateApprovedUnlitToonRangeMigrationBytes(
+                        Encoding.UTF8.GetBytes(CreateInvalidApprovedUnlitToonMigrationSourceText(condition))
+                    )
+            );
+        }
+
+        /// <summary>Requires malformed canonical target ranges to reject before the lossless apply transaction begins.</summary>
+        [Test]
+        public void ApplyLosslesslyRejectsAmbiguousCanonicalTargetRangeBeforeTransaction()
+        {
+            string ambiguousRawText = CreateRawCanonicalBaselineText().Replace(
+                "\"minimum\": 5.0e-2,",
+                "\"minimum\": 5.0e-2, \"minimum\": 5.0e-2,"
+            );
+            var writer = new RecordingLosslessWriter();
+            var boundary = new RecordingWriteBoundary();
+
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    PureBaseReviewedBaselineCandidate.ApplyLosslessly(
+                        CreateReviewedCandidate(),
+                        CreateObservation(),
+                        CreateCanonicalBaseline(),
+                        Encoding.UTF8.GetBytes(ambiguousRawText),
+                        CreateObservationBytes(),
+                        writer,
+                        boundary
+                    )
+            );
+
+            Assert.That(writer.WriteCalls, Is.Zero);
+            Assert.That(boundary.BeginCalls, Is.Zero);
+            Assert.That(boundary.VerifyCalls, Is.Zero);
+        }
+
+        /// <summary>Requires lossless reviewed apply to write prepared bytes only after existing source and canonical guards validate.</summary>
+        [Test]
+        public void ApplyLosslesslyWritesPreparedBytePreservingCanonicalBaseline()
+        {
+            SceneRegressionBaseline canonical = CreateCanonicalBaseline();
+            PureBaseReviewedBaselineCandidate candidate = CreateReviewedCandidate();
+            byte[] rawCanonicalBytes = Encoding.UTF8.GetBytes(CreateRawCanonicalBaselineText());
+            var writer = new RecordingLosslessWriter();
+            var boundary = new RecordingWriteBoundary();
+
+            PureBaseReviewedBaselineCandidate.ApplyLosslessly(
+                candidate,
+                CreateObservation(),
+                canonical,
+                rawCanonicalBytes,
+                CreateObservationBytes(),
+                writer,
+                boundary
+            );
+
+            Assert.That(writer.WriteCalls, Is.EqualTo(1));
+            Assert.That(boundary.BeginCalls, Is.EqualTo(1));
+            Assert.That(boundary.VerifyCalls, Is.EqualTo(2));
+            Assert.That(
+                writer.WrittenBytes,
+                Is.EqualTo(
+                    PureBaseRegressionBaselineStorage.CreateLosslessReviewedBaselineBytes(
+                        canonical,
+                        rawCanonicalBytes,
+                        candidate.approvedBaseline
+                    )
+                )
+            );
+            Assert.That(writer.ExpectedBytes, Is.EqualTo(rawCanonicalBytes));
+        }
+
+        /// <summary>Requires a canonical mutation after snapshot capture to reject at the final source comparison without a write or import.</summary>
+        [Test]
+        public void ApplyLosslesslyRejectsCanonicalMutationAtFinalSourceComparisonWithoutStorageEffects()
+        {
+            byte[] snapshotBytes = Encoding.UTF8.GetBytes(CreateRawCanonicalBaselineText());
+            byte[] changedCanonicalBytes = Encoding.UTF8.GetBytes(
+                CreateRawCanonicalBaselineText().Replace("1.0e-2", "1.1e-2")
+            );
+            var writer = new FinalSourceComparisonWriter(changedCanonicalBytes);
+            var boundary = new RecordingWriteBoundary();
+
+            Assert.Throws<InvalidOperationException>(
+                () =>
+                    PureBaseReviewedBaselineCandidate.ApplyLosslessly(
+                        CreateReviewedCandidate(),
+                        CreateObservation(),
+                        CreateCanonicalBaseline(),
+                        snapshotBytes,
+                        CreateObservationBytes(),
+                        writer,
+                        boundary
+                    )
+            );
+
+            Assert.That(writer.FinalSourceComparisons, Is.EqualTo(1));
+            Assert.That(writer.BaselineWriteCalls, Is.Zero);
+            Assert.That(writer.ImportCalls, Is.Zero);
+            Assert.That(boundary.BeginCalls, Is.EqualTo(1));
+            Assert.That(boundary.VerifyCalls, Is.EqualTo(1));
         }
 
         /// <summary>Requires each artifact path to be read exactly once even if a second read would change content.</summary>
@@ -847,13 +1063,114 @@ namespace PureBase.Tests.Regeneration
                 dynamicLightmapStatus = PureBaseRegressionBaselineGenerator.DynamicLightmapLimitation,
                 metaAlbedo = new[]
                 {
-                    CreateMeta("PureBaseValidationUnlit", "PureBase/Unlit", 0.01f, 0.02f),
-                    CreateMeta("PureBaseValidationToon", "PureBase/Toon", 0.03f, 0.04f),
-                    CreateMeta("PureBaseValidationPbr", "PureBase/PBR", 0.05f, 0.06f),
-                    CreateMeta("PureBaseValidationHybrid", "PureBase/Hybrid", 0.07f, 0.08f),
+                    CreateMeta("PureBaseValidationUnlit", "PureBase/Unlit", 0.01f, 0.010001f),
+                    CreateMeta("PureBaseValidationToon", "PureBase/Toon", 0.03f, 0.0300005f),
+                    CreateMeta("PureBaseValidationPbr", "PureBase/PBR", 0.05f, 0.05f),
+                    CreateMeta("PureBaseValidationHybrid", "PureBase/Hybrid", 0.07f, 0.07f),
                 },
             };
         }
+
+        /// <summary>Creates canonical raw JSON with non-canonical but equivalent float literal spellings and a terminal newline.</summary>
+        /// <returns>The raw canonical JSON text used by lossless replacement contracts.</returns>
+        private static string CreateRawCanonicalBaselineText() =>
+            "{\n"
+            + "  \"metaAlbedo\": [\n"
+            + "    {\"materialName\": \"PureBaseValidationUnlit\", \"shaderName\": \"PureBase/Unlit\", \"meanLuminance\": {\"minimum\": 1.0e-2, \"maximum\": 1.0001e-2}},\n"
+            + "    {\"materialName\": \"PureBaseValidationToon\", \"shaderName\": \"PureBase/Toon\", \"meanLuminance\": {\"minimum\": 3.0e-2, \"maximum\": 3.00005e-2}},\n"
+            + "    {\"materialName\": \"PureBaseValidationPbr\", \"shaderName\": \"PureBase/PBR\", \"meanLuminance\": {\"minimum\": 5.0e-2, \"maximum\": 5.0e-2}},\n"
+            + "    {\"materialName\": \"PureBaseValidationHybrid\", \"shaderName\": \"PureBase/Hybrid\", \"meanLuminance\": {\"minimum\": 7.0e-2, \"maximum\": 7.0e-2}}\n"
+            + "  ]\n"
+            + "}\n";
+
+        /// <summary>Creates the exact predecessor canonical JSON text for the approved Unlit and Toon range migration.</summary>
+        /// <returns>The lossless migration source with a terminal newline.</returns>
+        private static string CreateApprovedUnlitToonMigrationSourceText() =>
+            "{\n"
+            + "  \"shadowChangedPixelCount\": {\"minimum\": 341, \"maximum\": 352},\n"
+            + "  \"metaAlbedo\": [\n"
+            + "    {\"materialName\": \"PureBaseValidationUnlit\", \"shaderName\": \"PureBase/Unlit\", \"meanLuminance\": {\"minimum\": 0.04757445678114891, \"maximum\": 0.04757445678114891}},\n"
+            + "    {\"materialName\": \"PureBaseValidationToon\", \"shaderName\": \"PureBase/Toon\", \"meanLuminance\": {\"minimum\": 0.08925552666187286, \"maximum\": 0.08925552666187286}},\n"
+            + "    {\"materialName\": \"PureBaseValidationPbr\", \"shaderName\": \"PureBase/PBR\", \"meanLuminance\": {\"minimum\": 0.0477057620882988, \"maximum\": 0.0477057620882988}},\n"
+            + "    {\"materialName\": \"PureBaseValidationHybrid\", \"shaderName\": \"PureBase/Hybrid\", \"meanLuminance\": {\"minimum\": 0.12078462541103363, \"maximum\": 0.12078462541103363}}\n"
+            + "  ]\n"
+            + "}\n";
+
+        /// <summary>Creates one source fixture with a single stale literal or Meta identity invariant.</summary>
+        /// <param name="condition">The invariant to invalidate.</param>
+        /// <returns>The invalid migration source text.</returns>
+        private static string CreateInvalidApprovedUnlitToonMigrationSourceText(string condition)
+        {
+            string source = CreateApprovedUnlitToonMigrationSourceText();
+            if (condition == "stale")
+            {
+                return source.Replace(
+                    "0.04757445678114891",
+                    "0.04757445678114890"
+                );
+            }
+
+            if (condition == "missing")
+            {
+                return source.Replace(
+                    "    {\"materialName\": \"PureBaseValidationUnlit\", \"shaderName\": \"PureBase/Unlit\", \"meanLuminance\": {\"minimum\": 0.04757445678114891, \"maximum\": 0.04757445678114891}},\n",
+                    string.Empty
+                );
+            }
+
+            if (condition == "duplicate")
+            {
+                return source.Replace("PureBaseValidationUnlit", "PureBaseValidationToon");
+            }
+
+            if (condition == "reordered")
+            {
+                const string UnlitLine =
+                    "    {\"materialName\": \"PureBaseValidationUnlit\", \"shaderName\": \"PureBase/Unlit\", \"meanLuminance\": {\"minimum\": 0.04757445678114891, \"maximum\": 0.04757445678114891}},\n";
+                const string ToonLine =
+                    "    {\"materialName\": \"PureBaseValidationToon\", \"shaderName\": \"PureBase/Toon\", \"meanLuminance\": {\"minimum\": 0.08925552666187286, \"maximum\": 0.08925552666187286}},\n";
+                return source.Replace(UnlitLine + ToonLine, ToonLine + UnlitLine);
+            }
+
+            return source.Replace("PureBase/Toon", "PureBase/Unexpected");
+        }
+
+        /// <summary>Extracts one rewritten numeric literal from the specified ordered Meta entry.</summary>
+        /// <param name="json">The rewritten canonical JSON.</param>
+        /// <param name="materialName">The Meta material identity.</param>
+        /// <param name="propertyName">The requested range property name.</param>
+        /// <returns>The exact rewritten numeric literal.</returns>
+        private static string ExtractMetaRangeLiteral(
+            string json,
+            string materialName,
+            string propertyName
+        )
+        {
+            int materialIndex = json.IndexOf(
+                $"\"materialName\": \"{materialName}\"",
+                StringComparison.Ordinal
+            );
+            Assert.That(materialIndex, Is.GreaterThanOrEqualTo(0));
+            int propertyIndex = json.IndexOf(
+                $"\"{propertyName}\": ",
+                materialIndex,
+                StringComparison.Ordinal
+            );
+            Assert.That(propertyIndex, Is.GreaterThan(materialIndex));
+            int literalStart = propertyIndex + propertyName.Length + 4;
+            int literalEnd = json.IndexOfAny(new[] { ',', '}' }, literalStart);
+            Assert.That(literalEnd, Is.GreaterThan(literalStart));
+            return json.Substring(literalStart, literalEnd - literalStart);
+        }
+
+        /// <summary>Parses one JSON numeric literal as an invariant single-precision value for reviewed-target assertions.</summary>
+        /// <param name="literal">The JSON numeric literal.</param>
+        /// <returns>The parsed float value.</returns>
+        private static float ParseInvariantSingle(string literal) => float.Parse(
+            literal,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture
+        );
 
         /// <summary>Creates a complete valid reviewed candidate fixture.</summary>
         /// <returns>The reviewed candidate with only exact PBR and Hybrid replacements.</returns>
@@ -866,8 +1183,8 @@ namespace PureBase.Tests.Regeneration
             {
                 schemaVersion = PureBaseReviewedBaselineCandidate.SchemaVersion,
                 sourceObservationSha256 = ComputeFixtureSha256(CreateObservationBytes()),
-                canonicalPbrRange = new FloatRange { minimum = 0.05f, maximum = 0.06f },
-                canonicalHybridRange = new FloatRange { minimum = 0.07f, maximum = 0.08f },
+                canonicalPbrRange = new FloatRange { minimum = 0.05f, maximum = 0.05f },
+                canonicalHybridRange = new FloatRange { minimum = 0.07f, maximum = 0.07f },
                 approvedBaseline = approved,
             };
         }
@@ -1126,6 +1443,140 @@ namespace PureBase.Tests.Regeneration
             {
                 WriteCalls++;
                 StorageBackendCalls++;
+            }
+        }
+
+        /// <summary>Records prepared lossless bytes without touching durable storage.</summary>
+        private sealed class RecordingLosslessWriter :
+            PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
+        {
+            /// <summary>Gets the number of lossless writer calls.</summary>
+            public int WriteCalls { get; private set; }
+
+            /// <summary>Gets the last prepared raw canonical bytes.</summary>
+            public byte[] WrittenBytes { get; private set; }
+
+            /// <summary>Gets the exact canonical bytes supplied to the final source comparison.</summary>
+            public byte[] ExpectedBytes { get; private set; }
+
+            /// <inheritdoc />
+            public void WriteLosslessReviewedBaseline(
+                byte[] expectedCanonicalBaselineBytes,
+                byte[] reviewedCanonicalBaselineBytes,
+                PureBaseRegressionBaselineGenerator.IWriteBoundary writeBoundary
+            )
+            {
+                WriteCalls++;
+                ExpectedBytes = expectedCanonicalBaselineBytes;
+                WrittenBytes = reviewedCanonicalBaselineBytes;
+            }
+        }
+
+        /// <summary>Simulates the conditional storage operation that rejects a canonical source changed after snapshot capture.</summary>
+        private sealed class FinalSourceComparisonWriter :
+            PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
+        {
+            /// <summary>Stores the conditional canonical persistence backend exercised by this writer.</summary>
+            private readonly ChangedCanonicalStorageBackend backend;
+
+            /// <summary>Initializes a final source comparison with controlled current canonical bytes.</summary>
+            /// <param name="currentCanonicalBytes">The bytes present after snapshot capture.</param>
+            public FinalSourceComparisonWriter(byte[] currentCanonicalBytes)
+            {
+                backend = new ChangedCanonicalStorageBackend(currentCanonicalBytes);
+            }
+
+            /// <summary>Gets the number of final source comparisons.</summary>
+            public int FinalSourceComparisons => backend.FinalSourceComparisons;
+
+            /// <summary>Gets the number of simulated canonical writes.</summary>
+            public int BaselineWriteCalls => backend.BaselineWriteCalls;
+
+            /// <summary>Gets the number of simulated canonical imports.</summary>
+            public int ImportCalls => backend.ImportCalls;
+
+            /// <inheritdoc />
+            public void WriteLosslessReviewedBaseline(
+                byte[] expectedCanonicalBaselineBytes,
+                byte[] reviewedCanonicalBaselineBytes,
+                PureBaseRegressionBaselineGenerator.IWriteBoundary writeBoundary
+            )
+            {
+                PureBaseRegressionBaselineStorage.WriteReviewedCanonicalBaselineBytesIfCurrent(
+                    expectedCanonicalBaselineBytes,
+                    reviewedCanonicalBaselineBytes,
+                    writeBoundary,
+                    backend
+                );
+            }
+        }
+
+        /// <summary>Models canonical storage whose durable bytes change between snapshot capture and conditional persistence.</summary>
+        private sealed class ChangedCanonicalStorageBackend :
+            ICanonicalBaselineStorageBackend,
+            IConditionalRawCanonicalBaselineStorageBackend
+        {
+            /// <summary>Stores the durable canonical bytes observed at the final write boundary.</summary>
+            private readonly byte[] currentCanonicalBytes;
+
+            /// <summary>Initializes the controlled canonical source state.</summary>
+            /// <param name="currentCanonicalBytes">The bytes present after snapshot capture.</param>
+            public ChangedCanonicalStorageBackend(byte[] currentCanonicalBytes)
+            {
+                this.currentCanonicalBytes = currentCanonicalBytes;
+            }
+
+            /// <summary>Gets the number of final conditional source comparisons.</summary>
+            public int FinalSourceComparisons { get; private set; }
+
+            /// <summary>Gets the number of simulated conditional canonical writes.</summary>
+            public int BaselineWriteCalls { get; private set; }
+
+            /// <summary>Gets the number of canonical imports.</summary>
+            public int ImportCalls { get; private set; }
+
+            /// <inheritdoc />
+            public bool IsDirectoryValid(string assetPath) => true;
+
+            /// <inheritdoc />
+            public void CreateDirectory(string parentAssetPath, string directoryName) =>
+                throw new InvalidOperationException("The final source comparison must not create directories.");
+
+            /// <inheritdoc />
+            public void WriteAllText(string path, string contents) =>
+                throw new InvalidOperationException("The final source comparison must not serialize canonical JSON.");
+
+            /// <inheritdoc />
+            public bool TryWriteAllBytesIfCurrent(
+                string path,
+                byte[] expectedContents,
+                byte[] replacementContents
+            )
+            {
+                FinalSourceComparisons++;
+                if (!BytesMatch(expectedContents, currentCanonicalBytes))
+                    return false;
+
+                BaselineWriteCalls++;
+                return true;
+            }
+
+            /// <inheritdoc />
+            public void ImportAsset(string path) => ImportCalls++;
+
+            /// <summary>Compares two nullable byte arrays without treating references as equivalent source state.</summary>
+            /// <param name="left">The expected source bytes.</param>
+            /// <param name="right">The current source bytes.</param>
+            /// <returns>Whether both arrays contain the same bytes.</returns>
+            private static bool BytesMatch(byte[] left, byte[] right)
+            {
+                if (left == null || right == null || left.Length != right.Length)
+                    return false;
+
+                for (int index = 0; index < left.Length; index++)
+                    if (left[index] != right[index])
+                        return false;
+                return true;
             }
         }
 
