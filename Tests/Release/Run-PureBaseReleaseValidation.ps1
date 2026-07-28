@@ -75,7 +75,7 @@ function Test-PathContainedBy {
     $candidate = Get-NormalizedPath -Path $Path
     $parent = Get-NormalizedPath -Path $ParentPath
     return $candidate.Equals($parent, [System.StringComparison]::OrdinalIgnoreCase) -or
-        $candidate.StartsWith($parent + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+    $candidate.StartsWith($parent + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Test-ReparsePoint {
@@ -177,9 +177,9 @@ function Get-ConsumerUnityProcess {
     }
     catch {
         return [pscustomobject][ordered]@{
-            status = 'indeterminate'
+            status  = 'indeterminate'
             process = $null
-            reason = "Could not query Unity processes: $($_.Exception.Message)"
+            reason  = "Could not query Unity processes: $($_.Exception.Message)"
         }
     }
 
@@ -192,9 +192,9 @@ function Get-ConsumerUnityProcess {
         }
         if ($commandLine -match $projectPattern) {
             return [pscustomobject][ordered]@{
-                status = 'active'
+                status  = 'active'
                 process = $unityProcess
-                reason = "Unity process $($unityProcess.ProcessId) is using '$ProjectRoot'."
+                reason  = "Unity process $($unityProcess.ProcessId) is using '$ProjectRoot'."
             }
         }
     }
@@ -202,16 +202,16 @@ function Get-ConsumerUnityProcess {
     if ($unreadableProcesses.Count -ne 0) {
         $processIds = @($unreadableProcesses | ForEach-Object { [string]$_.ProcessId }) -join ', '
         return [pscustomobject][ordered]@{
-            status = 'indeterminate'
+            status  = 'indeterminate'
             process = $null
-            reason = "Cannot inspect CommandLine for Unity process(es) $processIds; refusing to rule out '$ProjectRoot'."
+            reason  = "Cannot inspect CommandLine for Unity process(es) $processIds; refusing to rule out '$ProjectRoot'."
         }
     }
 
     return [pscustomobject][ordered]@{
-        status = 'none'
+        status  = 'none'
         process = $null
-        reason = "No Unity process is using '$ProjectRoot'."
+        reason  = "No Unity process is using '$ProjectRoot'."
     }
 }
 
@@ -342,18 +342,18 @@ function Get-ConsumerImmutableManifest {
     $shaderCoreTreeHash = Get-Sha256Hex -Bytes ([System.Text.Encoding]::UTF8.GetBytes($shaderCoreLines))
 
     return [ordered]@{
-        schemaVersion = 1
-        pathOrdering = 'System.StringComparer.Ordinal'
-        immutableRoots = $rootNames
+        schemaVersion               = 1
+        pathOrdering                = 'System.StringComparer.Ordinal'
+        immutableRoots              = $rootNames
         excludedMutablePathPrefixes = @('Assets/Artifacts/', 'Library/')
-        rootSha256 = Get-Sha256Hex -Bytes ([System.Text.Encoding]::UTF8.GetBytes($manifestLines))
-        entries = $entries
-        releaseZipSha256 = Get-Sha256Hex -Path $ZipPath
-        shaderCore = [ordered]@{
-            packageName = $shaderCorePackage.name
-            packageVersion = $shaderCorePackage.version
+        rootSha256                  = Get-Sha256Hex -Bytes ([System.Text.Encoding]::UTF8.GetBytes($manifestLines))
+        entries                     = $entries
+        releaseZipSha256            = Get-Sha256Hex -Path $ZipPath
+        shaderCore                  = [ordered]@{
+            packageName            = $shaderCorePackage.name
+            packageVersion         = $shaderCorePackage.version
             expectedIdentitySha256 = [string]$expectedShaderCoreManifest.identitySha256
-            treeSha256 = $shaderCoreTreeHash
+            treeSha256             = $shaderCoreTreeHash
         }
     }
 }
@@ -375,9 +375,9 @@ function Add-ConsumerStagingReceiptTreeEntries {
         }
         $EntriesByDestination.Add($destination, [ordered]@{
                 destination = $destination
-                sourceKind = $SourceKind
-                source = $file.FullName
-                sha256 = Get-Sha256Hex -Path $file.FullName
+                sourceKind  = $SourceKind
+                source      = $file.FullName
+                sha256      = Get-Sha256Hex -Path $file.FullName
             })
     }
 }
@@ -406,9 +406,9 @@ function Get-ConsumerStagingReceipt {
     }
     $entriesByDestination.Add($canonicalConfigDestination, [ordered]@{
             destination = $canonicalConfigDestination
-            sourceKind = 'workspace-canonical-shader-core-config'
-            source = $CanonicalShaderCoreConfigPath
-            sha256 = Get-Sha256Hex -Path $CanonicalShaderCoreConfigPath
+            sourceKind  = 'workspace-canonical-shader-core-config'
+            source      = $CanonicalShaderCoreConfigPath
+            sha256      = Get-Sha256Hex -Path $CanonicalShaderCoreConfigPath
         })
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -438,9 +438,9 @@ function Get-ConsumerStagingReceipt {
             }
             $entriesByDestination.Add($destination, [ordered]@{
                     destination = $destination
-                    sourceKind = 'release-zip-entry'
-                    source = $entry.FullName
-                    sha256 = $hash
+                    sourceKind  = 'release-zip-entry'
+                    source      = $entry.FullName
+                    sha256      = $hash
                 })
         }
     }
@@ -450,10 +450,10 @@ function Get-ConsumerStagingReceipt {
 
     $destinations = Get-OrdinalSortedStrings -Values ([string[]]@($entriesByDestination.Keys))
     return [ordered]@{
-        schemaName = 'purebase-consumer-staging-receipt'
+        schemaName    = 'purebase-consumer-staging-receipt'
         schemaVersion = 1
-        pathOrdering = 'System.StringComparer.Ordinal'
-        entries = @($destinations | ForEach-Object { $entriesByDestination[$_] })
+        pathOrdering  = 'System.StringComparer.Ordinal'
+        entries       = @($destinations | ForEach-Object { $entriesByDestination[$_] })
     }
 }
 
@@ -530,15 +530,15 @@ function Get-ConsumerImmutableManifestDeltaReport {
     }
 
     return [ordered]@{
-        schemaName = 'purebase-immutable-manifest-bootstrap-delta'
-        schemaVersion = 1
-        classification = 'observed'
-        pathOrdering = 'System.StringComparer.Ordinal'
-        preBootstrapRootSha256 = [string]$PreBootstrap.rootSha256
+        schemaName              = 'purebase-immutable-manifest-bootstrap-delta'
+        schemaVersion           = 1
+        classification          = 'observed'
+        pathOrdering            = 'System.StringComparer.Ordinal'
+        preBootstrapRootSha256  = [string]$PreBootstrap.rootSha256
         postBootstrapRootSha256 = [string]$PostBootstrap.rootSha256
-        added = $added.ToArray()
-        removed = $removed.ToArray()
-        changed = $changed.ToArray()
+        added                   = $added.ToArray()
+        removed                 = $removed.ToArray()
+        changed                 = $changed.ToArray()
     }
 }
 
@@ -563,15 +563,15 @@ function Get-ExpectedFirstBootstrapAddedPaths {
 
 function Get-FirstBootstrapGeneratedMetaProfile {
     return [ordered]@{
-        'Assets/ReleaseConsumer/Fixtures.meta' = [ordered]@{ relatedPath = 'Assets/ReleaseConsumer/Fixtures'; itemType = 'Directory' }
-        'Assets/ReleaseModules.meta' = [ordered]@{ relatedPath = 'Assets/ReleaseModules'; itemType = 'Directory' }
-        'Assets/Resources.meta' = [ordered]@{ relatedPath = 'Assets/Resources'; itemType = 'Directory' }
-        'Assets/Resources/BillingMode.json.meta' = [ordered]@{ relatedPath = 'Assets/Resources/BillingMode.json'; itemType = 'Leaf' }
-        '_LocalPackages/jp.penguin.purebase/Editor.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/Editor'; itemType = 'Directory' }
-        '_LocalPackages/jp.penguin.purebase/LICENSE.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/LICENSE'; itemType = 'Leaf' }
-        '_LocalPackages/jp.penguin.purebase/NOTICE.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/NOTICE'; itemType = 'Leaf' }
-        '_LocalPackages/jp.penguin.purebase/README.md.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/README.md'; itemType = 'Leaf' }
-        '_LocalPackages/jp.penguin.purebase/Shaders.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/Shaders'; itemType = 'Directory' }
+        'Assets/ReleaseConsumer/Fixtures.meta'                 = [ordered]@{ relatedPath = 'Assets/ReleaseConsumer/Fixtures'; itemType = 'Directory' }
+        'Assets/ReleaseModules.meta'                           = [ordered]@{ relatedPath = 'Assets/ReleaseModules'; itemType = 'Directory' }
+        'Assets/Resources.meta'                                = [ordered]@{ relatedPath = 'Assets/Resources'; itemType = 'Directory' }
+        'Assets/Resources/BillingMode.json.meta'               = [ordered]@{ relatedPath = 'Assets/Resources/BillingMode.json'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/Editor.meta'       = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/Editor'; itemType = 'Directory' }
+        '_LocalPackages/jp.penguin.purebase/LICENSE.meta'      = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/LICENSE'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/NOTICE.meta'       = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/NOTICE'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/README.md.meta'    = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/README.md'; itemType = 'Leaf' }
+        '_LocalPackages/jp.penguin.purebase/Shaders.meta'      = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/Shaders'; itemType = 'Directory' }
         '_LocalPackages/jp.penguin.purebase/package.json.meta' = [ordered]@{ relatedPath = '_LocalPackages/jp.penguin.purebase/package.json'; itemType = 'Leaf' }
     }
 }
@@ -700,53 +700,53 @@ jp.penguin.purebase|file:../_LocalPackages/jp.penguin.purebase|0|local|
     }
 
     return [ordered]@{
-        unityVersion = $RequiredUnityVersion
-        unityRevision = $RequiredUnityRevision
+        unityVersion         = $RequiredUnityVersion
+        unityRevision        = $RequiredUnityRevision
         manifestDependencies = $manifestDependencies
-        lockDependencies = $lockDependencies
+        lockDependencies     = $lockDependencies
     }
 }
 
 function Get-FirstBootstrapProjectSettingsProfile {
     return [ordered]@{
-        'ProjectSettings/AudioManager.asset' = [ordered]@{ root = 'AudioManager'; requiredLines = @('  serializedVersion: 2', '  m_Volume: 1', '  m_SampleRate: 0') }
-        'ProjectSettings/ClusterInputManager.asset' = [ordered]@{ root = 'ClusterInputManager'; requiredLines = @('  m_Inputs: []') }
-        'ProjectSettings/DynamicsManager.asset' = [ordered]@{ root = 'PhysicsManager'; requiredLines = @('  serializedVersion: 14', '  m_Gravity: {x: 0, y: -9.81, z: 0}', '  m_DefaultSolverIterations: 6') }
-        'ProjectSettings/EditorBuildSettings.asset' = [ordered]@{ root = 'EditorBuildSettings'; requiredLines = @('  serializedVersion: 2', '  m_Scenes: []') }
-        'ProjectSettings/EditorSettings.asset' = [ordered]@{ root = 'EditorSettings'; requiredLines = @('  serializedVersion: 12', '  m_SerializationMode: 2', '  m_LineEndingsForNewScripts: 2') }
-        'ProjectSettings/GraphicsSettings.asset' = [ordered]@{ root = 'GraphicsSettings'; requiredLines = @('  serializedVersion: 15', '  m_AlwaysIncludedShaders:', '  - {fileID: 7, guid: 0000000000000000f000000000000000, type: 0}', '  m_DefaultRenderingPath: 1') }
-        'ProjectSettings/InputManager.asset' = [ordered]@{ root = 'InputManager'; requiredLines = @('  serializedVersion: 2', '  m_Axes:', '  - serializedVersion: 3', '    m_Name: Horizontal') }
-        'ProjectSettings/MemorySettings.asset' = [ordered]@{ root = 'MemorySettings'; requiredLines = @('  m_PlatformMemorySettings: {}', '  m_EditorMemorySettings:', '    m_MainAllocatorBlockSize: -1') }
-        'ProjectSettings/NavMeshAreas.asset' = [ordered]@{ root = 'NavMeshProjectSettings'; requiredLines = @('  serializedVersion: 2', '  areas:', '  - name: Walkable', '    cost: 1') }
-        'ProjectSettings/Physics2DSettings.asset' = [ordered]@{ root = 'Physics2DSettings'; requiredLines = @('  serializedVersion: 6', '  m_Gravity: {x: 0, y: -9.81}', '  m_VelocityIterations: 8') }
-        'ProjectSettings/PresetManager.asset' = [ordered]@{ root = 'PresetManager'; requiredLines = @('  serializedVersion: 2', '  m_DefaultPresets: {}') }
-        'ProjectSettings/ProjectSettings.asset' = [ordered]@{ root = 'PlayerSettings'; requiredLines = @('  serializedVersion: 26', '  companyName: DefaultCompany', '  productName: ConsumerProject', '  defaultScreenWidth: 1920', '  defaultScreenHeight: 1080', '  m_ActiveColorSpace: 0', '  bundleVersion: 1.0') }
-        'ProjectSettings/QualitySettings.asset' = [ordered]@{ root = 'QualitySettings'; requiredLines = @('  serializedVersion: 5', '  m_CurrentQuality: 5', '  m_QualitySettings:', '  - serializedVersion: 3', '    name: Very Low') }
-        'ProjectSettings/TagManager.asset' = [ordered]@{ root = 'TagManager'; requiredLines = @('  serializedVersion: 2', '  tags: []', '  layers:', '  - Default') }
-        'ProjectSettings/TimeManager.asset' = [ordered]@{ root = 'TimeManager'; requiredLines = @('  Fixed Timestep: 0.02', '  Maximum Allowed Timestep: 0.33333334', '  m_TimeScale: 1') }
-        'ProjectSettings/UnityConnectSettings.asset' = [ordered]@{ root = 'UnityConnectSettings'; requiredLines = @('  serializedVersion: 1', '  m_Enabled: 0', '  UnityAnalyticsSettings:', '    m_InitializeOnStartup: 1') }
-        'ProjectSettings/VFXManager.asset' = [ordered]@{ root = 'VFXManager'; requiredLines = @('  m_FixedTimeStep: 0.016666668', '  m_MaxDeltaTime: 0.05') }
+        'ProjectSettings/AudioManager.asset'           = [ordered]@{ root = 'AudioManager'; requiredLines = @('  serializedVersion: 2', '  m_Volume: 1', '  m_SampleRate: 0') }
+        'ProjectSettings/ClusterInputManager.asset'    = [ordered]@{ root = 'ClusterInputManager'; requiredLines = @('  m_Inputs: []') }
+        'ProjectSettings/DynamicsManager.asset'        = [ordered]@{ root = 'PhysicsManager'; requiredLines = @('  serializedVersion: 14', '  m_Gravity: {x: 0, y: -9.81, z: 0}', '  m_DefaultSolverIterations: 6') }
+        'ProjectSettings/EditorBuildSettings.asset'    = [ordered]@{ root = 'EditorBuildSettings'; requiredLines = @('  serializedVersion: 2', '  m_Scenes: []') }
+        'ProjectSettings/EditorSettings.asset'         = [ordered]@{ root = 'EditorSettings'; requiredLines = @('  serializedVersion: 12', '  m_SerializationMode: 2', '  m_LineEndingsForNewScripts: 2') }
+        'ProjectSettings/GraphicsSettings.asset'       = [ordered]@{ root = 'GraphicsSettings'; requiredLines = @('  serializedVersion: 15', '  m_AlwaysIncludedShaders:', '  - {fileID: 7, guid: 0000000000000000f000000000000000, type: 0}', '  m_DefaultRenderingPath: 1') }
+        'ProjectSettings/InputManager.asset'           = [ordered]@{ root = 'InputManager'; requiredLines = @('  serializedVersion: 2', '  m_Axes:', '  - serializedVersion: 3', '    m_Name: Horizontal') }
+        'ProjectSettings/MemorySettings.asset'         = [ordered]@{ root = 'MemorySettings'; requiredLines = @('  m_PlatformMemorySettings: {}', '  m_EditorMemorySettings:', '    m_MainAllocatorBlockSize: -1') }
+        'ProjectSettings/NavMeshAreas.asset'           = [ordered]@{ root = 'NavMeshProjectSettings'; requiredLines = @('  serializedVersion: 2', '  areas:', '  - name: Walkable', '    cost: 1') }
+        'ProjectSettings/Physics2DSettings.asset'      = [ordered]@{ root = 'Physics2DSettings'; requiredLines = @('  serializedVersion: 6', '  m_Gravity: {x: 0, y: -9.81}', '  m_VelocityIterations: 8') }
+        'ProjectSettings/PresetManager.asset'          = [ordered]@{ root = 'PresetManager'; requiredLines = @('  serializedVersion: 2', '  m_DefaultPresets: {}') }
+        'ProjectSettings/ProjectSettings.asset'        = [ordered]@{ root = 'PlayerSettings'; requiredLines = @('  serializedVersion: 26', '  companyName: DefaultCompany', '  productName: ConsumerProject', '  defaultScreenWidth: 1920', '  defaultScreenHeight: 1080', '  m_ActiveColorSpace: 0', '  bundleVersion: 1.0') }
+        'ProjectSettings/QualitySettings.asset'        = [ordered]@{ root = 'QualitySettings'; requiredLines = @('  serializedVersion: 5', '  m_CurrentQuality: 5', '  m_QualitySettings:', '  - serializedVersion: 3', '    name: Very Low') }
+        'ProjectSettings/TagManager.asset'             = [ordered]@{ root = 'TagManager'; requiredLines = @('  serializedVersion: 2', '  tags: []', '  layers:', '  - Default') }
+        'ProjectSettings/TimeManager.asset'            = [ordered]@{ root = 'TimeManager'; requiredLines = @('  Fixed Timestep: 0.02', '  Maximum Allowed Timestep: 0.33333334', '  m_TimeScale: 1') }
+        'ProjectSettings/UnityConnectSettings.asset'   = [ordered]@{ root = 'UnityConnectSettings'; requiredLines = @('  serializedVersion: 1', '  m_Enabled: 0', '  UnityAnalyticsSettings:', '    m_InitializeOnStartup: 1') }
+        'ProjectSettings/VFXManager.asset'             = [ordered]@{ root = 'VFXManager'; requiredLines = @('  m_FixedTimeStep: 0.016666668', '  m_MaxDeltaTime: 0.05') }
         'ProjectSettings/VersionControlSettings.asset' = [ordered]@{ root = 'VersionControlSettings'; requiredLines = @('  m_Mode: Visible Meta Files', '  m_CollabEditorSettings:', '    inProgressEnabled: 1') }
     }
 }
 
 function Get-FirstBootstrapShaderCoreSettingsProfile {
     return [ordered]@{
-        'PureBase/Hybrid' = @()
-        'PureBase/Tests/ShaderCore/Phase/PostPixel' = @('jp.penguin.purebase.tests.shadercore.phase.postpixel')
-        'PureBase/Tests/ShaderCore/Phase/Add' = @('jp.penguin.purebase.tests.shadercore.phase.add')
+        'PureBase/Hybrid'                             = @()
+        'PureBase/Tests/ShaderCore/Phase/PostPixel'   = @('jp.penguin.purebase.tests.shadercore.phase.postpixel')
+        'PureBase/Tests/ShaderCore/Phase/Add'         = @('jp.penguin.purebase.tests.shadercore.phase.add')
         'PureBase/Tests/ShaderCore/Phase/CustomLight' = @('jp.penguin.purebase.tests.shadercore.phase.customlight')
-        'PureBase/Unlit' = @()
-        'PureBase/Tests/ShaderCore/Phase/Light' = @('jp.penguin.purebase.tests.shadercore.phase.light')
-        'PureBase/PBR' = @()
-        'PureBase/Tests/ShaderCore/Phase/Base' = @('jp.penguin.purebase.tests.shadercore.phase.base')
+        'PureBase/Unlit'                              = @()
+        'PureBase/Tests/ShaderCore/Phase/Light'       = @('jp.penguin.purebase.tests.shadercore.phase.light')
+        'PureBase/PBR'                                = @()
+        'PureBase/Tests/ShaderCore/Phase/Base'        = @('jp.penguin.purebase.tests.shadercore.phase.base')
         'PureBase/Tests/ShaderCore/Phase/ModifyLight' = @('jp.penguin.purebase.tests.shadercore.phase.modifylight')
-        'PureBase/Tests/ShaderCore/Phase/Morph' = @('jp.penguin.purebase.tests.shadercore.phase.morph')
-        'PureBase/Tests/ShaderCore/Phase/PostVertex' = @('jp.penguin.purebase.tests.shadercore.phase.postvertex')
-        'PureBase/Tests/ShaderCore/Phase/Reflection' = @('jp.penguin.purebase.tests.shadercore.phase.reflection')
-        'PureBase/Tests/ShaderCore/ModuleOrder' = @('jp.penguin.purebase.tests.shadercore.moduleorder.zeta', 'jp.penguin.purebase.tests.shadercore.moduleorder.alpha')
-        'PureBase/Tests/ShaderCore/Phase/Shade' = @('jp.penguin.purebase.tests.shadercore.phase.shade')
-        'PureBase/Toon' = @()
+        'PureBase/Tests/ShaderCore/Phase/Morph'       = @('jp.penguin.purebase.tests.shadercore.phase.morph')
+        'PureBase/Tests/ShaderCore/Phase/PostVertex'  = @('jp.penguin.purebase.tests.shadercore.phase.postvertex')
+        'PureBase/Tests/ShaderCore/Phase/Reflection'  = @('jp.penguin.purebase.tests.shadercore.phase.reflection')
+        'PureBase/Tests/ShaderCore/ModuleOrder'       = @('jp.penguin.purebase.tests.shadercore.moduleorder.zeta', 'jp.penguin.purebase.tests.shadercore.moduleorder.alpha')
+        'PureBase/Tests/ShaderCore/Phase/Shade'       = @('jp.penguin.purebase.tests.shadercore.phase.shade')
+        'PureBase/Toon'                               = @()
     }
 }
 
@@ -808,7 +808,7 @@ function Get-CanonicalShaderCoreConfigGeneratedMetaProfile {
     $directoryDestination = $configDestination.Substring(0, $configDestination.LastIndexOf('/'))
     return [ordered]@{
         ($directoryDestination + '.meta') = [ordered]@{ relatedPath = $directoryDestination; itemType = 'Directory' }
-        ($configDestination + '.meta') = [ordered]@{ relatedPath = $configDestination; itemType = 'Leaf' }
+        ($configDestination + '.meta')    = [ordered]@{ relatedPath = $configDestination; itemType = 'Leaf' }
     }
 }
 
@@ -903,8 +903,8 @@ function Get-FirstBootstrapMetaValidationFailures {
     $generatedMetaProfile = Get-FirstBootstrapGeneratedMetaProfile
     $allMetaPaths = @(
         Get-ChildItem -LiteralPath $ConsumerRoot -File -Recurse -Force |
-            ForEach-Object { Get-NormalizedRelativePath -Path $_.FullName.Substring($ConsumerRoot.Length).TrimStart('\', '/') } |
-            Where-Object { $_.EndsWith('.meta', [System.StringComparison]::Ordinal) -and ($_.StartsWith('Assets/', [System.StringComparison]::Ordinal) -or $_.StartsWith('Packages/', [System.StringComparison]::Ordinal) -or $_.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal) -or $_.StartsWith('_LocalPackages/', [System.StringComparison]::Ordinal)) }
+        ForEach-Object { Get-NormalizedRelativePath -Path $_.FullName.Substring($ConsumerRoot.Length).TrimStart('\', '/') } |
+        Where-Object { $_.EndsWith('.meta', [System.StringComparison]::Ordinal) -and ($_.StartsWith('Assets/', [System.StringComparison]::Ordinal) -or $_.StartsWith('Packages/', [System.StringComparison]::Ordinal) -or $_.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal) -or $_.StartsWith('_LocalPackages/', [System.StringComparison]::Ordinal)) }
     )
     $allMetaPaths = Get-OrdinalSortedStrings -Values $allMetaPaths
     foreach ($path in $allMetaPaths) {
@@ -1125,11 +1125,11 @@ function Get-ConsumerFirstBootstrapTransitionReport {
     }
     $receiptGeneratedMetaProfile = Get-CanonicalShaderCoreConfigGeneratedMetaProfile
     $semanticDelta = [ordered]@{
-        preBootstrapRootSha256 = $delta.preBootstrapRootSha256
+        preBootstrapRootSha256  = $delta.preBootstrapRootSha256
         postBootstrapRootSha256 = $delta.postBootstrapRootSha256
-        added = @($delta.added | Where-Object { -not $receiptGeneratedMetaProfile.Contains([string]$_.path) })
-        removed = @($delta.removed)
-        changed = @($delta.changed)
+        added                   = @($delta.added | Where-Object { -not $receiptGeneratedMetaProfile.Contains([string]$_.path) })
+        removed                 = @($delta.removed)
+        changed                 = @($delta.changed)
     }
     $expectedAdded = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
     foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) { [void]$expectedAdded.Add($path) }
@@ -1195,18 +1195,18 @@ function Get-ConsumerFirstBootstrapTransitionReport {
     $unclassified = @($entries | Where-Object { $_.verdict -eq 'unclassified' }).Count
     $verdict = if ($accepted -eq 34 -and $rejected -eq 0 -and $unclassified -eq 0 -and $metaValidationFailures.Count -eq 0 -and @($semanticDelta.added).Count -eq $expectedAdded.Count -and @($semanticDelta.changed).Count -eq $expectedChanged.Count -and @($semanticDelta.removed).Count -eq 0) { 'accepted' } else { 'rejected' }
     return [ordered]@{
-        schemaName = 'purebase-first-bootstrap-semantic-transition'
+        schemaName    = 'purebase-first-bootstrap-semantic-transition'
         schemaVersion = 1
-        profile = [ordered]@{
-            unityVersion = $RequiredUnityVersion
+        profile       = [ordered]@{
+            unityVersion  = $RequiredUnityVersion
             unityRevision = $RequiredUnityRevision
-            packageGraph = [ordered]@{ manifestDependencyCount = (Get-FirstBootstrapPackageProfile).manifestDependencies.Count; lockDependencyCount = (Get-FirstBootstrapPackageProfile).lockDependencies.Count }
-            shaderCore = [ordered]@{ packageName = [string]$PostBootstrap.shaderCore.packageName; packageVersion = [string]$PostBootstrap.shaderCore.packageVersion; identitySha256 = [string]$PostBootstrap.shaderCore.treeSha256; expectedIdentitySha256 = [string]$PostBootstrap.shaderCore.expectedIdentitySha256 }
+            packageGraph  = [ordered]@{ manifestDependencyCount = (Get-FirstBootstrapPackageProfile).manifestDependencies.Count; lockDependencyCount = (Get-FirstBootstrapPackageProfile).lockDependencies.Count }
+            shaderCore    = [ordered]@{ packageName = [string]$PostBootstrap.shaderCore.packageName; packageVersion = [string]$PostBootstrap.shaderCore.packageVersion; identitySha256 = [string]$PostBootstrap.shaderCore.treeSha256; expectedIdentitySha256 = [string]$PostBootstrap.shaderCore.expectedIdentitySha256 }
         }
-        deltaRoots = [ordered]@{ preBootstrapSha256 = [string]$delta.preBootstrapRootSha256; postBootstrapSha256 = [string]$delta.postBootstrapRootSha256 }
-        entries = $entries.ToArray()
-        summary = [ordered]@{ accepted = $accepted; rejected = $rejected; unclassified = $unclassified; metaValidationFailures = $metaValidationFailures.Count; expectedAdded = $expectedAdded.Count; expectedChanged = $expectedChanged.Count; observedAdded = @($semanticDelta.added).Count; observedChanged = @($semanticDelta.changed).Count; observedRemoved = @($semanticDelta.removed).Count }
-        verdict = $verdict
+        deltaRoots    = [ordered]@{ preBootstrapSha256 = [string]$delta.preBootstrapRootSha256; postBootstrapSha256 = [string]$delta.postBootstrapRootSha256 }
+        entries       = $entries.ToArray()
+        summary       = [ordered]@{ accepted = $accepted; rejected = $rejected; unclassified = $unclassified; metaValidationFailures = $metaValidationFailures.Count; expectedAdded = $expectedAdded.Count; expectedChanged = $expectedChanged.Count; observedAdded = @($semanticDelta.added).Count; observedChanged = @($semanticDelta.changed).Count; observedRemoved = @($semanticDelta.removed).Count }
+        verdict       = $verdict
     }
 }
 
@@ -1288,7 +1288,7 @@ function Write-ConsumerFailureEvidence {
     )
 
     Write-ConsumerJsonArtifact -Path (Join-Path $RunDirectory 'failure.json') -Value ([ordered]@{
-            message = $Failure.Exception.Message
+            message  = $Failure.Exception.Message
             runLabel = $RunLabel
         })
     $failureDirectory = Join-Path $RunDirectory 'failure-evidence'
@@ -1336,13 +1336,13 @@ function Invoke-ConsumerShaderCoreStateInitialization {
     }
     $facts = Assert-FirstBootstrapShaderCoreSettings -ConsumerRoot $ConsumerRoot
     Write-ConsumerJsonArtifact -Path $reportPath -Value ([ordered]@{
-            schemaName = 'purebase-shader-core-bootstrap-initialization'
-            schemaVersion = 1
-            phase = $Phase
+            schemaName                 = 'purebase-shader-core-bootstrap-initialization'
+            schemaVersion              = 1
+            phase                      = $Phase
             canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
-            initializer = $method
-            rowCount = [int]$facts.mapping.rowCount
-            mapping = $facts.mapping
+            initializer                = $method
+            rowCount                   = [int]$facts.mapping.rowCount
+            mapping                    = $facts.mapping
         }) -Depth 12
     return $facts
 }
@@ -1402,10 +1402,10 @@ function Invoke-ConsumerBootstrapImport {
         $canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
         $canonicalConfigEntries = @($StagingReceipt.entries | Where-Object { $_.destination -eq $canonicalConfigDestination })
         Write-ConsumerJsonArtifact -Path $initializationConfigReceiptPath -Value ([ordered]@{
-                destination = $canonicalConfigDestination
+                destination        = $canonicalConfigDestination
                 expectedSourceKind = 'workspace-canonical-shader-core-config'
-                receiptEntryCount = $canonicalConfigEntries.Count
-                receiptEntry = if ($canonicalConfigEntries.Count -eq 1) { $canonicalConfigEntries[0] } else { $null }
+                receiptEntryCount  = $canonicalConfigEntries.Count
+                receiptEntry       = if ($canonicalConfigEntries.Count -eq 1) { $canonicalConfigEntries[0] } else { $null }
             }) -Depth 6
         if ($canonicalConfigEntries.Count -ne 1 -or $canonicalConfigEntries[0].sourceKind -ne 'workspace-canonical-shader-core-config') {
             throw "Canonical Shader-Core config receipt is missing or invalid for '$canonicalConfigDestination'."
@@ -1436,7 +1436,7 @@ function Invoke-ConsumerBootstrapImport {
 
         $resetResult = Reset-ConsumerLibrary -ConsumerRoot $ConsumerRoot
         Write-ConsumerJsonArtifact -Path $resetPath -Value ([ordered]@{
-                priorLibraryPresent = $resetResult.priorLibraryPresent
+                priorLibraryPresent      = $resetResult.priorLibraryPresent
                 libraryPresentAfterReset = $resetResult.libraryPresentAfterReset
             })
         if ($resetResult.libraryPresentAfterReset) {
@@ -1461,16 +1461,16 @@ function Invoke-ConsumerBootstrapImport {
         $secondDelta = Get-ConsumerImmutableManifestDeltaReport -PreBootstrap $manifest -PostBootstrap $secondManifest
         Write-ConsumerJsonArtifact -Path $secondDeltaPath -Value $secondDelta
         $fixedPointReport = [ordered]@{
-            schemaName = 'purebase-second-bootstrap-fixed-point'
-            schemaVersion = 1
-            firstCanonicalRootSha256 = [string]$manifest.rootSha256
-            preSecondBootstrapRootSha256 = [string]$afterResetManifest.rootSha256
+            schemaName                    = 'purebase-second-bootstrap-fixed-point'
+            schemaVersion                 = 1
+            firstCanonicalRootSha256      = [string]$manifest.rootSha256
+            preSecondBootstrapRootSha256  = [string]$afterResetManifest.rootSha256
             postSecondBootstrapRootSha256 = [string]$secondManifest.rootSha256
-            rootsEqual = [bool]($manifest.rootSha256 -eq $afterResetManifest.rootSha256 -and $manifest.rootSha256 -eq $secondManifest.rootSha256)
-            added = @($secondDelta.added)
-            changed = @($secondDelta.changed)
-            removed = @($secondDelta.removed)
-            nunit = $secondNunitSummary
+            rootsEqual                    = [bool]($manifest.rootSha256 -eq $afterResetManifest.rootSha256 -and $manifest.rootSha256 -eq $secondManifest.rootSha256)
+            added                         = @($secondDelta.added)
+            changed                       = @($secondDelta.changed)
+            removed                       = @($secondDelta.removed)
+            nunit                         = $secondNunitSummary
         }
         Write-ConsumerJsonArtifact -Path $fixedPointReportPath -Value $fixedPointReport -Depth 12
         Assert-ConsumerSecondBootstrapFixedPoint -FirstBootstrap $manifest -AfterLibraryReset $afterResetManifest -SecondBootstrap $secondManifest -Delta $secondDelta
@@ -1642,10 +1642,10 @@ function New-ProductContract {
             throw "Product pass sentinel count for '$ShaderName' pass '$passName' requires a sentinel."
         }
         $passContracts += [ordered]@{
-            passName = $passName
-            nextPassName = $nextPassName
-            requiredFragments = if ($selectedSentinelCount -gt 0) { @($Sentinel) } else { @() }
-            forbiddenFragments = @()
+            passName              = $passName
+            nextPassName          = $nextPassName
+            requiredFragments     = if ($selectedSentinelCount -gt 0) { @($Sentinel) } else { @() }
+            forbiddenFragments    = @()
             selectedSentinelCount = $selectedSentinelCount
         }
     }
@@ -1657,13 +1657,13 @@ function New-ProductContract {
         default { throw "Unsupported PureBase product '$ShaderName'." }
     }
     return [ordered]@{
-        shaderName = $ShaderName
-        shaderAssetPath = Get-ProductShaderAssetPath -ShaderName $ShaderName
-        expectedPassNames = $ProductPasses
+        shaderName                   = $ShaderName
+        shaderAssetPath              = Get-ProductShaderAssetPath -ShaderName $ShaderName
+        expectedPassNames            = $ProductPasses
         expectedVisiblePropertyNames = $expectedVisiblePropertyNames
-        requiredSourceFragments = @()
-        forbiddenSourceFragments = @()
-        passContracts = $passContracts
+        requiredSourceFragments      = @()
+        forbiddenSourceFragments     = @()
+        passContracts                = $passContracts
     }
 }
 
@@ -1717,15 +1717,15 @@ function Get-ProductShaderAssetPath {
 
 function New-ModuleFreeContract {
     return [ordered]@{
-        runLabel = 'module-free-clean-import'
-        runKind = 'module-free'
-        hasSelectedModule = $false
-        products = @($ProductNames | ForEach-Object { New-ProductContract -ShaderName $_ })
-        selectedModule = $null
-        moduleOrder = $null
-        inactiveSentinels = $AllSentinels
-        runtimeSamples = @()
-        bake = $null
+        runLabel           = 'module-free-clean-import'
+        runKind            = 'module-free'
+        hasSelectedModule  = $false
+        products           = @($ProductNames | ForEach-Object { New-ProductContract -ShaderName $_ })
+        selectedModule     = $null
+        moduleOrder        = $null
+        inactiveSentinels  = $AllSentinels
+        runtimeSamples     = @()
+        bake               = $null
         unlitForwardAddFog = $null
     }
 }
@@ -1741,15 +1741,15 @@ function New-PhaseContract {
         $PassSentinelCounts = Get-PhasePassSentinelCounts -Phase $Module.phase
     }
     return [ordered]@{
-        runLabel = $Module.label
-        runKind = 'product-phase'
-        hasSelectedModule = $true
-        products = @($SelectedProducts | ForEach-Object { New-ProductContract -ShaderName $_ -Sentinel $Module.sentinel -PassSentinelCounts $PassSentinelCounts })
-        selectedModule = [ordered]@{ phase = $Module.phase; moduleUniqueId = $Module.uniqueId; propertyName = $Module.propertyName; sentinel = $Module.sentinel }
-        moduleOrder = $null
-        inactiveSentinels = @($AllSentinels | Where-Object { $_ -ne $Module.sentinel })
-        runtimeSamples = @()
-        bake = $null
+        runLabel           = $Module.label
+        runKind            = 'product-phase'
+        hasSelectedModule  = $true
+        products           = @($SelectedProducts | ForEach-Object { New-ProductContract -ShaderName $_ -Sentinel $Module.sentinel -PassSentinelCounts $PassSentinelCounts })
+        selectedModule     = [ordered]@{ phase = $Module.phase; moduleUniqueId = $Module.uniqueId; propertyName = $Module.propertyName; sentinel = $Module.sentinel }
+        moduleOrder        = $null
+        inactiveSentinels  = @($AllSentinels | Where-Object { $_ -ne $Module.sentinel })
+        runtimeSamples     = @()
+        bake               = $null
         unlitForwardAddFog = $null
     }
 }
@@ -1776,19 +1776,19 @@ function New-ToonRuntimeContract {
         default { throw "Unsupported Toon runtime phase '$($Module.phase)'." }
     }
     $contract.runtimeSamples = @([ordered]@{
-            label = $Module.label
-            shaderName = 'PureBase/Toon'
-            shaderAssetPath = Get-ProductShaderAssetPath -ShaderName 'PureBase/Toon'
-            floatAssignments = @()
+            label             = $Module.label
+            shaderName        = 'PureBase/Toon'
+            shaderAssetPath   = Get-ProductShaderAssetPath -ShaderName 'PureBase/Toon'
+            floatAssignments  = @()
             includePointLight = $true
-            red = $runtimeRanges.red
-            green = $runtimeRanges.green
-            blue = $runtimeRanges.blue
-            alpha = $runtimeRanges.alpha
+            red               = $runtimeRanges.red
+            green             = $runtimeRanges.green
+            blue              = $runtimeRanges.blue
+            alpha             = $runtimeRanges.alpha
         })
     $contract.runtimeDelta = [ordered]@{
-        sampleLabel = $Module.label
-        moduleFreeReference = $moduleFreeReference
+        sampleLabel             = $Module.label
+        moduleFreeReference     = $moduleFreeReference
         selectedMinusModuleFree = $selectedMinusModuleFree
     }
     return $contract
@@ -1824,18 +1824,18 @@ function New-FogContract {
         inactiveSentinels = @($AllSentinels | Where-Object { $_ -ne 'PUREBASE_UNLIT_FORWARD_ADD_FOG_SENTINEL' })
         runtimeSamples = @(); bake = $null
         unlitForwardAddFog = [ordered]@{
-            product = $product
-            moduleUniqueId = $moduleUniqueId
-            sentinel = 'PUREBASE_UNLIT_FORWARD_ADD_FOG_SENTINEL'
-            floatAssignments = @([ordered]@{ propertyName = Get-ShaderCoreNamespacedPropertyName -ModuleUniqueId $moduleUniqueId -RawPropertyName $rawPropertyName; value = 1.0 })
-            fog = [ordered]@{ mode = 'Exponential'; color = [ordered]@{ red = 0.0; green = 0.0; blue = 0.0; alpha = 1.0 }; density = 3.0 }
-            cameraFieldOfView = 60.0
+            product                    = $product
+            moduleUniqueId             = $moduleUniqueId
+            sentinel                   = 'PUREBASE_UNLIT_FORWARD_ADD_FOG_SENTINEL'
+            floatAssignments           = @([ordered]@{ propertyName = Get-ShaderCoreNamespacedPropertyName -ModuleUniqueId $moduleUniqueId -RawPropertyName $rawPropertyName; value = 1.0 })
+            fog                        = [ordered]@{ mode = 'Exponential'; color = [ordered]@{ red = 0.0; green = 0.0; blue = 0.0; alpha = 1.0 }; density = 3.0 }
+            cameraFieldOfView          = 60.0
             fogDisabledSignalMagnitude = [ordered]@{ minimum = 0.0001; maximum = 1000.0 }
-            retainedSignalFraction = [ordered]@{ minimum = 0.0; maximum = 1.0 }
-            blackFogRed = [ordered]@{ minimum = 0.0; maximum = 0.1 }
-            blackFogGreen = [ordered]@{ minimum = 0.0; maximum = 0.1 }
-            blackFogBlue = [ordered]@{ minimum = 0.0; maximum = 0.1 }
-            blackFogAlpha = [ordered]@{ minimum = 0.0; maximum = 1.0 }
+            retainedSignalFraction     = [ordered]@{ minimum = 0.0; maximum = 1.0 }
+            blackFogRed                = [ordered]@{ minimum = 0.0; maximum = 0.1 }
+            blackFogGreen              = [ordered]@{ minimum = 0.0; maximum = 0.1 }
+            blackFogBlue               = [ordered]@{ minimum = 0.0; maximum = 0.1 }
+            blackFogAlpha              = [ordered]@{ minimum = 0.0; maximum = 1.0 }
         }
     }
 }
@@ -1895,14 +1895,14 @@ function Select-ValidationMatrix {
 
     if ($BakeOnly) {
         $selectedMatrix = @($Matrix | Where-Object { $_.label -eq 'progressive-cpu-bake' })
-        return ,$selectedMatrix
+        return , $selectedMatrix
     }
     if ($FogOnly) {
         $selectedMatrix = @($Matrix | Where-Object { $_.label -eq 'unlit-forward-add-fog' })
-        return ,$selectedMatrix
+        return , $selectedMatrix
     }
     $selectedMatrix = @($Matrix)
-    return ,$selectedMatrix
+    return , $selectedMatrix
 }
 
 function Write-ConsumerContract {
@@ -2110,10 +2110,10 @@ function Read-StandardMorphObservationEvidence {
             }
         }
         [void]$products.Add([ordered]@{
-                productName = $shaderName
+                productName             = $shaderName
                 generatedSourceFileName = $expectedGeneratedSourceFileName
-                passCounts = $passCounts.ToArray()
-                warmClassification = Get-StandardMorphObservationClassification -PassCounts $passCounts.ToArray()
+                passCounts              = $passCounts.ToArray()
+                warmClassification      = Get-StandardMorphObservationClassification -PassCounts $passCounts.ToArray()
             })
     }
     if ($observedNames.Count -ne $ProductNames.Count) {
@@ -2173,10 +2173,10 @@ function Read-StandardMorphColdEvidence {
         }
         $passCounts = Get-GeneratedSourcePassCounts -GeneratedSource (Get-Content -LiteralPath $generatedSourcePath -Raw) -Sentinel $Contract.selectedModule.sentinel -ProductName $productName -RunLabel $Contract.runLabel
         [void]$products.Add([ordered]@{
-                productName = $productName
+                productName             = $productName
                 generatedSourceFileName = $generatedSourceFileName
-                passCounts = $passCounts
-                coldClassification = Get-StandardMorphObservationClassification -PassCounts $passCounts
+                passCounts              = $passCounts
+                coldClassification      = Get-StandardMorphObservationClassification -PassCounts $passCounts
             })
     }
     return $products.ToArray()
@@ -2213,14 +2213,14 @@ function Invoke-StandardMorphComparisonVerdict {
     $warmRunDirectory = Join-Path $RunRoot ('runs/' + $WarmContract.runLabel)
     $coldRunDirectory = Join-Path $RunRoot ('runs/' + $ColdContract.runLabel)
     $verdict = [ordered]@{
-        schemaName = 'purebase-standard-morph-comparison-verdict'
-        schemaVersion = 1
-        comparisonName = 'warm-cold-standard-morph'
+        schemaName        = 'purebase-standard-morph-comparison-verdict'
+        schemaVersion     = 1
+        comparisonName    = 'warm-cold-standard-morph'
         moduleFreeRunPath = 'runs/module-free-clean-import'
-        warmRunPath = 'runs/' + $WarmContract.runLabel
-        coldRunPath = 'runs/' + $ColdContract.runLabel
-        status = 'failed'
-        products = @()
+        warmRunPath       = 'runs/' + $WarmContract.runLabel
+        coldRunPath       = 'runs/' + $ColdContract.runLabel
+        status            = 'failed'
+        products          = @()
     }
     try {
         Assert-ModuleFreeComparisonEvidence -RunRoot $RunRoot
@@ -2238,10 +2238,10 @@ function Invoke-StandardMorphComparisonVerdict {
             }
             $coldClassification = $coldProduct.coldClassification
             [void]$products.Add([ordered]@{
-                    productName = $warmProduct.productName
+                    productName        = $warmProduct.productName
                     warmClassification = $warmProduct.warmClassification
                     coldClassification = $coldClassification
-                    coldCanonical = [bool]($coldClassification -eq 'canonical')
+                    coldCanonical      = [bool]($coldClassification -eq 'canonical')
                 })
         }
         $verdict.products = $products.ToArray()
@@ -2297,11 +2297,11 @@ function Invoke-ConsumerTest {
     $commandPath = Join-Path $runDirectory 'unity-command.json'
     $nunitSummaryPath = Join-Path $runDirectory 'nunit-summary.json'
     $resetEvidence = [ordered]@{
-        required = [bool]$requiresColdLibraryReset
-        attempted = $false
-        completed = $false
-        resetCount = [int]$script:coldLibraryResetCount
-        priorLibraryPresent = $null
+        required                 = [bool]$requiresColdLibraryReset
+        attempted                = $false
+        completed                = $false
+        resetCount               = [int]$script:coldLibraryResetCount
+        priorLibraryPresent      = $null
         libraryPresentAfterReset = $null
     }
     Write-ConsumerJsonArtifact -Path $contractPath -Value ([ordered]@{ contract = $Contract; selections = $Selections; skipColdLibraryReset = [bool]$SkipColdLibraryReset }) -Depth 12
@@ -2609,9 +2609,9 @@ finally {
             $cleanupStatus = if ($_.Exception.Data.Contains('cleanupStatus')) { [string]$_.Exception.Data['cleanupStatus'] } else { 'failed' }
             $cleanupReason = if ($_.Exception.Data.Contains('cleanupReason')) { [string]$_.Exception.Data['cleanupReason'] } else { $_.Exception.Message }
             Write-ConsumerJsonArtifact -Path (Join-Path $runRoot 'cleanup-failure.json') -Value ([ordered]@{
-                    cleanupStatus = $cleanupStatus
-                    cleanupReason = $cleanupReason
-                    cleanupFailure = $_.Exception.Message
+                    cleanupStatus    = $cleanupStatus
+                    cleanupReason    = $cleanupReason
+                    cleanupFailure   = $_.Exception.Message
                     executionFailure = if ($null -ne $executionFailure) { $executionFailure.Exception.Message } else { '' }
                 })
         }

@@ -49,13 +49,13 @@ Describe 'Release mode resolution' {
 
     It 'rejects a fresh release when the tag already exists' {
         { Resolve-PureBaseReleaseMode -CurrentVersion '0.1.0' -TargetVersion '0.2.0' -ExistingTagSha 'abc123' } |
-            Should -Throw '*already exists*'
+        Should -Throw '*already exists*'
     }
 
     It 'rejects a fresh release when a draft already exists' {
         $draft = [pscustomobject]@{ draft = $true }
         { Resolve-PureBaseReleaseMode -CurrentVersion '0.1.0' -TargetVersion '0.2.0' -ExistingRelease $draft } |
-            Should -Throw '*already exists*'
+        Should -Throw '*already exists*'
     }
 
     It 'allows resume only when package and trigger versions are equal' {
@@ -74,7 +74,7 @@ Describe 'Release mode resolution' {
 
     It 'rejects resume while the target is still newer' {
         { Resolve-PureBaseReleaseMode -CurrentVersion '0.1.0' -TargetVersion '0.2.0' -Resume } |
-            Should -Throw '*versions are equal*'
+        Should -Throw '*versions are equal*'
     }
 }
 
@@ -89,7 +89,7 @@ Describe 'Resume tag handling' {
 
     It 'rejects a tag pointing to another commit' {
         { Resolve-PureBaseResumeTagAction -HeadSha 'abcdef' -ExistingTagSha '123456' } |
-            Should -Throw '*different commit*'
+        Should -Throw '*different commit*'
     }
 }
 
@@ -123,7 +123,7 @@ Describe 'VPM dispatch payload' {
             -Repository 'PenguinDOOM/Pure-Base' `
             -Version '0.2.0' `
             -AssetName 'jp.penguin.purebase-0.2.0.zip' |
-            Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
+        Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
     }
 
     It 'includes the URL and SHA-256 in repository_dispatch data' {
@@ -277,7 +277,7 @@ Describe 'Immutable Releases preflight' {
                 -Repository 'PenguinDOOM/Pure-Base' `
                 -Token 'token' `
                 -ApiInvoker $invoker } |
-            Should -Throw '*must be enabled*'
+        Should -Throw '*must be enabled*'
     }
 
     It 'rejects an unexpected disabled response' {
@@ -287,7 +287,7 @@ Describe 'Immutable Releases preflight' {
                 -Repository 'PenguinDOOM/Pure-Base' `
                 -Token 'token' `
                 -ApiInvoker $invoker } |
-            Should -Throw '*did not confirm*'
+        Should -Throw '*did not confirm*'
     }
 }
 
@@ -296,13 +296,13 @@ Describe 'Published immutable release reuse' {
         $assetName = 'jp.penguin.purebase-0.2.0.zip'
         $digest = 'a' * 64
         $publishedRelease = [pscustomobject]@{
-            draft = $false
+            draft     = $false
             immutable = $true
-            assets = @(
+            assets    = @(
                 [pscustomobject]@{
-                    name = $assetName
-                    state = 'uploaded'
-                    digest = "sha256:$digest"
+                    name                 = $assetName
+                    state                = 'uploaded'
+                    digest               = "sha256:$digest"
                     browser_download_url = "https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/$assetName"
                 }
             )
@@ -321,22 +321,22 @@ Describe 'Published immutable release reuse' {
         $release = $publishedRelease.PSObject.Copy()
         $release.immutable = $false
         { Resolve-PureBasePublishedArtifact -Release $release -AssetName $assetName } |
-            Should -Throw '*immutable*'
+        Should -Throw '*immutable*'
     }
 
     It 'rejects a published asset without a valid digest' {
         $release = [pscustomobject]@{
-            draft = $false
+            draft     = $false
             immutable = $true
-            assets = @([pscustomobject]@{ name=$assetName; state='uploaded'; digest=''; browser_download_url='https://example.invalid/file.zip' })
+            assets    = @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = ''; browser_download_url = 'https://example.invalid/file.zip' })
         }
         { Resolve-PureBasePublishedArtifact -Release $release -AssetName $assetName } |
-            Should -Throw '*valid SHA-256 digest*'
+        Should -Throw '*valid SHA-256 digest*'
     }
 
     It 'validates an expected digest when one is supplied' {
         { Resolve-PureBasePublishedArtifact -Release $publishedRelease -AssetName $assetName -ExpectedSha256 ('b' * 64) } |
-            Should -Throw '*expected SHA-256*'
+        Should -Throw '*expected SHA-256*'
     }
 }
 
@@ -368,7 +368,7 @@ Describe 'Production workflow integration' {
 
         $activityTypes = @(
             [regex]::Matches($triggerMatch.Groups['body'].Value, '(?m)^\s+-\s+([^\s]+)\s*$') |
-                ForEach-Object { $_.Groups[1].Value }
+            ForEach-Object { $_.Groups[1].Value }
         )
         $activityTypes.Count | Should -Be 4
         ($activityTypes -join ',') | Should -Be 'opened,synchronize,reopened,ready_for_review'

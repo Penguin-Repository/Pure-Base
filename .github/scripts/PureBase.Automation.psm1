@@ -52,11 +52,11 @@ function Resolve-PureBaseReleaseMode {
             throw 'Resume is valid only when update_trigger.json and package.json versions are equal.'
         }
         return [pscustomobject][ordered]@{
-            Mode = 'resume'
+            Mode           = 'resume'
             CurrentVersion = $CurrentVersion
-            TargetVersion = $TargetVersion
-            TagState = if ([string]::IsNullOrEmpty($ExistingTagSha)) { 'missing' } else { 'present' }
-            ReleaseState = $releaseState
+            TargetVersion  = $TargetVersion
+            TagState       = if ([string]::IsNullOrEmpty($ExistingTagSha)) { 'missing' } else { 'present' }
+            ReleaseState   = $releaseState
         }
     }
 
@@ -68,11 +68,11 @@ function Resolve-PureBaseReleaseMode {
     }
 
     return [pscustomobject][ordered]@{
-        Mode = 'fresh'
+        Mode           = 'fresh'
         CurrentVersion = $CurrentVersion
-        TargetVersion = $TargetVersion
-        TagState = 'missing'
-        ReleaseState = 'none'
+        TargetVersion  = $TargetVersion
+        TagState       = 'missing'
+        ReleaseState   = 'none'
     }
 }
 
@@ -137,8 +137,8 @@ function Invoke-PureBaseGit {
 
     return [pscustomobject][ordered]@{
         ExitCode = $exitCode
-        Output = $stdout
-        Error = $stderr
+        Output   = $stdout
+        Error    = $stderr
     }
 }
 
@@ -175,15 +175,15 @@ function New-PureBaseDispatchPayload {
     )
 
     return [ordered]@{
-        event_type = 'update-vpm'
+        event_type     = 'update-vpm'
         client_payload = [ordered]@{
-            packageName = $PackageName
-            version = $Version
-            tag = $Version
-            commitSha = $CommitSha
-            packageurl = New-PureBasePackageUrl -Repository $Repository -Version $Version -AssetName $AssetName
-            sha256 = $Sha256
-            releaseUrl = $ReleaseUrl
+            packageName      = $PackageName
+            version          = $Version
+            tag              = $Version
+            commitSha        = $CommitSha
+            packageurl       = New-PureBasePackageUrl -Repository $Repository -Version $Version -AssetName $AssetName
+            sha256           = $Sha256
+            releaseUrl       = $ReleaseUrl
             sourceRepository = $Repository
         }
     }
@@ -291,11 +291,11 @@ function Resolve-PureBasePublishedArtifact {
     }
 
     return [pscustomobject][ordered]@{
-        Name = $AssetName
-        Path = ''
-        Sha256 = $sha256
+        Name        = $AssetName
+        Path        = ''
+        Sha256      = $sha256
         DownloadUrl = $downloadUrl
-        Source = 'published-release'
+        Source      = 'published-release'
     }
 }
 

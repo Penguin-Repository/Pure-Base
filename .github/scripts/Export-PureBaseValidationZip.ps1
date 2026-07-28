@@ -31,8 +31,8 @@ $version = [string]$package.version
 
 $sourceZip = @(
     Get-ChildItem -LiteralPath $ValidationArtifactDirectory -Filter 'jp.penguin.purebase-*.zip' -File -Recurse |
-        Where-Object { $_.DirectoryName -match '[\\/]archive$' } |
-        Sort-Object LastWriteTimeUtc -Descending
+    Where-Object { $_.DirectoryName -match '[\\/]archive$' } |
+    Sort-Object LastWriteTimeUtc -Descending
 ) | Select-Object -First 1
 if ($null -eq $sourceZip) {
     throw "Release validation did not produce an audited package ZIP below '$ValidationArtifactDirectory'."

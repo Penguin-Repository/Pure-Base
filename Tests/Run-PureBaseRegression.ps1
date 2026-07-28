@@ -44,7 +44,7 @@ function Test-PathContainedBy {
     $normalizedPath = Get-NormalizedPath -Path $Path
     $normalizedParentPath = Get-NormalizedPath -Path $ParentPath
     return $normalizedPath.Equals($normalizedParentPath, [System.StringComparison]::OrdinalIgnoreCase) -or
-        $normalizedPath.StartsWith($normalizedParentPath + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+    $normalizedPath.StartsWith($normalizedParentPath + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-PackageGitRoot {
@@ -214,9 +214,9 @@ function Get-ProtectedStateSnapshot {
     }
 
     return [pscustomobject]@{
-        ProjectSettingsHash = Get-FileSha256 -Path $projectSettingsPath
+        ProjectSettingsHash    = Get-FileSha256 -Path $projectSettingsPath
         PackageTrackedTreeHash = Get-Sha256ForText -Text ($treeEntries -join "`n")
-        TrackedFileCount = $trackedFiles.Count
+        TrackedFileCount       = $trackedFiles.Count
     }
 }
 
@@ -339,23 +339,23 @@ function Assert-SmokeContract {
     }
 
     $initializeBranches = @($ast.EndBlock.Statements | Where-Object {
-        if ($_ -isnot [System.Management.Automation.Language.IfStatementAst] -or $_.Clauses.Count -ne 1) {
-            return $false
-        }
+            if ($_ -isnot [System.Management.Automation.Language.IfStatementAst] -or $_.Clauses.Count -ne 1) {
+                return $false
+            }
 
-        $conditionPipeline = $_.Clauses[0].Item1
-        if ($conditionPipeline.PipelineElements.Count -ne 1 -or $conditionPipeline.PipelineElements[0] -isnot [System.Management.Automation.Language.CommandExpressionAst]) {
-            return $false
-        }
+            $conditionPipeline = $_.Clauses[0].Item1
+            if ($conditionPipeline.PipelineElements.Count -ne 1 -or $conditionPipeline.PipelineElements[0] -isnot [System.Management.Automation.Language.CommandExpressionAst]) {
+                return $false
+            }
 
-        $condition = $conditionPipeline.PipelineElements[0].Expression
-        return $condition -is [System.Management.Automation.Language.BinaryExpressionAst] -and
+            $condition = $conditionPipeline.PipelineElements[0].Expression
+            return $condition -is [System.Management.Automation.Language.BinaryExpressionAst] -and
             $condition.Operator -eq [System.Management.Automation.Language.TokenKind]::Ieq -and
             $condition.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
             $condition.Left.VariablePath.UserPath -eq 'Mode' -and
             $condition.Right -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
             $condition.Right.Value -eq 'Initialize'
-    })
+        })
     if ($initializeBranches.Count -ne 1) {
         throw 'Runner must contain exactly one Initialize mode branch.'
     }
@@ -363,25 +363,25 @@ function Assert-SmokeContract {
     $initializeBranch = $initializeBranches[0]
     $initializeBlock = $initializeBranch.Clauses[0].Item2
     $unityInvocations = @($ast.FindAll({
-        param($node)
-        $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-UnityProcess'
-    }, $true))
+                param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-UnityProcess'
+            }, $true))
     $initializeInvocations = @($unityInvocations | Where-Object {
-        $_.Extent.StartOffset -ge $initializeBlock.Extent.StartOffset -and $_.Extent.EndOffset -le $initializeBlock.Extent.EndOffset
-    })
+            $_.Extent.StartOffset -ge $initializeBlock.Extent.StartOffset -and $_.Extent.EndOffset -le $initializeBlock.Extent.EndOffset
+        })
     $dailyInvocations = @($unityInvocations | Where-Object { $_ -notin $initializeInvocations })
     if ($unityInvocations.Count -ne 2 -or $initializeInvocations.Count -ne 1 -or $dailyInvocations.Count -ne 1) {
         throw 'Runner must contain exactly one dedicated Initialize Unity invocation and one Daily Unity invocation.'
     }
 
     $initializeArgumentBuilders = @($initializeInvocations[0].FindAll({
-        param($node)
-        $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'New-InitializeUnityArguments'
-    }, $true))
+                param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'New-InitializeUnityArguments'
+            }, $true))
     $dailyArgumentBuilders = @($dailyInvocations[0].FindAll({
-        param($node)
-        $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'New-DailyUnityArguments'
-    }, $true))
+                param($node)
+                $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'New-DailyUnityArguments'
+            }, $true))
     $initializeReturns = @($initializeBlock.FindAll({ param($node) $node -is [System.Management.Automation.Language.ReturnStatementAst] }, $true))
     if ($initializeArgumentBuilders.Count -ne 1 -or $dailyArgumentBuilders.Count -ne 1 -or $initializeReturns.Count -ne 1 -or $initializeReturns[0].Extent.StartOffset -le $initializeInvocations[0].Extent.EndOffset -or $dailyInvocations[0].Extent.StartOffset -le $initializeReturns[0].Extent.EndOffset) {
         throw 'Initialize must run its dedicated Unity process once and return before the single Daily Unity process path.'
@@ -430,8 +430,8 @@ function Assert-SmokeContract {
     }
 
     $mutatingCommands = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true) |
-        ForEach-Object { $_.GetCommandName() } |
-        Where-Object { $_ -in @('Copy-Item', 'Move-Item', 'Remove-Item') }
+    ForEach-Object { $_.GetCommandName() } |
+    Where-Object { $_ -in @('Copy-Item', 'Move-Item', 'Remove-Item') }
     if (@($mutatingCommands).Count -gt 0) {
         throw "Daily runner must not copy, move, or delete project content. Found: $($mutatingCommands -join ', ')."
     }

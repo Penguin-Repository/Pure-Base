@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 $runnerPath = Join-Path $PSScriptRoot 'Run-PureBaseReleaseValidation.ps1'
 $runnerSource = Get-Content -LiteralPath $runnerPath -Raw
 $entryPointIndex = $runnerSource.IndexOf("`n`$packageRoot = Get-PackageGitRoot")
- $libraryStartIndex = $runnerSource.IndexOf('Set-StrictMode -Version Latest')
+$libraryStartIndex = $runnerSource.IndexOf('Set-StrictMode -Version Latest')
 if ($entryPointIndex -lt 0 -or $libraryStartIndex -lt 0) {
     throw 'The runner entry point could not be isolated for the runner-only harness.'
 }
@@ -68,92 +68,92 @@ function Assert-HarnessSemanticRejection {
             [System.IO.File]::WriteAllText($settingsPath, $settingsText.Replace($projectionLine, $invalidProjectionLine), (New-Object System.Text.UTF8Encoding($false)))
         }
         else {
-        switch ($Mutation) {
-            'source-mutation' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), '{"dependencies":{}}', (New-Object System.Text.UTF8Encoding($false))) }
-            'uri-escape' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), '{"dependencies":{"com.unity.test-framework":"1.1.33","jp.lilxyzw.shadercore":"file:../../escape","jp.penguin.purebase":"file:../_LocalPackages/jp.penguin.purebase"}}', (New-Object System.Text.UTF8Encoding($false))) }
-            'unknown-unity-manifest-dependency' {
-                $manifest = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\manifest.json') -Raw | ConvertFrom-Json
-                $manifest.dependencies | Add-Member -NotePropertyName 'com.unity.classifier-probe' -NotePropertyValue '1.0.0'
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), ($manifest | ConvertTo-Json -Depth 8 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'wrong-revision' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\ProjectVersion.txt'), "m_EditorVersion: 2022.3.22f1`nm_EditorVersionWithRevision: 2022.3.22f1 (000000000000)", (New-Object System.Text.UTF8Encoding($false))) }
-            'lock-mismatch' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), '{"dependencies":{"com.unity.test-framework":{},"jp.lilxyzw.shadercore":{"source":"registry","path":"../_LocalPackages/jp.lilxyzw.shadercore"},"jp.penguin.purebase":{"source":"local","path":"../_LocalPackages/jp.penguin.purebase"}}}', (New-Object System.Text.UTF8Encoding($false))) }
-            'lock-version-mismatch' {
-                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
-                $lock.dependencies.'com.unity.test-framework'.version = '1.1.34'
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'lock-source-mismatch' {
-                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
-                $lock.dependencies.'com.unity.test-framework'.source = 'builtin'
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'lock-newtonsoft-depth-mismatch' {
-                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
-                $lock.dependencies.'com.unity.nuget.newtonsoft-json'.depth = 2
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'lock-shader-core-newtonsoft-edge-missing' {
-                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
-                $lock.dependencies.'jp.lilxyzw.shadercore'.dependencies.PSObject.Properties.Remove('com.unity.nuget.newtonsoft-json')
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'lock-shader-core-newtonsoft-edge-mismatch' {
-                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
-                $lock.dependencies.'jp.lilxyzw.shadercore'.dependencies.'com.unity.nuget.newtonsoft-json' = '3.0.1'
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'lock-added-entry' {
-                $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
-                $lock.dependencies | Add-Member -NotePropertyName 'com.unity.classifier-probe' -NotePropertyValue ([pscustomobject][ordered]@{ version = '1.0.0'; depth = 0; source = 'registry'; dependencies = [pscustomobject][ordered]@{} })
-                [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'invalid-meta' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Assets\ReleaseConsumer\Fixtures.meta'), 'invalid', (New-Object System.Text.UTF8Encoding($false))) }
-            'orphan-meta' { Remove-Item -LiteralPath (Join-Path $consumerRoot 'Assets\ReleaseModules') -Recurse -Force }
-            'generated-meta-item-type-mismatch' {
-                $releaseModulesPath = Join-Path $consumerRoot 'Assets\ReleaseModules'
-                Remove-Item -LiteralPath $releaseModulesPath -Recurse -Force
-                [System.IO.File]::WriteAllText($releaseModulesPath, 'not a generated directory', (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'duplicate-meta' {
-                $firstGuid = [regex]::Match((Get-Content -LiteralPath (Join-Path $consumerRoot 'Assets\ReleaseConsumer\Fixtures.meta') -Raw), '(?m)^guid:\s*([0-9a-f]{32})\s*$').Groups[1].Value
-                $secondMetaPath = Join-Path $consumerRoot 'Assets\ReleaseModules.meta'
-                $secondMeta = Get-Content -LiteralPath $secondMetaPath -Raw
-                [System.IO.File]::WriteAllText($secondMetaPath, [regex]::Replace($secondMeta, '(?m)^guid:\s*[0-9a-f]{32}\s*$', ('guid: ' + $firstGuid)), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'receipt-meta-collision' {
-                $receiptGuid = [regex]::Match((Get-Content -LiteralPath (Join-Path $consumerRoot 'Assets\ReceiptAnchor.asset.meta') -Raw), '(?m)^guid:\s*([0-9a-f]{32})\s*$').Groups[1].Value
-                $generatedMetaPath = Join-Path $consumerRoot 'Assets\ReleaseModules.meta'
-                $generatedMeta = Get-Content -LiteralPath $generatedMetaPath -Raw
-                [System.IO.File]::WriteAllText($generatedMetaPath, [regex]::Replace($generatedMeta, '(?m)^guid:\s*[0-9a-f]{32}\s*$', ('guid: ' + $receiptGuid)), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'unknown-add' { $post.entries = @($post.entries) + [pscustomobject][ordered]@{ path = 'ProjectSettings/UnknownBootstrap.asset'; sha256 = 'unknown' } }
-            'invalid-billing-mode' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Assets\Resources\BillingMode.json'), '{"mode":"Enterprise"}', (New-Object System.Text.UTF8Encoding($false))) }
-            'invalid-project-settings' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\ProjectSettings.asset'), "%YAML 1.1`n%TAG !u! tag:unity3d.com,2011:`n--- !u!129 &1`nPlayerSettings:`n  serializedVersion: 26`n  companyName: DifferentCompany`n  productName: ConsumerProject`n  defaultScreenWidth: 1920`n  defaultScreenHeight: 1080`n  m_ActiveColorSpace: 0`n  bundleVersion: 1.0", (New-Object System.Text.UTF8Encoding($false))) }
-            'invalid-shader-core-settings' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'), "%YAML 1.1`n%TAG !u! tag:unity3d.com,2011:`n--- !u!114 &1`nMonoBehaviour:`n  shaderSettings:`n  - shadername: PureBase/Invalid`n    modules:`n    -`n  - shadername: PureBase/Toon`n    modules:`n    -`n  - shadername: PureBase/PBR`n    modules:`n    -`n  - shadername: PureBase/Hybrid`n    modules:`n    -`n  - shadername: PureBase/Tests/FixtureRegistration`n    modules:`n    - jp.penguin.purebase.tests.fixture.registration", (New-Object System.Text.UTF8Encoding($false))) }
-            'missing-fixed-shader-core-host' {
-                $settingsPath = Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'
-                $settingsText = Get-Content -LiteralPath $settingsPath -Raw
-                $settingsText = [regex]::Replace($settingsText, '(?ms)^  - shadername: PureBase/Tests/ShaderCore/Phase/Morph\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.tests\.shadercore\.phase\.morph\r?\n?', '')
-                [System.IO.File]::WriteAllText($settingsPath, $settingsText, (New-Object System.Text.UTF8Encoding($false)))
-            }
-            'reversed-shader-core-module-order' {
-                $settingsPath = Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'
-                $settingsText = Get-Content -LiteralPath $settingsPath -Raw
-                $expectedOrder = "    - jp.penguin.purebase.tests.shadercore.moduleorder.zeta`n    - jp.penguin.purebase.tests.shadercore.moduleorder.alpha"
-                $reversedOrder = "    - jp.penguin.purebase.tests.shadercore.moduleorder.alpha`n    - jp.penguin.purebase.tests.shadercore.moduleorder.zeta"
-                if ($settingsText.IndexOf($expectedOrder, [System.StringComparison]::Ordinal) -lt 0) {
-                    throw 'Harness Shader-Core ModuleOrder mapping did not contain the canonical zeta, alpha sequence.'
+            switch ($Mutation) {
+                'source-mutation' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), '{"dependencies":{}}', (New-Object System.Text.UTF8Encoding($false))) }
+                'uri-escape' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), '{"dependencies":{"com.unity.test-framework":"1.1.33","jp.lilxyzw.shadercore":"file:../../escape","jp.penguin.purebase":"file:../_LocalPackages/jp.penguin.purebase"}}', (New-Object System.Text.UTF8Encoding($false))) }
+                'unknown-unity-manifest-dependency' {
+                    $manifest = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\manifest.json') -Raw | ConvertFrom-Json
+                    $manifest.dependencies | Add-Member -NotePropertyName 'com.unity.classifier-probe' -NotePropertyValue '1.0.0'
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), ($manifest | ConvertTo-Json -Depth 8 -Compress), (New-Object System.Text.UTF8Encoding($false)))
                 }
-                [System.IO.File]::WriteAllText($settingsPath, $settingsText.Replace($expectedOrder, $reversedOrder), (New-Object System.Text.UTF8Encoding($false)))
+                'wrong-revision' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\ProjectVersion.txt'), "m_EditorVersion: 2022.3.22f1`nm_EditorVersionWithRevision: 2022.3.22f1 (000000000000)", (New-Object System.Text.UTF8Encoding($false))) }
+                'lock-mismatch' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), '{"dependencies":{"com.unity.test-framework":{},"jp.lilxyzw.shadercore":{"source":"registry","path":"../_LocalPackages/jp.lilxyzw.shadercore"},"jp.penguin.purebase":{"source":"local","path":"../_LocalPackages/jp.penguin.purebase"}}}', (New-Object System.Text.UTF8Encoding($false))) }
+                'lock-version-mismatch' {
+                    $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                    $lock.dependencies.'com.unity.test-framework'.version = '1.1.34'
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'lock-source-mismatch' {
+                    $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                    $lock.dependencies.'com.unity.test-framework'.source = 'builtin'
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'lock-newtonsoft-depth-mismatch' {
+                    $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                    $lock.dependencies.'com.unity.nuget.newtonsoft-json'.depth = 2
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'lock-shader-core-newtonsoft-edge-missing' {
+                    $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                    $lock.dependencies.'jp.lilxyzw.shadercore'.dependencies.PSObject.Properties.Remove('com.unity.nuget.newtonsoft-json')
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'lock-shader-core-newtonsoft-edge-mismatch' {
+                    $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                    $lock.dependencies.'jp.lilxyzw.shadercore'.dependencies.'com.unity.nuget.newtonsoft-json' = '3.0.1'
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'lock-added-entry' {
+                    $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
+                    $lock.dependencies | Add-Member -NotePropertyName 'com.unity.classifier-probe' -NotePropertyValue ([pscustomobject][ordered]@{ version = '1.0.0'; depth = 0; source = 'registry'; dependencies = [pscustomobject][ordered]@{} })
+                    [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), ($lock | ConvertTo-Json -Depth 12 -Compress), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'invalid-meta' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Assets\ReleaseConsumer\Fixtures.meta'), 'invalid', (New-Object System.Text.UTF8Encoding($false))) }
+                'orphan-meta' { Remove-Item -LiteralPath (Join-Path $consumerRoot 'Assets\ReleaseModules') -Recurse -Force }
+                'generated-meta-item-type-mismatch' {
+                    $releaseModulesPath = Join-Path $consumerRoot 'Assets\ReleaseModules'
+                    Remove-Item -LiteralPath $releaseModulesPath -Recurse -Force
+                    [System.IO.File]::WriteAllText($releaseModulesPath, 'not a generated directory', (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'duplicate-meta' {
+                    $firstGuid = [regex]::Match((Get-Content -LiteralPath (Join-Path $consumerRoot 'Assets\ReleaseConsumer\Fixtures.meta') -Raw), '(?m)^guid:\s*([0-9a-f]{32})\s*$').Groups[1].Value
+                    $secondMetaPath = Join-Path $consumerRoot 'Assets\ReleaseModules.meta'
+                    $secondMeta = Get-Content -LiteralPath $secondMetaPath -Raw
+                    [System.IO.File]::WriteAllText($secondMetaPath, [regex]::Replace($secondMeta, '(?m)^guid:\s*[0-9a-f]{32}\s*$', ('guid: ' + $firstGuid)), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'receipt-meta-collision' {
+                    $receiptGuid = [regex]::Match((Get-Content -LiteralPath (Join-Path $consumerRoot 'Assets\ReceiptAnchor.asset.meta') -Raw), '(?m)^guid:\s*([0-9a-f]{32})\s*$').Groups[1].Value
+                    $generatedMetaPath = Join-Path $consumerRoot 'Assets\ReleaseModules.meta'
+                    $generatedMeta = Get-Content -LiteralPath $generatedMetaPath -Raw
+                    [System.IO.File]::WriteAllText($generatedMetaPath, [regex]::Replace($generatedMeta, '(?m)^guid:\s*[0-9a-f]{32}\s*$', ('guid: ' + $receiptGuid)), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'unknown-add' { $post.entries = @($post.entries) + [pscustomobject][ordered]@{ path = 'ProjectSettings/UnknownBootstrap.asset'; sha256 = 'unknown' } }
+                'invalid-billing-mode' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Assets\Resources\BillingMode.json'), '{"mode":"Enterprise"}', (New-Object System.Text.UTF8Encoding($false))) }
+                'invalid-project-settings' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\ProjectSettings.asset'), "%YAML 1.1`n%TAG !u! tag:unity3d.com,2011:`n--- !u!129 &1`nPlayerSettings:`n  serializedVersion: 26`n  companyName: DifferentCompany`n  productName: ConsumerProject`n  defaultScreenWidth: 1920`n  defaultScreenHeight: 1080`n  m_ActiveColorSpace: 0`n  bundleVersion: 1.0", (New-Object System.Text.UTF8Encoding($false))) }
+                'invalid-shader-core-settings' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'), "%YAML 1.1`n%TAG !u! tag:unity3d.com,2011:`n--- !u!114 &1`nMonoBehaviour:`n  shaderSettings:`n  - shadername: PureBase/Invalid`n    modules:`n    -`n  - shadername: PureBase/Toon`n    modules:`n    -`n  - shadername: PureBase/PBR`n    modules:`n    -`n  - shadername: PureBase/Hybrid`n    modules:`n    -`n  - shadername: PureBase/Tests/FixtureRegistration`n    modules:`n    - jp.penguin.purebase.tests.fixture.registration", (New-Object System.Text.UTF8Encoding($false))) }
+                'missing-fixed-shader-core-host' {
+                    $settingsPath = Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'
+                    $settingsText = Get-Content -LiteralPath $settingsPath -Raw
+                    $settingsText = [regex]::Replace($settingsText, '(?ms)^  - shadername: PureBase/Tests/ShaderCore/Phase/Morph\r?\n    modules:\r?\n    - jp\.penguin\.purebase\.tests\.shadercore\.phase\.morph\r?\n?', '')
+                    [System.IO.File]::WriteAllText($settingsPath, $settingsText, (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'reversed-shader-core-module-order' {
+                    $settingsPath = Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'
+                    $settingsText = Get-Content -LiteralPath $settingsPath -Raw
+                    $expectedOrder = "    - jp.penguin.purebase.tests.shadercore.moduleorder.zeta`n    - jp.penguin.purebase.tests.shadercore.moduleorder.alpha"
+                    $reversedOrder = "    - jp.penguin.purebase.tests.shadercore.moduleorder.alpha`n    - jp.penguin.purebase.tests.shadercore.moduleorder.zeta"
+                    if ($settingsText.IndexOf($expectedOrder, [System.StringComparison]::Ordinal) -lt 0) {
+                        throw 'Harness Shader-Core ModuleOrder mapping did not contain the canonical zeta, alpha sequence.'
+                    }
+                    [System.IO.File]::WriteAllText($settingsPath, $settingsText.Replace($expectedOrder, $reversedOrder), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                'unexpected-shader-core-host' {
+                    $settingsPath = Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'
+                    $settingsText = Get-Content -LiteralPath $settingsPath -Raw
+                    [System.IO.File]::WriteAllText($settingsPath, ($settingsText.TrimEnd("`r", "`n") + "`n  - shadername: PureBase/Unexpected`n    modules: []`n"), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                default { throw "Unknown semantic mutation '$Mutation'." }
             }
-            'unexpected-shader-core-host' {
-                $settingsPath = Join-Path $consumerRoot 'ProjectSettings\jp.lilxyzw.shadercore.asset'
-                $settingsText = Get-Content -LiteralPath $settingsPath -Raw
-                [System.IO.File]::WriteAllText($settingsPath, ($settingsText.TrimEnd("`r", "`n") + "`n  - shadername: PureBase/Unexpected`n    modules: []`n"), (New-Object System.Text.UTF8Encoding($false)))
-            }
-            default { throw "Unknown semantic mutation '$Mutation'." }
-        }
         }
 
         $report = Get-ConsumerFirstBootstrapTransitionReport -ConsumerRoot $consumerRoot -StagingReceipt $receipt -PreBootstrap $pre -PostBootstrap $post
@@ -196,18 +196,18 @@ function New-HarnessManifest {
     }
 
     return [ordered]@{
-        schemaVersion = 1
-        pathOrdering = 'System.StringComparer.Ordinal'
-        immutableRoots = @('Assets', 'Packages', 'ProjectSettings', '_LocalPackages')
+        schemaVersion               = 1
+        pathOrdering                = 'System.StringComparer.Ordinal'
+        immutableRoots              = @('Assets', 'Packages', 'ProjectSettings', '_LocalPackages')
         excludedMutablePathPrefixes = @('Assets/Artifacts/', 'Library/')
-        rootSha256 = $RootHash
-        entries = $entries
-        releaseZipSha256 = 'release-zip'
-        shaderCore = [ordered]@{
-            packageName = 'jp.lilxyzw.shadercore'
-            packageVersion = '0.1.9'
+        rootSha256                  = $RootHash
+        entries                     = $entries
+        releaseZipSha256            = 'release-zip'
+        shaderCore                  = [ordered]@{
+            packageName            = 'jp.lilxyzw.shadercore'
+            packageVersion         = '0.1.9'
             expectedIdentitySha256 = 'shader-core'
-            treeSha256 = 'shader-core'
+            treeSha256             = 'shader-core'
         }
     }
 }
@@ -220,16 +220,16 @@ function New-HarnessStagingReceipt {
         $destination = Get-NormalizedRelativePath -Path $file.FullName.Substring($ConsumerRoot.Length).TrimStart('\', '/')
         $entries += [ordered]@{
             destination = $destination
-            sourceKind = 'consumer-scaffold'
-            source = $file.FullName
-            sha256 = Get-Sha256Hex -Path $file.FullName
+            sourceKind  = 'consumer-scaffold'
+            source      = $file.FullName
+            sha256      = Get-Sha256Hex -Path $file.FullName
         }
     }
     return [ordered]@{
-        schemaName = 'purebase-consumer-staging-receipt'
+        schemaName    = 'purebase-consumer-staging-receipt'
         schemaVersion = 1
-        pathOrdering = 'System.StringComparer.Ordinal'
-        entries = $entries
+        pathOrdering  = 'System.StringComparer.Ordinal'
+        entries       = $entries
     }
 }
 
@@ -561,11 +561,11 @@ function New-HarnessStandardMorphContract {
     param([Parameter(Mandatory = $true)][string]$RunLabel)
 
     $module = [ordered]@{
-        label = 'standard-morph'
-        phase = 'morph'
-        uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'
+        label        = 'standard-morph'
+        phase        = 'morph'
+        uniqueId     = 'jp.penguin.purebase.release.fixture.products.morph'
         propertyName = ''
-        sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH'
+        sentinel     = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH'
     }
     $contract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
     $contract.runLabel = $RunLabel
@@ -613,31 +613,31 @@ function Write-HarnessComparisonEvidence {
         $warmPassCounts = [int[]]$WarmCounts[$productName]
         [System.IO.File]::WriteAllText((Join-Path $warmDirectory $warmFileName), (New-HarnessGeneratedSource -PassCounts $warmPassCounts -Sentinel $WarmContract.selectedModule.sentinel), (New-Object System.Text.UTF8Encoding($false)))
         $products += [ordered]@{
-            shaderName = $productName
-            compiled = $true
-            supported = $true
+            shaderName                      = $productName
+            compiled                        = $true
+            supported                       = $true
             generatedSourceArtifactFileName = $warmFileName
-            passCounts = @(
+            passCounts                      = @(
                 [ordered]@{ passName = 'ForwardBase'; selectedSentinelCount = $warmPassCounts[0] },
                 [ordered]@{ passName = 'ForwardAdd'; selectedSentinelCount = $warmPassCounts[1] },
                 [ordered]@{ passName = 'ShadowCaster'; selectedSentinelCount = $warmPassCounts[2] },
                 [ordered]@{ passName = 'Meta'; selectedSentinelCount = $warmPassCounts[3] }
             )
-            inactiveSentinels = @($WarmContract.inactiveSentinels | ForEach-Object { [ordered]@{ sentinel = $_; occurrenceCount = 0 } })
+            inactiveSentinels               = @($WarmContract.inactiveSentinels | ForEach-Object { [ordered]@{ sentinel = $_; occurrenceCount = 0 } })
         }
 
         $coldFileName = Get-ExpectedGeneratedSourceArtifactFileName -RunLabel $ColdContract.runLabel -ShaderName $productName
         [System.IO.File]::WriteAllText((Join-Path $coldDirectory $coldFileName), (New-HarnessGeneratedSource -PassCounts ([int[]]$ColdCounts[$productName]) -Sentinel $ColdContract.selectedModule.sentinel), (New-Object System.Text.UTF8Encoding($false)))
     }
     [ordered]@{
-        schemaName = 'purebase-standard-morph-observation'
-        schemaVersion = 1
-        runLabel = $WarmContract.runLabel
-        runKind = 'product-phase'
-        selectedModulePhase = 'morph'
+        schemaName             = 'purebase-standard-morph-observation'
+        schemaVersion          = 1
+        runLabel               = $WarmContract.runLabel
+        runKind                = 'product-phase'
+        selectedModulePhase    = 'morph'
         selectedModuleUniqueId = $WarmContract.selectedModule.moduleUniqueId
         selectedModuleSentinel = $WarmContract.selectedModule.sentinel
-        products = $products
+        products               = $products
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $warmDirectory 'standard-morph-observation.json') -Encoding UTF8
 }
 
@@ -712,16 +712,16 @@ try {
     Assert-Harness -Condition ($bakeOnlyMatrix.Count -eq 1 -and $bakeOnlyMatrix[0].label -eq 'progressive-cpu-bake') -Message 'Bake-only matrix selection did not return exactly the progressive-cpu-bake row.'
 
     foreach ($conflict in @(
-        [ordered]@{ label = 'module-free'; parameters = @{ ModuleFreeOnly = $true }; message = '-BakeOnly cannot be combined with -ModuleFreeOnly because it requires the progressive-cpu-bake row.' },
-        [ordered]@{ label = 'toon-base'; parameters = @{ ToonBaseOnly = $true }; message = '-BakeOnly cannot be combined with -ToonBaseOnly because it requires the progressive-cpu-bake row.' },
-        [ordered]@{ label = 'fog'; parameters = @{ FogOnly = $true }; message = '-BakeOnly cannot be combined with -FogOnly because it requires the progressive-cpu-bake row.' },
-        [ordered]@{ label = 'warm-cold-comparison'; parameters = @{ CompareWarmAndColdStandardMorph = $true }; message = '-BakeOnly cannot be combined with -CompareWarmAndColdStandardMorph because it requires the progressive-cpu-bake row.' }
-    )) {
+            [ordered]@{ label = 'module-free'; parameters = @{ ModuleFreeOnly = $true }; message = '-BakeOnly cannot be combined with -ModuleFreeOnly because it requires the progressive-cpu-bake row.' },
+            [ordered]@{ label = 'toon-base'; parameters = @{ ToonBaseOnly = $true }; message = '-BakeOnly cannot be combined with -ToonBaseOnly because it requires the progressive-cpu-bake row.' },
+            [ordered]@{ label = 'fog'; parameters = @{ FogOnly = $true }; message = '-BakeOnly cannot be combined with -FogOnly because it requires the progressive-cpu-bake row.' },
+            [ordered]@{ label = 'warm-cold-comparison'; parameters = @{ CompareWarmAndColdStandardMorph = $true }; message = '-BakeOnly cannot be combined with -CompareWarmAndColdStandardMorph because it requires the progressive-cpu-bake row.' }
+        )) {
         $conflictArtifactDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseBakeConflict-' + $conflict.label + '-' + [guid]::NewGuid().ToString('N'))
         $runnerParameters = @{
-            UnityEditorPath = 'not-a-unity-editor.exe'
+            UnityEditorPath   = 'not-a-unity-editor.exe'
             ArtifactDirectory = $conflictArtifactDirectory
-            BakeOnly = $true
+            BakeOnly          = $true
         }
         foreach ($parameterName in $conflict.parameters.Keys) {
             $runnerParameters[$parameterName] = $conflict.parameters[$parameterName]
@@ -766,10 +766,10 @@ try {
     Assert-Harness -Condition ($toonBaseRuntimeDelta.red.minimum -le 0.712890625 -and $toonBaseRuntimeDelta.red.maximum -ge 0.712890625) -Message 'Toon base selected-minus-module-free red range excludes the recorded BIRP delta.'
     Assert-Harness -Condition ($toonBaseRuntimeSample.red.maximum -lt 4.2 -and $toonBaseRuntimeDelta.red.maximum -lt 1.3) -Message 'Toon base runtime contract regressed to the direct-add red expectation.'
     foreach ($invalidAbiInput in @(
-        [ordered]@{ uniqueId = ''; propertyName = '_ProductPhaseValue' },
-        [ordered]@{ uniqueId = 'jp..penguin'; propertyName = '_ProductPhaseValue' },
-        [ordered]@{ uniqueId = 'jp.penguin'; propertyName = 'ProductPhaseValue' }
-    )) {
+            [ordered]@{ uniqueId = ''; propertyName = '_ProductPhaseValue' },
+            [ordered]@{ uniqueId = 'jp..penguin'; propertyName = '_ProductPhaseValue' },
+            [ordered]@{ uniqueId = 'jp.penguin'; propertyName = 'ProductPhaseValue' }
+        )) {
         $invalidAbiFailure = $null
         try {
             Get-ShaderCoreNamespacedPropertyName -ModuleUniqueId $invalidAbiInput.uniqueId -RawPropertyName $invalidAbiInput.propertyName | Out-Null
@@ -781,10 +781,10 @@ try {
     }
 
     foreach ($completionCase in @(
-        [ordered]@{ validationScope = 'full-release-validation-matrix'; moduleFreeOnly = $false },
-        [ordered]@{ validationScope = 'module-free-diagnostic-only'; moduleFreeOnly = $true },
-        [ordered]@{ validationScope = 'progressive-cpu-bake-diagnostic-only'; moduleFreeOnly = $false }
-    )) {
+            [ordered]@{ validationScope = 'full-release-validation-matrix'; moduleFreeOnly = $false },
+            [ordered]@{ validationScope = 'module-free-diagnostic-only'; moduleFreeOnly = $true },
+            [ordered]@{ validationScope = 'progressive-cpu-bake-diagnostic-only'; moduleFreeOnly = $false }
+        )) {
         $completion = Invoke-HarnessCompletionPath -ValidationScope $completionCase.validationScope -ModuleFreeOnly:$completionCase.moduleFreeOnly
         Assert-Harness -Condition ($null -eq $completion.failure) -Message "Non-comparison completion '$($completionCase.validationScope)' unexpectedly failed under StrictMode."
         Assert-Harness -Condition ($null -ne $completion.summary) -Message "Non-comparison completion '$($completionCase.validationScope)' did not persist run-summary.json."
@@ -881,14 +881,14 @@ try {
 
     $deltaPreBootstrap = [ordered]@{
         rootSha256 = 'pre-root'
-        entries = @(
+        entries    = @(
             [ordered]@{ path = 'Assets/Changed.asset'; sha256 = 'before-change' },
             [ordered]@{ path = 'Assets/Removed.asset'; sha256 = 'removed-hash' }
         )
     }
     $deltaPostBootstrap = [ordered]@{
         rootSha256 = 'post-root'
-        entries = @(
+        entries    = @(
             [ordered]@{ path = 'Assets/Added.asset'; sha256 = 'added-hash' },
             [ordered]@{ path = 'Assets/Changed.asset'; sha256 = 'after-change' }
         )
@@ -912,12 +912,12 @@ try {
         $receiptZipSourceRoot = Join-Path $receiptSourceRoot 'ReleasePackage'
         $receiptCanonicalConfigPath = Join-Path $receiptSourceRoot 'Canonical/shader-core-test-hosts.json'
         foreach ($sourceFile in @(
-            [ordered]@{ root = $receiptScaffoldRoot; relativePath = 'ProjectSettings/ProjectVersion.txt'; content = 'scaffold' },
-            [ordered]@{ root = $receiptShaderCoreRoot; relativePath = 'package.json'; content = 'shader-core' },
-            [ordered]@{ root = $receiptModulesRoot; relativePath = 'RootModule/module.scmodule'; content = 'module' },
-            [ordered]@{ root = $receiptFixturesRoot; relativePath = 'TestFixture.mat'; content = 'fixture' },
-            [ordered]@{ root = $receiptZipSourceRoot; relativePath = 'package.json'; content = 'release-package' }
-        )) {
+                [ordered]@{ root = $receiptScaffoldRoot; relativePath = 'ProjectSettings/ProjectVersion.txt'; content = 'scaffold' },
+                [ordered]@{ root = $receiptShaderCoreRoot; relativePath = 'package.json'; content = 'shader-core' },
+                [ordered]@{ root = $receiptModulesRoot; relativePath = 'RootModule/module.scmodule'; content = 'module' },
+                [ordered]@{ root = $receiptFixturesRoot; relativePath = 'TestFixture.mat'; content = 'fixture' },
+                [ordered]@{ root = $receiptZipSourceRoot; relativePath = 'package.json'; content = 'release-package' }
+            )) {
             $sourcePath = Join-Path $sourceFile.root $sourceFile.relativePath
             New-Item -ItemType Directory -Path (Split-Path -Parent $sourcePath) -Force | Out-Null
             [System.IO.File]::WriteAllText($sourcePath, $sourceFile.content, (New-Object System.Text.UTF8Encoding($false)))
@@ -960,10 +960,10 @@ try {
     }
 
     foreach ($receiptCase in @(
-        [ordered]@{ label = 'missing'; expectedMessage = 'Staged consumer destination is missing' },
-        [ordered]@{ label = 'extra'; expectedMessage = 'Staged consumer destination is extra' },
-        [ordered]@{ label = 'hash-mismatch'; expectedMessage = 'Staged consumer destination content mismatches' }
-    )) {
+            [ordered]@{ label = 'missing'; expectedMessage = 'Staged consumer destination is missing' },
+            [ordered]@{ label = 'extra'; expectedMessage = 'Staged consumer destination is extra' },
+            [ordered]@{ label = 'hash-mismatch'; expectedMessage = 'Staged consumer destination content mismatches' }
+        )) {
         $case = Invoke-HarnessCase -Label ('staging-receipt-' + $receiptCase.label) -ManifestHashes @('bootstrap') -StagingReceiptTransition $receiptCase.label
         Assert-Harness -Condition ($null -ne $case.failure -and $case.failure.Exception.Message -match $receiptCase.expectedMessage) -Message "Staging receipt '$($receiptCase.label)' unexpectedly passed or reported the wrong failure."
         Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory 'staging-receipt.json') -PathType Leaf) -Message "Staging receipt '$($receiptCase.label)' did not persist its receipt."

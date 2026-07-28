@@ -79,7 +79,7 @@ Describe 'Hosted Unity review contracts' {
             $childOutput | Should -Not -Match '(?i)(No process associated with this object|Process has not been started|The Process object must have an associated process|process.*not.*started)'
         }
         finally {
-            Remove-Item -LiteralPath $temporaryRoot,$logPath,$diagnosticPath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $temporaryRoot, $logPath, $diagnosticPath -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 

@@ -86,8 +86,8 @@ function Assert-MicrosoftRuntime {
     )
 
     $missingRuntimeFiles = @($RequiredFiles | Where-Object {
-        -not (Test-Path -LiteralPath $_ -PathType Leaf)
-    })
+            -not (Test-Path -LiteralPath $_ -PathType Leaf)
+        })
     if ($missingRuntimeFiles.Count -eq 0) {
         Write-Host "$DisplayName is already available."
         return
@@ -115,8 +115,8 @@ function Assert-MicrosoftRuntime {
     }
 
     $missingAfterInstall = @($RequiredFiles | Where-Object {
-        -not (Test-Path -LiteralPath $_ -PathType Leaf)
-    })
+            -not (Test-Path -LiteralPath $_ -PathType Leaf)
+        })
     if ($missingAfterInstall.Count -gt 0) {
         throw "$DisplayName installation completed but required files are still missing: $($missingAfterInstall -join ', ')."
     }
@@ -128,9 +128,9 @@ $runtimeDirectory = Join-Path $env:WINDIR 'System32'
 Assert-MicrosoftRuntime `
     -DisplayName 'Microsoft Visual C++ 2010 SP1 x64 runtime' `
     -RequiredFiles @(
-        (Join-Path $runtimeDirectory 'msvcr100.dll'),
-        (Join-Path $runtimeDirectory 'msvcp100.dll')
-    ) `
+    (Join-Path $runtimeDirectory 'msvcr100.dll'),
+    (Join-Path $runtimeDirectory 'msvcp100.dll')
+) `
     -InstallerFileName 'vcredist-2010-sp1-x64.exe' `
     -InstallerUri 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe' `
     -InstallerArguments @('/quiet', '/norestart')
@@ -138,9 +138,9 @@ Assert-MicrosoftRuntime `
 Assert-MicrosoftRuntime `
     -DisplayName 'Microsoft Visual C++ 2013 x64 runtime' `
     -RequiredFiles @(
-        (Join-Path $runtimeDirectory 'msvcr120.dll'),
-        (Join-Path $runtimeDirectory 'msvcp120.dll')
-    ) `
+    (Join-Path $runtimeDirectory 'msvcr120.dll'),
+    (Join-Path $runtimeDirectory 'msvcp120.dll')
+) `
     -InstallerFileName 'vcredist-2013-x64.exe' `
     -InstallerUri 'https://download.microsoft.com/download/0/5/6/056DCDA9-D667-4E27-8001-8A0C6971D6B1/vcredist_x64.exe' `
     -InstallerArguments @('/install', '/quiet', '/norestart')

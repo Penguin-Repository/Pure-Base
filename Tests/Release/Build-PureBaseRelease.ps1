@@ -282,7 +282,7 @@ function Get-VerifiedShaderCorePackageIdentity {
     }
 
     return [pscustomobject][ordered]@{
-        packageName = $packageName
+        packageName    = $packageName
         packageVersion = $packageVersion
     }
 }
@@ -312,8 +312,8 @@ function Get-RecursiveIdentityManifest {
         }
 
         [void]$manifestEntries.Add([pscustomobject][ordered]@{
-                path = $normalizedRelativePath
-            sha256 = Get-Sha256Hex -Path $file.FullName
+                path   = $normalizedRelativePath
+                sha256 = Get-Sha256Hex -Path $file.FullName
             })
     }
 
@@ -341,13 +341,13 @@ function Get-RecursiveIdentityManifest {
     $identityHash = Get-Sha256Hex -Bytes $identityBytes
 
     return [pscustomobject][ordered]@{
-        schemaVersion = 1
-        packageName = [string]$ShaderCorePackageIdentity.packageName
+        schemaVersion  = 1
+        packageName    = [string]$ShaderCorePackageIdentity.packageName
         packageVersion = [string]$ShaderCorePackageIdentity.packageVersion
-        scope = 'All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.'
-        algorithm = "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\t<lowercase-file-sha256>\n' in ordinal path order."
+        scope          = 'All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.'
+        algorithm      = "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\t<lowercase-file-sha256>\n' in ordinal path order."
         identitySha256 = $identityHash
-        entries = $sortedManifestEntries.ToArray()
+        entries        = $sortedManifestEntries.ToArray()
     }
 }
 

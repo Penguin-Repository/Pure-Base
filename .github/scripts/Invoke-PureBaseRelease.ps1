@@ -43,7 +43,7 @@ if ($Repository -notmatch '^[^/]+/[^/]+$' -or $VpmRepository -notmatch '^[^/]+/[
 $PackageRoot = [IO.Path]::GetFullPath($PackageRoot)
 $ValidationArtifactDirectory = [IO.Path]::GetFullPath($ValidationArtifactDirectory)
 $ReleaseArtifactDirectory = [IO.Path]::GetFullPath($ReleaseArtifactDirectory)
-New-Item -ItemType Directory -Path $ValidationArtifactDirectory,$ReleaseArtifactDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $ValidationArtifactDirectory, $ReleaseArtifactDirectory -Force | Out-Null
 $statePath = Join-Path $ReleaseArtifactDirectory 'release-state.json'
 
 function Write-State([string]$Phase, [hashtable]$Data = @{}) {
@@ -98,26 +98,26 @@ function Set-PackageVersion([string]$Version) {
 
 function Commit-And-Tag([string]$Version) {
     Set-PackageVersion $Version
-    Invoke-Git @('config','user.name',"$AppSlug[bot]") | Out-Null
-    Invoke-Git @('config','user.email',"$AppSlug[bot]@users.noreply.github.com") | Out-Null
-    Invoke-Git @('add','--','package.json') | Out-Null
-    Invoke-Git @('commit','-m',"Release $Version",'-m','Automatically updated by GitHub Actions after release validation.') | Out-Null
-    $sha = (Invoke-Git @('rev-parse','HEAD')).Output
-    Invoke-Git @('push','origin',"HEAD:$Branch") | Out-Null
-    Invoke-Git @('tag','--annotate',$Version,'--message',"Release $Version",$sha) | Out-Null
-    Invoke-Git @('push','origin',"refs/tags/$Version") | Out-Null
+    Invoke-Git @('config', 'user.name', "$AppSlug[bot]") | Out-Null
+    Invoke-Git @('config', 'user.email', "$AppSlug[bot]@users.noreply.github.com") | Out-Null
+    Invoke-Git @('add', '--', 'package.json') | Out-Null
+    Invoke-Git @('commit', '-m', "Release $Version", '-m', 'Automatically updated by GitHub Actions after release validation.') | Out-Null
+    $sha = (Invoke-Git @('rev-parse', 'HEAD')).Output
+    Invoke-Git @('push', 'origin', "HEAD:$Branch") | Out-Null
+    Invoke-Git @('tag', '--annotate', $Version, '--message', "Release $Version", $sha) | Out-Null
+    Invoke-Git @('push', 'origin', "refs/tags/$Version") | Out-Null
     $sha
 }
 
 function Ensure-ResumeTag([string]$Version) {
-    $sha = (Invoke-Git @('rev-parse','HEAD')).Output
+    $sha = (Invoke-Git @('rev-parse', 'HEAD')).Output
     $headPackage = Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw | ConvertFrom-Json
     if ([string]$headPackage.version -ne $Version) { throw 'Resume requires HEAD package.json to contain the selected version.' }
     $tagSha = Get-TagSha $Version
     $tagAction = Resolve-PureBaseResumeTagAction -HeadSha $sha -ExistingTagSha $tagSha
     if ($tagAction -eq 'create') {
-        Invoke-Git @('tag','--annotate',$Version,'--message',"Release $Version",$sha) | Out-Null
-        Invoke-Git @('push','origin',"refs/tags/$Version") | Out-Null
+        Invoke-Git @('tag', '--annotate', $Version, '--message', "Release $Version", $sha) | Out-Null
+        Invoke-Git @('push', 'origin', "refs/tags/$Version") | Out-Null
     }
     $sha
 }
@@ -151,14 +151,14 @@ function Publish-Release([string]$Version, [string]$CommitSha, $Artifact, [bool]
         return $release
     }
     if (-not $release) {
-        $release = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name=$Version; target_commitish=$CommitSha; name=$Version; draft=$true; prerelease=$false; generate_release_notes=$true })
+        $release = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $Version; target_commitish = $CommitSha; name = $Version; draft = $true; prerelease = $false; generate_release_notes = $true })
     }
     foreach ($asset in @($release.assets | Where-Object name -eq $Artifact.Name)) {
         Invoke-Api DELETE "$apiRoot/repos/$Repository/releases/assets/$($asset.id)" $releaseToken | Out-Null
     }
-    $upload = ([string]$release.upload_url) -replace '\{\?name,label\}$',''
+    $upload = ([string]$release.upload_url) -replace '\{\?name,label\}$', ''
     Invoke-Api POST "$upload?name=$([Uri]::EscapeDataString($Artifact.Name))" $releaseToken $null $Artifact.Path | Out-Null
-    Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken @{ draft=$false } | Out-Null
+    Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken @{ draft = $false } | Out-Null
     $published = Get-Release $Version
     if (-not $published -or $published.draft) { throw "Release '$Version' was not published." }
     if ($null -eq $published.PSObject.Properties['immutable'] -or -not [bool]$published.immutable) {
@@ -170,14 +170,14 @@ function Publish-Release([string]$Version, [string]$CommitSha, $Artifact, [bool]
 
 Write-State 'preflight'
 if (-not (Test-Path $UnityEditorPath -PathType Leaf)) { throw "Unity is missing at '$UnityEditorPath'." }
-if ((Invoke-Git @('branch','--show-current')).Output -ne $Branch) { throw "The checked-out branch is not '$Branch'." }
-if ((Invoke-Git @('status','--porcelain=v1')).Output) { throw 'Release checkout must be clean.' }
+if ((Invoke-Git @('branch', '--show-current')).Output -ne $Branch) { throw "The checked-out branch is not '$Branch'." }
+if ((Invoke-Git @('status', '--porcelain=v1')).Output) { throw 'Release checkout must be clean.' }
 Assert-PureBaseImmutableReleasesEnabled `
     -ApiRoot $apiRoot `
     -Repository $Repository `
     -Token $releaseToken `
     -ApiInvoker { param($Method, $Uri, $Token) Invoke-Api $Method $Uri $Token } |
-    Out-Null
+Out-Null
 Invoke-Api GET "$apiRoot/repos/$VpmRepository" $dispatchToken | Out-Null
 
 $trigger = Get-Content -LiteralPath (Join-Path $PackageRoot 'update_trigger.json') -Raw | ConvertFrom-Json
@@ -195,26 +195,26 @@ $releaseMode = Resolve-PureBaseReleaseMode `
     -ExistingRelease $existingRelease
 $isResume = $releaseMode.Mode -eq 'resume'
 Write-State 'release-mode-resolved' @{
-    mode = $releaseMode.Mode
-    tagState = $releaseMode.TagState
+    mode         = $releaseMode.Mode
+    tagState     = $releaseMode.TagState
     releaseState = $releaseMode.ReleaseState
 }
 
 Invoke-Validation
 $commitSha = if ($isResume) { Ensure-ResumeTag $targetText } else { Commit-And-Tag $targetText }
-Write-State 'version-committed-and-tagged' @{ commitSha=$commitSha; resume=$isResume }
+Write-State 'version-committed-and-tagged' @{ commitSha = $commitSha; resume = $isResume }
 
 $assetName = "$packageName-$targetText.zip"
 if ($isResume -and $releaseMode.ReleaseState -eq 'published') {
     $artifact = Resolve-PureBasePublishedArtifact -Release $existingRelease -AssetName $assetName
     $release = $existingRelease
-    Write-State 'published-asset-reused' @{ commitSha=$commitSha; assetName=$artifact.Name; sha256=$artifact.Sha256; downloadUrl=$artifact.DownloadUrl }
+    Write-State 'published-asset-reused' @{ commitSha = $commitSha; assetName = $artifact.Name; sha256 = $artifact.Sha256; downloadUrl = $artifact.DownloadUrl }
 }
 else {
     $artifact = Build-Zip $targetText
-    Write-State 'final-archive-built' @{ commitSha=$commitSha; assetName=$artifact.Name; sha256=$artifact.Sha256 }
+    Write-State 'final-archive-built' @{ commitSha = $commitSha; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
     $release = Publish-Release $targetText $commitSha $artifact $isResume
-    Write-State 'immutable-release-published' @{ commitSha=$commitSha; releaseUrl=[string]$release.html_url; sha256=$artifact.Sha256 }
+    Write-State 'immutable-release-published' @{ commitSha = $commitSha; releaseUrl = [string]$release.html_url; sha256 = $artifact.Sha256 }
 }
 
 $dispatchPayload = New-PureBaseDispatchPayload `
@@ -226,5 +226,5 @@ $dispatchPayload = New-PureBaseDispatchPayload `
     -Sha256 $artifact.Sha256 `
     -ReleaseUrl ([string]$release.html_url)
 Invoke-Api POST "$apiRoot/repos/$VpmRepository/dispatches" $dispatchToken $dispatchPayload | Out-Null
-Write-State 'completed' @{ commitSha=$commitSha; releaseUrl=[string]$release.html_url; vpmRepository=$VpmRepository; sha256=$artifact.Sha256; assetSource=$artifact.Source }
+Write-State 'completed' @{ commitSha = $commitSha; releaseUrl = [string]$release.html_url; vpmRepository = $VpmRepository; sha256 = $artifact.Sha256; assetSource = $artifact.Source }
 Write-Output "Release completed: $($release.html_url)"
