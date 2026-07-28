@@ -109,6 +109,32 @@ Before completing a change, verify that:
 * External Shader-Core phases remain available.
 * No unintended shader variants, passes, dependencies, or features were added.
 
+### Release validation
+
+Do not run `Tests/Release/Run-PureBaseReleaseValidation.ps1` locally during
+normal LLM-assisted development.
+
+Release validation performs extensive read and write operations and must
+normally be delegated to the repository's GitHub Actions
+`Release validation` workflow.
+
+Before requesting release validation:
+
+1. Complete the relevant local Daily validation.
+2. Ensure every input required by release validation is tracked by Git.
+3. Commit and push the current changes to the working branch.
+4. Trigger `.github/workflows/release-validation.yml` for that exact branch.
+5. Wait for the workflow to complete and inspect its uploaded validation
+   evidence when it fails.
+
+Do not assume GitHub Actions can observe uncommitted or unpushed local files.
+Do not commit generated ConsumerProject, Library, release ZIP, logs, or other
+temporary validation artifacts unless the task explicitly requires a tracked
+fixture or baseline update.
+
+Run release validation locally only when the user explicitly requests local
+CI-parity investigation or when debugging the release-validation runner itself.
+
 ### Daily validation from an open Unity Editor
 
 When Unity MCP is connected to the project and the Editor is already open, prefer its
