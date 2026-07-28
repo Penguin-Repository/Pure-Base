@@ -124,13 +124,17 @@ namespace PureBase.Tests.Regeneration
                 throw new ArgumentNullException(nameof(rawObservationBytes));
             PureBaseRegressionBaselineGenerator.ObservationCandidate sourceObservation =
                 DeserializeObservationCandidate(rawObservationBytes);
-            if (!string.Equals(
+            if (
+                !string.Equals(
                     PureBaseRegressionBaselineGenerator.SerializeObservationCandidate(
                         observationCandidate
                     ),
-                    PureBaseRegressionBaselineGenerator.SerializeObservationCandidate(sourceObservation),
+                    PureBaseRegressionBaselineGenerator.SerializeObservationCandidate(
+                        sourceObservation
+                    ),
                     StringComparison.Ordinal
-                ))
+                )
+            )
             {
                 throw new InvalidOperationException(
                     "The raw observation bytes do not match the reviewed baseline source observation."
@@ -171,8 +175,12 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Deserializes a reviewed artifact from the exact bytes that will be source-identity checked.</summary>
         /// <param name="reviewedCandidateBytes">The exact reviewed artifact bytes.</param>
         /// <returns>The deserialized reviewed artifact.</returns>
-        public static PureBaseReviewedBaselineCandidate Deserialize(byte[] reviewedCandidateBytes) =>
-            DeserializeReviewedCandidate(DecodeArtifactBytes(reviewedCandidateBytes, "reviewed baseline"));
+        public static PureBaseReviewedBaselineCandidate Deserialize(
+            byte[] reviewedCandidateBytes
+        ) =>
+            DeserializeReviewedCandidate(
+                DecodeArtifactBytes(reviewedCandidateBytes, "reviewed baseline")
+            );
 
         /// <summary>Computes the lowercase SHA-256 digest for exact artifact bytes.</summary>
         /// <param name="artifactBytes">The exact artifact bytes to hash.</param>
@@ -207,16 +215,22 @@ namespace PureBase.Tests.Regeneration
             if (candidate == null)
                 throw new InvalidOperationException("The reviewed baseline candidate is missing.");
             if (candidate.schemaVersion != SchemaVersion)
-                throw new InvalidOperationException("The reviewed baseline candidate schema version is unsupported.");
+                throw new InvalidOperationException(
+                    "The reviewed baseline candidate schema version is unsupported."
+                );
             if (!IsLowercaseSha256(candidate.sourceObservationSha256))
-                throw new InvalidOperationException("The reviewed baseline candidate source hash is invalid.");
+                throw new InvalidOperationException(
+                    "The reviewed baseline candidate source hash is invalid."
+                );
             if (rawObservationBytes == null)
                 throw new ArgumentNullException(nameof(rawObservationBytes));
-            if (!string.Equals(
+            if (
+                !string.Equals(
                     candidate.sourceObservationSha256,
                     ComputeSha256(rawObservationBytes),
                     StringComparison.Ordinal
-                ))
+                )
+            )
             {
                 throw new InvalidOperationException(
                     "The reviewed baseline candidate source hash does not match the raw observation bytes."
@@ -228,11 +242,11 @@ namespace PureBase.Tests.Regeneration
                 observationCandidate,
                 canonicalBaseline
             );
-            ValidateBaseline(candidate.approvedBaseline, "The reviewed baseline candidate approved baseline");
-            EnsureCanonicalTargetRangesMatch(
-                candidate,
-                canonicalBaseline
+            ValidateBaseline(
+                candidate.approvedBaseline,
+                "The reviewed baseline candidate approved baseline"
             );
+            EnsureCanonicalTargetRangesMatch(candidate, canonicalBaseline);
             EnsureApprovedBaselinePreservesCanonical(
                 candidate.approvedBaseline,
                 canonicalBaseline,
@@ -593,7 +607,10 @@ namespace PureBase.Tests.Regeneration
             }
             catch (Exception exception)
             {
-                throw new InvalidOperationException("The raw observation artifact JSON is malformed.", exception);
+                throw new InvalidOperationException(
+                    "The raw observation artifact JSON is malformed.",
+                    exception
+                );
             }
         }
 
@@ -625,8 +642,16 @@ namespace PureBase.Tests.Regeneration
             SceneRegressionBaseline canonicalBaseline
         )
         {
-            if (!RangesEqual(candidate.canonicalPbrRange, canonicalBaseline.metaAlbedo[2].meanLuminance)
-                || !RangesEqual(candidate.canonicalHybridRange, canonicalBaseline.metaAlbedo[3].meanLuminance))
+            if (
+                !RangesEqual(
+                    candidate.canonicalPbrRange,
+                    canonicalBaseline.metaAlbedo[2].meanLuminance
+                )
+                || !RangesEqual(
+                    candidate.canonicalHybridRange,
+                    canonicalBaseline.metaAlbedo[3].meanLuminance
+                )
+            )
             {
                 throw new InvalidOperationException(
                     "The reviewed baseline candidate was created against different canonical PBR or Hybrid ranges."
@@ -659,17 +684,31 @@ namespace PureBase.Tests.Regeneration
         private static void ValidateObservationIdentities(MetaAlbedoObservation[] metaAlbedo)
         {
             if (metaAlbedo == null || metaAlbedo.Length != ExpectedMetaIdentities.Length)
-                throw new InvalidOperationException("The raw observation Meta identities are incomplete.");
+                throw new InvalidOperationException(
+                    "The raw observation Meta identities are incomplete."
+                );
 
             for (int index = 0; index < ExpectedMetaIdentities.Length; index++)
             {
                 MetaAlbedoObservation meta = metaAlbedo[index];
                 MetaIdentity identity = ExpectedMetaIdentities[index];
-                if (meta == null
-                    || !string.Equals(meta.materialName, identity.MaterialName, StringComparison.Ordinal)
-                    || !string.Equals(meta.shaderName, identity.ShaderName, StringComparison.Ordinal))
+                if (
+                    meta == null
+                    || !string.Equals(
+                        meta.materialName,
+                        identity.MaterialName,
+                        StringComparison.Ordinal
+                    )
+                    || !string.Equals(
+                        meta.shaderName,
+                        identity.ShaderName,
+                        StringComparison.Ordinal
+                    )
+                )
                 {
-                    throw new InvalidOperationException("The raw observation Meta identities are invalid.");
+                    throw new InvalidOperationException(
+                        "The raw observation Meta identities are invalid."
+                    );
                 }
             }
         }
@@ -685,12 +724,24 @@ namespace PureBase.Tests.Regeneration
             {
                 MetaAlbedoBaseline meta = metaAlbedo[index];
                 MetaIdentity identity = ExpectedMetaIdentities[index];
-                if (meta == null
+                if (
+                    meta == null
                     || meta.meanLuminance == null
-                    || !string.Equals(meta.materialName, identity.MaterialName, StringComparison.Ordinal)
-                    || !string.Equals(meta.shaderName, identity.ShaderName, StringComparison.Ordinal))
+                    || !string.Equals(
+                        meta.materialName,
+                        identity.MaterialName,
+                        StringComparison.Ordinal
+                    )
+                    || !string.Equals(
+                        meta.shaderName,
+                        identity.ShaderName,
+                        StringComparison.Ordinal
+                    )
+                )
                 {
-                    throw new InvalidOperationException("The baseline Meta identities are invalid.");
+                    throw new InvalidOperationException(
+                        "The baseline Meta identities are invalid."
+                    );
                 }
             }
         }
@@ -705,18 +756,40 @@ namespace PureBase.Tests.Regeneration
             SceneRegressionObservation observation
         )
         {
-            if (approved.schemaVersion != canonical.schemaVersion
-                || !string.Equals(approved.unityVersion, canonical.unityVersion, StringComparison.Ordinal)
-                || !string.Equals(approved.graphicsDevice, canonical.graphicsDevice, StringComparison.Ordinal)
-                || !string.Equals(approved.colorSpace, canonical.colorSpace, StringComparison.Ordinal)
-                || !string.Equals(approved.renderPipeline, canonical.renderPipeline, StringComparison.Ordinal)
+            if (
+                approved.schemaVersion != canonical.schemaVersion
+                || !string.Equals(
+                    approved.unityVersion,
+                    canonical.unityVersion,
+                    StringComparison.Ordinal
+                )
+                || !string.Equals(
+                    approved.graphicsDevice,
+                    canonical.graphicsDevice,
+                    StringComparison.Ordinal
+                )
+                || !string.Equals(
+                    approved.colorSpace,
+                    canonical.colorSpace,
+                    StringComparison.Ordinal
+                )
+                || !string.Equals(
+                    approved.renderPipeline,
+                    canonical.renderPipeline,
+                    StringComparison.Ordinal
+                )
                 || approved.renderSize != canonical.renderSize
                 || approved.staticLightmapCount != canonical.staticLightmapCount
                 || approved.staticRendererAssignmentCount != canonical.staticRendererAssignmentCount
                 || !RangesEqual(approved.sceneVisiblePixelCount, canonical.sceneVisiblePixelCount)
                 || !RangesEqual(approved.shadowChangedPixelCount, canonical.shadowChangedPixelCount)
                 || approved.warmedVariantCount != canonical.warmedVariantCount
-                || !string.Equals(approved.dynamicLightmapStatus, canonical.dynamicLightmapStatus, StringComparison.Ordinal))
+                || !string.Equals(
+                    approved.dynamicLightmapStatus,
+                    canonical.dynamicLightmapStatus,
+                    StringComparison.Ordinal
+                )
+            )
             {
                 throw new InvalidOperationException(
                     "The reviewed baseline candidate does not preserve the current canonical baseline."
@@ -727,20 +800,24 @@ namespace PureBase.Tests.Regeneration
             {
                 if (ExpectedMetaIdentities[index].IsApprovedTarget)
                 {
-                    if (!IsExactRange(
+                    if (
+                        !IsExactRange(
                             approved.metaAlbedo[index].meanLuminance,
                             observation.metaAlbedo[index].meanLuminance
-                        ))
+                        )
+                    )
                     {
                         throw new InvalidOperationException(
                             "The reviewed baseline candidate does not match its approved Meta observation."
                         );
                     }
                 }
-                else if (!RangesEqual(
-                    approved.metaAlbedo[index].meanLuminance,
-                    canonical.metaAlbedo[index].meanLuminance
-                ))
+                else if (
+                    !RangesEqual(
+                        approved.metaAlbedo[index].meanLuminance,
+                        canonical.metaAlbedo[index].meanLuminance
+                    )
+                )
                 {
                     throw new InvalidOperationException(
                         "The reviewed baseline candidate does not preserve canonical Meta ranges."
@@ -841,8 +918,12 @@ namespace PureBase.Tests.Regeneration
             for (int index = 0; index < digest.Length; index++)
             {
                 char character = digest[index];
-                if (!((character >= '0' && character <= '9')
-                    || (character >= 'a' && character <= 'f')))
+                if (
+                    !(
+                        (character >= '0' && character <= '9')
+                        || (character >= 'a' && character <= 'f')
+                    )
+                )
                     return false;
             }
 

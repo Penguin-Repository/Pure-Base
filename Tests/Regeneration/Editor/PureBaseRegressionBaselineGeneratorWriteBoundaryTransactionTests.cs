@@ -39,9 +39,19 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void CanonicalStorageAuditsEachOperationWhenDirectoryIsMissing()
         {
-            var events = new List<string>(); var backend = new RecordingCanonicalBaselineStorageBackend(false, events); var writeBoundary = new RecordingCanonicalBaselineStorageWriteBoundary(events); var baseline = new SceneRegressionBaseline();
-            PureBaseRegressionBaselineStorage.WriteCanonicalBaseline(baseline, writeBoundary, backend);
-            Assert.That(events, Is.EqualTo(new[] { "create", "audit", "write", "audit", "import", "audit" }));
+            var events = new List<string>();
+            var backend = new RecordingCanonicalBaselineStorageBackend(false, events);
+            var writeBoundary = new RecordingCanonicalBaselineStorageWriteBoundary(events);
+            var baseline = new SceneRegressionBaseline();
+            PureBaseRegressionBaselineStorage.WriteCanonicalBaseline(
+                baseline,
+                writeBoundary,
+                backend
+            );
+            Assert.That(
+                events,
+                Is.EqualTo(new[] { "create", "audit", "write", "audit", "import", "audit" })
+            );
             Assert.That(backend.WrittenJson, Is.EqualTo(JsonUtility.ToJson(baseline, true)));
         }
 
@@ -49,8 +59,14 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void CanonicalStorageAuditsWriteAndImportWhenDirectoryAlreadyExists()
         {
-            var events = new List<string>(); var backend = new RecordingCanonicalBaselineStorageBackend(true, events); var writeBoundary = new RecordingCanonicalBaselineStorageWriteBoundary(events);
-            PureBaseRegressionBaselineStorage.WriteCanonicalBaseline(new SceneRegressionBaseline(), writeBoundary, backend);
+            var events = new List<string>();
+            var backend = new RecordingCanonicalBaselineStorageBackend(true, events);
+            var writeBoundary = new RecordingCanonicalBaselineStorageWriteBoundary(events);
+            PureBaseRegressionBaselineStorage.WriteCanonicalBaseline(
+                new SceneRegressionBaseline(),
+                writeBoundary,
+                backend
+            );
             Assert.That(events, Is.EqualTo(new[] { "write", "audit", "import", "audit" }));
         }
 
@@ -58,8 +74,16 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void CanonicalStorageFailsClosedBeforeImportWhenWriteAuditFails()
         {
-            var events = new List<string>(); var backend = new RecordingCanonicalBaselineStorageBackend(true, events); var writeBoundary = new RecordingCanonicalBaselineStorageWriteBoundary(events, 1);
-            Assert.Throws<InvalidOperationException>(() => PureBaseRegressionBaselineStorage.WriteCanonicalBaseline(new SceneRegressionBaseline(), writeBoundary, backend));
+            var events = new List<string>();
+            var backend = new RecordingCanonicalBaselineStorageBackend(true, events);
+            var writeBoundary = new RecordingCanonicalBaselineStorageWriteBoundary(events, 1);
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineStorage.WriteCanonicalBaseline(
+                    new SceneRegressionBaseline(),
+                    writeBoundary,
+                    backend
+                )
+            );
             Assert.That(events, Is.EqualTo(new[] { "write", "audit" }));
         }
 
@@ -68,51 +92,201 @@ namespace PureBase.Tests.Regeneration
         public void DurablePathClassificationUsesPackageSourceAndPhysicalResolution()
         {
             string packageRoot = Path.GetFullPath("Packages/jp.penguin.purebase");
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurableWorkspaceAssetPath("Assets/Unrelated/Dirty.asset"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurableWorkspaceAssetPath("Packages/jp.penguin.purebase/package.json"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurablePackageSource(PackageSource.Embedded, packageRoot), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurablePackageSource(PackageSource.Local, packageRoot), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurablePackageSource(PackageSource.Registry, packageRoot), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurablePackageSource(PackageSource.Git, packageRoot), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurablePackageSource(PackageSource.Embedded, Path.Combine("Library", "PackageCache", "com.example.cache")), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsDurableWorkspaceAssetPath("Library/unity default resources"), Is.False);
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurableWorkspaceAssetPath(
+                    "Assets/Unrelated/Dirty.asset"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurableWorkspaceAssetPath(
+                    "Packages/jp.penguin.purebase/package.json"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurablePackageSource(
+                    PackageSource.Embedded,
+                    packageRoot
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurablePackageSource(
+                    PackageSource.Local,
+                    packageRoot
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurablePackageSource(
+                    PackageSource.Registry,
+                    packageRoot
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurablePackageSource(
+                    PackageSource.Git,
+                    packageRoot
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurablePackageSource(
+                    PackageSource.Embedded,
+                    Path.Combine("Library", "PackageCache", "com.example.cache")
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsDurableWorkspaceAssetPath(
+                    "Library/unity default resources"
+                ),
+                Is.False
+            );
         }
 
         /// <summary>Ensures nested Git administration paths are excluded without excluding neighboring package sources.</summary>
         [Test]
         public void DurableInventoryExcludesPackageGitAdministrationWithWindowsPathNormalization()
         {
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(@"Packages\jp.penguin.purebase\.git\index"), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/.git"), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/.gitignore"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/Tests/Unrelated.shader.meta"), Is.True);
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    @"Packages\jp.penguin.purebase\.git\index"
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/.git"
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/.gitignore"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/Tests/Unrelated.shader.meta"
+                ),
+                Is.True
+            );
         }
 
         /// <summary>Ensures only the required parent and JSON sidecar metadata for the canonical baseline output are excluded from both audits.</summary>
         [Test]
         public void CanonicalBaselineMetadataIsExcludedOnlyForTheApprovedBaselineOutput()
         {
-            const string canonicalDirectoryMetaPath = "Packages/jp.penguin.purebase/Tests/Baselines.meta";
-            const string canonicalSidecarMetaPath = "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json.meta";
-            Assert.That(PureBaseValidationSceneRegressionTests.BaselinePath, Is.EqualTo("Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json"));
-            Assert.That(PureBaseRegressionBaselineGenerator.WritableCanonicalTargets, Does.Contain(canonicalDirectoryMetaPath)); Assert.That(PureBaseRegressionBaselineGenerator.WritableCanonicalTargets, Does.Contain(canonicalSidecarMetaPath));
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(PureBaseValidationSceneRegressionTests.BaselinePath), Is.False); Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(PureBaseValidationSceneRegressionTests.BaselinePath), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(canonicalDirectoryMetaPath), Is.False); Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(canonicalDirectoryMetaPath), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(canonicalSidecarMetaPath), Is.False); Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(canonicalSidecarMetaPath), Is.False);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/Tests/Unexpected.meta"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/Tests/Baselines/alternate.json"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/Tests/Baselines/alternate.json.meta"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(canonicalSidecarMetaPath + ".meta"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(PureBaseValidationSceneRegressionTests.BaselinePath + "/unexpected.asset"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(PureBaseValidationSceneRegressionTests.BaselinePath + "/unexpected.asset"), Is.True);
-            Assert.That(PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath("Packages/jp.penguin.purebase/Tests/Baselines/unexpected.asset"), Is.True);
+            const string canonicalDirectoryMetaPath =
+                "Packages/jp.penguin.purebase/Tests/Baselines.meta";
+            const string canonicalSidecarMetaPath =
+                "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json.meta";
+            Assert.That(
+                PureBaseValidationSceneRegressionTests.BaselinePath,
+                Is.EqualTo(
+                    "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json"
+                )
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.WritableCanonicalTargets,
+                Does.Contain(canonicalDirectoryMetaPath)
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.WritableCanonicalTargets,
+                Does.Contain(canonicalSidecarMetaPath)
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    PureBaseValidationSceneRegressionTests.BaselinePath
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(
+                    PureBaseValidationSceneRegressionTests.BaselinePath
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    canonicalDirectoryMetaPath
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(
+                    canonicalDirectoryMetaPath
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    canonicalSidecarMetaPath
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(
+                    canonicalSidecarMetaPath
+                ),
+                Is.False
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/Tests/Unexpected.meta"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/Tests/Baselines/alternate.json"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/Tests/Baselines/alternate.json.meta"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    canonicalSidecarMetaPath + ".meta"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    PureBaseValidationSceneRegressionTests.BaselinePath + "/unexpected.asset"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(
+                    PureBaseValidationSceneRegressionTests.BaselinePath + "/unexpected.asset"
+                ),
+                Is.True
+            );
+            Assert.That(
+                PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                    "Packages/jp.penguin.purebase/Tests/Baselines/unexpected.asset"
+                ),
+                Is.True
+            );
         }
 
         /// <summary>Ensures a Git index mutation is omitted from the transaction inventory.</summary>
         [Test]
         public void PackageGitIndexChangeIsIgnoredByTransactionBoundary()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state); boundary.BeginTransaction(); state.Inventory["Packages/jp.penguin.purebase/.git/index"] = "changed";
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state);
+            boundary.BeginTransaction();
+            state.Inventory["Packages/jp.penguin.purebase/.git/index"] = "changed";
             Assert.DoesNotThrow(() => boundary.VerifyNoUnrelatedChanges());
         }
 
@@ -122,19 +296,30 @@ namespace PureBase.Tests.Regeneration
         [TestCase("Packages/jp.penguin.purebase/Tests/Unrelated.shader.meta")]
         [TestCase("Packages/jp.penguin.purebase/package.json")]
         [TestCase("Packages/jp.penguin.purebase/package.json.meta")]
-        public void PackageSourceOrMetaChangeFailsClosedWhenGitAdministrationIsExcluded(string assetPath) => AssertInventoryMutationFails(state => state.Inventory[assetPath] = "changed");
+        public void PackageSourceOrMetaChangeFailsClosedWhenGitAdministrationIsExcluded(
+            string assetPath
+        ) => AssertInventoryMutationFails(state => state.Inventory[assetPath] = "changed");
 
         /// <summary>Ensures sibling metadata and noncanonical baseline child or sidecar deltas remain audited.</summary>
         /// <param name="assetPath">The noncanonical durable path to mutate.</param>
         [TestCase("Packages/jp.penguin.purebase/Tests/Unexpected.meta")]
         [TestCase("Packages/jp.penguin.purebase/Tests/Baselines/alternate.json")]
         [TestCase("Packages/jp.penguin.purebase/Tests/Baselines/alternate.json.meta")]
-        [TestCase("Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json.meta.meta")]
+        [TestCase(
+            "Packages/jp.penguin.purebase/Tests/Baselines/birp-d3d11-2022.3.22f1.json.meta.meta"
+        )]
         [TestCase("Packages/jp.penguin.purebase/Tests/Baselines/unexpected.asset")]
-        public void SiblingOrNoncanonicalBaselineDeltaFailsClosedInInventoryAndDirtyAudits(string assetPath)
+        public void SiblingOrNoncanonicalBaselineDeltaFailsClosedInInventoryAndDirtyAudits(
+            string assetPath
+        )
         {
             AssertInventoryMutationFails(state => state.Inventory[assetPath] = "changed");
-            var state = CreateStateWithPreexistingDirtyAsset(); var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state); boundary.BeginTransaction(); state.DirtyAssets.Add(new PureBaseRegressionBaselineGenerator.DirtyAssetState(assetPath, "new-instance"));
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state);
+            boundary.BeginTransaction();
+            state.DirtyAssets.Add(
+                new PureBaseRegressionBaselineGenerator.DirtyAssetState(assetPath, "new-instance")
+            );
             Assert.Throws<InvalidOperationException>(() => boundary.VerifyNoUnrelatedChanges());
         }
 
@@ -142,41 +327,91 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void PreexistingDirtyNonSceneAssetIsAcceptedWhenInventoryAndIdentityArePreserved()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var operations = new RecordingOperations();
-            Assert.DoesNotThrow(() => PureBaseRegressionBaselineGenerator.Regenerate(CreateValidEnvironment(), operations, new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)));
-            Assert.That(operations.GenerateFixtureCallCount, Is.EqualTo(1)); Assert.That(operations.BakeAndWriteBaselineCallCount, Is.EqualTo(1));
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var operations = new RecordingOperations();
+            Assert.DoesNotThrow(() =>
+                PureBaseRegressionBaselineGenerator.Regenerate(
+                    CreateValidEnvironment(),
+                    operations,
+                    new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)
+                )
+            );
+            Assert.That(operations.GenerateFixtureCallCount, Is.EqualTo(1));
+            Assert.That(operations.BakeAndWriteBaselineCallCount, Is.EqualTo(1));
         }
 
         /// <summary>Ensures creating the canonical baseline directory metadata passes every normal regeneration audit.</summary>
         [Test]
         public void CanonicalBaselineDirectoryMetaCreationIsAcceptedThroughNormalTransactionAudits()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var operations = new CanonicalMetaMutatingOperations(state, false);
-            Assert.DoesNotThrow(() => PureBaseRegressionBaselineGenerator.Regenerate(CreateValidEnvironment(), operations, new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)));
-            Assert.That(operations.GenerateFixtureCallCount, Is.EqualTo(1)); Assert.That(operations.BakeAndWriteBaselineCallCount, Is.EqualTo(1));
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var operations = new CanonicalMetaMutatingOperations(state, false);
+            Assert.DoesNotThrow(() =>
+                PureBaseRegressionBaselineGenerator.Regenerate(
+                    CreateValidEnvironment(),
+                    operations,
+                    new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)
+                )
+            );
+            Assert.That(operations.GenerateFixtureCallCount, Is.EqualTo(1));
+            Assert.That(operations.BakeAndWriteBaselineCallCount, Is.EqualTo(1));
         }
 
         /// <summary>Ensures creating the exact canonical baseline JSON sidecar passes every normal regeneration audit.</summary>
         [Test]
         public void CanonicalBaselineSidecarMetaCreationIsAcceptedThroughNormalTransactionAudits()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var operations = new CanonicalMetaMutatingOperations(state, CanonicalMetaMutatingOperations.CanonicalSidecarMetaPath, false);
-            Assert.DoesNotThrow(() => PureBaseRegressionBaselineGenerator.Regenerate(CreateValidEnvironment(), operations, new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)));
-            Assert.That(operations.GenerateFixtureCallCount, Is.EqualTo(1)); Assert.That(operations.BakeAndWriteBaselineCallCount, Is.EqualTo(1));
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var operations = new CanonicalMetaMutatingOperations(
+                state,
+                CanonicalMetaMutatingOperations.CanonicalSidecarMetaPath,
+                false
+            );
+            Assert.DoesNotThrow(() =>
+                PureBaseRegressionBaselineGenerator.Regenerate(
+                    CreateValidEnvironment(),
+                    operations,
+                    new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)
+                )
+            );
+            Assert.That(operations.GenerateFixtureCallCount, Is.EqualTo(1));
+            Assert.That(operations.BakeAndWriteBaselineCallCount, Is.EqualTo(1));
         }
 
         /// <summary>Ensures non-canonical durable inventory additions fail closed.</summary>
-        [Test] public void DurableFileAdditionFailsClosed() => AssertInventoryMutationFails(state => state.Inventory.Add("Assets/Unrelated/Added.asset", "new"));
+        [Test]
+        public void DurableFileAdditionFailsClosed() =>
+            AssertInventoryMutationFails(state =>
+                state.Inventory.Add("Assets/Unrelated/Added.asset", "new")
+            );
+
         /// <summary>Ensures non-canonical durable inventory deletions fail closed.</summary>
-        [Test] public void DurableFileDeletionFailsClosed() => AssertInventoryMutationFails(state => state.Inventory.Remove("Assets/Unrelated/Existing.asset"));
+        [Test]
+        public void DurableFileDeletionFailsClosed() =>
+            AssertInventoryMutationFails(state =>
+                state.Inventory.Remove("Assets/Unrelated/Existing.asset")
+            );
+
         /// <summary>Ensures non-canonical durable content changes fail closed.</summary>
-        [Test] public void DurableFileContentChangeFailsClosed() => AssertInventoryMutationFails(state => state.Inventory["Assets/Unrelated/Existing.asset"] = "changed");
+        [Test]
+        public void DurableFileContentChangeFailsClosed() =>
+            AssertInventoryMutationFails(state =>
+                state.Inventory["Assets/Unrelated/Existing.asset"] = "changed"
+            );
 
         /// <summary>Ensures newly dirty non-canonical durable assets fail closed.</summary>
         [Test]
         public void NewlyDirtyDurableAssetFailsClosed()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state); boundary.BeginTransaction(); state.DirtyAssets.Add(new PureBaseRegressionBaselineGenerator.DirtyAssetState("Assets/Unrelated/NewDirty.asset", "instance-2"));
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state);
+            boundary.BeginTransaction();
+            state.DirtyAssets.Add(
+                new PureBaseRegressionBaselineGenerator.DirtyAssetState(
+                    "Assets/Unrelated/NewDirty.asset",
+                    "instance-2"
+                )
+            );
             Assert.Throws<InvalidOperationException>(() => boundary.VerifyNoUnrelatedChanges());
         }
 
@@ -184,8 +419,15 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void ExceptionFlowFailsClosedWhenAnOperationChangesDurableState()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var operations = new ThrowingMutatingOperations(state);
-            Assert.Throws<InvalidOperationException>(() => PureBaseRegressionBaselineGenerator.Regenerate(CreateValidEnvironment(), operations, new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)));
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var operations = new ThrowingMutatingOperations(state);
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.Regenerate(
+                    CreateValidEnvironment(),
+                    operations,
+                    new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)
+                )
+            );
             Assert.That(operations.BakeAndWriteBaselineCallCount, Is.Zero);
         }
 
@@ -193,26 +435,63 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void CanonicalBaselineDirectoryMetaCreationIsAcceptedByFinallyAuditAfterOperationException()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var operations = new CanonicalMetaMutatingOperations(state, true);
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PureBaseRegressionBaselineGenerator.Regenerate(CreateValidEnvironment(), operations, new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)));
-            Assert.That(exception.Message, Is.EqualTo("Operation failure.")); Assert.That(operations.BakeAndWriteBaselineCallCount, Is.Zero);
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var operations = new CanonicalMetaMutatingOperations(state, true);
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.Regenerate(
+                    CreateValidEnvironment(),
+                    operations,
+                    new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)
+                )
+            );
+            Assert.That(exception.Message, Is.EqualTo("Operation failure."));
+            Assert.That(operations.BakeAndWriteBaselineCallCount, Is.Zero);
         }
 
         /// <summary>Ensures the exact canonical baseline JSON sidecar is accepted by the finally audit after an operation exception.</summary>
         [Test]
         public void CanonicalBaselineSidecarMetaCreationIsAcceptedByFinallyAuditAfterOperationException()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var operations = new CanonicalMetaMutatingOperations(state, CanonicalMetaMutatingOperations.CanonicalSidecarMetaPath, true);
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => PureBaseRegressionBaselineGenerator.Regenerate(CreateValidEnvironment(), operations, new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)));
-            Assert.That(exception.Message, Is.EqualTo("Operation failure.")); Assert.That(operations.BakeAndWriteBaselineCallCount, Is.Zero);
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var operations = new CanonicalMetaMutatingOperations(
+                state,
+                CanonicalMetaMutatingOperations.CanonicalSidecarMetaPath,
+                true
+            );
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.Regenerate(
+                    CreateValidEnvironment(),
+                    operations,
+                    new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state)
+                )
+            );
+            Assert.That(exception.Message, Is.EqualTo("Operation failure."));
+            Assert.That(operations.BakeAndWriteBaselineCallCount, Is.Zero);
         }
 
         /// <summary>Ensures a fixture asset-creation checkpoint blocks the following asset save after an unrelated durable delta.</summary>
         [Test]
         public void FixtureCreationCheckpointPreventsFollowingSaveWhenDurableStateChanges()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state); var persistenceOperations = new List<string>(); boundary.BeginTransaction();
-            Assert.Throws<InvalidOperationException>(() => { PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(boundary, () => { persistenceOperations.Add("CreateAsset"); state.Inventory["Assets/Unrelated/Existing.asset"] = "changed"; }); PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(boundary, () => persistenceOperations.Add("SaveAssetIfDirty")); });
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state);
+            var persistenceOperations = new List<string>();
+            boundary.BeginTransaction();
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(
+                    boundary,
+                    () =>
+                    {
+                        persistenceOperations.Add("CreateAsset");
+                        state.Inventory["Assets/Unrelated/Existing.asset"] = "changed";
+                    }
+                );
+                PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(
+                    boundary,
+                    () => persistenceOperations.Add("SaveAssetIfDirty")
+                );
+            });
             Assert.That(persistenceOperations, Is.EqualTo(new[] { "CreateAsset" }));
         }
 
@@ -220,24 +499,68 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void BaselineSaveCheckpointPreventsFollowingImportWhenDurableStateChanges()
         {
-            var state = CreateStateWithPreexistingDirtyAsset(); var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state); var persistenceOperations = new List<string>(); boundary.BeginTransaction();
-            Assert.Throws<InvalidOperationException>(() => { PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(boundary, () => { persistenceOperations.Add("SaveScene"); state.Inventory["Assets/Unrelated/Existing.asset"] = "changed"; }); PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(boundary, () => persistenceOperations.Add("ImportAsset")); });
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state);
+            var persistenceOperations = new List<string>();
+            boundary.BeginTransaction();
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(
+                    boundary,
+                    () =>
+                    {
+                        persistenceOperations.Add("SaveScene");
+                        state.Inventory["Assets/Unrelated/Existing.asset"] = "changed";
+                    }
+                );
+                PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(
+                    boundary,
+                    () => persistenceOperations.Add("ImportAsset")
+                );
+            });
             Assert.That(persistenceOperations, Is.EqualTo(new[] { "SaveScene" }));
         }
 
         /// <summary>Applies one inventory mutation after a transaction snapshot and verifies it is rejected.</summary>
         /// <param name="mutation">The controlled non-canonical filesystem mutation.</param>
         private static void AssertInventoryMutationFails(Action<MutableAuditState> mutation)
-        { var state = CreateStateWithPreexistingDirtyAsset(); var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state); boundary.BeginTransaction(); mutation(state); Assert.Throws<InvalidOperationException>(() => boundary.VerifyNoUnrelatedChanges()); }
+        {
+            var state = CreateStateWithPreexistingDirtyAsset();
+            var boundary = new PureBaseRegressionBaselineGenerator.TransactionWriteBoundary(state);
+            boundary.BeginTransaction();
+            mutation(state);
+            Assert.Throws<InvalidOperationException>(() => boundary.VerifyNoUnrelatedChanges());
+        }
+
         /// <summary>Creates a valid fixed environment for transaction orchestration tests.</summary>
-        private static PureBaseRegressionBaselineGenerator.IEnvironment CreateValidEnvironment() => new TestEnvironment(PureBaseValidationSceneRegressionTests.ExpectedUnityVersion, true, GraphicsDeviceType.Direct3D11, ColorSpace.Linear);
+        private static PureBaseRegressionBaselineGenerator.IEnvironment CreateValidEnvironment() =>
+            new TestEnvironment(
+                PureBaseValidationSceneRegressionTests.ExpectedUnityVersion,
+                true,
+                GraphicsDeviceType.Direct3D11,
+                ColorSpace.Linear
+            );
+
         /// <summary>Creates an inventory containing one unchanged preexisting dirty package asset.</summary>
         private static MutableAuditState CreateStateWithPreexistingDirtyAsset()
         {
-            var inventory = new Dictionary<string, string>(StringComparer.Ordinal) { { "Assets/Unrelated/Existing.asset", "original" }, { "Packages/jp.penguin.purebase/.git/index", "original-git-index" }, { "Packages/jp.penguin.purebase/Tests/Unrelated.shader", "shader" }, { "Packages/jp.penguin.purebase/Tests/Unrelated.shader.meta", "meta" } };
-            var dirtyAssets = new List<PureBaseRegressionBaselineGenerator.DirtyAssetState> { new PureBaseRegressionBaselineGenerator.DirtyAssetState("Packages/jp.penguin.purebase/Tests/Unrelated.shader", "instance-1") };
+            var inventory = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "Assets/Unrelated/Existing.asset", "original" },
+                { "Packages/jp.penguin.purebase/.git/index", "original-git-index" },
+                { "Packages/jp.penguin.purebase/Tests/Unrelated.shader", "shader" },
+                { "Packages/jp.penguin.purebase/Tests/Unrelated.shader.meta", "meta" },
+            };
+            var dirtyAssets = new List<PureBaseRegressionBaselineGenerator.DirtyAssetState>
+            {
+                new PureBaseRegressionBaselineGenerator.DirtyAssetState(
+                    "Packages/jp.penguin.purebase/Tests/Unrelated.shader",
+                    "instance-1"
+                ),
+            };
             return new MutableAuditState(inventory, dirtyAssets);
         }
+
         /// <summary>Supplies fixed environment values to transaction tests.</summary>
         private sealed class TestEnvironment : PureBaseRegressionBaselineGenerator.IEnvironment
         {
@@ -296,7 +619,11 @@ namespace PureBase.Tests.Regeneration
             {
                 var inventory = new Dictionary<string, string>(StringComparer.Ordinal);
                 foreach (KeyValuePair<string, string> entry in Inventory)
-                    if (PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(entry.Key))
+                    if (
+                        PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableInventoryAssetPath(
+                            entry.Key
+                        )
+                    )
                         inventory.Add(entry.Key, entry.Value);
                 return inventory;
             }
@@ -305,8 +632,14 @@ namespace PureBase.Tests.Regeneration
             public List<PureBaseRegressionBaselineGenerator.DirtyAssetState> CaptureDirtyNonCanonicalAssets()
             {
                 var dirtyAssets = new List<PureBaseRegressionBaselineGenerator.DirtyAssetState>();
-                foreach (PureBaseRegressionBaselineGenerator.DirtyAssetState dirtyAsset in DirtyAssets)
-                    if (PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(dirtyAsset.AssetPath))
+                foreach (
+                    PureBaseRegressionBaselineGenerator.DirtyAssetState dirtyAsset in DirtyAssets
+                )
+                    if (
+                        PureBaseRegressionBaselineGenerator.IsNonCanonicalDurableWorkspaceAssetPath(
+                            dirtyAsset.AssetPath
+                        )
+                    )
                         dirtyAssets.Add(dirtyAsset);
                 return dirtyAssets;
             }
@@ -422,8 +755,10 @@ namespace PureBase.Tests.Regeneration
             /// <inheritdoc />
             public void BakeAndWriteBaseline() => BakeAndWriteBaselineCallCount++;
         }
+
         /// <summary>Records raw canonical storage operations without transaction auditing.</summary>
-        private sealed class RecordingCanonicalBaselineStorageBackend : ICanonicalBaselineStorageBackend
+        private sealed class RecordingCanonicalBaselineStorageBackend
+            : ICanonicalBaselineStorageBackend
         {
             /// <summary>Indicates whether the canonical parent directory already exists.</summary>
             private readonly bool isDirectoryValid;
@@ -434,7 +769,10 @@ namespace PureBase.Tests.Regeneration
             /// <summary>Initializes the recording storage backend.</summary>
             /// <param name="isDirectoryValid">Whether the canonical parent directory already exists.</param>
             /// <param name="events">The ordered operation log.</param>
-            public RecordingCanonicalBaselineStorageBackend(bool isDirectoryValid, List<string> events)
+            public RecordingCanonicalBaselineStorageBackend(
+                bool isDirectoryValid,
+                List<string> events
+            )
             {
                 this.isDirectoryValid = isDirectoryValid;
                 this.events = events;
@@ -447,7 +785,8 @@ namespace PureBase.Tests.Regeneration
             public bool IsDirectoryValid(string assetPath) => isDirectoryValid;
 
             /// <inheritdoc />
-            public void CreateDirectory(string parentAssetPath, string directoryName) => events.Add("create");
+            public void CreateDirectory(string parentAssetPath, string directoryName) =>
+                events.Add("create");
 
             /// <inheritdoc />
             public void WriteAllText(string path, string contents)
@@ -461,7 +800,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Records audit checkpoints and can reject a selected checkpoint.</summary>
-        private sealed class RecordingCanonicalBaselineStorageWriteBoundary : PureBaseRegressionBaselineGenerator.IWriteBoundary
+        private sealed class RecordingCanonicalBaselineStorageWriteBoundary
+            : PureBaseRegressionBaselineGenerator.IWriteBoundary
         {
             /// <summary>Records the ordered audit operations.</summary>
             private readonly List<string> events;
@@ -475,7 +815,10 @@ namespace PureBase.Tests.Regeneration
             /// <summary>Initializes the recording write boundary.</summary>
             /// <param name="events">The ordered operation log.</param>
             /// <param name="failingAuditCall">The audit invocation that throws, or zero when all audits pass.</param>
-            public RecordingCanonicalBaselineStorageWriteBoundary(List<string> events, int failingAuditCall = 0)
+            public RecordingCanonicalBaselineStorageWriteBoundary(
+                List<string> events,
+                int failingAuditCall = 0
+            )
             {
                 this.events = events;
                 this.failingAuditCall = failingAuditCall;

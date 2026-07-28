@@ -33,7 +33,8 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void CreatePreservesCanonicalFieldsAndOnlyReplacesApprovedMetaRanges()
         {
-            PureBaseRegressionBaselineGenerator.ObservationCandidate observation = CreateObservation();
+            PureBaseRegressionBaselineGenerator.ObservationCandidate observation =
+                CreateObservation();
             SceneRegressionBaseline canonical = CreateCanonicalBaseline();
             PureBaseReviewedBaselineCandidate candidate = CreateUnderTest(
                 observation,
@@ -41,7 +42,10 @@ namespace PureBase.Tests.Regeneration
                 CreateObservationBytes()
             );
 
-            Assert.That(candidate.schemaVersion, Is.EqualTo(PureBaseReviewedBaselineCandidate.SchemaVersion));
+            Assert.That(
+                candidate.schemaVersion,
+                Is.EqualTo(PureBaseReviewedBaselineCandidate.SchemaVersion)
+            );
             Assert.That(candidate.approvedBaseline, Is.Not.SameAs(canonical));
             AssertRange(candidate.canonicalPbrRange, canonical.metaAlbedo[2].meanLuminance);
             AssertRange(candidate.canonicalHybridRange, canonical.metaAlbedo[3].meanLuminance);
@@ -52,7 +56,8 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void CreateDeepCopiesCanonicalInnerRangeObjects()
         {
-            PureBaseRegressionBaselineGenerator.ObservationCandidate observation = CreateObservation();
+            PureBaseRegressionBaselineGenerator.ObservationCandidate observation =
+                CreateObservation();
             SceneRegressionBaseline canonical = CreateCanonicalBaseline();
             PureBaseReviewedBaselineCandidate candidate = CreateUnderTest(
                 observation,
@@ -64,9 +69,18 @@ namespace PureBase.Tests.Regeneration
             originalRange.minimum = 0.9f;
             originalRange.maximum = 1.0f;
 
-            Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance, Is.Not.SameAs(originalRange));
-            Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance.minimum, Is.EqualTo(0.01f));
-            Assert.That(candidate.approvedBaseline.metaAlbedo[0].meanLuminance.maximum, Is.EqualTo(0.010001f));
+            Assert.That(
+                candidate.approvedBaseline.metaAlbedo[0].meanLuminance,
+                Is.Not.SameAs(originalRange)
+            );
+            Assert.That(
+                candidate.approvedBaseline.metaAlbedo[0].meanLuminance.minimum,
+                Is.EqualTo(0.01f)
+            );
+            Assert.That(
+                candidate.approvedBaseline.metaAlbedo[0].meanLuminance.maximum,
+                Is.EqualTo(0.010001f)
+            );
         }
 
         /// <summary>Requires reviewed candidates to bind the exact observation bytes with SHA-256.</summary>
@@ -80,10 +94,7 @@ namespace PureBase.Tests.Regeneration
                 bytes
             );
 
-            Assert.That(
-                candidate.sourceObservationSha256,
-                Is.EqualTo(ComputeFixtureSha256(bytes))
-            );
+            Assert.That(candidate.sourceObservationSha256, Is.EqualTo(ComputeFixtureSha256(bytes)));
         }
 
         /// <summary>Requires the builder to reject bytes that deserialize to different source observation evidence.</summary>
@@ -95,13 +106,12 @@ namespace PureBase.Tests.Regeneration
             differentObservation.observation.metaAlbedo[2].meanLuminance = 0.9f;
             differentObservation.exactBaseline.metaAlbedo[2].meanLuminance = FloatRange.Exact(0.9f);
 
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    PureBaseReviewedBaselineCandidate.Create(
-                        CreateObservation(),
-                        CreateCanonicalBaseline(),
-                        SerializeObservation(differentObservation)
-                    )
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseReviewedBaselineCandidate.Create(
+                    CreateObservation(),
+                    CreateCanonicalBaseline(),
+                    SerializeObservation(differentObservation)
+                )
             );
         }
 
@@ -152,14 +162,20 @@ namespace PureBase.Tests.Regeneration
             }
             else
             {
-                PureBaseRegressionBaselineGenerator.ObservationCandidate observation = CreateObservation();
-                observation.schemaVersion = condition == "missing"
-                    ? 0
-                    : PureBaseRegressionBaselineGenerator.ObservationCandidateSchemaVersion + 1;
+                PureBaseRegressionBaselineGenerator.ObservationCandidate observation =
+                    CreateObservation();
+                observation.schemaVersion =
+                    condition == "missing"
+                        ? 0
+                        : PureBaseRegressionBaselineGenerator.ObservationCandidateSchemaVersion + 1;
                 observationBytes = SerializeObservation(observation);
             }
 
-            AssertArtifactRejection(observationBytes, CreateReviewedBytes(), CreateCanonicalBaseline());
+            AssertArtifactRejection(
+                observationBytes,
+                CreateReviewedBytes(),
+                CreateCanonicalBaseline()
+            );
         }
 
         /// <summary>Requires missing, unsupported, and malformed reviewed schemas to reject before any write.</summary>
@@ -178,29 +194,40 @@ namespace PureBase.Tests.Regeneration
             else
             {
                 PureBaseReviewedBaselineCandidate candidate = CreateReviewedCandidate();
-                candidate.schemaVersion = condition == "missing"
-                    ? 0
-                    : condition == "legacy"
-                        ? PureBaseReviewedBaselineCandidate.SchemaVersion - 1
-                        : PureBaseReviewedBaselineCandidate.SchemaVersion + 1;
+                candidate.schemaVersion =
+                    condition == "missing" ? 0
+                    : condition == "legacy" ? PureBaseReviewedBaselineCandidate.SchemaVersion - 1
+                    : PureBaseReviewedBaselineCandidate.SchemaVersion + 1;
                 reviewedBytes = SerializeReviewed(candidate);
             }
 
-            AssertArtifactRejection(CreateObservationBytes(), reviewedBytes, CreateCanonicalBaseline());
+            AssertArtifactRejection(
+                CreateObservationBytes(),
+                reviewedBytes,
+                CreateCanonicalBaseline()
+            );
         }
 
         /// <summary>Requires reviewed artifacts supplied at the observation path to reject before any write.</summary>
         [Test]
         public void ApplyFromArtifactsRejectsReviewedArtifactAtObservationPathBeforeWrites()
         {
-            AssertArtifactRejection(CreateReviewedBytes(), CreateReviewedBytes(), CreateCanonicalBaseline());
+            AssertArtifactRejection(
+                CreateReviewedBytes(),
+                CreateReviewedBytes(),
+                CreateCanonicalBaseline()
+            );
         }
 
         /// <summary>Requires observation artifacts supplied at the reviewed path to reject before any write.</summary>
         [Test]
         public void ApplyFromArtifactsRejectsObservationArtifactAtReviewedPathBeforeWrites()
         {
-            AssertArtifactRejection(CreateObservationBytes(), CreateObservationBytes(), CreateCanonicalBaseline());
+            AssertArtifactRejection(
+                CreateObservationBytes(),
+                CreateObservationBytes(),
+                CreateCanonicalBaseline()
+            );
         }
 
         /// <summary>Requires the legacy observation artifact boundary to reject a reviewed artifact by schema alone.</summary>
@@ -209,11 +236,10 @@ namespace PureBase.Tests.Regeneration
         {
             string reviewedArtifactJson = Encoding.UTF8.GetString(CreateReviewedBytes());
 
-            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-                () =>
-                    PureBaseRegressionBaselineGenerator.DeserializeObservationCandidate(
-                        reviewedArtifactJson
-                    )
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineGenerator.DeserializeObservationCandidate(
+                    reviewedArtifactJson
+                )
             );
 
             Assert.That(
@@ -229,7 +255,8 @@ namespace PureBase.Tests.Regeneration
         public void ApplyRejectsInvalidSourceHashFormatBeforeWrites()
         {
             PureBaseReviewedBaselineCandidate candidate = CreateReviewedCandidate();
-            candidate.sourceObservationSha256 = candidate.sourceObservationSha256.ToUpperInvariant();
+            candidate.sourceObservationSha256 =
+                candidate.sourceObservationSha256.ToUpperInvariant();
 
             AssertApplyRejection(candidate, CreateObservation(), CreateCanonicalBaseline());
         }
@@ -249,7 +276,8 @@ namespace PureBase.Tests.Regeneration
         public void ApplyRejectsSourceHashWithNonHexCharacterBeforeWrites()
         {
             PureBaseReviewedBaselineCandidate candidate = CreateReviewedCandidate();
-            candidate.sourceObservationSha256 = "g" + candidate.sourceObservationSha256.Substring(1);
+            candidate.sourceObservationSha256 =
+                "g" + candidate.sourceObservationSha256.Substring(1);
 
             AssertApplyRejection(candidate, CreateObservation(), CreateCanonicalBaseline());
         }
@@ -286,7 +314,13 @@ namespace PureBase.Tests.Regeneration
             else if (condition == "duplicate")
                 meta[3] = CreateMeta(meta[2].materialName, meta[2].shaderName, 0.071f, 0.071f);
             else if (condition == "reordered")
-                candidate.approvedBaseline.metaAlbedo = new[] { meta[0], meta[1], meta[3], meta[2] };
+                candidate.approvedBaseline.metaAlbedo = new[]
+                {
+                    meta[0],
+                    meta[1],
+                    meta[3],
+                    meta[2],
+                };
             else if (condition == "unexpected")
                 meta[2].shaderName = "PureBase/Unexpected";
             else
@@ -329,22 +363,38 @@ namespace PureBase.Tests.Regeneration
         {
             PureBaseReviewedBaselineCandidate candidate = CreateReviewedCandidate();
             SceneRegressionBaseline approved = candidate.approvedBaseline;
-            if (condition == "schema") approved.schemaVersion++;
-            else if (condition == "unity") approved.unityVersion = "different";
-            else if (condition == "graphics") approved.graphicsDevice = "different";
-            else if (condition == "color") approved.colorSpace = "different";
-            else if (condition == "pipeline") approved.renderPipeline = "different";
-            else if (condition == "render-size") approved.renderSize++;
-            else if (condition == "lightmaps") approved.staticLightmapCount++;
-            else if (condition == "assignments") approved.staticRendererAssignmentCount++;
-            else if (condition == "visible-minimum") approved.sceneVisiblePixelCount.minimum--;
-            else if (condition == "visible-maximum") approved.sceneVisiblePixelCount.maximum++;
-            else if (condition == "shadow-minimum") approved.shadowChangedPixelCount.minimum--;
-            else if (condition == "shadow-maximum") approved.shadowChangedPixelCount.maximum++;
-            else if (condition == "variants") approved.warmedVariantCount++;
-            else if (condition == "dynamic-lightmap") approved.dynamicLightmapStatus = "different";
-            else if (condition == "unlit") approved.metaAlbedo[0].meanLuminance.minimum += 0.1f;
-            else approved.metaAlbedo[1].meanLuminance.maximum += 0.1f;
+            if (condition == "schema")
+                approved.schemaVersion++;
+            else if (condition == "unity")
+                approved.unityVersion = "different";
+            else if (condition == "graphics")
+                approved.graphicsDevice = "different";
+            else if (condition == "color")
+                approved.colorSpace = "different";
+            else if (condition == "pipeline")
+                approved.renderPipeline = "different";
+            else if (condition == "render-size")
+                approved.renderSize++;
+            else if (condition == "lightmaps")
+                approved.staticLightmapCount++;
+            else if (condition == "assignments")
+                approved.staticRendererAssignmentCount++;
+            else if (condition == "visible-minimum")
+                approved.sceneVisiblePixelCount.minimum--;
+            else if (condition == "visible-maximum")
+                approved.sceneVisiblePixelCount.maximum++;
+            else if (condition == "shadow-minimum")
+                approved.shadowChangedPixelCount.minimum--;
+            else if (condition == "shadow-maximum")
+                approved.shadowChangedPixelCount.maximum++;
+            else if (condition == "variants")
+                approved.warmedVariantCount++;
+            else if (condition == "dynamic-lightmap")
+                approved.dynamicLightmapStatus = "different";
+            else if (condition == "unlit")
+                approved.metaAlbedo[0].meanLuminance.minimum += 0.1f;
+            else
+                approved.metaAlbedo[1].meanLuminance.maximum += 0.1f;
 
             AssertApplyRejection(candidate, CreateObservation(), CreateCanonicalBaseline());
         }
@@ -417,10 +467,22 @@ namespace PureBase.Tests.Regeneration
             Assert.That(rewrittenText, Does.Contain("\"minimum\": 3.0e-2"));
             Assert.That(rewrittenText, Does.Contain("\"maximum\": 3.00005e-2"));
             Assert.That(rewrittenText.EndsWith("\n", StringComparison.Ordinal), Is.True);
-            Assert.That(ParseInvariantSingle(pbrMinimum), Is.EqualTo(approved.metaAlbedo[2].meanLuminance.minimum));
-            Assert.That(ParseInvariantSingle(pbrMaximum), Is.EqualTo(approved.metaAlbedo[2].meanLuminance.maximum));
-            Assert.That(ParseInvariantSingle(hybridMinimum), Is.EqualTo(approved.metaAlbedo[3].meanLuminance.minimum));
-            Assert.That(ParseInvariantSingle(hybridMaximum), Is.EqualTo(approved.metaAlbedo[3].meanLuminance.maximum));
+            Assert.That(
+                ParseInvariantSingle(pbrMinimum),
+                Is.EqualTo(approved.metaAlbedo[2].meanLuminance.minimum)
+            );
+            Assert.That(
+                ParseInvariantSingle(pbrMaximum),
+                Is.EqualTo(approved.metaAlbedo[2].meanLuminance.maximum)
+            );
+            Assert.That(
+                ParseInvariantSingle(hybridMinimum),
+                Is.EqualTo(approved.metaAlbedo[3].meanLuminance.minimum)
+            );
+            Assert.That(
+                ParseInvariantSingle(hybridMaximum),
+                Is.EqualTo(approved.metaAlbedo[3].meanLuminance.maximum)
+            );
         }
 
         /// <summary>Requires the approved Unlit and Toon migration to replace only its four validated Meta token spans.</summary>
@@ -434,14 +496,8 @@ namespace PureBase.Tests.Regeneration
                 )
             );
             string expectedText = rawText
-                .Replace(
-                    "\"minimum\": 0.04757445678114891",
-                    "\"minimum\": 0.04757252708077431"
-                )
-                .Replace(
-                    "\"minimum\": 0.08925552666187286",
-                    "\"minimum\": 0.08925478160381317"
-                );
+                .Replace("\"minimum\": 0.04757445678114891", "\"minimum\": 0.04757252708077431")
+                .Replace("\"minimum\": 0.08925552666187286", "\"minimum\": 0.08925478160381317");
 
             Assert.That(rewrittenText, Is.EqualTo(expectedText));
             Assert.That(
@@ -483,11 +539,12 @@ namespace PureBase.Tests.Regeneration
             string condition
         )
         {
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    PureBaseRegressionBaselineStorage.CreateApprovedUnlitToonRangeMigrationBytes(
-                        Encoding.UTF8.GetBytes(CreateInvalidApprovedUnlitToonMigrationSourceText(condition))
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseRegressionBaselineStorage.CreateApprovedUnlitToonRangeMigrationBytes(
+                    Encoding.UTF8.GetBytes(
+                        CreateInvalidApprovedUnlitToonMigrationSourceText(condition)
                     )
+                )
             );
         }
 
@@ -495,24 +552,21 @@ namespace PureBase.Tests.Regeneration
         [Test]
         public void ApplyLosslesslyRejectsAmbiguousCanonicalTargetRangeBeforeTransaction()
         {
-            string ambiguousRawText = CreateRawCanonicalBaselineText().Replace(
-                "\"minimum\": 5.0e-2,",
-                "\"minimum\": 5.0e-2, \"minimum\": 5.0e-2,"
-            );
+            string ambiguousRawText = CreateRawCanonicalBaselineText()
+                .Replace("\"minimum\": 5.0e-2,", "\"minimum\": 5.0e-2, \"minimum\": 5.0e-2,");
             var writer = new RecordingLosslessWriter();
             var boundary = new RecordingWriteBoundary();
 
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    PureBaseReviewedBaselineCandidate.ApplyLosslessly(
-                        CreateReviewedCandidate(),
-                        CreateObservation(),
-                        CreateCanonicalBaseline(),
-                        Encoding.UTF8.GetBytes(ambiguousRawText),
-                        CreateObservationBytes(),
-                        writer,
-                        boundary
-                    )
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseReviewedBaselineCandidate.ApplyLosslessly(
+                    CreateReviewedCandidate(),
+                    CreateObservation(),
+                    CreateCanonicalBaseline(),
+                    Encoding.UTF8.GetBytes(ambiguousRawText),
+                    CreateObservationBytes(),
+                    writer,
+                    boundary
+                )
             );
 
             Assert.That(writer.WriteCalls, Is.Zero);
@@ -567,17 +621,16 @@ namespace PureBase.Tests.Regeneration
             var writer = new FinalSourceComparisonWriter(changedCanonicalBytes);
             var boundary = new RecordingWriteBoundary();
 
-            Assert.Throws<InvalidOperationException>(
-                () =>
-                    PureBaseReviewedBaselineCandidate.ApplyLosslessly(
-                        CreateReviewedCandidate(),
-                        CreateObservation(),
-                        CreateCanonicalBaseline(),
-                        snapshotBytes,
-                        CreateObservationBytes(),
-                        writer,
-                        boundary
-                    )
+            Assert.Throws<InvalidOperationException>(() =>
+                PureBaseReviewedBaselineCandidate.ApplyLosslessly(
+                    CreateReviewedCandidate(),
+                    CreateObservation(),
+                    CreateCanonicalBaseline(),
+                    snapshotBytes,
+                    CreateObservationBytes(),
+                    writer,
+                    boundary
+                )
             );
 
             Assert.That(writer.FinalSourceComparisons, Is.EqualTo(1));
@@ -649,13 +702,14 @@ namespace PureBase.Tests.Regeneration
             var writer = new RecordingArtifactWriter();
 
             AssertCreateRejectedBeforeOutput(
-                () => PureBaseReviewedBaselineCandidate.CreateFromCommandLine(
-                    reader,
-                    CreateInvalidArguments(condition, observationPath),
-                    CreateValidEnvironment(),
-                    CreateCanonicalBaseline(),
-                    writer
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.CreateFromCommandLine(
+                        reader,
+                        CreateInvalidArguments(condition, observationPath),
+                        CreateValidEnvironment(),
+                        CreateCanonicalBaseline(),
+                        writer
+                    ),
                 reader,
                 writer,
                 0
@@ -668,21 +722,23 @@ namespace PureBase.Tests.Regeneration
         [TestCase("cross-use")]
         public void CreateFromArtifactsRejectsSchemaAndCrossUseBeforeOutput(string condition)
         {
-            byte[] observationBytes = condition == "schema"
-                ? Encoding.UTF8.GetBytes("{\"schemaVersion\":0}")
-                : CreateReviewedBytes();
+            byte[] observationBytes =
+                condition == "schema"
+                    ? Encoding.UTF8.GetBytes("{\"schemaVersion\":0}")
+                    : CreateReviewedBytes();
             var reader = CreateReader(observationBytes, CreateReviewedBytes());
             var writer = new RecordingArtifactWriter();
 
             AssertCreateRejectedBeforeOutput(
-                () => PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
-                    reader,
-                    ObservationPath,
-                    ReviewedPath,
-                    CreateValidEnvironment(),
-                    CreateCanonicalBaseline(),
-                    writer
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                        reader,
+                        ObservationPath,
+                        ReviewedPath,
+                        CreateValidEnvironment(),
+                        CreateCanonicalBaseline(),
+                        writer
+                    ),
                 reader,
                 writer,
                 1
@@ -697,14 +753,20 @@ namespace PureBase.Tests.Regeneration
             var writer = new RecordingArtifactWriter();
 
             AssertCreateRejectedBeforeOutput(
-                () => PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
-                    reader,
-                    ObservationPath,
-                    ReviewedPath,
-                    new CandidateEnvironment("different", true, GraphicsDeviceType.Direct3D11, ColorSpace.Linear),
-                    CreateCanonicalBaseline(),
-                    writer
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                        reader,
+                        ObservationPath,
+                        ReviewedPath,
+                        new CandidateEnvironment(
+                            "different",
+                            true,
+                            GraphicsDeviceType.Direct3D11,
+                            ColorSpace.Linear
+                        ),
+                        CreateCanonicalBaseline(),
+                        writer
+                    ),
                 reader,
                 writer,
                 0
@@ -715,9 +777,12 @@ namespace PureBase.Tests.Regeneration
         /// <param name="condition">The single raw observation condition to invalidate.</param>
         [TestCase("observation")]
         [TestCase("identity")]
-        public void CreateFromArtifactsRejectsObservationAndIdentityFailuresBeforeOutput(string condition)
+        public void CreateFromArtifactsRejectsObservationAndIdentityFailuresBeforeOutput(
+            string condition
+        )
         {
-            PureBaseRegressionBaselineGenerator.ObservationCandidate observation = CreateObservation();
+            PureBaseRegressionBaselineGenerator.ObservationCandidate observation =
+                CreateObservation();
             if (condition == "observation")
                 observation.observation.dynamicLightmapStatus = "different";
             else
@@ -726,14 +791,15 @@ namespace PureBase.Tests.Regeneration
             var writer = new RecordingArtifactWriter();
 
             AssertCreateRejectedBeforeOutput(
-                () => PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
-                    reader,
-                    ObservationPath,
-                    ReviewedPath,
-                    CreateValidEnvironment(),
-                    CreateCanonicalBaseline(),
-                    writer
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.CreateFromArtifacts(
+                        reader,
+                        ObservationPath,
+                        ReviewedPath,
+                        CreateValidEnvironment(),
+                        CreateCanonicalBaseline(),
+                        writer
+                    ),
                 reader,
                 writer,
                 1
@@ -760,15 +826,19 @@ namespace PureBase.Tests.Regeneration
         {
             var writer = new RecordingWriter();
             var boundary = new RecordingWriteBoundary();
-            RecordingArtifactReader reader = CreateReader(CreateObservationBytes(), CreateReviewedBytes());
+            RecordingArtifactReader reader = CreateReader(
+                CreateObservationBytes(),
+                CreateReviewedBytes()
+            );
             AssertRejectedBeforeWrite(
-                () => PureBaseReviewedBaselineCandidate.ApplyFromCommandLine(
-                    reader,
-                    arguments,
-                    CreateCanonicalBaseline(),
-                    writer,
-                    boundary
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.ApplyFromCommandLine(
+                        reader,
+                        arguments,
+                        CreateCanonicalBaseline(),
+                        writer,
+                        boundary
+                    ),
                 writer,
                 boundary,
                 reader,
@@ -791,14 +861,15 @@ namespace PureBase.Tests.Regeneration
             var boundary = new RecordingWriteBoundary();
             RecordingArtifactReader reader = CreateReader(observationBytes, reviewedBytes);
             AssertRejectedBeforeWrite(
-                () => PureBaseReviewedBaselineCandidate.ApplyFromArtifacts(
-                    reader,
-                    ObservationPath,
-                    ReviewedPath,
-                    canonical,
-                    writer,
-                    boundary
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.ApplyFromArtifacts(
+                        reader,
+                        ObservationPath,
+                        ReviewedPath,
+                        canonical,
+                        writer,
+                        boundary
+                    ),
                 writer,
                 boundary,
                 reader,
@@ -822,14 +893,15 @@ namespace PureBase.Tests.Regeneration
             var writer = new RecordingWriter();
             var boundary = new RecordingWriteBoundary();
             AssertRejectedBeforeWrite(
-                () => PureBaseReviewedBaselineCandidate.Apply(
-                    candidate,
-                    observation,
-                    canonical,
-                    bytes ?? CreateObservationBytes(),
-                    writer,
-                    boundary
-                ),
+                () =>
+                    PureBaseReviewedBaselineCandidate.Apply(
+                        candidate,
+                        observation,
+                        canonical,
+                        bytes ?? CreateObservationBytes(),
+                        writer,
+                        boundary
+                    ),
                 writer,
                 boundary
             );
@@ -874,9 +946,7 @@ namespace PureBase.Tests.Regeneration
                 operation();
                 Assert.Fail("Invalid reviewed-baseline input reached a write boundary.");
             }
-            catch (InvalidOperationException)
-            {
-            }
+            catch (InvalidOperationException) { }
 
             AssertNoWrites(writer, boundary);
             AssertArtifactReads(reader, expectedObservationReads, expectedReviewedReads);
@@ -927,11 +997,17 @@ namespace PureBase.Tests.Regeneration
             Assert.That(approved.renderPipeline, Is.EqualTo(canonical.renderPipeline));
             Assert.That(approved.renderSize, Is.EqualTo(canonical.renderSize));
             Assert.That(approved.staticLightmapCount, Is.EqualTo(canonical.staticLightmapCount));
-            Assert.That(approved.staticRendererAssignmentCount, Is.EqualTo(canonical.staticRendererAssignmentCount));
+            Assert.That(
+                approved.staticRendererAssignmentCount,
+                Is.EqualTo(canonical.staticRendererAssignmentCount)
+            );
             AssertRange(approved.sceneVisiblePixelCount, canonical.sceneVisiblePixelCount);
             AssertRange(approved.shadowChangedPixelCount, canonical.shadowChangedPixelCount);
             Assert.That(approved.warmedVariantCount, Is.EqualTo(canonical.warmedVariantCount));
-            Assert.That(approved.dynamicLightmapStatus, Is.EqualTo(canonical.dynamicLightmapStatus));
+            Assert.That(
+                approved.dynamicLightmapStatus,
+                Is.EqualTo(canonical.dynamicLightmapStatus)
+            );
             Assert.That(approved.metaAlbedo, Has.Length.EqualTo(canonical.metaAlbedo.Length));
 
             for (int index = 0; index < canonical.metaAlbedo.Length; index++)
@@ -993,7 +1069,8 @@ namespace PureBase.Tests.Regeneration
                 shadowCentroidY = 0.5f,
                 shadowMaxAbsoluteRgbDelta = 0.25f,
                 warmedVariantCount = 56,
-                dynamicLightmapStatus = PureBaseRegressionBaselineGenerator.DynamicLightmapLimitation,
+                dynamicLightmapStatus =
+                    PureBaseRegressionBaselineGenerator.DynamicLightmapLimitation,
                 metaAlbedo = new[]
                 {
                     CreateObservedMeta("PureBaseValidationUnlit", "PureBase/Unlit", 0.011f),
@@ -1004,7 +1081,8 @@ namespace PureBase.Tests.Regeneration
             };
             return new PureBaseRegressionBaselineGenerator.ObservationCandidate
             {
-                schemaVersion = PureBaseRegressionBaselineGenerator.ObservationCandidateSchemaVersion,
+                schemaVersion =
+                    PureBaseRegressionBaselineGenerator.ObservationCandidateSchemaVersion,
                 unityVersion = PureBaseValidationSceneRegressionTests.ExpectedUnityVersion,
                 graphicsDevice = GraphicsDeviceType.Direct3D11.ToString(),
                 colorSpace = ColorSpace.Linear.ToString(),
@@ -1017,7 +1095,9 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Creates the complete exact baseline representation of one valid observation.</summary>
         /// <param name="observation">The observation represented exactly.</param>
         /// <returns>The complete exact baseline.</returns>
-        private static SceneRegressionBaseline CreateExactBaseline(SceneRegressionObservation observation)
+        private static SceneRegressionBaseline CreateExactBaseline(
+            SceneRegressionObservation observation
+        )
         {
             return new SceneRegressionBaseline
             {
@@ -1060,7 +1140,8 @@ namespace PureBase.Tests.Regeneration
                 sceneVisiblePixelCount = new IntRange { minimum = 10, maximum = 12 },
                 shadowChangedPixelCount = new IntRange { minimum = 341, maximum = 352 },
                 warmedVariantCount = 56,
-                dynamicLightmapStatus = PureBaseRegressionBaselineGenerator.DynamicLightmapLimitation,
+                dynamicLightmapStatus =
+                    PureBaseRegressionBaselineGenerator.DynamicLightmapLimitation,
                 metaAlbedo = new[]
                 {
                     CreateMeta("PureBaseValidationUnlit", "PureBase/Unlit", 0.01f, 0.010001f),
@@ -1104,10 +1185,7 @@ namespace PureBase.Tests.Regeneration
             string source = CreateApprovedUnlitToonMigrationSourceText();
             if (condition == "stale")
             {
-                return source.Replace(
-                    "0.04757445678114891",
-                    "0.04757445678114890"
-                );
+                return source.Replace("0.04757445678114891", "0.04757445678114890");
             }
 
             if (condition == "missing")
@@ -1166,11 +1244,12 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Parses one JSON numeric literal as an invariant single-precision value for reviewed-target assertions.</summary>
         /// <param name="literal">The JSON numeric literal.</param>
         /// <returns>The parsed float value.</returns>
-        private static float ParseInvariantSingle(string literal) => float.Parse(
-            literal,
-            System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture
-        );
+        private static float ParseInvariantSingle(string literal) =>
+            float.Parse(
+                literal,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture
+            );
 
         /// <summary>Creates a complete valid reviewed candidate fixture.</summary>
         /// <returns>The reviewed candidate with only exact PBR and Hybrid replacements.</returns>
@@ -1254,7 +1333,10 @@ namespace PureBase.Tests.Regeneration
         /// <returns>The UTF-8 artifact bytes.</returns>
         private static byte[] SerializeObservation(
             PureBaseRegressionBaselineGenerator.ObservationCandidate observation
-        ) => Encoding.UTF8.GetBytes(PureBaseRegressionBaselineGenerator.SerializeObservationCandidate(observation));
+        ) =>
+            Encoding.UTF8.GetBytes(
+                PureBaseRegressionBaselineGenerator.SerializeObservationCandidate(observation)
+            );
 
         /// <summary>Serializes a reviewed fixture without file I/O.</summary>
         /// <param name="candidate">The reviewed fixture to serialize.</param>
@@ -1291,9 +1373,12 @@ namespace PureBase.Tests.Regeneration
                 ? PureBaseReviewedBaselineCandidate.ReviewedMetaBaselinePathArgument
                 : PureBaseReviewedBaselineCandidate.ObservationCandidatePathArgument;
             string otherPath = observationPath ? ReviewedPath : ObservationPath;
-            if (condition == "missing") return new[] { otherArgument, otherPath };
-            if (condition == "duplicate") return new[] { argument, path, argument, path + ".copy", otherArgument, otherPath };
-            if (condition == "empty") return new[] { argument, string.Empty, otherArgument, otherPath };
+            if (condition == "missing")
+                return new[] { otherArgument, otherPath };
+            if (condition == "duplicate")
+                return new[] { argument, path, argument, path + ".copy", otherArgument, otherPath };
+            if (condition == "empty")
+                return new[] { argument, string.Empty, otherArgument, otherPath };
             return new[] { argument, path, otherArgument };
         }
 
@@ -1301,7 +1386,10 @@ namespace PureBase.Tests.Regeneration
         /// <param name="observationBytes">The first observation bytes.</param>
         /// <param name="reviewedBytes">The first reviewed bytes.</param>
         /// <returns>The deterministic read recorder.</returns>
-        private static RecordingArtifactReader CreateReader(byte[] observationBytes, byte[] reviewedBytes)
+        private static RecordingArtifactReader CreateReader(
+            byte[] observationBytes,
+            byte[] reviewedBytes
+        )
         {
             return new RecordingArtifactReader(
                 observationBytes,
@@ -1319,10 +1407,24 @@ namespace PureBase.Tests.Regeneration
 
         /// <summary>Defines the known SHA-256 vector input for <c>{"schema":1}</c>.</summary>
         private static readonly byte[] KnownVectorBytes =
-            { 0x7B, 0x22, 0x73, 0x63, 0x68, 0x65, 0x6D, 0x61, 0x22, 0x3A, 0x31, 0x7D };
+        {
+            0x7B,
+            0x22,
+            0x73,
+            0x63,
+            0x68,
+            0x65,
+            0x6D,
+            0x61,
+            0x22,
+            0x3A,
+            0x31,
+            0x7D,
+        };
 
         /// <summary>Records per-path reads and returns different content only for hypothetical second reads.</summary>
-        private sealed class RecordingArtifactReader : PureBaseReviewedBaselineCandidate.IArtifactReader
+        private sealed class RecordingArtifactReader
+            : PureBaseReviewedBaselineCandidate.IArtifactReader
         {
             /// <summary>Stores the first observation-path response.</summary>
             private readonly byte[] observationBytes;
@@ -1380,7 +1482,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Records reviewed-artifact output without writing to the filesystem.</summary>
-        private sealed class RecordingArtifactWriter : PureBaseReviewedBaselineCandidate.IArtifactWriter
+        private sealed class RecordingArtifactWriter
+            : PureBaseReviewedBaselineCandidate.IArtifactWriter
         {
             /// <summary>Gets the number of output calls.</summary>
             public int WriteCalls { get; private set; }
@@ -1427,7 +1530,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Records reviewed-writer and simulated storage-backend calls without persistence.</summary>
-        private sealed class RecordingWriter : PureBaseRegressionBaselineGenerator.IReviewedCandidateWriter
+        private sealed class RecordingWriter
+            : PureBaseRegressionBaselineGenerator.IReviewedCandidateWriter
         {
             /// <summary>Gets the number of writer calls.</summary>
             public int WriteCalls { get; private set; }
@@ -1447,8 +1551,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Records prepared lossless bytes without touching durable storage.</summary>
-        private sealed class RecordingLosslessWriter :
-            PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
+        private sealed class RecordingLosslessWriter
+            : PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
         {
             /// <summary>Gets the number of lossless writer calls.</summary>
             public int WriteCalls { get; private set; }
@@ -1473,8 +1577,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Simulates the conditional storage operation that rejects a canonical source changed after snapshot capture.</summary>
-        private sealed class FinalSourceComparisonWriter :
-            PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
+        private sealed class FinalSourceComparisonWriter
+            : PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
         {
             /// <summary>Stores the conditional canonical persistence backend exercised by this writer.</summary>
             private readonly ChangedCanonicalStorageBackend backend;
@@ -1512,9 +1616,9 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Models canonical storage whose durable bytes change between snapshot capture and conditional persistence.</summary>
-        private sealed class ChangedCanonicalStorageBackend :
-            ICanonicalBaselineStorageBackend,
-            IConditionalRawCanonicalBaselineStorageBackend
+        private sealed class ChangedCanonicalStorageBackend
+            : ICanonicalBaselineStorageBackend,
+                IConditionalRawCanonicalBaselineStorageBackend
         {
             /// <summary>Stores the durable canonical bytes observed at the final write boundary.</summary>
             private readonly byte[] currentCanonicalBytes;
@@ -1540,11 +1644,15 @@ namespace PureBase.Tests.Regeneration
 
             /// <inheritdoc />
             public void CreateDirectory(string parentAssetPath, string directoryName) =>
-                throw new InvalidOperationException("The final source comparison must not create directories.");
+                throw new InvalidOperationException(
+                    "The final source comparison must not create directories."
+                );
 
             /// <inheritdoc />
             public void WriteAllText(string path, string contents) =>
-                throw new InvalidOperationException("The final source comparison must not serialize canonical JSON.");
+                throw new InvalidOperationException(
+                    "The final source comparison must not serialize canonical JSON."
+                );
 
             /// <inheritdoc />
             public bool TryWriteAllBytesIfCurrent(
@@ -1581,7 +1689,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Records transaction operations without inspecting or mutating workspace state.</summary>
-        private sealed class RecordingWriteBoundary : PureBaseRegressionBaselineGenerator.IWriteBoundary
+        private sealed class RecordingWriteBoundary
+            : PureBaseRegressionBaselineGenerator.IWriteBoundary
         {
             /// <summary>Gets the number of transaction starts.</summary>
             public int BeginCalls { get; private set; }

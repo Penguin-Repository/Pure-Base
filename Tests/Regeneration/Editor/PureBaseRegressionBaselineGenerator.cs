@@ -173,9 +173,7 @@ namespace PureBase.Tests.Regeneration
                     PureBaseValidationSceneRegressionTests.LoadBaseline(),
                     new FileArtifactWriter()
                 );
-                Debug.Log(
-                    "Pure-Base reviewed Meta baseline candidate was written."
-                );
+                Debug.Log("Pure-Base reviewed Meta baseline candidate was written.");
             }
             catch (Exception exception)
             {
@@ -477,10 +475,8 @@ namespace PureBase.Tests.Regeneration
                 // A freshly regenerated baseline must remain exact until a reviewer
                 // explicitly approves a renderer-specific tolerance range.
                 || baseline.shadowChangedPixelCount == null
-                || baseline.shadowChangedPixelCount.minimum
-                    != observation.shadowChangedPixelCount
-                || baseline.shadowChangedPixelCount.maximum
-                    != observation.shadowChangedPixelCount
+                || baseline.shadowChangedPixelCount.minimum != observation.shadowChangedPixelCount
+                || baseline.shadowChangedPixelCount.maximum != observation.shadowChangedPixelCount
                 || baseline.warmedVariantCount != observation.warmedVariantCount
                 || !string.Equals(
                     baseline.dynamicLightmapStatus,
@@ -1333,8 +1329,8 @@ namespace PureBase.Tests.Regeneration
         }
 
         /// <summary>Writes only validated PBR and Hybrid Meta literal ranges while preserving all other canonical baseline bytes.</summary>
-        private sealed class UnityLosslessReviewedCandidateWriter :
-            PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
+        private sealed class UnityLosslessReviewedCandidateWriter
+            : PureBaseReviewedBaselineCandidate.ILosslessReviewedCandidateWriter
         {
             /// <inheritdoc />
             public void WriteLosslessReviewedBaseline(
@@ -1363,7 +1359,8 @@ namespace PureBase.Tests.Regeneration
         private sealed class FileArtifactWriter : PureBaseReviewedBaselineCandidate.IArtifactWriter
         {
             /// <inheritdoc />
-            public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
+            public void WriteAllText(string path, string contents) =>
+                File.WriteAllText(path, contents);
         }
 
         /// <summary>Reads Unity's durable package roots, non-canonical files, and dirty asset identities.</summary>
@@ -1755,5 +1752,4 @@ namespace PureBase.Tests.Regeneration
             }
         }
     }
-
 }

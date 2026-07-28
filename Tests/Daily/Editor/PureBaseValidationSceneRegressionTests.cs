@@ -389,12 +389,12 @@ namespace PureBase.Tests.Daily
                     );
                     Assert.That(
                         visible.opaquePixelCount,
-                            Is.EqualTo(MetaMeshPixelCount),
+                        Is.EqualTo(MetaMeshPixelCount),
                         $"{sourceMaterial.shader.name} Meta pass did not render above alpha cutoff."
                     );
                     Assert.That(
                         visible.visiblePixelCount,
-                            Is.EqualTo(MetaMeshPixelCount),
+                        Is.EqualTo(MetaMeshPixelCount),
                         $"{sourceMaterial.shader.name} Meta albedo was not visible above alpha cutoff."
                     );
 
@@ -419,7 +419,7 @@ namespace PureBase.Tests.Daily
                     );
                     Assert.That(
                         emission.opaquePixelCount,
-                            Is.EqualTo(MetaMeshPixelCount),
+                        Is.EqualTo(MetaMeshPixelCount),
                         $"{sourceMaterial.shader.name} Meta emission did not cover the complete transient mesh."
                     );
                     AssertMetaColor(
@@ -502,12 +502,7 @@ namespace PureBase.Tests.Daily
                         MetaCaptureReadback albedo = RenderMetaCapture(
                             sourceMaterial,
                             material =>
-                                ConfigureBaseMetaMaterial(
-                                    material,
-                                    baseTexture,
-                                    baseColor,
-                                    0.0f
-                                ),
+                                ConfigureBaseMetaMaterial(material, baseTexture, baseColor, 0.0f),
                             false,
                             null,
                             MetaAlbedoFragmentControl
@@ -913,9 +908,7 @@ namespace PureBase.Tests.Daily
             var baseline = new SceneRegressionBaseline
             {
                 metaAlbedo = null,
-                shadowChangedPixelCount = IntRange.Exact(
-                    MinimumShadowChangedPixelCount + 1
-                ),
+                shadowChangedPixelCount = IntRange.Exact(MinimumShadowChangedPixelCount + 1),
             };
 
             Assert.Throws<AssertionException>(() =>
@@ -1336,9 +1329,7 @@ namespace PureBase.Tests.Daily
                 sceneVisiblePixelCount = IntRange.Exact(observation.sceneVisiblePixelCount),
                 // Regeneration starts from an exact observation. Reviewers may widen
                 // this range only after validating another supported D3D11 renderer.
-                shadowChangedPixelCount = IntRange.Exact(
-                    observation.shadowChangedPixelCount
-                ),
+                shadowChangedPixelCount = IntRange.Exact(observation.shadowChangedPixelCount),
                 warmedVariantCount = observation.warmedVariantCount,
                 dynamicLightmapStatus = "NOT_DETERMINISTIC_IN_BATCH_EDITMODE",
                 metaAlbedo = new MetaAlbedoBaseline[observation.metaAlbedo.Length],
@@ -1650,10 +1641,7 @@ namespace PureBase.Tests.Daily
                         "unity_MetaVertexControl",
                         new Vector4(1.0f, 0.0f, 0.0f, 0.0f)
                     );
-                    Shader.SetGlobalVector(
-                        "unity_MetaFragmentControl",
-                        fragmentControl
-                    );
+                    Shader.SetGlobalVector("unity_MetaFragmentControl", fragmentControl);
                     Shader.SetGlobalVector("unity_LightmapST", new Vector4(1.0f, 1.0f, 0.0f, 0.0f));
                     Shader.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
                     Shader.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
@@ -1673,7 +1661,9 @@ namespace PureBase.Tests.Daily
                         commandBuffer.Release();
                     }
 
-                    ThrowIfCaptureAllocationFaultInjected(CaptureAllocationFault.MetaBeforeReadback);
+                    ThrowIfCaptureAllocationFaultInjected(
+                        CaptureAllocationFault.MetaBeforeReadback
+                    );
                     Color[] pixels = ReadPixels(target, readback);
                     Assert.That(
                         CountFinitePixels(pixels),
@@ -1971,7 +1961,10 @@ namespace PureBase.Tests.Daily
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 sceneWasLoaded = validationScene.isLoaded;
                 if (!sceneWasLoaded)
-                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 sceneWasDirty = validationScene.isDirty;
                 List<Material> materials = GetProductMaterials(validationScene);
                 assertion(new[] { materials[2], materials[3] });
@@ -1995,7 +1988,10 @@ namespace PureBase.Tests.Daily
                 validationScene = SceneManager.GetSceneByPath(ScenePath);
                 sceneWasLoaded = validationScene.isLoaded;
                 if (!sceneWasLoaded)
-                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
                 sceneWasDirty = validationScene.isDirty;
                 List<Material> materials = GetProductMaterials(validationScene);
                 assertion(new[] { materials[0], materials[1] });
@@ -2207,7 +2203,11 @@ namespace PureBase.Tests.Daily
         /// <param name="value">The observed or endpoint luminance.</param>
         /// <param name="range">The committed inclusive range.</param>
         /// <param name="context">The diagnostic context.</param>
-        private static void AssertMetaLuminanceInRange(float value, FloatRange range, string context)
+        private static void AssertMetaLuminanceInRange(
+            float value,
+            FloatRange range,
+            string context
+        )
         {
             Assert.That(value, Is.InRange(range.minimum, range.maximum), context);
         }
@@ -2269,10 +2269,9 @@ namespace PureBase.Tests.Daily
             );
             float saturatedMetallic = Mathf.Clamp01(metallic);
             float perceptualRoughness = Mathf.Clamp(roughness, 0.002f, 1.0f);
-            float actualRoughness =
-                squareRoughness
-                    ? perceptualRoughness * perceptualRoughness
-                    : perceptualRoughness;
+            float actualRoughness = squareRoughness
+                ? perceptualRoughness * perceptualRoughness
+                : perceptualRoughness;
             Color diffuse = new Color(
                 saturatedAlbedo.r * (1.0f - saturatedMetallic),
                 saturatedAlbedo.g * (1.0f - saturatedMetallic),
@@ -2503,9 +2502,7 @@ namespace PureBase.Tests.Daily
             return new SceneRegressionBaseline
             {
                 metaAlbedo = metaAlbedo,
-                shadowChangedPixelCount = IntRange.Exact(
-                    MinimumShadowChangedPixelCount + 1
-                ),
+                shadowChangedPixelCount = IntRange.Exact(MinimumShadowChangedPixelCount + 1),
             };
         }
 
@@ -3536,10 +3533,7 @@ namespace PureBase.Tests.Daily
                     current.albedoSaturationTolerance,
                     Is.EqualTo(albedoSaturationTolerance)
                 );
-                Assert.That(
-                    current.materialValidateLowColor,
-                    Is.EqualTo(materialValidateLowColor)
-                );
+                Assert.That(current.materialValidateLowColor, Is.EqualTo(materialValidateLowColor));
                 Assert.That(
                     current.materialValidateHighColor,
                     Is.EqualTo(materialValidateHighColor)

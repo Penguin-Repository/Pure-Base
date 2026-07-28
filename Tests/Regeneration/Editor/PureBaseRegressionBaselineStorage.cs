@@ -66,9 +66,9 @@ namespace PureBase.Tests.Regeneration
     }
 
     /// <summary>Implements raw canonical baseline storage through Unity editor APIs.</summary>
-    internal sealed class UnityCanonicalBaselineStorageBackend :
-        ICanonicalBaselineStorageBackend,
-        IConditionalRawCanonicalBaselineStorageBackend
+    internal sealed class UnityCanonicalBaselineStorageBackend
+        : ICanonicalBaselineStorageBackend,
+            IConditionalRawCanonicalBaselineStorageBackend
     {
         /// <inheritdoc />
         public bool IsDirectoryValid(string assetPath) => AssetDatabase.IsValidFolder(assetPath);
@@ -96,12 +96,14 @@ namespace PureBase.Tests.Regeneration
 
             try
             {
-                using (var stream = new FileStream(
-                    path,
-                    FileMode.Open,
-                    FileAccess.ReadWrite,
-                    FileShare.None
-                ))
+                using (
+                    var stream = new FileStream(
+                        path,
+                        FileMode.Open,
+                        FileAccess.ReadWrite,
+                        FileShare.None
+                    )
+                )
                 {
                     stream.Lock(0, long.MaxValue);
                     try
@@ -191,11 +193,15 @@ namespace PureBase.Tests.Regeneration
         /// <returns>The parsed canonical baseline and its exact UTF-8 bytes.</returns>
         internal static CanonicalBaselineSnapshot ReadCanonicalBaselineSnapshot()
         {
-            byte[] rawBytes = File.ReadAllBytes(PureBaseValidationSceneRegressionTests.BaselinePath);
+            byte[] rawBytes = File.ReadAllBytes(
+                PureBaseValidationSceneRegressionTests.BaselinePath
+            );
             string baselineJson = DecodeCanonicalBaseline(rawBytes);
             try
             {
-                SceneRegressionBaseline baseline = JsonUtility.FromJson<SceneRegressionBaseline>(baselineJson);
+                SceneRegressionBaseline baseline = JsonUtility.FromJson<SceneRegressionBaseline>(
+                    baselineJson
+                );
                 if (baseline == null)
                     throw new InvalidOperationException("The canonical baseline JSON is empty.");
 
@@ -207,7 +213,10 @@ namespace PureBase.Tests.Regeneration
             }
             catch (Exception exception)
             {
-                throw new InvalidOperationException("The canonical baseline JSON is malformed.", exception);
+                throw new InvalidOperationException(
+                    "The canonical baseline JSON is malformed.",
+                    exception
+                );
             }
         }
 
@@ -231,7 +240,9 @@ namespace PureBase.Tests.Regeneration
             string baselinePath = PureBaseValidationSceneRegressionTests.BaselinePath;
             string baselineDirectory = Path.GetDirectoryName(baselinePath);
             if (string.IsNullOrEmpty(baselineDirectory))
-                throw new InvalidOperationException("The canonical baseline path has no parent directory.");
+                throw new InvalidOperationException(
+                    "The canonical baseline path has no parent directory."
+                );
 
             string baselineJson = JsonUtility.ToJson(baseline, true);
             if (!backend.IsDirectoryValid(baselineDirectory))
@@ -239,7 +250,9 @@ namespace PureBase.Tests.Regeneration
                 string parent = Path.GetDirectoryName(baselineDirectory);
                 string folderName = Path.GetFileName(baselineDirectory);
                 if (string.IsNullOrEmpty(parent) || string.IsNullOrEmpty(folderName))
-                    throw new InvalidOperationException("The canonical baseline directory is invalid.");
+                    throw new InvalidOperationException(
+                        "The canonical baseline directory is invalid."
+                    );
 
                 PureBaseRegressionBaselineGenerator.PersistCanonicalOperation(
                     writeBoundary,
@@ -333,11 +346,13 @@ namespace PureBase.Tests.Regeneration
                 writeBoundary,
                 () =>
                 {
-                    if (!conditionalRawBackend.TryWriteAllBytesIfCurrent(
+                    if (
+                        !conditionalRawBackend.TryWriteAllBytesIfCurrent(
                             baselinePath,
                             expectedCanonicalBaselineBytes,
                             reviewedCanonicalBaselineBytes
-                        ))
+                        )
+                    )
                     {
                         throw new InvalidOperationException(
                             "The canonical baseline changed after reviewed candidate validation."
@@ -384,7 +399,9 @@ namespace PureBase.Tests.Regeneration
             if (rawCanonicalBytes == null)
                 throw new ArgumentNullException(nameof(rawCanonicalBytes));
 
-            return new ReviewedMetaBaselineJsonRewriter(rawCanonicalBytes).RewriteApprovedUnlitToonRanges();
+            return new ReviewedMetaBaselineJsonRewriter(
+                rawCanonicalBytes
+            ).RewriteApprovedUnlitToonRanges();
         }
 
         /// <summary>Decodes canonical UTF-8 bytes without accepting a byte-order mark or invalid replacement characters.</summary>
@@ -394,10 +411,12 @@ namespace PureBase.Tests.Regeneration
         {
             if (rawBytes == null || rawBytes.Length == 0)
                 throw new InvalidOperationException("The canonical baseline is empty.");
-            if (rawBytes.Length >= 3
+            if (
+                rawBytes.Length >= 3
                 && rawBytes[0] == 0xEF
                 && rawBytes[1] == 0xBB
-                && rawBytes[2] == 0xBF)
+                && rawBytes[2] == 0xBF
+            )
             {
                 throw new InvalidOperationException(
                     "The canonical baseline must not contain a UTF-8 byte-order mark."
@@ -410,7 +429,10 @@ namespace PureBase.Tests.Regeneration
             }
             catch (DecoderFallbackException exception)
             {
-                throw new InvalidOperationException("The canonical baseline is not valid UTF-8.", exception);
+                throw new InvalidOperationException(
+                    "The canonical baseline is not valid UTF-8.",
+                    exception
+                );
             }
         }
 
@@ -496,7 +518,10 @@ namespace PureBase.Tests.Regeneration
 
                     ValidateCanonicalRange(index, range);
                     FloatRange approvedRange = approvedBaseline.metaAlbedo[index].meanLuminance;
-                    if (approvedRange == null || !SameFloatBits(approvedRange.minimum, approvedRange.maximum))
+                    if (
+                        approvedRange == null
+                        || !SameFloatBits(approvedRange.minimum, approvedRange.maximum)
+                    )
                     {
                         Fail("The reviewed baseline target range must be exact.");
                     }
@@ -675,14 +700,18 @@ namespace PureBase.Tests.Regeneration
                     if (string.Equals(propertyName, "minimum", StringComparison.Ordinal))
                     {
                         if (foundMinimum)
-                            Fail("A canonical Meta luminance range contains duplicate minimum values.");
+                            Fail(
+                                "A canonical Meta luminance range contains duplicate minimum values."
+                            );
                         minimum = ParseNumberTokens();
                         foundMinimum = true;
                     }
                     else if (string.Equals(propertyName, "maximum", StringComparison.Ordinal))
                     {
                         if (foundMaximum)
-                            Fail("A canonical Meta luminance range contains duplicate maximum values.");
+                            Fail(
+                                "A canonical Meta luminance range contains duplicate maximum values."
+                            );
                         maximum = ParseNumberTokens();
                         foundMaximum = true;
                     }
@@ -822,12 +851,14 @@ namespace PureBase.Tests.Regeneration
                         if (position + 4 > json.Length)
                             Fail("The canonical baseline contains an incomplete Unicode escape.");
                         string hexadecimal = json.Substring(position, 4);
-                        if (!ushort.TryParse(
+                        if (
+                            !ushort.TryParse(
                                 hexadecimal,
                                 NumberStyles.AllowHexSpecifier,
                                 CultureInfo.InvariantCulture,
                                 out ushort codeUnit
-                            ))
+                            )
+                        )
                         {
                             Fail("The canonical baseline contains an invalid Unicode escape.");
                         }
@@ -856,9 +887,7 @@ namespace PureBase.Tests.Regeneration
                         Fail("The canonical baseline contains an incomplete number.");
                 }
 
-                if (TryConsume('0'))
-                {
-                }
+                if (TryConsume('0')) { }
                 else
                 {
                     if (position >= json.Length || json[position] < '1' || json[position] > '9')
@@ -893,34 +922,52 @@ namespace PureBase.Tests.Regeneration
             /// <summary>Validates one ordered Meta identity before any replacement can be constructed.</summary>
             private static void ValidateMetaIdentity(int index, MetaRangeTokens range)
             {
-                if (!string.Equals(range.MaterialName, ExpectedMaterialNames[index], StringComparison.Ordinal)
-                    || !string.Equals(range.ShaderName, ExpectedShaderNames[index], StringComparison.Ordinal))
+                if (
+                    !string.Equals(
+                        range.MaterialName,
+                        ExpectedMaterialNames[index],
+                        StringComparison.Ordinal
+                    )
+                    || !string.Equals(
+                        range.ShaderName,
+                        ExpectedShaderNames[index],
+                        StringComparison.Ordinal
+                    )
+                )
                 {
-                    throw new InvalidOperationException("The canonical baseline Meta identities are invalid.");
+                    throw new InvalidOperationException(
+                        "The canonical baseline Meta identities are invalid."
+                    );
                 }
             }
 
             /// <summary>Validates that raw target literal values still represent the current parsed canonical target ranges.</summary>
             private void ValidateCanonicalRange(int index, MetaRangeTokens range)
             {
-                if (canonicalBaseline.metaAlbedo == null
+                if (
+                    canonicalBaseline.metaAlbedo == null
                     || canonicalBaseline.metaAlbedo.Length != ExpectedMaterialNames.Length
                     || canonicalBaseline.metaAlbedo[index] == null
                     || canonicalBaseline.metaAlbedo[index].meanLuminance == null
                     || approvedBaseline.metaAlbedo == null
                     || approvedBaseline.metaAlbedo.Length != ExpectedMaterialNames.Length
-                    || approvedBaseline.metaAlbedo[index] == null)
+                    || approvedBaseline.metaAlbedo[index] == null
+                )
                 {
                     Fail("The reviewed or canonical baseline Meta entries are incomplete.");
                 }
 
                 FloatRange canonicalRange = canonicalBaseline.metaAlbedo[index].meanLuminance;
-                if (!TryParseFloat(range.Minimum, out float minimum)
+                if (
+                    !TryParseFloat(range.Minimum, out float minimum)
                     || !TryParseFloat(range.Maximum, out float maximum)
                     || !SameFloatBits(minimum, canonicalRange.minimum)
-                    || !SameFloatBits(maximum, canonicalRange.maximum))
+                    || !SameFloatBits(maximum, canonicalRange.maximum)
+                )
                 {
-                    Fail("The canonical baseline raw target ranges no longer match their parsed values.");
+                    Fail(
+                        "The canonical baseline raw target ranges no longer match their parsed values."
+                    );
                 }
             }
 
@@ -932,7 +979,8 @@ namespace PureBase.Tests.Regeneration
                 FixedMetaRangeMigration migration
             )
             {
-                if (!string.Equals(
+                if (
+                    !string.Equals(
                         json.Substring(range.Minimum.Start, range.Minimum.Length),
                         migration.SourceMinimum,
                         StringComparison.Ordinal
@@ -941,9 +989,12 @@ namespace PureBase.Tests.Regeneration
                         json.Substring(range.Maximum.Start, range.Maximum.Length),
                         migration.SourceMaximum,
                         StringComparison.Ordinal
-                    ))
+                    )
+                )
                 {
-                    Fail("The canonical baseline no longer contains the approved Unlit or Toon migration source literals.");
+                    Fail(
+                        "The canonical baseline no longer contains the approved Unlit or Toon migration source literals."
+                    );
                 }
             }
 
@@ -952,10 +1003,14 @@ namespace PureBase.Tests.Regeneration
             {
                 string json = JsonUtility.ToJson(new FloatLiteral { value = value });
                 const string Prefix = "{\"value\":";
-                if (!json.StartsWith(Prefix, StringComparison.Ordinal)
-                    || !json.EndsWith("}", StringComparison.Ordinal))
+                if (
+                    !json.StartsWith(Prefix, StringComparison.Ordinal)
+                    || !json.EndsWith("}", StringComparison.Ordinal)
+                )
                 {
-                    throw new InvalidOperationException("Unity did not serialize an approved float literal as JSON.");
+                    throw new InvalidOperationException(
+                        "Unity did not serialize an approved float literal as JSON."
+                    );
                 }
 
                 return json.Substring(Prefix.Length, json.Length - Prefix.Length - 1);
@@ -987,22 +1042,26 @@ namespace PureBase.Tests.Regeneration
                     NumberStyles.Float,
                     CultureInfo.InvariantCulture,
                     out value
-                ) && !float.IsNaN(value) && !float.IsInfinity(value);
+                )
+                && !float.IsNaN(value)
+                && !float.IsInfinity(value);
 
             /// <summary>Compares floating-point values by IEEE-754 bits rather than rounded numeric equality.</summary>
             private static bool SameFloatBits(float left, float right) =>
                 BitConverter.ToInt32(BitConverter.GetBytes(left), 0)
-                    == BitConverter.ToInt32(BitConverter.GetBytes(right), 0);
+                == BitConverter.ToInt32(BitConverter.GetBytes(right), 0);
 
             /// <summary>Consumes one required literal.</summary>
             private void ExpectLiteral(string literal)
             {
-                if (position + literal.Length > json.Length
+                if (
+                    position + literal.Length > json.Length
                     || !string.Equals(
                         json.Substring(position, literal.Length),
                         literal,
                         StringComparison.Ordinal
-                    ))
+                    )
+                )
                 {
                     Fail("The canonical baseline contains an invalid JSON literal.");
                 }
@@ -1034,14 +1093,20 @@ namespace PureBase.Tests.Regeneration
                 while (position < json.Length)
                 {
                     char character = json[position];
-                    if (character != ' ' && character != '\t' && character != '\r' && character != '\n')
+                    if (
+                        character != ' '
+                        && character != '\t'
+                        && character != '\r'
+                        && character != '\n'
+                    )
                         return;
                     position++;
                 }
             }
 
             /// <summary>Throws one normalized malformed canonical baseline error.</summary>
-            private static void Fail(string message) => throw new InvalidOperationException(message);
+            private static void Fail(string message) =>
+                throw new InvalidOperationException(message);
 
             /// <summary>Stores one source numeric token span.</summary>
             private readonly struct NumberTokens
