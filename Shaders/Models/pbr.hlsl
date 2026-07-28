@@ -85,15 +85,15 @@ void SCModelPopulateReflectionProbeInput(inout UnityGIInput input)
     input.probeHDR[1] = unity_SpecCube1_HDR;
 
     #if defined(UNITY_SPECCUBE_BLENDING) || defined(UNITY_SPECCUBE_BOX_PROJECTION)
-        input.boxMin[0] = unity_SpecCube0_BoxMin;
-        input.boxMin[1] = unity_SpecCube1_BoxMin;
+    input.boxMin[0] = unity_SpecCube0_BoxMin;
+    input.boxMin[1] = unity_SpecCube1_BoxMin;
     #endif
 
     #if defined(UNITY_SPECCUBE_BOX_PROJECTION)
-        input.boxMax[0] = unity_SpecCube0_BoxMax;
-        input.boxMax[1] = unity_SpecCube1_BoxMax;
-        input.probePosition[0] = unity_SpecCube0_ProbePosition;
-        input.probePosition[1] = unity_SpecCube1_ProbePosition;
+    input.boxMax[0] = unity_SpecCube0_BoxMax;
+    input.boxMax[1] = unity_SpecCube1_BoxMax;
+    input.probePosition[0] = unity_SpecCube0_ProbePosition;
+    input.probePosition[1] = unity_SpecCube1_ProbePosition;
     #endif
 }
 
@@ -112,8 +112,8 @@ void SCModelInitializeGiInput(out UnityGIInput input, SCCustomData customData, S
     input.atten = customData.mainLightAttenuation;
     input.ambient = 0;
     input.lightmapUV = float4(
-        vertex.uv[1].xy * unity_LightmapST.xy + unity_LightmapST.zw,
-        vertex.uv[2].xy * unity_DynamicLightmapST.xy + unity_DynamicLightmapST.zw);
+    vertex.uv[1].xy * unity_LightmapST.xy + unity_LightmapST.zw,
+    vertex.uv[2].xy * unity_DynamicLightmapST.xy + unity_DynamicLightmapST.zw);
     SCModelPopulateReflectionProbeInput(input);
 }
 
@@ -154,9 +154,9 @@ half3 SCModelEvaluateIndirectLighting(SCShadingData shadingData, SCCustomData cu
 bool SCModelUsesHybridDiffuse()
 {
     #if defined(PUREBASE_HYBRID_DIFFUSE)
-        return true;
+    return true;
     #else
-        return false;
+    return false;
     #endif
 }
 

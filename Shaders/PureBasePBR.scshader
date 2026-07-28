@@ -147,7 +147,7 @@ Shader "PureBase/PBR"
                 output.visualizationUv = 0;
                 output.lightCoordinate = 0;
                 if (unity_VisualizationMode == EDITORVIZ_TEXTURE)
-                    output.visualizationUv = UnityMetaVizUV(unity_EditorViz_UVIndex, input.uv0, input.uv1, input.uv2, unity_EditorViz_Texture_ST);
+                output.visualizationUv = UnityMetaVizUV(unity_EditorViz_UVIndex, input.uv0, input.uv1, input.uv2, unity_EditorViz_Texture_ST);
                 else if (unity_VisualizationMode == EDITORVIZ_SHOWLIGHTMASK)
                 {
                     output.visualizationUv = input.uv1 * unity_LightmapST.xy + unity_LightmapST.zw;

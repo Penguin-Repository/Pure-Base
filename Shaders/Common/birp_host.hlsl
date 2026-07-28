@@ -25,7 +25,7 @@ void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData shadingDat
     light.direction = SCModelSelectMainLightDirection(vertex, light.direction);
     customData.mainLightDirection = light.direction;
     if (SCModelUsesIsolatedMainLightColor())
-        light.color = customData.mainLightColor * customData.mainLightAttenuation;
+    light.color = customData.mainLightColor * customData.mainLightAttenuation;
 
     __SC_PHASE_light__
 
@@ -69,17 +69,17 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     environment = SCModelSelectEnvironmentLighting(environment);
 
     #if defined(UNITY_PASS_FORWARDADD)
-        shadingData.lightColor = lightSum.color;
+    shadingData.lightColor = lightSum.color;
     #else
-        shadingData.lightColor = lightSum.color + environment;
+    shadingData.lightColor = lightSum.color + environment;
     #endif
 
     __SC_PHASE_modifylight__
 
     #if defined(UNITY_PASS_FORWARDADD)
-        shadingData.col = SCModelAddSurfaceColor(shadingData, customData, vertex);
+    shadingData.col = SCModelAddSurfaceColor(shadingData, customData, vertex);
     #else
-        shadingData.col = SCModelBaseSurfaceColor(shadingData, customData, vertex);
+    shadingData.col = SCModelBaseSurfaceColor(shadingData, customData, vertex);
     #endif
 
     __SC_PHASE_shade__
@@ -94,9 +94,9 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 
     shadingData.col.a = 1;
     #if defined(UNITY_PASS_FORWARDADD)
-        UNITY_APPLY_FOG_COLOR(input.fogCoord, shadingData.col, fixed4(0, 0, 0, 0));
+    UNITY_APPLY_FOG_COLOR(input.fogCoord, shadingData.col, fixed4(0, 0, 0, 0));
     #else
-        UNITY_APPLY_FOG(input.fogCoord, shadingData.col);
+    UNITY_APPLY_FOG(input.fogCoord, shadingData.col);
     #endif
     return shadingData.col;
 }
