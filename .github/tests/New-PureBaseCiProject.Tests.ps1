@@ -77,6 +77,19 @@ QualitySettings:
         )
     }
 
+    It 'keeps the tracked VRChat-project QualitySettings source fixture under the reviewed contract' {
+        $qualitySettingsPath = Join-Path $repositoryRoot 'Tests/Release/ConsumerProject/ProjectSettings/QualitySettings.asset'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $qualitySettingsPath -PathType Leaf) -Message 'Tracked VRChat-project QualitySettings source fixture is missing.'
+
+        $qualitySettings = Get-Content -LiteralPath $qualitySettingsPath -Raw
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'm_CurrentQuality: 2') -Message 'Tracked QualitySettings source fixture must select the reviewed VRC High snapshot level.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'name: VRC High') -Message 'Tracked QualitySettings source fixture is missing the VRC High snapshot profile.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowResolution: 3') -Message 'Tracked QualitySettings source fixture must preserve the reviewed shadow resolution.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowCascades: 4') -Message 'Tracked QualitySettings source fixture must preserve four shadow cascades.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'shadowDistance: 150') -Message 'Tracked QualitySettings source fixture must preserve the reviewed shadow distance.'
+        Assert-CiProjectHarness -Condition ($qualitySettings -match 'antiAliasing: 4') -Message 'Tracked QualitySettings source fixture must preserve 4x MSAA.'
+    }
+
     It 'pins Unity, test framework, owner scene, and reviewed VRChat-project quality snapshot without installing the SDK' {
         & $projectBuilder -ProjectRoot $projectRoot
 

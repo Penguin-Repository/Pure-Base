@@ -1277,9 +1277,9 @@ namespace PureBase.Tests.Daily
                 observation.staticRendererAssignmentCount,
                 Is.EqualTo(baseline.staticRendererAssignmentCount)
             );
-            // Hard-shadow rasterization differs slightly between physical GPUs and the
-            // Microsoft Basic Render Driver used by GitHub-hosted runners. Keep the
-            // reviewed bounds narrow so real silhouette regressions still fail.
+            // The captured, reviewed QualitySettings configuration yields 341 locally
+            // and 352 in CI. Keep this reviewed narrow range so real silhouette
+            // regressions still fail.
             AssertRange(
                 observation.shadowChangedPixelCount,
                 baseline.shadowChangedPixelCount,
