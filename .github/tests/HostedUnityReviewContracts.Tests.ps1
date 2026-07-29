@@ -576,6 +576,18 @@ Describe 'Hosted Unity review contracts' {
         $resolverScript.Contains('real Unity.exe because its audited runner intentionally rejects wrapper executables') | Should -BeTrue
     }
 
+    It 'runs release validation before Unity project configuration' {
+        $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
+
+        $validationJob | Should -Not -BeNullOrEmpty
+        Assert-LinesInOrder -Block $validationJob -ExpectedLines @(
+            '      - name: Prepare Unity project shell',
+            '      - name: Run release validation',
+            '      - name: Configure Unity project',
+            '      - name: Export versioned validation ZIP'
+        )
+    }
+
     It 'uses pwsh-compatible retried runtime downloads' {
         $resolverScript.Contains("`$ProgressPreference = 'SilentlyContinue'") | Should -BeTrue
         $resolverScript.Contains('function Invoke-DownloadWithRetry') | Should -BeTrue

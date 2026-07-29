@@ -165,6 +165,13 @@ jobs:
           & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT
 
+      - name: Run release validation
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/Tests/Release/Run-PureBaseReleaseValidation.ps1" `
+            -UnityEditorPath $env:REAL_UNITY_EDITOR_PATH `
+            -ArtifactDirectory $env:ARTIFACT_ROOT
+
       - name: Configure Unity project
         timeout-minutes: 30
         shell: pwsh
@@ -185,13 +192,6 @@ jobs:
           if ($unityExitCode -ne 0) {
             throw "Unity project configuration failed with exit code $unityExitCode. Unity log: '$logPath'."
           }
-
-      - name: Run release validation
-        shell: pwsh
-        run: |
-          & "$env:PACKAGE_ROOT/Tests/Release/Run-PureBaseReleaseValidation.ps1" `
-            -UnityEditorPath $env:REAL_UNITY_EDITOR_PATH `
-            -ArtifactDirectory $env:ARTIFACT_ROOT
 
       - name: Export versioned validation ZIP
         if: success()
