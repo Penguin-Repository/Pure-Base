@@ -16,30 +16,32 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$builderPath = Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1'
-$builderSource = Get-Content -LiteralPath $builderPath -Raw
-$libraryStartIndex = $builderSource.IndexOf('Set-StrictMode -Version Latest')
-$entryPointIndex = $builderSource.IndexOf("`n" + '$scriptRoot = Split-Path -Parent $PSCommandPath')
-if ($libraryStartIndex -lt 0 -or $entryPointIndex -lt 0) {
-    throw 'The release builder library could not be isolated for the manifest harness.'
-}
-
-$libraryPath = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseBuilder-' + [guid]::NewGuid().ToString('N') + '.ps1')
-[System.IO.File]::WriteAllText($libraryPath, $builderSource.Substring($libraryStartIndex, $entryPointIndex - $libraryStartIndex), [System.Text.UTF8Encoding]::new($false))
-. $libraryPath
-
-function Assert-ManifestHarness {
-    param(
-        [Parameter(Mandatory = $true)][bool]$Condition,
-        [Parameter(Mandatory = $true)][string]$Message
-    )
-
-    if (-not $Condition) {
-        throw $Message
-    }
-}
-
 Describe 'Shader-Core identity manifest generation' {
+    BeforeAll {
+        $builderPath = Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1'
+        $builderSource = Get-Content -LiteralPath $builderPath -Raw
+        $libraryStartIndex = $builderSource.IndexOf('Set-StrictMode -Version Latest')
+        $entryPointIndex = $builderSource.IndexOf("`n" + '$scriptRoot = Split-Path -Parent $PSCommandPath')
+        if ($libraryStartIndex -lt 0 -or $entryPointIndex -lt 0) {
+            throw 'The release builder library could not be isolated for the manifest harness.'
+        }
+
+        $libraryPath = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseBuilder-' + [guid]::NewGuid().ToString('N') + '.ps1')
+        [System.IO.File]::WriteAllText($libraryPath, $builderSource.Substring($libraryStartIndex, $entryPointIndex - $libraryStartIndex), [System.Text.UTF8Encoding]::new($false))
+        . $libraryPath
+
+        function Assert-ManifestHarness {
+            param(
+                [Parameter(Mandatory = $true)][bool]$Condition,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
+
+            if (-not $Condition) {
+                throw $Message
+            }
+        }
+    }
+
     BeforeEach {
         $shaderCoreRoot = Join-Path $TestDrive 'jp.lilxyzw.shadercore'
         New-Item -ItemType Directory -Path $shaderCoreRoot -Force | Out-Null

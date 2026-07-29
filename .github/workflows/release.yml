@@ -126,7 +126,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: lilxyzw/Shader-Core
-          ref: 0.1.9
+          ref: 0a0b2fef78fc3b0438b58f443a2e75210db83ec4
           path: PureBaseCi/Packages/jp.lilxyzw.shadercore
           fetch-depth: 1
           persist-credentials: false

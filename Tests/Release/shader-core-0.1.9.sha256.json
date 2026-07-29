@@ -4,15 +4,15 @@
   "packageVersion": "0.1.9",
   "scope": "All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.",
   "algorithm": "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\\t<lowercase-file-sha256>\\n' in ordinal path order.",
-  "identitySha256": "2bd669a4387d2dcf7f9b4be42301b63456e37358e2a41db822832f3d96831303",
+  "identitySha256": "f04d94fdf2736d2894e619fe554dc8bdb93ec0ffe56ca4190ce34798c21fac1d",
   "entries": [
     {
       "path": "Editor.meta",
-      "sha256": "06a69a7329247118bae2f62498e424c193241f8a157d1132dcbf09913c131514"
+      "sha256": "0fe5beca6a6491f0b25b0ed7b8238d71dc2518235d7caf481321260cd5fd70e8"
     },
     {
       "path": "Editor/API.meta",
-      "sha256": "0602f03012fa99bb7cb2b499a34d1c3ae6e5787298d8283a48adc5c9cf94cd80"
+      "sha256": "6693f8d11c9637fc64c927e9d40aab77388de3587f7d54f958cd790dc565ee82"
     },
     {
       "path": "Editor/API/AttributeActions.cs",
@@ -20,11 +20,11 @@
     },
     {
       "path": "Editor/API/AttributeActions.cs.meta",
-      "sha256": "3e466c0cca5a38db001315c4682f4283b0feff78951bfe462485073fda7911f3"
+      "sha256": "ea29a8b0258297ad70cfc07e7d856f23baae10136c8bbb5d027774f1d73e7da4"
     },
     {
       "path": "Editor/API/Events.meta",
-      "sha256": "ccb70ef6ef02112107c9bbac7f5d30156db4cc4cb43fee0b0a597b8ee156a268"
+      "sha256": "de7de9a770cddb937ed687c31976f2e25a2b1c05d31bbb889bb35a44d5a12ab4"
     },
     {
       "path": "Editor/API/Events/SCKeyEvent.cs",
@@ -32,7 +32,7 @@
     },
     {
       "path": "Editor/API/Events/SCKeyEvent.cs.meta",
-      "sha256": "3d03fbca7ff3c57b4b8bd90d8608c3b60dabb8e6b5b0888406c67b79c6108f7c"
+      "sha256": "40602292a88eaf8deaff9c43d160a08270f2f51b3259a29437cc4cafabad2a72"
     },
     {
       "path": "Editor/API/Events/SCLocalizeEvent.cs",
@@ -40,7 +40,7 @@
     },
     {
       "path": "Editor/API/Events/SCLocalizeEvent.cs.meta",
-      "sha256": "f78f72f754f1529f65b8dd83164588f5a1eff26e91b3b8edbe26003d9975deed"
+      "sha256": "921575e469560f7d744202fcb536ec623005a1f968525dc1eda41b6127aeaa5c"
     },
     {
       "path": "Editor/API/Events/SCUpdateEvent.cs",
@@ -48,7 +48,7 @@
     },
     {
       "path": "Editor/API/Events/SCUpdateEvent.cs.meta",
-      "sha256": "8787c215fe110e3e869d934bfe43ec0c2ecaa395802382416fe89d9411f97a4a"
+      "sha256": "06e08a76d1c1e406370c51bcd479e0ce1e9307f0e1325b9b6fe2f91b9a9fb674"
     },
     {
       "path": "Editor/API/Events/TargetHolder.cs",
@@ -56,7 +56,7 @@
     },
     {
       "path": "Editor/API/Events/TargetHolder.cs.meta",
-      "sha256": "658fc0b399c7fe3149b21c5191052df8a9a4033bc20671a93824b34009e9ddfd"
+      "sha256": "1278a6577905146b33c98c596b6c54394e26a28723f3cbf26df459e36f88cd1d"
     },
     {
       "path": "Editor/API/IMaterialPropertyElement.cs",
@@ -64,7 +64,7 @@
     },
     {
       "path": "Editor/API/IMaterialPropertyElement.cs.meta",
-      "sha256": "9d6e239548029675ad70ad1d5f0fd71027a0cbc41d5f6b710b5e8ed8eea46d39"
+      "sha256": "473f5152d68cb0e3b7d25a312723f6cc8d9dcd56baedac92bea5fae047b020e4"
     },
     {
       "path": "Editor/API/ModuleSetter.cs",
@@ -72,7 +72,7 @@
     },
     {
       "path": "Editor/API/ModuleSetter.cs.meta",
-      "sha256": "65fbe9ae403c4383fb01473e726a5bdf7be9fbe7879f4f6f01c00391509d5f45"
+      "sha256": "f5b34e088a1ad5278f60b2d4cee6b073a9b1aa5437fc379dd2c21106a8cbe83b"
     },
     {
       "path": "Editor/API/SCL10n.cs",
@@ -80,7 +80,7 @@
     },
     {
       "path": "Editor/API/SCL10n.cs.meta",
-      "sha256": "6e1d08935005a3b91a99aa217fc4fecfb0218d6230974fc3ae53f71aafa90ed6"
+      "sha256": "f3fcec598fa21c13a8e8489ac81a7080fd3d14d59f2ae0075873a780803b5f0f"
     },
     {
       "path": "Editor/API/SCStyles.cs",
@@ -88,11 +88,11 @@
     },
     {
       "path": "Editor/API/SCStyles.cs.meta",
-      "sha256": "adcc12aae9823f5ae3d9f92a1b3f9069c74bbfdafbd040d87693df17d8288661"
+      "sha256": "98895fceb3f06ed695928dfdcfb90e3648383a446f79b04e75b39a74e75beedb"
     },
     {
       "path": "Editor/Core.meta",
-      "sha256": "a92b3086fc54f0a47aaaacfdb5a4e789f6ce5b0c060fd82815f53d3adbee9cdd"
+      "sha256": "25d2d51c40d129c0f7c26c917c2b5c71a0543018c0a9080633dd38ff40dcb2a1"
     },
     {
       "path": "Editor/Core/HLSLMinifier.cs",
@@ -100,7 +100,7 @@
     },
     {
       "path": "Editor/Core/HLSLMinifier.cs.meta",
-      "sha256": "9168745c57a59645e90c0fd65d354559e19673ef194d876fc92b9c10924a53ff"
+      "sha256": "22cbada2a14d2b2c67e71c60c4b14dc3bd8f5d0a3b673113cf290bb1c54ba801"
     },
     {
       "path": "Editor/Core/JsonParser.cs",
@@ -108,7 +108,7 @@
     },
     {
       "path": "Editor/Core/JsonParser.cs.meta",
-      "sha256": "cc59a2267211bd803e7cf9592591c8d29948513373d3066a999ce9f1d1368a38"
+      "sha256": "a90befacf4ecaa11288aee6aecc18c566cabdbf0505d4b179800e9f5f9bf060a"
     },
     {
       "path": "Editor/Core/POParser.cs",
@@ -116,7 +116,7 @@
     },
     {
       "path": "Editor/Core/POParser.cs.meta",
-      "sha256": "787a4cddbaa7fd2575235b7e92b40e8c2edef24b0521ffb75495b62b57ef0e1e"
+      "sha256": "2e7acba22e479fe5a25e6210a623b59da3915a1b9e399577698ac4e3872c1a8f"
     },
     {
       "path": "Editor/Core/SCModule.cs",
@@ -124,7 +124,7 @@
     },
     {
       "path": "Editor/Core/SCModule.cs.meta",
-      "sha256": "61b6640706b673941afda3f711dbe9a11b390ec9bd1ac32cbd8011d27ce9883f"
+      "sha256": "09409950cf2b175bf23bd7e8af6b43ce825c3f23c6b737170f99f8371ab27b0d"
     },
     {
       "path": "Editor/Core/SCProperty.cs",
@@ -132,7 +132,7 @@
     },
     {
       "path": "Editor/Core/SCProperty.cs.meta",
-      "sha256": "8d01f8bf157eca37742d6678651fcf6b20481381ca3354a4d4827b181b8cef7e"
+      "sha256": "2c5c51dc91ae008f88f29caaf8c6dadd0824b4fcc245dfe0aed50a6a18e873d9"
     },
     {
       "path": "Editor/Core/SCPropertyClipbord.cs",
@@ -140,7 +140,7 @@
     },
     {
       "path": "Editor/Core/SCPropertyClipbord.cs.meta",
-      "sha256": "2f36909863279f7d5045d77fe885dee308c30c48ed4a6e8eaeb0c696f303245a"
+      "sha256": "f6f06e0c9bbd2af399e3ce294ec2d813a2e9da8f111fab61c314935a4205d387"
     },
     {
       "path": "Editor/Core/Utils.cs",
@@ -148,19 +148,19 @@
     },
     {
       "path": "Editor/Core/Utils.cs.meta",
-      "sha256": "e7a865de9e4e12db62a50901f8926e79f500b4d69da34a44b18251b2b6a2d2c2"
+      "sha256": "7d43678c7032d0b4a82af2073370dc4d1b1aaede8c3e9a362026a41b2002097d"
     },
     {
       "path": "Editor/Core/jp.lilxyzw.shadercore.Core.asmdef",
-      "sha256": "5c37c7213d906069a35780a858fdd3fe568bf4d37828a89faa369b9ce467b899"
+      "sha256": "cf097214e947e9117685dc671a2d882ee94e6569c2d42494269849f98d2c3a2e"
     },
     {
       "path": "Editor/Core/jp.lilxyzw.shadercore.Core.asmdef.meta",
-      "sha256": "280502daccbff0948edbba9bb1b4e6bd85546fecf569cb3cc63bec7068049b0e"
+      "sha256": "6c976deb6e0696d2a8c200eb1b9cce32729c0f9d869958e3d4a8f5eef8c66e81"
     },
     {
       "path": "Editor/CustomTextures.meta",
-      "sha256": "b104b70c085bbbff91a72954599fc36f6f17d0e29ec52c66663f73605a6d72a0"
+      "sha256": "b410a32b4d4322a9a18ab295a0a00f55c63f30ddbe362c1a98eb97246988693c"
     },
     {
       "path": "Editor/CustomTextures/GradientsImporter.cs",
@@ -168,7 +168,7 @@
     },
     {
       "path": "Editor/CustomTextures/GradientsImporter.cs.meta",
-      "sha256": "77d3ac00142414afd1ddba16d28acf1907164893af89208dc0b5f528626e58f7"
+      "sha256": "3b9ea88de9bfd7e07208bd8e76ffd902e70f00235957ff0f94115c5c599bf8f5"
     },
     {
       "path": "Editor/CustomTextures/GradientsImporterEditor.cs",
@@ -176,7 +176,7 @@
     },
     {
       "path": "Editor/CustomTextures/GradientsImporterEditor.cs.meta",
-      "sha256": "a682c5dc7da66a9c785be252a0a9d643370725c23fcb74d8d0b4e3fac1af4ec9"
+      "sha256": "db85e61e8165348959e79fe2e33314d49b31522bc33773fa969d61aeedef86cb"
     },
     {
       "path": "Editor/CustomTextures/MaskGenerator.cs",
@@ -184,7 +184,7 @@
     },
     {
       "path": "Editor/CustomTextures/MaskGenerator.cs.meta",
-      "sha256": "587ebb6026dd8dd0f1c8d9954d57fdc03245dcb4df5ffbcc5797f19b1612653d"
+      "sha256": "a14a32c35100b9b442c1312b407ed7881151fd639cd5b33086ca0919b571e278"
     },
     {
       "path": "Editor/CustomTextures/MaskImporter.cs",
@@ -192,7 +192,7 @@
     },
     {
       "path": "Editor/CustomTextures/MaskImporter.cs.meta",
-      "sha256": "06ad7dba54b09e00a2040b0685027596db3fdd43892a66f8a0ce2ab1834924b9"
+      "sha256": "e2619bffa64da64e5796ef321f5f136fc5127f28f6a1a48a40a2e41ceca252bf"
     },
     {
       "path": "Editor/CustomTextures/MaskImporterEditor.cs",
@@ -200,7 +200,7 @@
     },
     {
       "path": "Editor/CustomTextures/MaskImporterEditor.cs.meta",
-      "sha256": "80540230108d4fe5ce08cd3bda7edf0c4fedc89067faa6a99377e19ce553646c"
+      "sha256": "9e0547fda83db4f47a0e524bfd66d02c42b23915415e294e15fe051b757680d0"
     },
     {
       "path": "Editor/CustomTextures/MasksImporter.cs",
@@ -208,7 +208,7 @@
     },
     {
       "path": "Editor/CustomTextures/MasksImporter.cs.meta",
-      "sha256": "8284ceded07928fbca7e3957bbc8dc9fa605ab49282023a40fc593089e923cec"
+      "sha256": "b03d2243eefb09de4617caddae716094a04c67e09c5dfa79b0b8d396afc6d2ca"
     },
     {
       "path": "Editor/CustomTextures/MasksImporterEditor.cs",
@@ -216,7 +216,7 @@
     },
     {
       "path": "Editor/CustomTextures/MasksImporterEditor.cs.meta",
-      "sha256": "f6b3d8ae05f6da29b4efd811f6cd7799e5448e4192203e79ce5a94b5fabcd65e"
+      "sha256": "9d2b01fcc5f4628cc4347d4310535390ccc239641d13127f8b126fda6d9527c3"
     },
     {
       "path": "Editor/CustomTextures/TexturePacker.shader",
@@ -228,7 +228,7 @@
     },
     {
       "path": "Editor/Importer.meta",
-      "sha256": "f0c48a7f4f24c832e22d4a2c9ad19edef3bdded897b25b8d586a10eb0bc51eae"
+      "sha256": "6c0dac3a4becf17ab942aeb36fa39c2b9997303f83efad70069994810658d679"
     },
     {
       "path": "Editor/Importer/SCShaderImporter.BIRP.cs",
@@ -236,7 +236,7 @@
     },
     {
       "path": "Editor/Importer/SCShaderImporter.BIRP.cs.meta",
-      "sha256": "273bb95768dc1c4de0deab44fd14b2850adf3b003c5326b1d3801e2f36fc482b"
+      "sha256": "d80045d8ed2d3f6f379d650ade62ffe6b640d8bd9707fbc0badf03d13570f10f"
     },
     {
       "path": "Editor/Importer/SCShaderImporter.ShaderLab.cs",
@@ -244,7 +244,7 @@
     },
     {
       "path": "Editor/Importer/SCShaderImporter.ShaderLab.cs.meta",
-      "sha256": "8488c8e899d54443406bd3e408c4bbe1d6cf2725562939c6d1399ffdc3a41f31"
+      "sha256": "0b72fdc1d782c38b9d3c98909f2d21c841123ce5bc46adeb4f9d261e5f661647"
     },
     {
       "path": "Editor/Importer/SCShaderImporter.URP.cs",
@@ -252,7 +252,7 @@
     },
     {
       "path": "Editor/Importer/SCShaderImporter.URP.cs.meta",
-      "sha256": "c8faeb6aa1d9642415128c37ab7766ac567a3ff323e37b2c8036d7572809fc46"
+      "sha256": "fa3d46963c2d4d05d0cc1ff0bf843d5290f30dffab80eff160de0b305a798079"
     },
     {
       "path": "Editor/Importer/SCShaderImporter.cs",
@@ -260,7 +260,7 @@
     },
     {
       "path": "Editor/Importer/SCShaderImporter.cs.meta",
-      "sha256": "bc9e64acacba3081bbcf48cb43b3bf1f82bac1346a101fb0132fc3b91287a700"
+      "sha256": "83945e3ca209ee1d0e7b844d91bb6e49507a42fa1281bd23e38ac4a37ec61a3c"
     },
     {
       "path": "Editor/Importer/SCShaderImporterEditor.cs",
@@ -268,11 +268,11 @@
     },
     {
       "path": "Editor/Importer/SCShaderImporterEditor.cs.meta",
-      "sha256": "45e0835f676b93e7024b78bb13f90ee6952ff3e40bd31303d3ae479cb29953dd"
+      "sha256": "b56fe95d0622f99d71ca7132e7ae41425791d090ccc483eb8d64abb249e93f1f"
     },
     {
       "path": "Editor/LegacySupport.meta",
-      "sha256": "382a23d2d7c12d33b7549f95600ac3b83eaf1b3c7776b60190adaf5f0ea3ee17"
+      "sha256": "6cf48c659d57cc853fc9e6801034d9a2d378c076aa475ac5a11ef27f7c9d8442"
     },
     {
       "path": "Editor/LegacySupport/EntityIdSupport.cs",
@@ -280,7 +280,7 @@
     },
     {
       "path": "Editor/LegacySupport/EntityIdSupport.cs.meta",
-      "sha256": "ddb68ba92dd83d777840d3c55be4fd272dee688451b36983bc82708213fe7118"
+      "sha256": "244cd4c288efbb5188a70761d0077ce4036b03892c2021bc4bb93b3c0ba64a6e"
     },
     {
       "path": "Editor/LegacySupport/MaterialPropertySupport.cs",
@@ -288,7 +288,7 @@
     },
     {
       "path": "Editor/LegacySupport/MaterialPropertySupport.cs.meta",
-      "sha256": "8f7369ccdaac47a2fb68a29d904b3359808cda95532f4e86e7aba3e4b153ce76"
+      "sha256": "525a26b3b774454163dd6448be0cf199927330ebb4b2e7ea3978d7abb322394f"
     },
     {
       "path": "Editor/Localization.cs",
@@ -296,11 +296,11 @@
     },
     {
       "path": "Editor/Localization.cs.meta",
-      "sha256": "d9a94a1640cb61f7456ef622b0834b35261f93aad1e62f6e92aab62d8307dbb8"
+      "sha256": "abd2ceb7244d6a1445f62b0f82d687cedf4a6ce6535442e99efcfedd9871fd25"
     },
     {
       "path": "Editor/MaterialEditor.meta",
-      "sha256": "36bd26ccc5ae082d816d8c226fd9ad5091a6c87f94c1e4d62e23f349a37e9bf2"
+      "sha256": "a6303373435cae4847c524317b83e5aba1f6ba97c763eed51901bc015c677b57"
     },
     {
       "path": "Editor/MaterialEditor/CustomAttributes.cs",
@@ -308,7 +308,7 @@
     },
     {
       "path": "Editor/MaterialEditor/CustomAttributes.cs.meta",
-      "sha256": "03222b4ba89f0adc470b6b2808c2fc962b3aa4c9273d4dafad5a457c03cb861e"
+      "sha256": "e72d0dbd536a921537e90b638c2c51fb98c06c206aa6764a4559bc0dbfd54a57"
     },
     {
       "path": "Editor/MaterialEditor/EditorUpdater.cs",
@@ -316,7 +316,7 @@
     },
     {
       "path": "Editor/MaterialEditor/EditorUpdater.cs.meta",
-      "sha256": "ba2e9cedf745c9deda61c4d302311e31fad428002a523bc1acdf09d9c5dd97cc"
+      "sha256": "e9e78c045a5d420852cb49e74b9022c3de1ee2a1ebbc133d9bfc75661c471020"
     },
     {
       "path": "Editor/MaterialEditor/FoldoutSaver.cs",
@@ -324,7 +324,7 @@
     },
     {
       "path": "Editor/MaterialEditor/FoldoutSaver.cs.meta",
-      "sha256": "f590deb2778858430afcaccb7b70b7f1a2fce32997dd8262c4355e3175f50055"
+      "sha256": "71bdef4757548ada06992b49a4dbde3fad163477caac7b92ae5bf7a2185d510c"
     },
     {
       "path": "Editor/MaterialEditor/PropertyClipboard.cs",
@@ -332,7 +332,7 @@
     },
     {
       "path": "Editor/MaterialEditor/PropertyClipboard.cs.meta",
-      "sha256": "ecc221f593154758f3aa107b23af271370afe558d8c42ad851986e5f75ce0ce5"
+      "sha256": "bdbc8d513d1283eab4363d37491ffc96d98ea2a723a07bb4d9c265c7dbe7886a"
     },
     {
       "path": "Editor/MaterialEditor/SCMaterialEditor.cs",
@@ -340,11 +340,11 @@
     },
     {
       "path": "Editor/MaterialEditor/SCMaterialEditor.cs.meta",
-      "sha256": "97082771934e6bec0a05c1c662b771ff8fcec1403801579327acdd6a0ca53edc"
+      "sha256": "89153b0d86be94d0e1f3f5cc20a1a7e08eab11d88efc91c8334ab3c38e451c09"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements.meta",
-      "sha256": "ba70042ecbe0c4b830458556d7d34b58d1b38c5357247969760c1e9b872a53df"
+      "sha256": "3b4227d959e9486c952992359210a64ac872f44664a07a517738431640399a6d"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/IMaterialOtherPropertyElement.cs",
@@ -352,7 +352,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/IMaterialOtherPropertyElement.cs.meta",
-      "sha256": "4fd54943d4a873a948786ab340f8766cf7e02074ac52e88df451270faa876cb3"
+      "sha256": "a1cb615da70e55b7ad68b466466070df7a90008f8cbe57dafd8ba79b0725f4e2"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCBox.cs",
@@ -360,7 +360,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCBox.cs.meta",
-      "sha256": "7a7d691ca64a36d4f1f05dc96ab0328539fb4c17c12f1d4598b43452ad58d797"
+      "sha256": "3987e4b473877ca9671010c649d739d13564bc0e0f888d5ac580f53d33b1b296"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCColorField.cs",
@@ -368,7 +368,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCColorField.cs.meta",
-      "sha256": "2bcf4e21e1436c5f1ec0fb92d1be73326d686088d98ad69ba057d546f4e7bbab"
+      "sha256": "8d46a31ac2d8cff68ed107af54e25609e48b6a8fe585c0e6dfbad08cf3ed1d0d"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCDoubleSidedGIField.cs",
@@ -376,7 +376,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCDoubleSidedGIField.cs.meta",
-      "sha256": "6699eac6cd13baaa626f955bf9048c38361f543bf6e68ce5f55c3a2e611b1398"
+      "sha256": "9e95cee8b0346848ad5c9701e09bd96638baf19994d5b021273e266b7ff5cf33"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCEditableTextureButton.cs",
@@ -384,7 +384,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCEditableTextureButton.cs.meta",
-      "sha256": "d3b6352dcaba3234eebbe327932deed3784a56bc1568ab43bb21ff28b8406bf1"
+      "sha256": "fd382e3cc258ca12dc724720a366bf16ef7566fc1568189e0d4cc95f9f3eb785"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCEnableInstancingField.cs",
@@ -392,7 +392,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCEnableInstancingField.cs.meta",
-      "sha256": "9a0e58f027cf3a3da4ee40b1cd482740d0d3436b4d275262b33990a342d52ea2"
+      "sha256": "81093d9cfc8dacaabb83292e4a7e192a67128971ccd126ce7430d8e2cfa8d5aa"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCFloatField.cs",
@@ -400,7 +400,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCFloatField.cs.meta",
-      "sha256": "cdb0f0eb5b8f2c0ff6ea4ee4259f6bf75e31cd3812ebb991842f5921cc04d025"
+      "sha256": "30cf53c43dcd16dddc7074bf6e3bfc3d4b36f4f031445937d057f25567580cfb"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCFoldout.cs",
@@ -408,7 +408,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCFoldout.cs.meta",
-      "sha256": "2bb58a7d7093a84e8437188048f0bb3253073c32443ee4a0e8c6bb890a6cd83f"
+      "sha256": "8da565a1b052f19a37aa1aafab9e04536b76c0827b0f70e240132fa85121ac68"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCGradientSelect.cs",
@@ -416,7 +416,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCGradientSelect.cs.meta",
-      "sha256": "de9c63793a24dadfbb5dd092ffe16ccdbaaef4ad6390487cd1a9de7010c5e648"
+      "sha256": "6ec79eaf337c03959634d4af1db3b109ccdf9c6823cbad778d85455adede36a3"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCIntField.cs",
@@ -424,7 +424,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCIntField.cs.meta",
-      "sha256": "bccb3fb96b412668ee2fe83d229dd621cd97fce924e4527dee9a5b541cac7a81"
+      "sha256": "fa286143591061dfc1c7b43ba7464432f33d13d071054fad43d110388247d386"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCLockProperty.cs",
@@ -432,7 +432,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCLockProperty.cs.meta",
-      "sha256": "4239e30650c6bda35d6284c577aeec913287b56bdac3dfd6e36b96bece5da2e9"
+      "sha256": "506bd5f1062a97638eefb043ce4d650520b2b37f8466757491e7d5bfa4210227"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCMaskChannel.cs",
@@ -440,7 +440,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCMaskChannel.cs.meta",
-      "sha256": "d890f6354acc30ff0ebf58eb4718567e1e22923f49277157dce1e3891580860f"
+      "sha256": "c4063dec60298b6528cc21da89ae0d734164f056782f34e3eb2577e9256dfc4a"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCMinMax.cs",
@@ -448,7 +448,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCMinMax.cs.meta",
-      "sha256": "24c336c26afe57886ede3f4042203a98550ff27040cfe2b296954f3b57dde69e"
+      "sha256": "2b9e528553701fefc12791252f12648378e238c3408a2811205f29cd8008409f"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPopupField.cs",
@@ -456,7 +456,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPopupField.cs.meta",
-      "sha256": "f383c9c5ae3363bd2190dfa4cc32d82412c01a888a9536c9b4b7fbd7477b60bb"
+      "sha256": "dc7a418fef4d074096ef7b8369cccafc1509a3bb98518d3971c3d097e5157b9b"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPropertyContainer.cs",
@@ -464,7 +464,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPropertyContainer.cs.meta",
-      "sha256": "8e35dc622878b25fc07cea8a4899bd0cddfda73be3596413dd065e5a7910f338"
+      "sha256": "658b34374286fda96fbfa73455f654d067722f0d9ee60c277e441ecc5a09ece2"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCRenderQueueField.cs",
@@ -472,7 +472,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCRenderQueueField.cs.meta",
-      "sha256": "f9d37b9671f86bc3957239829433234c7f0ba5afd57e48939dd4353745549523"
+      "sha256": "44376218e05bc408b2205a217c7dfc56f529893c883e00ecc6afcde702b80eb3"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCScaleOffset.cs",
@@ -480,7 +480,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCScaleOffset.cs.meta",
-      "sha256": "40dd8d8ed4abd1811b2d4de30aca5255f09500d73bdd1f9e8acbd96459d6e1e0"
+      "sha256": "f51442ee6951815137d1d5f45e1e1dff2d0a01f2f113162871c18abc64e83f7e"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCSlider.cs",
@@ -488,7 +488,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCSlider.cs.meta",
-      "sha256": "a451f9aa3ab292dcced2888bac1b97b6aac39d3cdea89c0c56364a6aa8de9a66"
+      "sha256": "67a71753357d8fe5fd29a87704860127620ca7a3af978279399ed54d8fbf3acf"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCSliderInt.cs",
@@ -496,7 +496,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCSliderInt.cs.meta",
-      "sha256": "64d9e857799b10e810c737e9829cb40c8f49860ce7edb0bd30d53acd2404b667"
+      "sha256": "698acd7cea882611cfb9b04dcce8695d2f4ae04910ed929408065e6331a3471b"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCTextureField.cs",
@@ -504,7 +504,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCTextureField.cs.meta",
-      "sha256": "804f5947d5ee2d13d8a29dc7ecce79dc00285d4ff0179aece65f525ef2dc6478"
+      "sha256": "2c93a7adba7132bfe95f0c0ecad2f4b10fa79fc92cb0748ddd6bf4fe66af455b"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCToggleField.cs",
@@ -512,7 +512,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCToggleField.cs.meta",
-      "sha256": "95c471c2b8a0e4be930e0e07ea8a2caef7a3286a2562d8b590d45c5983f822d8"
+      "sha256": "1a1d6a29375d06e1b0a9c57c89798707d6f20e1d790f279a0a80ac28f18d2bce"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCVector2Field.cs",
@@ -520,7 +520,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCVector2Field.cs.meta",
-      "sha256": "bfff5b9159579ea522086f78ad6441099cf9eb545ce8817994c24d82d1177d06"
+      "sha256": "9e1348a34be26f0ac4f6c28a48f6d43c7c4a12b6b23391196b858ffa453649b3"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCVector3Field.cs",
@@ -528,7 +528,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCVector3Field.cs.meta",
-      "sha256": "c56906563ad61e4349bbb6457ff5c359ed7423695e08d2eeac334fcd8fb6f0d0"
+      "sha256": "9c38e95bda25fb8bb5b8ffa260459a978ad3e392c9b3e3fe3ec8988c8a04c4e7"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCVector4Field.cs",
@@ -536,7 +536,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCVector4Field.cs.meta",
-      "sha256": "c9076990a26146bac551f673e37bcdb8a9d544f03b9f86f71d665f9cb4276739"
+      "sha256": "689bb36ec06eecc6898186dc907beec467aa30ac7f44a666705c0024592624d9"
     },
     {
       "path": "Editor/ProjectSettings.cs",
@@ -544,7 +544,7 @@
     },
     {
       "path": "Editor/ProjectSettings.cs.meta",
-      "sha256": "b00bbb040172abe9191fd73abd9917fe612610c497021880efcf1f51ca6f7a47"
+      "sha256": "5950b6de58ecf9cbce68f200743fc9dcd92211f0ed91fdf3ddc313191c56ea8b"
     },
     {
       "path": "Editor/Settings.cs",
@@ -552,11 +552,11 @@
     },
     {
       "path": "Editor/Settings.cs.meta",
-      "sha256": "265231f421e2ba642bf25e81898594fa5efc0668ce77874c2225d1ab01cfe388"
+      "sha256": "9404e2cfa922a553626cb0d73dfbe046c281bc1ccbbd3d6f41a04f3dccc4a2c1"
     },
     {
       "path": "Editor/Utils.meta",
-      "sha256": "8242a580f431417921d544b865ec08e746fe64654f8c1d8a1534527eccfa70f8"
+      "sha256": "63356119ee930462e246e80a1ff616fe2cd93c1125c463674e33892f4d09b216"
     },
     {
       "path": "Editor/Utils/AssetUtils.cs",
@@ -564,7 +564,7 @@
     },
     {
       "path": "Editor/Utils/AssetUtils.cs.meta",
-      "sha256": "22d0fd15f14a0d4f111f25ec165b99a57fa3cbfb80821918bc37bbd462c7718e"
+      "sha256": "0c4212b801a7bdedd9951590587409638157a30f7ea0df73510e44b54b517418"
     },
     {
       "path": "Editor/Utils/FontFixer.cs",
@@ -572,7 +572,7 @@
     },
     {
       "path": "Editor/Utils/FontFixer.cs.meta",
-      "sha256": "0e2e5835e259553c06d68391ae6cb7556baa35ac3e67255c69edee33175889af"
+      "sha256": "4eda10000392b5ea87b6277718ddd57f983675293701f33a2fdf8f2f8e86c417"
     },
     {
       "path": "Editor/Utils/MaterialPropertyUtils.cs",
@@ -580,7 +580,7 @@
     },
     {
       "path": "Editor/Utils/MaterialPropertyUtils.cs.meta",
-      "sha256": "9ce95732c5bee5582642b22d1db4221f8fc4a3bdd8558b5dae26fcb35e11b6b2"
+      "sha256": "087e21d0efc8130c5602c40821d9806cea6c60d6a187bf61e8d9818009846522"
     },
     {
       "path": "Editor/Utils/PreviewTexture.shader",
@@ -588,7 +588,7 @@
     },
     {
       "path": "Editor/Utils/PreviewTexture.shader.meta",
-      "sha256": "23d9f181b2b68c1e9f4f43e6d2024304482fda075b9d113858dfb6f138f42384"
+      "sha256": "f9aa25a4e8f5866f3a283bfec861018024e5ee8582f6f20ea2da8d87806a3ffe"
     },
     {
       "path": "Editor/Utils/TextureUtils.cs",
@@ -596,15 +596,15 @@
     },
     {
       "path": "Editor/Utils/TextureUtils.cs.meta",
-      "sha256": "b730cb9d281ddad832cc8e06192db5a2573fac094f029497b52a8ab795244c32"
+      "sha256": "8848dfcc86287b8c07ddd2d253d009c3af95618d410d2ed86aca2df3c447e776"
     },
     {
       "path": "Editor/jp.lilxyzw.shadercore.asmdef",
-      "sha256": "de64bf0bdb08e7c072280f618cbec19207f41aad0e0e62fe980f206a0aa9955f"
+      "sha256": "b15ecadd74d698cb02f55690a6a69a4eac967f3c00ef62e472f3ece5ffebf0f4"
     },
     {
       "path": "Editor/jp.lilxyzw.shadercore.asmdef.meta",
-      "sha256": "d3b1968d65aaf0a5e93dcc8f1962f09adbecd93995924c0d863f0ff6dd4b7c1e"
+      "sha256": "c285e86d5ceee00a6d9384ad7c0eaafdfb28746a68d8d5534ea3a103962320f3"
     },
     {
       "path": "LICENSE",
@@ -612,11 +612,15 @@
     },
     {
       "path": "LICENSE.meta",
-      "sha256": "4ba808d7e438f7e437fbdec3f502dd3a16199d652cdb0e814047614f9f1fc967"
+      "sha256": "b2ca816b0e21472a4510150910f6bb85fc6940e190431c797acfdad74871abdb"
+    },
+    {
+      "path": "README.md",
+      "sha256": "6a7e5bfdb025e0b60d9af5d4bde4127e907e5e166613b3cd512531c67d1c9239"
     },
     {
       "path": "ShaderLibrary.meta",
-      "sha256": "e6d6b62e1e956c7ce32afa9c245e1d5904e8e8d9c27eb326968e0999bad27ac8"
+      "sha256": "8bc48c2db7d5f30c7f4286bab26276b43b040ed2db9fd7d389d3a8adeb252ecb"
     },
     {
       "path": "ShaderLibrary/autoconvert.hlsl",
@@ -624,7 +628,7 @@
     },
     {
       "path": "ShaderLibrary/autoconvert.hlsl.meta",
-      "sha256": "c4f9e9d02f4c5ec1b90ddffb7f25be6952cc50f781bda889bcbcbb8683849415"
+      "sha256": "a095eb85b3798ad9ee5a080bca4af0c95ba771d07702e89e01e4e68f636df9ae"
     },
     {
       "path": "ShaderLibrary/birp.hlsl",
@@ -632,7 +636,7 @@
     },
     {
       "path": "ShaderLibrary/birp.hlsl.meta",
-      "sha256": "cce5b67688767143558fc68766afb211f84df31f8f64a0b9eb46f47cc82e86d3"
+      "sha256": "e0b170f9506bd1f64f755b9917d4f82162a8e2d1788db355ea7a4c5d852f8f15"
     },
     {
       "path": "ShaderLibrary/birp_forward.hlsl",
@@ -640,7 +644,7 @@
     },
     {
       "path": "ShaderLibrary/birp_forward.hlsl.meta",
-      "sha256": "79089a5da3f447ccced717fa54d3c146e5fe4b85d6ba131bd53ca4f3cfc34faa"
+      "sha256": "67004231de73c77a00a378124f9d0fc97788f20521f0b332bdf7876e4027ae27"
     },
     {
       "path": "ShaderLibrary/birp_forwardadd.hlsl",
@@ -648,7 +652,7 @@
     },
     {
       "path": "ShaderLibrary/birp_forwardadd.hlsl.meta",
-      "sha256": "814b8b1921453737cb0aa0c39defe7a90493944e590ec2fed2c75f98206c279c"
+      "sha256": "344a0aa113d6290be030c194016c8c9b3306f5fb9520ef1291fadf9a915b2e43"
     },
     {
       "path": "ShaderLibrary/birp_lighting.hlsl",
@@ -656,7 +660,7 @@
     },
     {
       "path": "ShaderLibrary/birp_lighting.hlsl.meta",
-      "sha256": "2ae18a82d1e0a4dc63ccbd351be99241bdc33fe9e5c2c1411073e143db93078b"
+      "sha256": "3fecf853be248f4e1c39c5a784d252054538abb6ee049c28e6a7e1c223b4e39f"
     },
     {
       "path": "ShaderLibrary/birp_shadowcaster.hlsl",
@@ -664,7 +668,7 @@
     },
     {
       "path": "ShaderLibrary/birp_shadowcaster.hlsl.meta",
-      "sha256": "aa2b3a68aa84aeba434be9abfda15cc24b6f2e55dfb5b4b8e1a04712a4c5a888"
+      "sha256": "053c3438fb9e269c8f48911c97020b27926ee8f963bb1cfc73c7e391e7fd9d86"
     },
     {
       "path": "ShaderLibrary/structs.hlsl",
@@ -672,7 +676,7 @@
     },
     {
       "path": "ShaderLibrary/structs.hlsl.meta",
-      "sha256": "51f7997532b2815dde0a9311ff15c540c167bd1726cdd6f74dc46cbbd1b4b665"
+      "sha256": "ddcdbfe5e05fc5b835e5412b486460c5ef7860f4840dfaa9fa44ffe7ba479b15"
     },
     {
       "path": "ShaderLibrary/urp.hlsl",
@@ -680,7 +684,7 @@
     },
     {
       "path": "ShaderLibrary/urp.hlsl.meta",
-      "sha256": "2e1f1327321ff38d284b8ad65524a11d10eb406314d70c4cfc887e9695514260"
+      "sha256": "dc15adf2d9d760c69743dac80c8760c25060c2a917743b823ca3757cad428dc1"
     },
     {
       "path": "ShaderLibrary/urp_depthnormals.hlsl",
@@ -688,7 +692,7 @@
     },
     {
       "path": "ShaderLibrary/urp_depthnormals.hlsl.meta",
-      "sha256": "8fad3eb3c33c58655856a589b16ecfda842196344fb3feff1a8b364b47c6045b"
+      "sha256": "d76500ed98aaa70a86a491b11ad4b61e56ca5f9e0de9e159a08220fc95f37015"
     },
     {
       "path": "ShaderLibrary/urp_depthonly.hlsl",
@@ -696,7 +700,7 @@
     },
     {
       "path": "ShaderLibrary/urp_depthonly.hlsl.meta",
-      "sha256": "011ee8942cf969bcab324a86f9cf23c304bbd3ccd6f27db99d1bc593d308aed5"
+      "sha256": "3bc75d358eb57bb4d199642d2379b4a7f431490ca03eb05a6686d9f6a6bd7353"
     },
     {
       "path": "ShaderLibrary/urp_forward.hlsl",
@@ -704,7 +708,7 @@
     },
     {
       "path": "ShaderLibrary/urp_forward.hlsl.meta",
-      "sha256": "06bd75607e5ee2726eb821bd9f53ce3fc068e6f8c5e844c116dec5d7066f066a"
+      "sha256": "851852afb4fa3489b8c532f47c5799537cd85f442d91d158bfe62c1d5b89f45a"
     },
     {
       "path": "ShaderLibrary/urp_lighting.hlsl",
@@ -712,7 +716,7 @@
     },
     {
       "path": "ShaderLibrary/urp_lighting.hlsl.meta",
-      "sha256": "6b4a9cdabd527d241150daee25a3ba185828defd7f8e62879bf7d3ce2597e0a4"
+      "sha256": "9934cd552dfa863c35931a43af88fb6e01df8a445198b2342d3ce45262c10f40"
     },
     {
       "path": "ShaderLibrary/urp_motionvectors.hlsl",
@@ -720,7 +724,7 @@
     },
     {
       "path": "ShaderLibrary/urp_motionvectors.hlsl.meta",
-      "sha256": "711d83d90d1ac7a1f21212508084e92160694c7f95d92a2bd21d90ee0575084e"
+      "sha256": "ea8034aabb6621aef98d673e69bd4af3996ba22a518a1885a546c2234e3f50ad"
     },
     {
       "path": "ShaderLibrary/urp_shadowcaster.hlsl",
@@ -728,7 +732,7 @@
     },
     {
       "path": "ShaderLibrary/urp_shadowcaster.hlsl.meta",
-      "sha256": "60a8ad6895663a54dcd5ac7e180cf8afcc3f2d5d610b2b14567a39f278f55b4a"
+      "sha256": "13c6b4e8f9c8c53a5fd9b306e8f50f2a3b970c9a2b7d9e161fa31f60e34db3d5"
     },
     {
       "path": "ShaderLibrary/urp_xrmotionvectors.hlsl",
@@ -736,7 +740,7 @@
     },
     {
       "path": "ShaderLibrary/urp_xrmotionvectors.hlsl.meta",
-      "sha256": "33a3524fa9a5157f325e9b42761e2de9dba89fc567627e97196f82cc983b9f9b"
+      "sha256": "10cfc1cb0ce1c2dd78b875d7e4911356963d8167c93771f072f905d6ff260b08"
     },
     {
       "path": "ShaderLibrary/warnings.hlsl",
@@ -744,11 +748,27 @@
     },
     {
       "path": "ShaderLibrary/warnings.hlsl.meta",
-      "sha256": "1891295cd49703bd049b652a1a538d5ce9ae2269d1301a44ba89fb3f15fb7173"
+      "sha256": "882c82c21252d59dad73c6188580938a8cdefee93e3365fd0042f1f3a9e0746e"
+    },
+    {
+      "path": "docs/module.md",
+      "sha256": "4b7275cd21e39d819cea8aef189fee520b0c47f98ba6b64915fd18b80363090b"
+    },
+    {
+      "path": "docs/phase.md",
+      "sha256": "f935ee5a6361ac98ebaf86b6d20a69242591e68865af6fa0dd9a4bdf2168baa9"
+    },
+    {
+      "path": "docs/properties.md",
+      "sha256": "d173bd186b7cfbab0c31fda1c9c16c982d5bb0fd45ca539c20e71373fe4d4dcc"
+    },
+    {
+      "path": "docs/shader.md",
+      "sha256": "e31269bc8f6201975e8ca1cfbeef8a20f30dbc9304f3adfc80b0da92de4cc09c"
     },
     {
       "path": "lang.meta",
-      "sha256": "8eafed70ba1cfc43a92a6454ce1371025e22599e607bfdb79f1f6afaeb0dbc22"
+      "sha256": "085161916be13fdbde595a79e68a7754c37494a8b03611cb1c3ba293eb053a21"
     },
     {
       "path": "lang/en-US.po",
@@ -756,7 +776,7 @@
     },
     {
       "path": "lang/en-US.po.meta",
-      "sha256": "8f595df7598728db589de55c822700bde33a9e00a89e8529172b28f09b8ab96b"
+      "sha256": "c4b528e4805639bf7b24b5e4f5561d983dfcc002ccf393c8173728ab10154929"
     },
     {
       "path": "lang/ja-JP.po",
@@ -764,7 +784,7 @@
     },
     {
       "path": "lang/ja-JP.po.meta",
-      "sha256": "e21a87f967fb83829c367a099c3c7518bcd639b188017bdc863b04f20633236f"
+      "sha256": "fec762a98430aa99cb88925c9afad61f4818c48a13200a07912be7e652bc1149"
     },
     {
       "path": "package.json",
@@ -772,7 +792,7 @@
     },
     {
       "path": "package.json.meta",
-      "sha256": "c4428b8b03dda5da8621ee96f7daf1af5a2277f63d80b25bc13d865bd706f8a8"
+      "sha256": "3836afab64ec45e61269f9b90401f10e52a000a3be5f2b32d4bc686e58ff632a"
     }
   ]
 }
