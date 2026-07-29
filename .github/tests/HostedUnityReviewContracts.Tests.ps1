@@ -18,8 +18,15 @@ Describe 'Hosted Unity review contracts' {
         $dailyWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw) -replace "`r`n", "`n"
         $releaseWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release-validation.yml') -Raw) -replace "`r`n", "`n"
         $lookupActionPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/action.yml'
+        $bootstrapScriptPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1'
         $lookupAction = if (Test-Path -LiteralPath $lookupActionPath -PathType Leaf) {
             (Get-Content -LiteralPath $lookupActionPath -Raw) -replace "`r`n", "`n"
+        }
+        else {
+            $null
+        }
+        $bootstrapScript = if (Test-Path -LiteralPath $bootstrapScriptPath -PathType Leaf) {
+            (Get-Content -LiteralPath $bootstrapScriptPath -Raw) -replace "`r`n", "`n"
         }
         else {
             $null
@@ -137,34 +144,31 @@ Describe 'Hosted Unity review contracts' {
                 [string[]]$ExpectedLines
             )
 
-            $stepLines = [string[]]($Step -split "\n")
-            $runIndex = -1
-            $runIndent = -1
-            for ($index = 0; $index -lt $stepLines.Count; $index++) {
-                if ($stepLines[$index] -match '^(?<indent> +)(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?$') {
-                    $runIndex = $index
-                    $runIndent = $Matches['indent'].Length
-                    break
-                }
-            }
-            $runIndex | Should -BeGreaterThan -1
+            Assert-LinesInOrder -Block (Get-LiteralRunBlock -Step $Step) -ExpectedLines $ExpectedLines
+        }
 
-            $scriptLines = [Collections.Generic.List[string]]::new()
-            for ($index = $runIndex + 1; $index -lt $stepLines.Count; $index++) {
-                $line = $stepLines[$index]
-                if ($line -match '^(?<indent> *)\S') {
-                    $lineIndent = $Matches['indent'].Length
-                    if ($lineIndent -le $runIndent) {
-                        break
-                    }
+        function Get-LiteralRunBlock {
+            param([string]$Step)
 
-                    $lineIndent | Should -BeGreaterThan $runIndent
-                }
-
-                $scriptLines.Add($line.Trim())
+            $runMatch = [regex]::Match(
+                $Step,
+                '(?m)^ {6}(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?\r?\n(?<script>(?:(?:^ {7,}[^\r\n]*|^[ \t]*)\r?\n)*(?:^ {7,}[^\r\n]*)?)(?=^ {4}- |\z)'
+            )
+            if (-not $runMatch.Success) {
+                throw 'The composite action step does not contain a literal run block.'
             }
 
-            Assert-LinesInOrder -Block ($scriptLines -join "`n") -ExpectedLines $ExpectedLines
+            return (($runMatch.Groups['script'].Value -split "\r?\n" | ForEach-Object { $_.Trim() }) -join "`n").Trim()
+        }
+
+        function Get-StepMappingHeader {
+            param([string]$Step)
+
+            return [regex]::Split(
+                $Step,
+                '(?m)^ {6}(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?$',
+                2
+            )[0]
         }
 
         function Get-ActionYamlKeyOccurrences {
@@ -302,6 +306,25 @@ Describe 'Hosted Unity review contracts' {
         } | Should -Not -Throw
     }
 
+    It 'rejects direct inputs after an internal literal run blank line' {
+        $steps = [string]::Join("`n", @(
+                '    - name: Install pinned CLI',
+                '      shell: pwsh',
+                '      run: |',
+                '        Write-Output "safe"',
+                '',
+                '        $cliVersion = "${{ inputs.cli-version }}"',
+                '    - name: Later step',
+                '      run: |',
+                '        Write-Output "not part of the first run"'
+            ))
+
+        $literalRun = Get-LiteralRunBlock -Step $steps
+        $literalRun | Should -Match '\$\{\{\s*inputs\.cli-version\s*\}\}'
+        $literalRun | Should -Not -Match 'not part of the first run'
+        { $literalRun | Should -Not -Match '\$\{\{\s*inputs\.' } | Should -Throw
+    }
+
     It 'uses repository-unique PR concurrency for Daily' {
         $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.number || github.ref }}') | Should -BeTrue
         $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.head.ref || github.ref_name }}') | Should -BeFalse
@@ -317,7 +340,12 @@ Describe 'Hosted Unity review contracts' {
         $lookupAction | Should -Match '(?m)^name: Lookup Unity Editor cache$'
         $lookupAction | Should -Match '(?m)^inputs:\r?\n(?:.*\r?\n)*?  unity-version:'
         $lookupAction | Should -Match '(?m)^  cli-version:'
-        $lookupAction | Should -Match '(?m)^  cli-channel:'
+        $lookupAction | Should -Match '(?m)^  cli-sha256:'
+        $lookupAction | Should -Not -Match '(?m)^  cli-channel:'
+        $cliVersionInput = [regex]::Match($lookupAction, '(?ms)^  cli-version:\n.*?(?=^  [A-Za-z0-9_-]+:|\z)').Value
+        $cliSha256Input = [regex]::Match($lookupAction, '(?ms)^  cli-sha256:\n.*?(?=^  [A-Za-z0-9_-]+:|\z)').Value
+        $cliVersionInput | Should -Match '(?m)^    required: true$'
+        $cliSha256Input | Should -Match '(?m)^    required: true$'
 
         $windowsInstallerSteps = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector name -Value 'Install Unity CLI (Windows)')
         $installRootsSteps = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector id -Value 'install-roots')
@@ -328,26 +356,29 @@ Describe 'Hosted Unity review contracts' {
         $cacheSteps.Count | Should -Be 1
 
         $windowsInstallerStep = $windowsInstallerSteps[0]
-        $windowsInstallerStep | Should -Match "(?m)^      if: runner\.os == 'Windows'$"
+        $windowsInstallerStep | Should -Not -Match '(?m)^      if:'
         $windowsInstallerStep | Should -Match '(?m)^      shell: pwsh$'
         $windowsInstallerStep | Should -Match '(?m)^      run: \|$'
-        Assert-LinesInOrder -Block $windowsInstallerStep -ExpectedLines @(
-            '        UNITY_CLI_CHANNEL: ${{ inputs.cli-channel }}',
-            '        $target = "${{ inputs.cli-version }}"',
-            '        if (-not $target) { $target = "latest" }',
-            '        $installerPath = Join-Path $env:RUNNER_TEMP "unity-cli-install.ps1"',
-            '        Invoke-WebRequest -UseBasicParsing -Uri https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1 -OutFile $installerPath',
-            '        & $installerPath -Target $target'
+        $windowsInstallerHeader = Get-StepMappingHeader -Step $windowsInstallerStep
+        $windowsInstallerHeader | Should -Match '(?m)^      env:$'
+        $windowsInstallerHeader | Should -Match '(?m)^        UNITY_CLI_VERSION: \$\{\{ inputs\.cli-version \}\}$'
+        $windowsInstallerHeader | Should -Match '(?m)^        UNITY_CLI_SHA256: \$\{\{ inputs\.cli-sha256 \}\}$'
+        $windowsInstallerHeader | Should -Match '(?m)^        UNITY_CLI_ACTION_PATH: \$\{\{ github\.action_path \}\}$'
+        $windowsInstallerRun = Get-LiteralRunBlock -Step $windowsInstallerStep
+        $windowsInstallerRun | Should -Not -Match '\$\{\{\s*inputs\.'
+        $windowsInstallerRun | Should -Not -Match 'install\.ps1'
+        $windowsInstallerRun | Should -Not -Match 'latest'
+        Assert-LiteralRunLinesInOrder -Step $windowsInstallerStep -ExpectedLines @(
+            '. "$env:UNITY_CLI_ACTION_PATH/Install-PinnedUnityCli.ps1"',
+            'Install-PinnedUnityCli `',
+            '-Version $env:UNITY_CLI_VERSION `',
+            '-ExpectedSha256 $env:UNITY_CLI_SHA256'
         )
 
         $installRootsStep = $installRootsSteps[0]
         $installRootsStep | Should -Match '(?m)^      shell: bash$'
         Assert-LiteralRunLinesInOrder -Step $installRootsStep -ExpectedLines @(
-            'if [ "$RUNNER_OS" = "Windows" ]; then',
             'export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"',
-            'else',
-            'export PATH="$HOME/.unity/bin:$PATH"',
-            'fi',
             'unity install-path </dev/null > /tmp/install_roots.txt',
             '{',
             'echo "paths<<UNITY_INSTALL_ROOTS_EOF"',
@@ -355,6 +386,8 @@ Describe 'Hosted Unity review contracts' {
             'echo "UNITY_INSTALL_ROOTS_EOF"',
             '} >> "$GITHUB_OUTPUT"'
         )
+        $installRootsStep | Should -Not -Match '\$HOME/\.unity/bin'
+        $installRootsStep | Should -Not -Match 'sed -n ''l'''
 
         $cacheActionReferences = @(
             Get-ActionReferences -Source $lookupAction |
@@ -380,6 +413,38 @@ Describe 'Hosted Unity review contracts' {
         $cacheHitOutputs[0].Value | Should -Match '(?m)^    value: \$\{\{ steps\.cache\.outputs\.cache-hit \}\}$'
         (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'restore-keys').Count | Should -Be 0
         (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'continue-on-error').Count | Should -Be 0
+    }
+
+    It 'defines a fail-closed pinned Windows X64 CLI bootstrap' {
+        $bootstrapScriptPath | Should -Exist
+
+        if ($null -eq $bootstrapScript) {
+            return
+        }
+
+        $bootstrapScript | Should -Match '(?m)^function Install-PinnedUnityCli\b'
+        $bootstrapScript | Should -Match [regex]::Escape('^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$')
+        $bootstrapScript | Should -Match [regex]::Escape('^[0-9a-f]{64}$')
+        $bootstrapScript | Should -Match 'RunnerOS.*Windows'
+        $bootstrapScript | Should -Match 'RunnerArchitecture.*X64'
+        $bootstrapScript | Should -Match 'https://public-cdn\.cloud\.unity3d\.com/hub/prod/cli/\$Version/unity-windows-x64\.exe'
+        $bootstrapScript | Should -Match 'Invoke-WebRequest.*-ErrorAction Stop'
+        $bootstrapScript | Should -Match 'Get-FileHash.*SHA256'
+        $bootstrapScript | Should -Match 'Remove-Item'
+        $bootstrapScript | Should -Match 'Join-Path \$LocalApplicationDataRoot [\'']Unity[\'']'
+        $bootstrapScript | Should -Match 'unity\.exe'
+
+        $networkIndex = $bootstrapScript.IndexOf('Invoke-WebRequest')
+        $hashIndex = $bootstrapScript.IndexOf('Get-FileHash')
+        $moveIndex = $bootstrapScript.IndexOf('Move-Item')
+        $windowsGuardIndex = $bootstrapScript.IndexOf('Windows')
+        $architectureGuardIndex = $bootstrapScript.IndexOf('X64')
+        $windowsGuardIndex | Should -BeGreaterThan -1
+        $architectureGuardIndex | Should -BeGreaterThan -1
+        $networkIndex | Should -BeGreaterThan $windowsGuardIndex
+        $networkIndex | Should -BeGreaterThan $architectureGuardIndex
+        $hashIndex | Should -BeGreaterThan $networkIndex
+        $moveIndex | Should -BeGreaterThan $hashIndex
     }
 
     It 'uses lookup-only only in the local helper' {
@@ -415,7 +480,8 @@ Describe 'Hosted Unity review contracts' {
         $lookupStep | Should -Match '(?m)^        uses: \./\.github/actions/lookup-unity-editor-cache$'
         $lookupStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
         $lookupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
-        $lookupStep | Should -Match '(?m)^          cli-channel: beta$'
+        $lookupStep | Should -Match '(?m)^          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"$'
+        $lookupStep | Should -Not -Match '(?m)^          cli-channel:'
         $fallbackStep | Should -Match "(?m)^        if: steps\.unity-cache-lookup\.outputs\.cache-hit != 'true'$"
         $fallbackStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
         $fallbackStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
