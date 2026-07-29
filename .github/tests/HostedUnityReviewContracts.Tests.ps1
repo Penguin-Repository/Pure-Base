@@ -17,6 +17,14 @@ Describe 'Hosted Unity review contracts' {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $dailyWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw) -replace "`r`n", "`n"
         $releaseWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release-validation.yml') -Raw) -replace "`r`n", "`n"
+        $releasePublishingWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release.yml') -Raw) -replace "`r`n", "`n"
+        $shaderCoreInstallerPath = Join-Path $repositoryRoot '.github/scripts/Install-VerifiedShaderCoreRelease.ps1'
+        $shaderCoreInstaller = if (Test-Path -LiteralPath $shaderCoreInstallerPath -PathType Leaf) {
+            (Get-Content -LiteralPath $shaderCoreInstallerPath -Raw) -replace "`r`n", "`n"
+        }
+        else {
+            $null
+        }
         $lookupActionPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/action.yml'
         $bootstrapScriptPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1'
         $lookupAction = if (Test-Path -LiteralPath $lookupActionPath -PathType Leaf) {
@@ -586,6 +594,31 @@ Describe 'Hosted Unity review contracts' {
             '      - name: Configure Unity project',
             '      - name: Export versioned validation ZIP'
         )
+    }
+
+    It 'stages the same verified Shader-Core release asset in every hosted consumer' {
+        $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip'
+        $expectedSha256 = 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
+        $consumers = @(
+            [pscustomobject]@{ Workflow = $dailyWorkflow; Job = 'unity-daily' },
+            [pscustomobject]@{ Workflow = $releaseWorkflow; Job = 'validate' },
+            [pscustomobject]@{ Workflow = $releasePublishingWorkflow; Job = 'release' }
+        )
+
+        $shaderCoreInstaller | Should -Not -BeNullOrEmpty
+        $shaderCoreInstaller | Should -Match ([regex]::Escape($expectedUrl))
+        $shaderCoreInstaller | Should -Match ([regex]::Escape($expectedSha256))
+
+        foreach ($consumer in $consumers) {
+            $job = Get-NamedJobBlock -Workflow $consumer.Workflow -Name $consumer.Job
+            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core 0.1.9 release'
+
+            $step | Should -Not -BeNullOrEmpty
+            $step | Should -Match 'Install-VerifiedShaderCoreRelease\.ps1'
+            $step | Should -Match ([regex]::Escape($expectedUrl))
+            $step | Should -Match ([regex]::Escape($expectedSha256))
+            $step | Should -Not -Match 'actions/checkout|repository:\s*lilxyzw/Shader-Core'
+        }
     }
 
     It 'uses pwsh-compatible retried runtime downloads' {
