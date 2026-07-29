@@ -22,8 +22,35 @@ Daily and release validation run on GitHub-hosted `windows-2022` runners. Each r
 2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal through
 `buildalon/activate-unity-license`, and exports the discovered Editor path to the existing validation
 scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
-to avoid repeating the full Editor installation on every run. Cache misses are reported but do not
-fail validation because `setup-unity-cli` can install or restore the Editor in the current job.
+to avoid repeating the full Editor installation on every run. The cache preparation job uses
+`.github/actions/lookup-unity-editor-cache` for a metadata-only lookup. On a true hit, it does not
+download, extract, or install an Editor archive. The dependent execution job performs the one real
+`setup-unity-cli` restore and exposes the existing Editor path to validation.
+
+On a non-true lookup result, including a cache-service warning normalized by the pinned upstream
+fallback, the preparation job conditionally runs the pinned `yamachu/unity-cli-actions` restore
+action. That fallback restores the Editor if another run saved the cache while the lookup was in
+progress, or installs it and saves it when the independent preparation job completes. Cache misses
+are therefore non-fatal fallback behavior. Malformed cache identity inputs still fail normally; the
+helper does not use step-level `continue-on-error`.
+
+The exact cache key is `unity-editor-${{ runner.os }}-${{ runner.arch }}-${{ inputs.unity-version }}`
+for Unity `2022.3.22f1`, with no branch, commit, pull request, run, or restore-key component and no
+cross-OS archive. GitHub cache scope can therefore let branches and pull requests reuse the
+default-branch cache when the exact key and cache version match. The Daily and Release validation
+workflows pin Unity CLI `1.0.0-beta.3` and provide that version to the reusable helper. The helper
+discovers the install root at runtime and emits an escaped `sed -n 'l'` diagnostic for the path
+representation used by the lookup.
+
+Do not create tags or branches, or use synthetic identities, to force a production-key miss: the
+default-branch fallback for the exact key and cache version means this cannot guarantee a miss. Treat
+static Pester fallback contracts as deterministic evidence; preserve naturally occurring miss logs
+only as supplemental evidence.
+
+The preparation checkout remains constrained to Daily's exact authorized ref or Release
+validation's dispatched commit SHA. Both workflows retain read-only contents permission and
+`persist-credentials: false`; the cache contains only the discovered Editor install root and no
+Unity activation secrets.
 
 Create these Actions secrets for Unity Personal activation:
 
