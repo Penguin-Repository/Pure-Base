@@ -1,0 +1,73 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Lookup Unity Editor cache
+description: Looks up the Unity Editor cache without downloading its archive.
+
+inputs:
+  unity-version:
+    description: Unity Editor version used in the cache key.
+    required: true
+  cli-version:
+    description: Unity CLI version used to determine installation roots.
+    required: true
+  cli-channel:
+    description: Unity CLI release channel.
+    required: true
+
+outputs:
+  cache-hit:
+    description: Whether the exact Unity Editor cache entry exists.
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install Unity CLI (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        UNITY_CLI_CHANNEL: ${{ inputs.cli-channel }}
+      run: |
+        $target = "${{ inputs.cli-version }}"
+        if (-not $target) { $target = "latest" }
+        $installerPath = Join-Path $env:RUNNER_TEMP "unity-cli-install.ps1"
+        Invoke-WebRequest -UseBasicParsing -Uri https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1 -OutFile $installerPath
+        & $installerPath -Target $target
+
+    - name: Determine Unity install roots
+      id: install-roots
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
+        else
+          export PATH="$HOME/.unity/bin:$PATH"
+        fi
+        unity install-path </dev/null > /tmp/install_roots.txt
+        sed -n 'l' /tmp/install_roots.txt
+        {
+          echo "paths<<UNITY_INSTALL_ROOTS_EOF"
+          cat /tmp/install_roots.txt
+          echo "UNITY_INSTALL_ROOTS_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Look up Unity Editor cache metadata
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: ${{ steps.install-roots.outputs.paths }}
+        key: unity-editor-${{ runner.os }}-${{ runner.arch }}-${{ inputs.unity-version }}
+        lookup-only: true
+        enableCrossOsArchive: false
