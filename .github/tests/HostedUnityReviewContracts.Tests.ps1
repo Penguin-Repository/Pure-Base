@@ -423,8 +423,8 @@ Describe 'Hosted Unity review contracts' {
         }
 
         $bootstrapScript | Should -Match '(?m)^function Install-PinnedUnityCli\b'
-        $bootstrapScript | Should -Match [regex]::Escape('^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$')
-        $bootstrapScript | Should -Match [regex]::Escape('^[0-9a-f]{64}$')
+        $bootstrapScript | Should -Match ([regex]::Escape('^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$'))
+        $bootstrapScript | Should -Match ([regex]::Escape('^[0-9a-f]{64}$'))
         $bootstrapScript | Should -Match 'RunnerOS.*Windows'
         $bootstrapScript | Should -Match 'RunnerArchitecture.*X64'
         $bootstrapScript | Should -Match 'https://public-cdn\.cloud\.unity3d\.com/hub/prod/cli/\$Version/unity-windows-x64\.exe'

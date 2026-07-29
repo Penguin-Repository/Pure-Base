@@ -51,7 +51,7 @@ jobs:
         with:
           unity-version: "2022.3.22f1"
           cli-version: "1.0.0-beta.3"
-          cli-channel: beta
+          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"
 
       - name: Restore or create Unity Editor cache
         id: unity

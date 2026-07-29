@@ -37,10 +37,17 @@ helper does not use step-level `continue-on-error`.
 The exact cache key is `unity-editor-${{ runner.os }}-${{ runner.arch }}-${{ inputs.unity-version }}`
 for Unity `2022.3.22f1`, with no branch, commit, pull request, run, or restore-key component and no
 cross-OS archive. GitHub cache scope can therefore let branches and pull requests reuse the
-default-branch cache when the exact key and cache version match. The Daily and Release validation
-workflows pin Unity CLI `1.0.0-beta.3` and provide that version to the reusable helper. The helper
-discovers the install root at runtime and emits an escaped `sed -n 'l'` diagnostic for the path
-representation used by the lookup.
+default-branch cache when the exact key and cache version match. The lookup helper supports only
+Windows X64. It downloads the versioned `unity-windows-x64.exe` artifact directly from Unity's
+CLI CDN, verifies its SHA-256, and only then places it as `unity.exe`. The expected checksum must
+come from Unity's official version-specific manifest. Accepted CLI versions match
+`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$`.
+
+The helper fails closed for an unsupported platform or architecture, a malformed version or hash,
+a download error, or a checksum mismatch. An existing CLI remains untouched until verification
+succeeds. The Daily and Release validation workflows pin Unity CLI `1.0.0-beta.3` and provide its
+version and checksum to the reusable helper. Updates to the version and checksum must be made
+atomically at both workflow call sites and require hosted verification.
 
 Do not create tags or branches, or use synthetic identities, to force a production-key miss: the
 default-branch fallback for the exact key and cache version means this cannot guarantee a miss. Treat

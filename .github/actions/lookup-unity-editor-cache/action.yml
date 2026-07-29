@@ -13,7 +13,7 @@
 # limitations under the License.
 
 name: Lookup Unity Editor cache
-description: Looks up the Unity Editor cache without downloading its archive.
+description: Looks up the Unity Editor cache on Windows X64 without downloading its archive.
 
 inputs:
   unity-version:
@@ -22,8 +22,8 @@ inputs:
   cli-version:
     description: Unity CLI version used to determine installation roots.
     required: true
-  cli-channel:
-    description: Unity CLI release channel.
+  cli-sha256:
+    description: Lowercase SHA-256 of the pinned Windows X64 Unity CLI executable.
     required: true
 
 outputs:
@@ -35,28 +35,23 @@ runs:
   using: composite
   steps:
     - name: Install Unity CLI (Windows)
-      if: runner.os == 'Windows'
       shell: pwsh
       env:
-        UNITY_CLI_CHANNEL: ${{ inputs.cli-channel }}
+        UNITY_CLI_VERSION: ${{ inputs.cli-version }}
+        UNITY_CLI_SHA256: ${{ inputs.cli-sha256 }}
+        UNITY_CLI_ACTION_PATH: ${{ github.action_path }}
       run: |
-        $target = "${{ inputs.cli-version }}"
-        if (-not $target) { $target = "latest" }
-        $installerPath = Join-Path $env:RUNNER_TEMP "unity-cli-install.ps1"
-        Invoke-WebRequest -UseBasicParsing -Uri https://public-cdn.cloud.unity3d.com/hub/prod/cli/install.ps1 -OutFile $installerPath
-        & $installerPath -Target $target
+        . "$env:UNITY_CLI_ACTION_PATH/Install-PinnedUnityCli.ps1"
+        Install-PinnedUnityCli `
+          -Version $env:UNITY_CLI_VERSION `
+          -ExpectedSha256 $env:UNITY_CLI_SHA256
 
     - name: Determine Unity install roots
       id: install-roots
       shell: bash
       run: |
-        if [ "$RUNNER_OS" = "Windows" ]; then
-          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
-        else
-          export PATH="$HOME/.unity/bin:$PATH"
-        fi
+        export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"
         unity install-path </dev/null > /tmp/install_roots.txt
-        sed -n 'l' /tmp/install_roots.txt
         {
           echo "paths<<UNITY_INSTALL_ROOTS_EOF"
           cat /tmp/install_roots.txt
