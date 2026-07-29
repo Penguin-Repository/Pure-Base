@@ -375,14 +375,59 @@ function Assert-ShaderCoreIdentity {
     }
 
     $actualManifest = Get-RecursiveIdentityManifest -ShaderCoreRoot $ShaderCoreRoot -ShaderCorePackageIdentity $shaderCorePackageIdentity
-    if ($expectedManifest.identitySha256 -ne $actualManifest.identitySha256 -or @($expectedManifest.entries).Count -ne @($actualManifest.entries).Count) {
-        throw 'Local Shader-Core identity does not match shader-core-0.1.9.sha256.json. Regenerate only after intentionally reviewing the dependency source.'
+    $expectedEntries = @($expectedManifest.entries)
+    $actualEntries = @($actualManifest.entries)
+    $expectedEntryIndex = 0
+    $actualEntryIndex = 0
+    $firstDivergence = $null
+
+    while ($expectedEntryIndex -lt $expectedEntries.Count -and $actualEntryIndex -lt $actualEntries.Count) {
+        $expectedEntry = $expectedEntries[$expectedEntryIndex]
+        $actualEntry = $actualEntries[$actualEntryIndex]
+        $pathComparison = [string]::Compare([string]$expectedEntry.path, [string]$actualEntry.path, [System.StringComparison]::Ordinal)
+        if ($pathComparison -eq 0) {
+            if ($expectedEntry.sha256 -ne $actualEntry.sha256) {
+                $firstDivergence = "First divergent entry at ordinal ${expectedEntryIndex}: expected path '$($expectedEntry.path)' SHA-256 '$($expectedEntry.sha256)'; actual path '$($actualEntry.path)' SHA-256 '$($actualEntry.sha256)'."
+                break
+            }
+
+            $expectedEntryIndex++
+            $actualEntryIndex++
+            continue
+        }
+
+        if ($pathComparison -lt 0) {
+            $firstDivergence = "First divergent entry at expected ordinal $expectedEntryIndex (actual ordinal $actualEntryIndex): expected-only path '$($expectedEntry.path)' SHA-256 '$($expectedEntry.sha256)'."
+        }
+        else {
+            $firstDivergence = "First divergent entry at expected ordinal $expectedEntryIndex (actual ordinal $actualEntryIndex): actual-only path '$($actualEntry.path)' SHA-256 '$($actualEntry.sha256)'."
+        }
+        break
     }
 
-    for ($index = 0; $index -lt @($actualManifest.entries).Count; $index++) {
-        if ($expectedManifest.entries[$index].path -ne $actualManifest.entries[$index].path -or $expectedManifest.entries[$index].sha256 -ne $actualManifest.entries[$index].sha256) {
-            throw "Local Shader-Core identity differs at manifest entry $index."
+    if ($null -eq $firstDivergence -and $expectedEntryIndex -lt $expectedEntries.Count) {
+        $expectedEntry = $expectedEntries[$expectedEntryIndex]
+        $firstDivergence = "First divergent entry at expected ordinal $expectedEntryIndex (actual ordinal $actualEntryIndex): expected-only path '$($expectedEntry.path)' SHA-256 '$($expectedEntry.sha256)'."
+    }
+    elseif ($null -eq $firstDivergence -and $actualEntryIndex -lt $actualEntries.Count) {
+        $actualEntry = $actualEntries[$actualEntryIndex]
+        $firstDivergence = "First divergent entry at expected ordinal $expectedEntryIndex (actual ordinal $actualEntryIndex): actual-only path '$($actualEntry.path)' SHA-256 '$($actualEntry.sha256)'."
+    }
+
+    if ($expectedManifest.identitySha256 -ne $actualManifest.identitySha256 -or $expectedEntries.Count -ne $actualEntries.Count -or $null -ne $firstDivergence) {
+        if ($null -eq $firstDivergence) {
+            $firstDivergence = 'No divergent manifest entry was found after ordinal comparison.'
         }
+
+        throw (@(
+                'Local Shader-Core identity does not match shader-core-0.1.9.sha256.json.'
+                "Expected aggregate identity SHA-256: $($expectedManifest.identitySha256)."
+                "Actual aggregate identity SHA-256: $($actualManifest.identitySha256)."
+                "Expected entry count: $($expectedEntries.Count)."
+                "Actual entry count: $($actualEntries.Count)."
+                $firstDivergence
+                'Regenerate only after intentionally reviewing the dependency source.'
+            ) -join ' ')
     }
 }
 
