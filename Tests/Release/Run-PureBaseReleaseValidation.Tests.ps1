@@ -177,7 +177,8 @@ function New-HarnessManifest {
 
     $entries = @(
         [ordered]@{ path = 'Packages/manifest.json'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-manifest' } else { 'post-manifest' } },
-        [ordered]@{ path = 'ProjectSettings/ProjectVersion.txt'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-project-version' } else { 'post-project-version' } }
+        [ordered]@{ path = 'ProjectSettings/ProjectVersion.txt'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-project-version' } else { 'post-project-version' } },
+        [ordered]@{ path = 'ProjectSettings/QualitySettings.asset'; sha256 = Get-Sha256Hex -Path (Join-Path $ConsumerRoot 'ProjectSettings\QualitySettings.asset') }
     )
     if ($Transition -ne 'pre-bootstrap') {
         foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) {
@@ -416,7 +417,9 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
 function Invoke-HarnessCase {
     param(
         [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter()]$Contract = $null,
         [Parameter()][hashtable]$Selections = @{},
+        [Parameter()][switch]$RequireColdLibraryReset,
         [Parameter()][switch]$SkipColdLibraryReset,
         [Parameter(Mandatory = $true)][string[]]$ManifestHashes,
         [Parameter()][switch]$BaselineMismatch,
@@ -444,6 +447,7 @@ function Invoke-HarnessCase {
     $settingsPath = Join-Path $settingsDirectory 'jp.lilxyzw.shadercore.asset'
     $receiptProbePath = Join-Path $settingsDirectory 'ProjectVersion.txt'
     [System.IO.File]::WriteAllText($receiptProbePath, 'pre-bootstrap project version', (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText((Join-Path $settingsDirectory 'QualitySettings.asset'), 'preexisting quality settings', (New-Object System.Text.UTF8Encoding($false)))
     $manifestDirectory = Join-Path $consumerRoot 'Packages'
     New-Item -ItemType Directory -Path $manifestDirectory -Force | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $manifestDirectory 'manifest.json'), '{"dependencies":{}}', (New-Object System.Text.UTF8Encoding($false)))
@@ -489,14 +493,14 @@ function Invoke-HarnessCase {
     $env:PUREBASE_HARNESS_NUNIT_RESULT = $NUnitResult
     $env:PUREBASE_HARNESS_NUNIT_PASSED = [string]$NUnitPassed
     $env:PUREBASE_HARNESS_NUNIT_FAILED = [string]$NUnitFailed
-    $contract = [ordered]@{ runLabel = $Label; runKind = 'harness'; products = @() }
+    $consumerTestContract = if ($null -eq $Contract) { [ordered]@{ runLabel = $Label; runKind = 'harness'; products = @() } } else { $Contract }
     $failure = $null
     try {
         if ($OmitStagedCanonicalConfig) {
             Remove-Item -LiteralPath $canonicalManifestDestination -Force
         }
         $null = Invoke-ConsumerBootstrapImport -UnityEditor $fakeUnityPath -ConsumerRoot $consumerRoot -RunRoot $caseRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -StagingReceipt $stagingReceipt
-        $summary = Invoke-ConsumerTest -UnityEditor $fakeUnityPath -ConsumerRoot $consumerRoot -RunRoot $caseRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $contract -TestFilter $TestFilter -Selections $Selections -SkipColdLibraryReset:$SkipColdLibraryReset -AllowObservationEvidence:$AllowObservationEvidence
+        $summary = Invoke-ConsumerTest -UnityEditor $fakeUnityPath -ConsumerRoot $consumerRoot -RunRoot $caseRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $consumerTestContract -TestFilter $TestFilter -Selections $Selections -RequireColdLibraryReset:$RequireColdLibraryReset -SkipColdLibraryReset:$SkipColdLibraryReset -AllowObservationEvidence:$AllowObservationEvidence
     }
     catch {
         $failure = $_
@@ -686,7 +690,7 @@ try {
         $conflictFailure = $_
     }
     Assert-Harness -Condition ($null -ne $conflictFailure) -Message 'Incompatible runner switches unexpectedly passed.'
-    Assert-Harness -Condition ($conflictFailure.Exception.Message -eq '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the three-row standard-morph warm/cold comparison.') -Message 'Incompatible runner switches did not report the deterministic conflict error before Unity validation.'
+    Assert-Harness -Condition ($conflictFailure.Exception.Message -eq '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.') -Message 'Incompatible runner switches did not report the deterministic conflict error before Unity validation.'
     Assert-Harness -Condition (-not (Test-Path -LiteralPath $conflictArtifactDirectory)) -Message 'Incompatible runner switches created an artifact directory before failing.'
 
     $toonBaseConflictArtifactDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseToonBaseConflict-' + [guid]::NewGuid().ToString('N'))
@@ -710,6 +714,33 @@ try {
     Assert-Harness -Condition ($fogOnlyMatrix.Count -eq 1 -and $fogOnlyMatrix[0].label -eq 'unlit-forward-add-fog') -Message 'Fog-only matrix selection no longer returns exactly the unlit-forward-add-fog row.'
     $bakeOnlyMatrix = Select-ValidationMatrix -Matrix $selectionMatrix -BakeOnly
     Assert-Harness -Condition ($bakeOnlyMatrix.Count -eq 1 -and $bakeOnlyMatrix[0].label -eq 'progressive-cpu-bake') -Message 'Bake-only matrix selection did not return exactly the progressive-cpu-bake row.'
+
+    $initialMatrix = New-InitialValidationMatrix
+    Assert-Harness -Condition ($initialMatrix.Count -eq 2 -and $initialMatrix[0].label -eq 'module-free-clean-import' -and $initialMatrix[1].label -eq 'module-free-toon-runtime-observation') -Message 'The module-free Toon runtime observation row did not follow the unchanged module-free clean-import row.'
+    $moduleFreeEntry = $initialMatrix[0]
+    Assert-Harness -Condition ($moduleFreeEntry.contract.runLabel -eq 'module-free-clean-import' -and $moduleFreeEntry.contract.runKind -eq 'module-free' -and -not $moduleFreeEntry.contract.hasSelectedModule -and $null -eq $moduleFreeEntry.contract.selectedModule -and @($moduleFreeEntry.contract.runtimeSamples).Count -eq 0) -Message 'The existing module-free clean-import contract changed while adding the Toon runtime observation.'
+    Assert-Harness -Condition ($moduleFreeEntry.filter -eq 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts' -and @($moduleFreeEntry.selections.Keys).Count -eq 0 -and -not $moduleFreeEntry.skipColdLibraryReset) -Message 'The existing module-free clean-import matrix row changed while adding the Toon runtime observation.'
+    $moduleFreeToonRuntimeEntry = $initialMatrix[1]
+    $moduleFreeToonRuntimeContract = $moduleFreeToonRuntimeEntry.contract
+    $moduleFreeToonRuntimeSample = $moduleFreeToonRuntimeContract.runtimeSamples[0]
+    Assert-Harness -Condition ($moduleFreeToonRuntimeEntry.filter -eq 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks' -and @($moduleFreeToonRuntimeEntry.selections.Keys).Count -eq 0 -and -not $moduleFreeToonRuntimeEntry.skipColdLibraryReset) -Message 'The module-free Toon runtime observation row did not use the deterministic cold runtime test configuration.'
+    Assert-Harness -Condition ($moduleFreeToonRuntimeContract.runLabel -eq 'module-free-toon-runtime-observation' -and $moduleFreeToonRuntimeContract.runKind -eq 'module-free-toon-runtime-observation' -and -not $moduleFreeToonRuntimeContract.hasSelectedModule -and $null -eq $moduleFreeToonRuntimeContract.selectedModule) -Message 'The module-free Toon runtime observation contract unexpectedly selected a module.'
+    Assert-Harness -Condition (@($moduleFreeToonRuntimeContract.runtimeSamples).Count -eq 1 -and $moduleFreeToonRuntimeSample.label -eq 'module-free-toon-center-pixel' -and $moduleFreeToonRuntimeSample.shaderName -eq 'PureBase/Toon' -and $moduleFreeToonRuntimeSample.shaderAssetPath -eq 'Packages/jp.penguin.purebase/Shaders/PureBaseToon.scshader' -and $moduleFreeToonRuntimeSample.includePointLight) -Message 'The module-free Toon runtime observation contract did not configure exactly one Toon readback sample.'
+    foreach ($channel in @($moduleFreeToonRuntimeSample.red, $moduleFreeToonRuntimeSample.green, $moduleFreeToonRuntimeSample.blue, $moduleFreeToonRuntimeSample.alpha)) {
+        Assert-Harness -Condition ([double]::IsFinite($channel.minimum) -and [double]::IsFinite($channel.maximum) -and $channel.minimum -lt $channel.maximum) -Message 'The module-free Toon runtime observation contract did not use finite, non-empty readback ranges.'
+    }
+    Assert-Harness -Condition ($moduleFreeToonRuntimeSample.red.minimum -eq 0.0 -and $moduleFreeToonRuntimeSample.red.maximum -eq 1000.0 -and $moduleFreeToonRuntimeSample.green.minimum -eq 0.0 -and $moduleFreeToonRuntimeSample.green.maximum -eq 1000.0 -and $moduleFreeToonRuntimeSample.blue.minimum -eq 0.0 -and $moduleFreeToonRuntimeSample.blue.maximum -eq 1000.0 -and $moduleFreeToonRuntimeSample.alpha.minimum -eq 0.99 -and $moduleFreeToonRuntimeSample.alpha.maximum -eq 1.01) -Message 'The module-free Toon runtime observation ranges changed from their finite structural baseline.'
+    $moduleFreeOnlyInitialMatrix = New-InitialValidationMatrix -ModuleFreeOnly
+    Assert-Harness -Condition ($moduleFreeOnlyInitialMatrix.Count -eq 1 -and $moduleFreeOnlyInitialMatrix[0].label -eq 'module-free-clean-import') -Message 'Module-free-only validation no longer selects exactly the unchanged module-free clean-import row.'
+    $comparisonMatrix = New-InitialValidationMatrix
+    $comparisonContracts = Add-StandardMorphComparisonMatrixRows -Matrix $comparisonMatrix
+    $comparisonLabels = @($comparisonMatrix | ForEach-Object { [string]$_.label })
+    Assert-Harness -Condition ($comparisonMatrix.Count -eq 4 -and [string]::Join('|', $comparisonLabels) -eq 'module-free-clean-import|module-free-toon-runtime-observation|standard-morph-warm-library-duplicate-evidence|standard-morph-cold-library-legacy-counts' -and $comparisonContracts.warmContract.runLabel -eq $comparisonLabels[2] -and $comparisonContracts.coldContract.runLabel -eq $comparisonLabels[3]) -Message 'Standard-morph comparison matrix must retain the module-free import and Toon runtime observation rows before the warm and cold rows.'
+    Assert-Harness -Condition ($moduleFreeToonRuntimeEntry.requiresColdLibraryReset) -Message 'The module-free Toon runtime observation row did not explicitly require a cold Library reset.'
+    $moduleFreeToonRuntimeCase = Invoke-HarnessCase -Label $moduleFreeToonRuntimeEntry.label -Contract $moduleFreeToonRuntimeContract -Selections $moduleFreeToonRuntimeEntry.selections -RequireColdLibraryReset:$moduleFreeToonRuntimeEntry.requiresColdLibraryReset -SkipColdLibraryReset:$moduleFreeToonRuntimeEntry.skipColdLibraryReset -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row', 'row') -TestFilter $moduleFreeToonRuntimeEntry.filter
+    Assert-Harness -Condition ($null -eq $moduleFreeToonRuntimeCase.failure) -Message 'Module-free Toon runtime observation harness case unexpectedly failed.'
+    $moduleFreeToonRuntimeResetEvidence = Get-Content -LiteralPath (Join-Path $moduleFreeToonRuntimeCase.runDirectory 'library-reset.json') -Raw | ConvertFrom-Json
+    Assert-Harness -Condition ($moduleFreeToonRuntimeResetEvidence.required -and $moduleFreeToonRuntimeResetEvidence.attempted -and $moduleFreeToonRuntimeResetEvidence.completed) -Message 'Module-free Toon runtime observation did not persist required, attempted, and completed cold Library reset evidence.'
 
     foreach ($conflict in @(
             [ordered]@{ label = 'module-free'; parameters = @{ ModuleFreeOnly = $true }; message = '-BakeOnly cannot be combined with -ModuleFreeOnly because it requires the progressive-cpu-bake row.' },
@@ -760,9 +791,11 @@ try {
     $toonBaseRuntimeContract = New-ToonRuntimeContract -Module $toonBaseModule
     $toonBaseRuntimeSample = $toonBaseRuntimeContract.runtimeSamples[0]
     $toonBaseRuntimeDelta = $toonBaseRuntimeContract.runtimeDelta.selectedMinusModuleFree
-    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -eq 3.55 -and $toonBaseRuntimeSample.red.maximum -eq 3.58) -Message 'Toon base runtime absolute red range must remain the evidence-backed 3.55-3.58 interval.'
+    $toonBaseModuleFreeReference = $toonBaseRuntimeContract.runtimeDelta.moduleFreeReference
+    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -eq 3.59 -and $toonBaseRuntimeSample.red.maximum -eq 3.61) -Message 'Toon base runtime absolute red range must remain the evidence-backed 3.59-3.61 interval.'
     Assert-Harness -Condition ($toonBaseRuntimeDelta.red.minimum -eq 0.70 -and $toonBaseRuntimeDelta.red.maximum -eq 0.73) -Message 'Toon base selected-minus-module-free red range must remain the evidence-backed 0.70-0.73 interval.'
-    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -le 3.56640625 -and $toonBaseRuntimeSample.red.maximum -ge 3.56640625) -Message 'Toon base runtime absolute red range excludes the recorded BIRP readback.'
+    Assert-Harness -Condition ($toonBaseModuleFreeReference.red -eq 2.87890625 -and $toonBaseModuleFreeReference.green -eq 2.837890625 -and $toonBaseModuleFreeReference.blue -eq 2.72265625 -and $toonBaseModuleFreeReference.alpha -eq 1.0) -Message 'Toon base module-free reference must remain the recorded BIRP readback until the observation is evaluated.'
+    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -le 3.599609375 -and $toonBaseRuntimeSample.red.maximum -ge 3.599609375) -Message 'Toon base runtime absolute red range excludes the recorded BIRP readback.'
     Assert-Harness -Condition ($toonBaseRuntimeDelta.red.minimum -le 0.712890625 -and $toonBaseRuntimeDelta.red.maximum -ge 0.712890625) -Message 'Toon base selected-minus-module-free red range excludes the recorded BIRP delta.'
     Assert-Harness -Condition ($toonBaseRuntimeSample.red.maximum -lt 4.2 -and $toonBaseRuntimeDelta.red.maximum -lt 1.3) -Message 'Toon base runtime contract regressed to the direct-add red expectation.'
     foreach ($invalidAbiInput in @(
@@ -826,6 +859,11 @@ try {
     $missingCommandLineCleanupEvidence = Get-Content -LiteralPath (Join-Path $missingCommandLineCleanup.root 'cleanup-failure.json') -Raw | ConvertFrom-Json
     Assert-Harness -Condition ($missingCommandLineCleanupEvidence.cleanupStatus -eq 'indeterminate' -and $missingCommandLineCleanupEvidence.cleanupReason -match 'Cannot inspect CommandLine.*4243.*4244' -and $missingCommandLineCleanupEvidence.cleanupFailure -match 'Cannot verify whether a Unity process') -Message 'Missing CommandLine cleanup evidence did not retain the discovery failure.'
 
+    $expectedFirstBootstrapAddedCount = @(Get-ExpectedFirstBootstrapAddedPaths).Count
+    $expectedFirstBootstrapChangedCount = @(Get-ExpectedFirstBootstrapChangedPaths).Count
+    $expectedFirstBootstrapAcceptedCount = $expectedFirstBootstrapAddedCount + $expectedFirstBootstrapChangedCount
+    Assert-Harness -Condition ($expectedFirstBootstrapAddedCount -eq 31 -and $expectedFirstBootstrapChangedCount -eq 2 -and $expectedFirstBootstrapAcceptedCount -eq 33) -Message 'First-bootstrap expected transition counts do not match the hosted consumer contract.'
+
     foreach ($successfulLabel in @('module-free-clean-import', 'progressive-cpu-bake')) {
         $case = Invoke-HarnessCase -Label $successfulLabel -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row')
         Assert-Harness -Condition ($null -eq $case.failure) -Message "Successful row '$successfulLabel' unexpectedly failed."
@@ -855,6 +893,8 @@ try {
         $bootstrapSceneTemplateEntry = @($bootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/SceneTemplateSettings.json' })
         $preBootstrapSceneTemplateEntry = @($preBootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/SceneTemplateSettings.json' })
         $afterResetSceneTemplateEntry = @($afterResetManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/SceneTemplateSettings.json' })
+        $bootstrapQualitySettingsEntry = @($bootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/QualitySettings.asset' })
+        $preBootstrapQualitySettingsEntry = @($preBootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/QualitySettings.asset' })
         $bootstrapDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
         $semanticTransition = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'semantic-transition-report.json') -Raw | ConvertFrom-Json
         $initializationCommand = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'shader-core-state-initialization-command.json') -Raw | ConvertFrom-Json
@@ -864,8 +904,9 @@ try {
         $secondInitializationReport = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'second-bootstrap/shader-core-state-initialization-report.json') -Raw | ConvertFrom-Json
         $fixedPoint = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'second-bootstrap/fixed-point-report.json') -Raw | ConvertFrom-Json
         Assert-Harness -Condition ($preBootstrapSceneTemplateEntry.Count -eq 0 -and $bootstrapSceneTemplateEntry.Count -eq 1 -and $afterResetSceneTemplateEntry.Count -eq 1 -and $afterResetSceneTemplateEntry[0].sha256 -eq $bootstrapSceneTemplateEntry[0].sha256) -Message "Successful row '$successfulLabel' did not preserve the materialized SceneTemplateSettings entry across the Library reset."
-        Assert-Harness -Condition ($bootstrapDelta.classification -eq 'observed' -and @($bootstrapDelta.added).Count -eq 32 -and @($bootstrapDelta.changed).Count -eq 2 -and @($bootstrapDelta.removed).Count -eq 0) -Message "Successful row '$successfulLabel' did not report the observed first-bootstrap delta."
-        Assert-Harness -Condition ($semanticTransition.verdict -eq 'accepted' -and $semanticTransition.summary.accepted -eq 34 -and $semanticTransition.summary.rejected -eq 0 -and $semanticTransition.summary.unclassified -eq 0) -Message "Successful row '$successfulLabel' did not accept the exact first-bootstrap semantic transition."
+        Assert-Harness -Condition ($preBootstrapQualitySettingsEntry.Count -eq 1 -and $bootstrapQualitySettingsEntry.Count -eq 1 -and $preBootstrapQualitySettingsEntry[0].sha256 -eq $bootstrapQualitySettingsEntry[0].sha256) -Message "Successful row '$successfulLabel' did not preserve the preexisting QualitySettings scaffold input."
+        Assert-Harness -Condition ($bootstrapDelta.classification -eq 'observed' -and @($bootstrapDelta.added).Count -eq $expectedFirstBootstrapAddedCount -and @($bootstrapDelta.changed).Count -eq $expectedFirstBootstrapChangedCount -and @($bootstrapDelta.removed).Count -eq 0) -Message "Successful row '$successfulLabel' did not report the observed first-bootstrap delta."
+        Assert-Harness -Condition ($semanticTransition.verdict -eq 'accepted' -and $semanticTransition.summary.accepted -eq $expectedFirstBootstrapAcceptedCount -and $semanticTransition.summary.rejected -eq 0 -and $semanticTransition.summary.unclassified -eq 0) -Message "Successful row '$successfulLabel' did not accept the exact first-bootstrap semantic transition."
         $canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
         $canonicalReceiptEntry = @($stagingReceipt.entries | Where-Object { $_.destination -eq $canonicalConfigDestination })
         Assert-Harness -Condition ($initializationCommand.arguments -contains '-executeMethod' -and $initializationCommand.arguments -contains 'PureBase.Release.Consumer.Tests.PureBaseConsumerShaderCoreInitializer.InitializeForBatchMode') -Message "Successful row '$successfulLabel' did not execute the consumer-owned Shader-Core initializer."
@@ -1024,7 +1065,7 @@ try {
         $bootstrapDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
         $bootstrapFailureDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'failure-evidence/immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
         Assert-ExactJsonPropertyNames -Value $bootstrapDelta -ExpectedNames @('schemaName', 'schemaVersion', 'classification', 'pathOrdering', 'preBootstrapRootSha256', 'postBootstrapRootSha256', 'added', 'removed', 'changed') -Description 'Bootstrap failure delta report'
-        Assert-Harness -Condition ($bootstrapDelta.schemaName -eq 'purebase-immutable-manifest-bootstrap-delta' -and $bootstrapDelta.schemaVersion -eq 1 -and $bootstrapDelta.classification -eq 'observed' -and $bootstrapDelta.pathOrdering -eq 'System.StringComparer.Ordinal' -and @($bootstrapDelta.added).Count -eq 32 -and @($bootstrapDelta.changed).Count -eq 2 -and @($bootstrapDelta.removed).Count -eq 0) -Message "Bootstrap failure '$($case.bootstrapDirectory)' changed its deterministic observed delta schema or content."
+        Assert-Harness -Condition ($bootstrapDelta.schemaName -eq 'purebase-immutable-manifest-bootstrap-delta' -and $bootstrapDelta.schemaVersion -eq 1 -and $bootstrapDelta.classification -eq 'observed' -and $bootstrapDelta.pathOrdering -eq 'System.StringComparer.Ordinal' -and @($bootstrapDelta.added).Count -eq $expectedFirstBootstrapAddedCount -and @($bootstrapDelta.changed).Count -eq $expectedFirstBootstrapChangedCount -and @($bootstrapDelta.removed).Count -eq 0) -Message "Bootstrap failure '$($case.bootstrapDirectory)' changed its deterministic observed delta schema or content."
         Assert-Harness -Condition (($bootstrapDelta | ConvertTo-Json -Depth 8 -Compress) -eq ($bootstrapFailureDelta | ConvertTo-Json -Depth 8 -Compress)) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not preserve the actual delta artifact in failure evidence."
         Assert-Harness -Condition (-not (Test-Path -LiteralPath $case.runDirectory)) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not fail closed before a matrix row."
     }

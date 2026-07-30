@@ -102,22 +102,38 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
+      - name: Checkout cache lookup helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.checkout_ref }}
+          persist-credentials: false
+
+      - name: Look up Unity Editor cache
+        id: unity-cache-lookup
+        uses: ./.github/actions/lookup-unity-editor-cache
+        with:
+          unity-version: "2022.3.22f1"
+          cli-version: "1.0.0-beta.3"
+          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"
+
       - name: Restore or create Unity Editor cache
         id: unity
+        if: steps.unity-cache-lookup.outputs.cache-hit != 'true'
         uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
         with:
           unity-version: "2022.3.22f1"
+          cli-version: "1.0.0-beta.3"
           cli-channel: beta
           cache: "true"
 
       - name: Report Unity Editor cache status
         shell: pwsh
         run: |
-          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache hit for 2022.3.22f1." >> $env:GITHUB_STEP_SUMMARY
+          if ("${{ steps.unity-cache-lookup.outputs.cache-hit }}" -eq "true") {
+            "Unity Editor cache metadata lookup hit for 2022.3.22f1; this preparation job did not download, extract, or install the Editor." >> $env:GITHUB_STEP_SUMMARY
           }
           else {
-            "Unity Editor cache miss for 2022.3.22f1. The installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
+            "Unity Editor cache metadata lookup missed; setup-unity-cli ran to restore or install the Editor, and a newly installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
           }
 
   unity-daily:
@@ -145,20 +161,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout Shader-Core 0.1.9
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: lilxyzw/Shader-Core
-          ref: 0.1.9
-          path: PureBaseCi/Packages/jp.lilxyzw.shadercore
-          fetch-depth: 1
-          persist-credentials: false
+      - name: Install verified Shader-Core 0.1.9 release
+        shell: pwsh
+        run: |
+          & "$env:PACKAGE_ROOT/.github/scripts/Install-VerifiedShaderCoreRelease.ps1" `
+            -ProjectRoot $env:CI_PROJECT_ROOT `
+            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip' `
+            -ExpectedSha256 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
 
       - name: Restore Unity 2022.3.22f1
         id: unity
         uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
         with:
           unity-version: "2022.3.22f1"
+          cli-version: "1.0.0-beta.3"
           cli-channel: beta
           cache: "true"
 

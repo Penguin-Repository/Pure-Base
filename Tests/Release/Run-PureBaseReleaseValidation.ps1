@@ -556,8 +556,14 @@ function Write-ConsumerImmutableManifestBootstrapDelta {
 function Get-ExpectedFirstBootstrapAddedPaths {
     return @(
         'Assets/ReleaseConsumer/Fixtures.meta', 'Assets/ReleaseModules.meta', 'Assets/Resources.meta', 'Assets/Resources/BillingMode.json', 'Assets/Resources/BillingMode.json.meta', 'Packages/packages-lock.json',
-        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/QualitySettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',
+        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',
         '_LocalPackages/jp.penguin.purebase/Editor.meta', '_LocalPackages/jp.penguin.purebase/LICENSE.meta', '_LocalPackages/jp.penguin.purebase/NOTICE.meta', '_LocalPackages/jp.penguin.purebase/README.md.meta', '_LocalPackages/jp.penguin.purebase/Shaders.meta', '_LocalPackages/jp.penguin.purebase/package.json.meta'
+    )
+}
+
+function Get-ExpectedFirstBootstrapChangedPaths {
+    return @(
+        'Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt'
     )
 }
 
@@ -721,7 +727,6 @@ function Get-FirstBootstrapProjectSettingsProfile {
         'ProjectSettings/Physics2DSettings.asset'      = [ordered]@{ root = 'Physics2DSettings'; requiredLines = @('  serializedVersion: 6', '  m_Gravity: {x: 0, y: -9.81}', '  m_VelocityIterations: 8') }
         'ProjectSettings/PresetManager.asset'          = [ordered]@{ root = 'PresetManager'; requiredLines = @('  serializedVersion: 2', '  m_DefaultPresets: {}') }
         'ProjectSettings/ProjectSettings.asset'        = [ordered]@{ root = 'PlayerSettings'; requiredLines = @('  serializedVersion: 26', '  companyName: DefaultCompany', '  productName: ConsumerProject', '  defaultScreenWidth: 1920', '  defaultScreenHeight: 1080', '  m_ActiveColorSpace: 0', '  bundleVersion: 1.0') }
-        'ProjectSettings/QualitySettings.asset'        = [ordered]@{ root = 'QualitySettings'; requiredLines = @('  serializedVersion: 5', '  m_CurrentQuality: 5', '  m_QualitySettings:', '  - serializedVersion: 3', '    name: Very Low') }
         'ProjectSettings/TagManager.asset'             = [ordered]@{ root = 'TagManager'; requiredLines = @('  serializedVersion: 2', '  tags: []', '  layers:', '  - Default') }
         'ProjectSettings/TimeManager.asset'            = [ordered]@{ root = 'TimeManager'; requiredLines = @('  Fixed Timestep: 0.02', '  Maximum Allowed Timestep: 0.33333334', '  m_TimeScale: 1') }
         'ProjectSettings/UnityConnectSettings.asset'   = [ordered]@{ root = 'UnityConnectSettings'; requiredLines = @('  serializedVersion: 1', '  m_Enabled: 0', '  UnityAnalyticsSettings:', '    m_InitializeOnStartup: 1') }
@@ -1134,7 +1139,7 @@ function Get-ConsumerFirstBootstrapTransitionReport {
     $expectedAdded = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
     foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) { [void]$expectedAdded.Add($path) }
     $expectedChanged = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
-    foreach ($path in @('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt')) { [void]$expectedChanged.Add($path) }
+    foreach ($path in Get-ExpectedFirstBootstrapChangedPaths) { [void]$expectedChanged.Add($path) }
     $entries = New-Object System.Collections.Generic.List[object]
     $metaValidationFailures = Get-FirstBootstrapMetaValidationFailures -ConsumerRoot $ConsumerRoot -ReceiptDestinations $receiptDestinations -ExpectedAdded $expectedAdded -Delta $semanticDelta -ReceiptGeneratedMetaProfile $receiptGeneratedMetaProfile
 
@@ -1193,7 +1198,8 @@ function Get-ConsumerFirstBootstrapTransitionReport {
     $accepted = @($entries | Where-Object { $_.verdict -eq 'accepted' }).Count
     $rejected = @($entries | Where-Object { $_.verdict -eq 'rejected' }).Count
     $unclassified = @($entries | Where-Object { $_.verdict -eq 'unclassified' }).Count
-    $verdict = if ($accepted -eq 34 -and $rejected -eq 0 -and $unclassified -eq 0 -and $metaValidationFailures.Count -eq 0 -and @($semanticDelta.added).Count -eq $expectedAdded.Count -and @($semanticDelta.changed).Count -eq $expectedChanged.Count -and @($semanticDelta.removed).Count -eq 0) { 'accepted' } else { 'rejected' }
+    $expectedAccepted = $expectedAdded.Count + $expectedChanged.Count
+    $verdict = if ($accepted -eq $expectedAccepted -and $rejected -eq 0 -and $unclassified -eq 0 -and $metaValidationFailures.Count -eq 0 -and @($semanticDelta.added).Count -eq $expectedAdded.Count -and @($semanticDelta.changed).Count -eq $expectedChanged.Count -and @($semanticDelta.removed).Count -eq 0) { 'accepted' } else { 'rejected' }
     return [ordered]@{
         schemaName    = 'purebase-first-bootstrap-semantic-transition'
         schemaVersion = 1
@@ -1216,7 +1222,8 @@ function Assert-ConsumerFirstBootstrapTransitionReport {
     if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.9' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
         throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
     }
-    if ($Report.verdict -ne 'accepted' -or [int]$Report.summary.accepted -ne 34 -or [int]$Report.summary.observedAdded -ne [int]$Report.summary.expectedAdded -or [int]$Report.summary.observedChanged -ne [int]$Report.summary.expectedChanged -or [int]$Report.summary.observedRemoved -ne 0 -or [int]$Report.summary.rejected -ne 0 -or [int]$Report.summary.unclassified -ne 0) {
+    $expectedAccepted = [int]$Report.summary.expectedAdded + [int]$Report.summary.expectedChanged
+    if ($Report.verdict -ne 'accepted' -or [int]$Report.summary.accepted -ne $expectedAccepted -or [int]$Report.summary.observedAdded -ne [int]$Report.summary.expectedAdded -or [int]$Report.summary.observedChanged -ne [int]$Report.summary.expectedChanged -or [int]$Report.summary.observedRemoved -ne 0 -or [int]$Report.summary.rejected -ne 0 -or [int]$Report.summary.unclassified -ne 0) {
         throw "First-bootstrap semantic transition rejected or did not classify every immutable change: accepted=$($Report.summary.accepted) rejected=$($Report.summary.rejected) unclassified=$($Report.summary.unclassified)."
     }
 }
@@ -1730,6 +1737,50 @@ function New-ModuleFreeContract {
     }
 }
 
+function New-ModuleFreeToonRuntimeObservationContract {
+    $contract = New-ModuleFreeContract
+    $contract.runLabel = 'module-free-toon-runtime-observation'
+    $contract.runKind = 'module-free-toon-runtime-observation'
+    $range = { param([double]$Minimum, [double]$Maximum) [ordered]@{ minimum = $Minimum; maximum = $Maximum } }
+    $contract.runtimeSamples = @([ordered]@{
+            label             = 'module-free-toon-center-pixel'
+            shaderName        = 'PureBase/Toon'
+            shaderAssetPath   = Get-ProductShaderAssetPath -ShaderName 'PureBase/Toon'
+            floatAssignments  = @()
+            includePointLight = $true
+            red               = & $range 0.0 1000.0
+            green             = & $range 0.0 1000.0
+            blue              = & $range 0.0 1000.0
+            alpha             = & $range 0.99 1.01
+        })
+    return $contract
+}
+
+function New-InitialValidationMatrix {
+    param([Parameter()][switch]$ModuleFreeOnly)
+
+    $matrix = New-Object System.Collections.Generic.List[object]
+    $matrix.Add([ordered]@{ label = 'module-free-clean-import'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts'; selections = @{}; skipColdLibraryReset = $false })
+    if (-not $ModuleFreeOnly) {
+        $matrix.Add([ordered]@{ label = 'module-free-toon-runtime-observation'; contract = New-ModuleFreeToonRuntimeObservationContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{}; requiresColdLibraryReset = $true; skipColdLibraryReset = $false })
+    }
+    return , $matrix
+}
+
+function Add-StandardMorphComparisonMatrixRows {
+    param([Parameter(Mandatory = $true)][System.Collections.Generic.List[object]]$Matrix)
+
+    $module = [ordered]@{ label = 'standard-morph'; phase = 'morph'; uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH' }
+    $selections = @{ 'PureBase/Unlit' = @($module.uniqueId); 'PureBase/Toon' = @($module.uniqueId); 'PureBase/PBR' = @($module.uniqueId); 'PureBase/Hybrid' = @($module.uniqueId) }
+    $warmContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
+    $warmContract.runLabel = 'standard-morph-warm-library-duplicate-evidence'
+    $Matrix.Add([ordered]@{ label = $warmContract.runLabel; contract = $warmContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerStandardMorphObservationTests.StandardMorphProductsRecordPassCountObservations'; selections = $selections; skipColdLibraryReset = $true; allowObservationEvidence = $true })
+    $coldContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
+    $coldContract.runLabel = 'standard-morph-cold-library-legacy-counts'
+    $Matrix.Add([ordered]@{ label = $coldContract.runLabel; contract = $coldContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = $selections; skipColdLibraryReset = $false; allowObservationEvidence = $false })
+    return [ordered]@{ warmContract = $warmContract; coldContract = $coldContract }
+}
+
 function New-PhaseContract {
     param(
         [Parameter(Mandatory = $true)]$Module,
@@ -1760,9 +1811,9 @@ function New-ToonRuntimeContract {
     $contract = New-PhaseContract -Module $Module -SelectedProducts @('PureBase/Toon')
     $contract.runLabel = $Module.label + '-runtime'
     $range = { param([double]$Minimum, [double]$Maximum) [ordered]@{ minimum = $Minimum; maximum = $Maximum } }
-    $moduleFreeReference = [ordered]@{ red = 2.853515625; green = 2.8125; blue = 2.69921875; alpha = 1.0 }
+    $moduleFreeReference = [ordered]@{ red = 2.87890625; green = 2.837890625; blue = 2.72265625; alpha = 1.0 }
     $runtimeRanges = switch ($Module.phase) {
-        'base' { [ordered]@{ red = & $range 3.55 3.58; green = & $range 2.75 2.9; blue = & $range 2.65 2.75; alpha = & $range 0.99 1.01 } }
+        'base' { [ordered]@{ red = & $range 3.59 3.61; green = & $range 2.75 2.9; blue = & $range 2.65 2.75; alpha = & $range 0.99 1.01 } }
         'light' { [ordered]@{ red = & $range 2.8 2.9; green = & $range 2.92 3.9; blue = & $range 2.65 2.75; alpha = & $range 0.99 1.01 } }
         'modifylight' { [ordered]@{ red = & $range 2.8 2.9; green = & $range 2.75 2.9; blue = & $range 2.8 3.8; alpha = & $range 0.99 1.01 } }
         'shade' { [ordered]@{ red = & $range 2.95 3.9; green = & $range 2.8 3.4; blue = & $range 2.65 3.1; alpha = & $range 0.99 1.01 } }
@@ -2278,13 +2329,14 @@ function Invoke-ConsumerTest {
         [Parameter(Mandatory = $true)]$Contract,
         [Parameter(Mandatory = $true)][string]$TestFilter,
         [Parameter()][hashtable]$Selections = @{},
+        [Parameter()][switch]$RequireColdLibraryReset,
         [Parameter()][switch]$SkipColdLibraryReset,
         [Parameter()][switch]$AllowObservationEvidence
     )
 
     $runDirectory = Join-Path $RunRoot ('runs/' + $Contract.runLabel)
     New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
-    $requiresColdLibraryReset = $Selections.Count -gt 0 -and -not $SkipColdLibraryReset
+    $requiresColdLibraryReset = -not $SkipColdLibraryReset -and ($Selections.Count -gt 0 -or $RequireColdLibraryReset)
     $resultsPath = Join-Path $runDirectory 'NUnit.xml'
     $unityLogPath = Join-Path $runDirectory 'Unity.log'
     $processLogPath = Join-Path $runDirectory 'Process.log'
@@ -2445,10 +2497,10 @@ function Remove-ConsumerProject {
 
 $packageRoot = Get-PackageGitRoot
 if ($ModuleFreeOnly -and $CompareWarmAndColdStandardMorph) {
-    throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the three-row standard-morph warm/cold comparison.'
+    throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.'
 }
 if ($ToonBaseOnly -and $CompareWarmAndColdStandardMorph) {
-    throw '-ToonBaseOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the three-row standard-morph warm/cold comparison.'
+    throw '-ToonBaseOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.'
 }
 if ($ToonBaseOnly -and $ModuleFreeOnly) {
     throw '-ToonBaseOnly cannot be combined with -ModuleFreeOnly because it requires the Toon base product-phase row.'
@@ -2521,8 +2573,7 @@ try {
     $comparisonWarmContract = $null
     $comparisonColdContract = $null
     $comparisonVerdict = $null
-    $matrix = New-Object System.Collections.Generic.List[object]
-    $matrix.Add([ordered]@{ label = 'module-free-clean-import'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts'; selections = @{}; skipColdLibraryReset = $false })
+    $matrix = New-InitialValidationMatrix -ModuleFreeOnly:$ModuleFreeOnly
     if (-not $ModuleFreeOnly) {
         $standardPhases = @('morph', 'postvertex', 'base', 'light', 'customlight', 'modifylight', 'shade', 'reflection', 'add', 'postpixel')
         if ($ToonBaseOnly) {
@@ -2533,16 +2584,9 @@ try {
             $matrix.Add([ordered]@{ label = $module.label + '-runtime'; contract = New-ToonRuntimeContract -Module $module; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{ 'PureBase/Toon' = @($module.uniqueId) }; skipColdLibraryReset = $false })
         }
         elseif ($CompareWarmAndColdStandardMorph) {
-            $module = [ordered]@{ label = 'standard-morph'; phase = 'morph'; uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH' }
-            $selections = @{ 'PureBase/Unlit' = @($module.uniqueId); 'PureBase/Toon' = @($module.uniqueId); 'PureBase/PBR' = @($module.uniqueId); 'PureBase/Hybrid' = @($module.uniqueId) }
-            $warmContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
-            $warmContract.runLabel = 'standard-morph-warm-library-duplicate-evidence'
-            $comparisonWarmContract = $warmContract
-            $matrix.Add([ordered]@{ label = $warmContract.runLabel; contract = $warmContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerStandardMorphObservationTests.StandardMorphProductsRecordPassCountObservations'; selections = $selections; skipColdLibraryReset = $true; allowObservationEvidence = $true })
-            $coldContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
-            $coldContract.runLabel = 'standard-morph-cold-library-legacy-counts'
-            $comparisonColdContract = $coldContract
-            $matrix.Add([ordered]@{ label = $coldContract.runLabel; contract = $coldContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = $selections; skipColdLibraryReset = $false; allowObservationEvidence = $false })
+            $comparisonContracts = Add-StandardMorphComparisonMatrixRows -Matrix $matrix
+            $comparisonWarmContract = $comparisonContracts.warmContract
+            $comparisonColdContract = $comparisonContracts.coldContract
         }
         else {
             foreach ($phase in $standardPhases) {
@@ -2577,11 +2621,17 @@ try {
         if ($entry.Contains('allowObservationEvidence')) {
             $allowObservationEvidence = [bool]$entry.allowObservationEvidence
         }
-        $outcomes += [ordered]@{ label = $entry.label; runDirectoryLabel = $entry.contract.runLabel; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
+        $requireColdLibraryReset = $false
+        if ($entry.Contains('requiresColdLibraryReset')) {
+            $requireColdLibraryReset = [bool]$entry.requiresColdLibraryReset
+        }
+        $outcomes += [ordered]@{ label = $entry.label; runDirectoryLabel = $entry.contract.runLabel; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -RequireColdLibraryReset:$requireColdLibraryReset -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
     }
     if ($CompareWarmAndColdStandardMorph) {
-        if ($matrix.Count -ne 3 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract) {
-            throw 'Standard-morph comparison must execute exactly module-free, warm, and cold rows.'
+        $expectedComparisonLabels = @('module-free-clean-import', 'module-free-toon-runtime-observation', 'standard-morph-warm-library-duplicate-evidence', 'standard-morph-cold-library-legacy-counts')
+        $actualComparisonLabels = @($matrix | ForEach-Object { [string]$_.label })
+        if ($matrix.Count -ne 4 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract -or [string]::Join('|', $actualComparisonLabels) -ne [string]::Join('|', $expectedComparisonLabels)) {
+            throw 'Standard-morph comparison must execute exactly module-free import, module-free Toon runtime observation, warm, and cold rows.'
         }
         $comparisonVerdict = Invoke-StandardMorphComparisonVerdict -RunRoot $runRoot -WarmContract $comparisonWarmContract -ColdContract $comparisonColdContract
     }
