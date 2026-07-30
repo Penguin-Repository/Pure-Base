@@ -556,8 +556,14 @@ function Write-ConsumerImmutableManifestBootstrapDelta {
 function Get-ExpectedFirstBootstrapAddedPaths {
     return @(
         'Assets/ReleaseConsumer/Fixtures.meta', 'Assets/ReleaseModules.meta', 'Assets/Resources.meta', 'Assets/Resources/BillingMode.json', 'Assets/Resources/BillingMode.json.meta', 'Packages/packages-lock.json',
-        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/QualitySettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',
+        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',
         '_LocalPackages/jp.penguin.purebase/Editor.meta', '_LocalPackages/jp.penguin.purebase/LICENSE.meta', '_LocalPackages/jp.penguin.purebase/NOTICE.meta', '_LocalPackages/jp.penguin.purebase/README.md.meta', '_LocalPackages/jp.penguin.purebase/Shaders.meta', '_LocalPackages/jp.penguin.purebase/package.json.meta'
+    )
+}
+
+function Get-ExpectedFirstBootstrapChangedPaths {
+    return @(
+        'Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt'
     )
 }
 
@@ -721,7 +727,6 @@ function Get-FirstBootstrapProjectSettingsProfile {
         'ProjectSettings/Physics2DSettings.asset'      = [ordered]@{ root = 'Physics2DSettings'; requiredLines = @('  serializedVersion: 6', '  m_Gravity: {x: 0, y: -9.81}', '  m_VelocityIterations: 8') }
         'ProjectSettings/PresetManager.asset'          = [ordered]@{ root = 'PresetManager'; requiredLines = @('  serializedVersion: 2', '  m_DefaultPresets: {}') }
         'ProjectSettings/ProjectSettings.asset'        = [ordered]@{ root = 'PlayerSettings'; requiredLines = @('  serializedVersion: 26', '  companyName: DefaultCompany', '  productName: ConsumerProject', '  defaultScreenWidth: 1920', '  defaultScreenHeight: 1080', '  m_ActiveColorSpace: 0', '  bundleVersion: 1.0') }
-        'ProjectSettings/QualitySettings.asset'        = [ordered]@{ root = 'QualitySettings'; requiredLines = @('  serializedVersion: 5', '  m_CurrentQuality: 5', '  m_QualitySettings:', '  - serializedVersion: 3', '    name: Very Low') }
         'ProjectSettings/TagManager.asset'             = [ordered]@{ root = 'TagManager'; requiredLines = @('  serializedVersion: 2', '  tags: []', '  layers:', '  - Default') }
         'ProjectSettings/TimeManager.asset'            = [ordered]@{ root = 'TimeManager'; requiredLines = @('  Fixed Timestep: 0.02', '  Maximum Allowed Timestep: 0.33333334', '  m_TimeScale: 1') }
         'ProjectSettings/UnityConnectSettings.asset'   = [ordered]@{ root = 'UnityConnectSettings'; requiredLines = @('  serializedVersion: 1', '  m_Enabled: 0', '  UnityAnalyticsSettings:', '    m_InitializeOnStartup: 1') }
@@ -1134,7 +1139,7 @@ function Get-ConsumerFirstBootstrapTransitionReport {
     $expectedAdded = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
     foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) { [void]$expectedAdded.Add($path) }
     $expectedChanged = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
-    foreach ($path in @('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt')) { [void]$expectedChanged.Add($path) }
+    foreach ($path in Get-ExpectedFirstBootstrapChangedPaths) { [void]$expectedChanged.Add($path) }
     $entries = New-Object System.Collections.Generic.List[object]
     $metaValidationFailures = Get-FirstBootstrapMetaValidationFailures -ConsumerRoot $ConsumerRoot -ReceiptDestinations $receiptDestinations -ExpectedAdded $expectedAdded -Delta $semanticDelta -ReceiptGeneratedMetaProfile $receiptGeneratedMetaProfile
 
@@ -1193,7 +1198,8 @@ function Get-ConsumerFirstBootstrapTransitionReport {
     $accepted = @($entries | Where-Object { $_.verdict -eq 'accepted' }).Count
     $rejected = @($entries | Where-Object { $_.verdict -eq 'rejected' }).Count
     $unclassified = @($entries | Where-Object { $_.verdict -eq 'unclassified' }).Count
-    $verdict = if ($accepted -eq 34 -and $rejected -eq 0 -and $unclassified -eq 0 -and $metaValidationFailures.Count -eq 0 -and @($semanticDelta.added).Count -eq $expectedAdded.Count -and @($semanticDelta.changed).Count -eq $expectedChanged.Count -and @($semanticDelta.removed).Count -eq 0) { 'accepted' } else { 'rejected' }
+    $expectedAccepted = $expectedAdded.Count + $expectedChanged.Count
+    $verdict = if ($accepted -eq $expectedAccepted -and $rejected -eq 0 -and $unclassified -eq 0 -and $metaValidationFailures.Count -eq 0 -and @($semanticDelta.added).Count -eq $expectedAdded.Count -and @($semanticDelta.changed).Count -eq $expectedChanged.Count -and @($semanticDelta.removed).Count -eq 0) { 'accepted' } else { 'rejected' }
     return [ordered]@{
         schemaName    = 'purebase-first-bootstrap-semantic-transition'
         schemaVersion = 1
@@ -1216,7 +1222,8 @@ function Assert-ConsumerFirstBootstrapTransitionReport {
     if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.9' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
         throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
     }
-    if ($Report.verdict -ne 'accepted' -or [int]$Report.summary.accepted -ne 34 -or [int]$Report.summary.observedAdded -ne [int]$Report.summary.expectedAdded -or [int]$Report.summary.observedChanged -ne [int]$Report.summary.expectedChanged -or [int]$Report.summary.observedRemoved -ne 0 -or [int]$Report.summary.rejected -ne 0 -or [int]$Report.summary.unclassified -ne 0) {
+    $expectedAccepted = [int]$Report.summary.expectedAdded + [int]$Report.summary.expectedChanged
+    if ($Report.verdict -ne 'accepted' -or [int]$Report.summary.accepted -ne $expectedAccepted -or [int]$Report.summary.observedAdded -ne [int]$Report.summary.expectedAdded -or [int]$Report.summary.observedChanged -ne [int]$Report.summary.expectedChanged -or [int]$Report.summary.observedRemoved -ne 0 -or [int]$Report.summary.rejected -ne 0 -or [int]$Report.summary.unclassified -ne 0) {
         throw "First-bootstrap semantic transition rejected or did not classify every immutable change: accepted=$($Report.summary.accepted) rejected=$($Report.summary.rejected) unclassified=$($Report.summary.unclassified)."
     }
 }

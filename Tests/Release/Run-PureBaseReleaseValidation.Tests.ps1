@@ -177,7 +177,8 @@ function New-HarnessManifest {
 
     $entries = @(
         [ordered]@{ path = 'Packages/manifest.json'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-manifest' } else { 'post-manifest' } },
-        [ordered]@{ path = 'ProjectSettings/ProjectVersion.txt'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-project-version' } else { 'post-project-version' } }
+        [ordered]@{ path = 'ProjectSettings/ProjectVersion.txt'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-project-version' } else { 'post-project-version' } },
+        [ordered]@{ path = 'ProjectSettings/QualitySettings.asset'; sha256 = Get-Sha256Hex -Path (Join-Path $ConsumerRoot 'ProjectSettings\QualitySettings.asset') }
     )
     if ($Transition -ne 'pre-bootstrap') {
         foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) {
@@ -444,6 +445,7 @@ function Invoke-HarnessCase {
     $settingsPath = Join-Path $settingsDirectory 'jp.lilxyzw.shadercore.asset'
     $receiptProbePath = Join-Path $settingsDirectory 'ProjectVersion.txt'
     [System.IO.File]::WriteAllText($receiptProbePath, 'pre-bootstrap project version', (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText((Join-Path $settingsDirectory 'QualitySettings.asset'), 'preexisting quality settings', (New-Object System.Text.UTF8Encoding($false)))
     $manifestDirectory = Join-Path $consumerRoot 'Packages'
     New-Item -ItemType Directory -Path $manifestDirectory -Force | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $manifestDirectory 'manifest.json'), '{"dependencies":{}}', (New-Object System.Text.UTF8Encoding($false)))
@@ -826,6 +828,11 @@ try {
     $missingCommandLineCleanupEvidence = Get-Content -LiteralPath (Join-Path $missingCommandLineCleanup.root 'cleanup-failure.json') -Raw | ConvertFrom-Json
     Assert-Harness -Condition ($missingCommandLineCleanupEvidence.cleanupStatus -eq 'indeterminate' -and $missingCommandLineCleanupEvidence.cleanupReason -match 'Cannot inspect CommandLine.*4243.*4244' -and $missingCommandLineCleanupEvidence.cleanupFailure -match 'Cannot verify whether a Unity process') -Message 'Missing CommandLine cleanup evidence did not retain the discovery failure.'
 
+    $expectedFirstBootstrapAddedCount = @(Get-ExpectedFirstBootstrapAddedPaths).Count
+    $expectedFirstBootstrapChangedCount = @(Get-ExpectedFirstBootstrapChangedPaths).Count
+    $expectedFirstBootstrapAcceptedCount = $expectedFirstBootstrapAddedCount + $expectedFirstBootstrapChangedCount
+    Assert-Harness -Condition ($expectedFirstBootstrapAddedCount -eq 31 -and $expectedFirstBootstrapChangedCount -eq 2 -and $expectedFirstBootstrapAcceptedCount -eq 33) -Message 'First-bootstrap expected transition counts do not match the hosted consumer contract.'
+
     foreach ($successfulLabel in @('module-free-clean-import', 'progressive-cpu-bake')) {
         $case = Invoke-HarnessCase -Label $successfulLabel -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row')
         Assert-Harness -Condition ($null -eq $case.failure) -Message "Successful row '$successfulLabel' unexpectedly failed."
@@ -855,6 +862,8 @@ try {
         $bootstrapSceneTemplateEntry = @($bootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/SceneTemplateSettings.json' })
         $preBootstrapSceneTemplateEntry = @($preBootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/SceneTemplateSettings.json' })
         $afterResetSceneTemplateEntry = @($afterResetManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/SceneTemplateSettings.json' })
+        $bootstrapQualitySettingsEntry = @($bootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/QualitySettings.asset' })
+        $preBootstrapQualitySettingsEntry = @($preBootstrapManifest.entries | Where-Object { $_.path -eq 'ProjectSettings/QualitySettings.asset' })
         $bootstrapDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
         $semanticTransition = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'semantic-transition-report.json') -Raw | ConvertFrom-Json
         $initializationCommand = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'shader-core-state-initialization-command.json') -Raw | ConvertFrom-Json
@@ -864,8 +873,9 @@ try {
         $secondInitializationReport = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'second-bootstrap/shader-core-state-initialization-report.json') -Raw | ConvertFrom-Json
         $fixedPoint = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'second-bootstrap/fixed-point-report.json') -Raw | ConvertFrom-Json
         Assert-Harness -Condition ($preBootstrapSceneTemplateEntry.Count -eq 0 -and $bootstrapSceneTemplateEntry.Count -eq 1 -and $afterResetSceneTemplateEntry.Count -eq 1 -and $afterResetSceneTemplateEntry[0].sha256 -eq $bootstrapSceneTemplateEntry[0].sha256) -Message "Successful row '$successfulLabel' did not preserve the materialized SceneTemplateSettings entry across the Library reset."
-        Assert-Harness -Condition ($bootstrapDelta.classification -eq 'observed' -and @($bootstrapDelta.added).Count -eq 32 -and @($bootstrapDelta.changed).Count -eq 2 -and @($bootstrapDelta.removed).Count -eq 0) -Message "Successful row '$successfulLabel' did not report the observed first-bootstrap delta."
-        Assert-Harness -Condition ($semanticTransition.verdict -eq 'accepted' -and $semanticTransition.summary.accepted -eq 34 -and $semanticTransition.summary.rejected -eq 0 -and $semanticTransition.summary.unclassified -eq 0) -Message "Successful row '$successfulLabel' did not accept the exact first-bootstrap semantic transition."
+        Assert-Harness -Condition ($preBootstrapQualitySettingsEntry.Count -eq 1 -and $bootstrapQualitySettingsEntry.Count -eq 1 -and $preBootstrapQualitySettingsEntry[0].sha256 -eq $bootstrapQualitySettingsEntry[0].sha256) -Message "Successful row '$successfulLabel' did not preserve the preexisting QualitySettings scaffold input."
+        Assert-Harness -Condition ($bootstrapDelta.classification -eq 'observed' -and @($bootstrapDelta.added).Count -eq $expectedFirstBootstrapAddedCount -and @($bootstrapDelta.changed).Count -eq $expectedFirstBootstrapChangedCount -and @($bootstrapDelta.removed).Count -eq 0) -Message "Successful row '$successfulLabel' did not report the observed first-bootstrap delta."
+        Assert-Harness -Condition ($semanticTransition.verdict -eq 'accepted' -and $semanticTransition.summary.accepted -eq $expectedFirstBootstrapAcceptedCount -and $semanticTransition.summary.rejected -eq 0 -and $semanticTransition.summary.unclassified -eq 0) -Message "Successful row '$successfulLabel' did not accept the exact first-bootstrap semantic transition."
         $canonicalConfigDestination = Get-CanonicalShaderCoreConfigDestination
         $canonicalReceiptEntry = @($stagingReceipt.entries | Where-Object { $_.destination -eq $canonicalConfigDestination })
         Assert-Harness -Condition ($initializationCommand.arguments -contains '-executeMethod' -and $initializationCommand.arguments -contains 'PureBase.Release.Consumer.Tests.PureBaseConsumerShaderCoreInitializer.InitializeForBatchMode') -Message "Successful row '$successfulLabel' did not execute the consumer-owned Shader-Core initializer."
@@ -1024,7 +1034,7 @@ try {
         $bootstrapDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
         $bootstrapFailureDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'failure-evidence/immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
         Assert-ExactJsonPropertyNames -Value $bootstrapDelta -ExpectedNames @('schemaName', 'schemaVersion', 'classification', 'pathOrdering', 'preBootstrapRootSha256', 'postBootstrapRootSha256', 'added', 'removed', 'changed') -Description 'Bootstrap failure delta report'
-        Assert-Harness -Condition ($bootstrapDelta.schemaName -eq 'purebase-immutable-manifest-bootstrap-delta' -and $bootstrapDelta.schemaVersion -eq 1 -and $bootstrapDelta.classification -eq 'observed' -and $bootstrapDelta.pathOrdering -eq 'System.StringComparer.Ordinal' -and @($bootstrapDelta.added).Count -eq 32 -and @($bootstrapDelta.changed).Count -eq 2 -and @($bootstrapDelta.removed).Count -eq 0) -Message "Bootstrap failure '$($case.bootstrapDirectory)' changed its deterministic observed delta schema or content."
+        Assert-Harness -Condition ($bootstrapDelta.schemaName -eq 'purebase-immutable-manifest-bootstrap-delta' -and $bootstrapDelta.schemaVersion -eq 1 -and $bootstrapDelta.classification -eq 'observed' -and $bootstrapDelta.pathOrdering -eq 'System.StringComparer.Ordinal' -and @($bootstrapDelta.added).Count -eq $expectedFirstBootstrapAddedCount -and @($bootstrapDelta.changed).Count -eq $expectedFirstBootstrapChangedCount -and @($bootstrapDelta.removed).Count -eq 0) -Message "Bootstrap failure '$($case.bootstrapDirectory)' changed its deterministic observed delta schema or content."
         Assert-Harness -Condition (($bootstrapDelta | ConvertTo-Json -Depth 8 -Compress) -eq ($bootstrapFailureDelta | ConvertTo-Json -Depth 8 -Compress)) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not preserve the actual delta artifact in failure evidence."
         Assert-Harness -Condition (-not (Test-Path -LiteralPath $case.runDirectory)) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not fail closed before a matrix row."
     }
