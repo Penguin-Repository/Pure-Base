@@ -195,18 +195,18 @@ function Install-VerifiedShaderCoreRelease {
 
                 $destinationDirectory = Split-Path -Parent $destinationPath
                 New-Item -ItemType Directory -Path $destinationDirectory -Force -ErrorAction Stop | Out-Null
-                $input = $entry.Open()
+                $entryInputStream = $entry.Open()
                 try {
                     $output = [IO.File]::Open($destinationPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
                     try {
-                        $input.CopyTo($output)
+                        $entryInputStream.CopyTo($output)
                     }
                     finally {
                         $output.Dispose()
                     }
                 }
                 finally {
-                    $input.Dispose()
+                    $entryInputStream.Dispose()
                 }
             }
         }
