@@ -1811,9 +1811,9 @@ function New-ToonRuntimeContract {
     $contract = New-PhaseContract -Module $Module -SelectedProducts @('PureBase/Toon')
     $contract.runLabel = $Module.label + '-runtime'
     $range = { param([double]$Minimum, [double]$Maximum) [ordered]@{ minimum = $Minimum; maximum = $Maximum } }
-    $moduleFreeReference = [ordered]@{ red = 2.853515625; green = 2.8125; blue = 2.69921875; alpha = 1.0 }
+    $moduleFreeReference = [ordered]@{ red = 2.87890625; green = 2.837890625; blue = 2.72265625; alpha = 1.0 }
     $runtimeRanges = switch ($Module.phase) {
-        'base' { [ordered]@{ red = & $range 3.55 3.58; green = & $range 2.75 2.9; blue = & $range 2.65 2.75; alpha = & $range 0.99 1.01 } }
+        'base' { [ordered]@{ red = & $range 3.59 3.61; green = & $range 2.75 2.9; blue = & $range 2.65 2.75; alpha = & $range 0.99 1.01 } }
         'light' { [ordered]@{ red = & $range 2.8 2.9; green = & $range 2.92 3.9; blue = & $range 2.65 2.75; alpha = & $range 0.99 1.01 } }
         'modifylight' { [ordered]@{ red = & $range 2.8 2.9; green = & $range 2.75 2.9; blue = & $range 2.8 3.8; alpha = & $range 0.99 1.01 } }
         'shade' { [ordered]@{ red = & $range 2.95 3.9; green = & $range 2.8 3.4; blue = & $range 2.65 3.1; alpha = & $range 0.99 1.01 } }

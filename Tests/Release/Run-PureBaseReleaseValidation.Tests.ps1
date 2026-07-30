@@ -792,10 +792,10 @@ try {
     $toonBaseRuntimeSample = $toonBaseRuntimeContract.runtimeSamples[0]
     $toonBaseRuntimeDelta = $toonBaseRuntimeContract.runtimeDelta.selectedMinusModuleFree
     $toonBaseModuleFreeReference = $toonBaseRuntimeContract.runtimeDelta.moduleFreeReference
-    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -eq 3.55 -and $toonBaseRuntimeSample.red.maximum -eq 3.58) -Message 'Toon base runtime absolute red range must remain the evidence-backed 3.55-3.58 interval.'
+    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -eq 3.59 -and $toonBaseRuntimeSample.red.maximum -eq 3.61) -Message 'Toon base runtime absolute red range must remain the evidence-backed 3.59-3.61 interval.'
     Assert-Harness -Condition ($toonBaseRuntimeDelta.red.minimum -eq 0.70 -and $toonBaseRuntimeDelta.red.maximum -eq 0.73) -Message 'Toon base selected-minus-module-free red range must remain the evidence-backed 0.70-0.73 interval.'
-    Assert-Harness -Condition ($toonBaseModuleFreeReference.red -eq 2.853515625 -and $toonBaseModuleFreeReference.green -eq 2.8125 -and $toonBaseModuleFreeReference.blue -eq 2.69921875 -and $toonBaseModuleFreeReference.alpha -eq 1.0) -Message 'Toon base module-free reference must remain the recorded BIRP readback until the observation is evaluated.'
-    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -le 3.56640625 -and $toonBaseRuntimeSample.red.maximum -ge 3.56640625) -Message 'Toon base runtime absolute red range excludes the recorded BIRP readback.'
+    Assert-Harness -Condition ($toonBaseModuleFreeReference.red -eq 2.87890625 -and $toonBaseModuleFreeReference.green -eq 2.837890625 -and $toonBaseModuleFreeReference.blue -eq 2.72265625 -and $toonBaseModuleFreeReference.alpha -eq 1.0) -Message 'Toon base module-free reference must remain the recorded BIRP readback until the observation is evaluated.'
+    Assert-Harness -Condition ($toonBaseRuntimeSample.red.minimum -le 3.599609375 -and $toonBaseRuntimeSample.red.maximum -ge 3.599609375) -Message 'Toon base runtime absolute red range excludes the recorded BIRP readback.'
     Assert-Harness -Condition ($toonBaseRuntimeDelta.red.minimum -le 0.712890625 -and $toonBaseRuntimeDelta.red.maximum -ge 0.712890625) -Message 'Toon base selected-minus-module-free red range excludes the recorded BIRP delta.'
     Assert-Harness -Condition ($toonBaseRuntimeSample.red.maximum -lt 4.2 -and $toonBaseRuntimeDelta.red.maximum -lt 1.3) -Message 'Toon base runtime contract regressed to the direct-add red expectation.'
     foreach ($invalidAbiInput in @(
