@@ -1737,6 +1737,50 @@ function New-ModuleFreeContract {
     }
 }
 
+function New-ModuleFreeToonRuntimeObservationContract {
+    $contract = New-ModuleFreeContract
+    $contract.runLabel = 'module-free-toon-runtime-observation'
+    $contract.runKind = 'module-free-toon-runtime-observation'
+    $range = { param([double]$Minimum, [double]$Maximum) [ordered]@{ minimum = $Minimum; maximum = $Maximum } }
+    $contract.runtimeSamples = @([ordered]@{
+            label             = 'module-free-toon-center-pixel'
+            shaderName        = 'PureBase/Toon'
+            shaderAssetPath   = Get-ProductShaderAssetPath -ShaderName 'PureBase/Toon'
+            floatAssignments  = @()
+            includePointLight = $true
+            red               = & $range 0.0 1000.0
+            green             = & $range 0.0 1000.0
+            blue              = & $range 0.0 1000.0
+            alpha             = & $range 0.99 1.01
+        })
+    return $contract
+}
+
+function New-InitialValidationMatrix {
+    param([Parameter()][switch]$ModuleFreeOnly)
+
+    $matrix = New-Object System.Collections.Generic.List[object]
+    $matrix.Add([ordered]@{ label = 'module-free-clean-import'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts'; selections = @{}; skipColdLibraryReset = $false })
+    if (-not $ModuleFreeOnly) {
+        $matrix.Add([ordered]@{ label = 'module-free-toon-runtime-observation'; contract = New-ModuleFreeToonRuntimeObservationContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{}; requiresColdLibraryReset = $true; skipColdLibraryReset = $false })
+    }
+    return , $matrix
+}
+
+function Add-StandardMorphComparisonMatrixRows {
+    param([Parameter(Mandatory = $true)][System.Collections.Generic.List[object]]$Matrix)
+
+    $module = [ordered]@{ label = 'standard-morph'; phase = 'morph'; uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH' }
+    $selections = @{ 'PureBase/Unlit' = @($module.uniqueId); 'PureBase/Toon' = @($module.uniqueId); 'PureBase/PBR' = @($module.uniqueId); 'PureBase/Hybrid' = @($module.uniqueId) }
+    $warmContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
+    $warmContract.runLabel = 'standard-morph-warm-library-duplicate-evidence'
+    $Matrix.Add([ordered]@{ label = $warmContract.runLabel; contract = $warmContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerStandardMorphObservationTests.StandardMorphProductsRecordPassCountObservations'; selections = $selections; skipColdLibraryReset = $true; allowObservationEvidence = $true })
+    $coldContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
+    $coldContract.runLabel = 'standard-morph-cold-library-legacy-counts'
+    $Matrix.Add([ordered]@{ label = $coldContract.runLabel; contract = $coldContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = $selections; skipColdLibraryReset = $false; allowObservationEvidence = $false })
+    return [ordered]@{ warmContract = $warmContract; coldContract = $coldContract }
+}
+
 function New-PhaseContract {
     param(
         [Parameter(Mandatory = $true)]$Module,
@@ -2285,13 +2329,14 @@ function Invoke-ConsumerTest {
         [Parameter(Mandatory = $true)]$Contract,
         [Parameter(Mandatory = $true)][string]$TestFilter,
         [Parameter()][hashtable]$Selections = @{},
+        [Parameter()][switch]$RequireColdLibraryReset,
         [Parameter()][switch]$SkipColdLibraryReset,
         [Parameter()][switch]$AllowObservationEvidence
     )
 
     $runDirectory = Join-Path $RunRoot ('runs/' + $Contract.runLabel)
     New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
-    $requiresColdLibraryReset = $Selections.Count -gt 0 -and -not $SkipColdLibraryReset
+    $requiresColdLibraryReset = -not $SkipColdLibraryReset -and ($Selections.Count -gt 0 -or $RequireColdLibraryReset)
     $resultsPath = Join-Path $runDirectory 'NUnit.xml'
     $unityLogPath = Join-Path $runDirectory 'Unity.log'
     $processLogPath = Join-Path $runDirectory 'Process.log'
@@ -2452,10 +2497,10 @@ function Remove-ConsumerProject {
 
 $packageRoot = Get-PackageGitRoot
 if ($ModuleFreeOnly -and $CompareWarmAndColdStandardMorph) {
-    throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the three-row standard-morph warm/cold comparison.'
+    throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.'
 }
 if ($ToonBaseOnly -and $CompareWarmAndColdStandardMorph) {
-    throw '-ToonBaseOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the three-row standard-morph warm/cold comparison.'
+    throw '-ToonBaseOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.'
 }
 if ($ToonBaseOnly -and $ModuleFreeOnly) {
     throw '-ToonBaseOnly cannot be combined with -ModuleFreeOnly because it requires the Toon base product-phase row.'
@@ -2528,8 +2573,7 @@ try {
     $comparisonWarmContract = $null
     $comparisonColdContract = $null
     $comparisonVerdict = $null
-    $matrix = New-Object System.Collections.Generic.List[object]
-    $matrix.Add([ordered]@{ label = 'module-free-clean-import'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts'; selections = @{}; skipColdLibraryReset = $false })
+    $matrix = New-InitialValidationMatrix -ModuleFreeOnly:$ModuleFreeOnly
     if (-not $ModuleFreeOnly) {
         $standardPhases = @('morph', 'postvertex', 'base', 'light', 'customlight', 'modifylight', 'shade', 'reflection', 'add', 'postpixel')
         if ($ToonBaseOnly) {
@@ -2540,16 +2584,9 @@ try {
             $matrix.Add([ordered]@{ label = $module.label + '-runtime'; contract = New-ToonRuntimeContract -Module $module; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{ 'PureBase/Toon' = @($module.uniqueId) }; skipColdLibraryReset = $false })
         }
         elseif ($CompareWarmAndColdStandardMorph) {
-            $module = [ordered]@{ label = 'standard-morph'; phase = 'morph'; uniqueId = 'jp.penguin.purebase.release.fixture.products.morph'; propertyName = ''; sentinel = 'PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_MORPH' }
-            $selections = @{ 'PureBase/Unlit' = @($module.uniqueId); 'PureBase/Toon' = @($module.uniqueId); 'PureBase/PBR' = @($module.uniqueId); 'PureBase/Hybrid' = @($module.uniqueId) }
-            $warmContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
-            $warmContract.runLabel = 'standard-morph-warm-library-duplicate-evidence'
-            $comparisonWarmContract = $warmContract
-            $matrix.Add([ordered]@{ label = $warmContract.runLabel; contract = $warmContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerStandardMorphObservationTests.StandardMorphProductsRecordPassCountObservations'; selections = $selections; skipColdLibraryReset = $true; allowObservationEvidence = $true })
-            $coldContract = New-PhaseContract -Module $module -SelectedProducts $ProductNames
-            $coldContract.runLabel = 'standard-morph-cold-library-legacy-counts'
-            $comparisonColdContract = $coldContract
-            $matrix.Add([ordered]@{ label = $coldContract.runLabel; contract = $coldContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerProductPhaseTests.SelectedExternalModuleCompilesInConfiguredProductsWithNoInactiveSentinelLeakage'; selections = $selections; skipColdLibraryReset = $false; allowObservationEvidence = $false })
+            $comparisonContracts = Add-StandardMorphComparisonMatrixRows -Matrix $matrix
+            $comparisonWarmContract = $comparisonContracts.warmContract
+            $comparisonColdContract = $comparisonContracts.coldContract
         }
         else {
             foreach ($phase in $standardPhases) {
@@ -2584,11 +2621,17 @@ try {
         if ($entry.Contains('allowObservationEvidence')) {
             $allowObservationEvidence = [bool]$entry.allowObservationEvidence
         }
-        $outcomes += [ordered]@{ label = $entry.label; runDirectoryLabel = $entry.contract.runLabel; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
+        $requireColdLibraryReset = $false
+        if ($entry.Contains('requiresColdLibraryReset')) {
+            $requireColdLibraryReset = [bool]$entry.requiresColdLibraryReset
+        }
+        $outcomes += [ordered]@{ label = $entry.label; runDirectoryLabel = $entry.contract.runLabel; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -RequireColdLibraryReset:$requireColdLibraryReset -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
     }
     if ($CompareWarmAndColdStandardMorph) {
-        if ($matrix.Count -ne 3 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract) {
-            throw 'Standard-morph comparison must execute exactly module-free, warm, and cold rows.'
+        $expectedComparisonLabels = @('module-free-clean-import', 'module-free-toon-runtime-observation', 'standard-morph-warm-library-duplicate-evidence', 'standard-morph-cold-library-legacy-counts')
+        $actualComparisonLabels = @($matrix | ForEach-Object { [string]$_.label })
+        if ($matrix.Count -ne 4 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract -or [string]::Join('|', $actualComparisonLabels) -ne [string]::Join('|', $expectedComparisonLabels)) {
+            throw 'Standard-morph comparison must execute exactly module-free import, module-free Toon runtime observation, warm, and cold rows.'
         }
         $comparisonVerdict = Invoke-StandardMorphComparisonVerdict -RunRoot $runRoot -WarmContract $comparisonWarmContract -ColdContract $comparisonColdContract
     }
