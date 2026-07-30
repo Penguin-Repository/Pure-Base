@@ -24,6 +24,8 @@ Pure Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限�
 > Pure Base は Shader-Core、NonToon、lilToon から独立しており、かつそれらとは無関係な非公式プロジェクトです。
 >
 > Pure Base と Penguin は金銭的支援を受け付けていません。受け付けるのは issue、pull request、code、patch のみです。
+>
+> Pure Base の開発には Gen AI (LLM) が使用されています。
 
 ## 要件
 

@@ -24,6 +24,8 @@ Pure Base provides four minimal Built-in Render Pipeline base shaders for Shader
 > Pure Base is an unofficial project that is independent of and unrelated to Shader-Core, NonToon, and lilToon.
 >
 > Pure Base and Penguin do not accept any financial support. Only issues, pull requests, code, and patches are accepted.
+>
+> Gen AI (LLM) is used in the development of Pure Base.
 
 ## Requirements
 
