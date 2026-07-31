@@ -314,13 +314,25 @@ function Test-ReleaseZip {
             foreach ($entry in $archive.Entries) {
                 $entryName = $entry.FullName.Replace('\', '/')
                 [void]$archiveEntrySet.Add($entryName)
-                if ($entryName -match '(^|/)Tests(/|$)' -or $entryName -match '\.scmodule$') {
+                if ($entryName -match '(^|/)Tests(/|$)' -or $entryName -match '\.scmodule$' -or $entryName -ceq 'vpm-yanks.json') {
                     Add-Failure -Failures $Failures -Code 'release-zip-content' -Message "Release ZIP contains prohibited entry '$entryName'."
                 }
             }
             foreach ($requiredEntry in $requiredEntrySet) {
                 if (-not $archiveEntrySet.Contains($requiredEntry)) {
                     Add-Failure -Failures $Failures -Code 'release-zip-required-entry' -Message "Release ZIP omits required contract entry '$requiredEntry'."
+                }
+            }
+            $manifestEntries = @($archive.Entries | Where-Object FullName -ceq 'package.json')
+            if ($manifestEntries.Count -ne 1) {
+                Add-Failure -Failures $Failures -Code 'release-zip-version' -Message 'Release ZIP must contain exactly one package.json.'
+            }
+            else {
+                $reader = [IO.StreamReader]::new($manifestEntries[0].Open(), [Text.UTF8Encoding]::new($false, $true))
+                try { $packageVersion = [string](($reader.ReadToEnd() | ConvertFrom-Json).version) }
+                finally { $reader.Dispose() }
+                if ([string]::IsNullOrWhiteSpace($packageVersion) -or [IO.Path]::GetFileName($Path) -cne "jp.penguin.purebase-$packageVersion.zip") {
+                    Add-Failure -Failures $Failures -Code 'release-zip-version' -Message 'Release ZIP filename must exactly match its package.json version.'
                 }
             }
         }
@@ -421,7 +433,14 @@ function Test-ReleaseEvidence {
 
     $layout = $Manifest.releaseArtifactLayout
     $contract = $layout.initialBootstrapTransition
-    Test-ReleaseZip -Path (Join-Path $Root 'archive/jp.penguin.purebase-0.1.0.zip') -ReleaseContentContract $ReleaseContentContract -Failures $Failures
+    $archiveDirectory = Join-Path $Root 'archive'
+    $releaseZips = @(Get-ChildItem -LiteralPath $archiveDirectory -Filter 'jp.penguin.purebase-*.zip' -File -ErrorAction SilentlyContinue)
+    if ($releaseZips.Count -ne 1) {
+        Add-Failure -Failures $Failures -Code 'release-zip-missing' -Message 'Release evidence must contain exactly one package ZIP.'
+    }
+    else {
+        Test-ReleaseZip -Path $releaseZips[0].FullName -ReleaseContentContract $ReleaseContentContract -Failures $Failures
+    }
     $runSummary = Get-JsonArtifact -Path (Join-Path $Root 'run-summary.json') -Failures $Failures -Code 'release-summary'
     $cleanup = Get-JsonArtifact -Path (Join-Path $Root 'cleanup-summary.json') -Failures $Failures -Code 'release-cleanup'
     if ($null -ne $cleanup) {
@@ -554,7 +573,7 @@ function Test-Manifest {
     }
     $mappedIds = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
     $requiredArtifacts = @('daily-nunit', 'release-run-summary', 'release-staging-receipt', 'release-immutable-delta', 'release-semantic-transition', 'release-fixed-point', 'release-zip')
-    $requiredEvidence = @('Daily.NUnit.xml', 'run-summary.json', 'staging-receipt.json', 'immutable-input-manifest-bootstrap-delta.json', 'semantic-transition-report.json', 'fixed-point-report.json', 'jp.penguin.purebase-0.1.0.zip')
+    $requiredEvidence = @('Daily.NUnit.xml', 'run-summary.json', 'staging-receipt.json', 'immutable-input-manifest-bootstrap-delta.json', 'semantic-transition-report.json', 'fixed-point-report.json', 'package-versioned-release-zip')
     foreach ($mapping in $mappings) {
         $mappedId = if ($null -eq $mapping) { '' } else { [string]$mapping.legacyId }
         $mappingValid = $null -ne $mapping -and $invocationsById.ContainsKey($mappedId) -and $mappedIds.Add($mappedId) -and

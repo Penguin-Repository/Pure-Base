@@ -17,18 +17,17 @@ BeforeAll {
     Import-Module (Join-Path $repositoryRoot '.github/scripts/PureBase.Automation.psm1') -Force
 }
 
-Describe 'Stable release versions' {
-    It 'accepts stable unprefixed semantic versions' {
-        (ConvertTo-PureBaseStableVersion -Value '1.20.300').ToString() | Should -Be '1.20.300'
+Describe 'Release versions' {
+    It 'accepts an unprefixed SemVer version without normalizing its text' {
+        (ConvertTo-PureBaseSemVer -Value '1.20.300').original | Should -Be '1.20.300'
     }
 
     It 'rejects prefixes, prerelease suffixes, metadata, and leading zeroes' -ForEach @(
         @{ Value = 'v1.2.3' },
-        @{ Value = '1.2.3-rc.1' },
         @{ Value = '1.2.3+build.1' },
         @{ Value = '01.2.3' }
     ) {
-        { ConvertTo-PureBaseStableVersion -Value $Value } | Should -Throw '*stable unprefixed semantic versions*'
+        { ConvertTo-PureBaseSemVer -Value $Value } | Should -Throw
     }
 }
 
@@ -53,13 +52,13 @@ Describe 'Release mode resolution' {
     }
 
     It 'rejects a fresh release when a draft already exists' {
-        $draft = [pscustomobject]@{ draft = $true }
+        $draft = [pscustomobject]@{ draft = $true; prerelease = $false }
         { Resolve-PureBaseReleaseMode -CurrentVersion '0.1.0' -TargetVersion '0.2.0' -ExistingRelease $draft } |
         Should -Throw '*already exists*'
     }
 
     It 'allows resume only when package and trigger versions are equal' {
-        $draft = [pscustomobject]@{ draft = $true }
+        $draft = [pscustomobject]@{ draft = $true; prerelease = $false }
         $plan = Resolve-PureBaseReleaseMode -CurrentVersion '0.2.0' -TargetVersion '0.2.0' -Resume -ExistingTagSha 'abc123' -ExistingRelease $draft
         $plan.Mode | Should -Be 'resume'
         $plan.TagState | Should -Be 'present'
@@ -67,7 +66,7 @@ Describe 'Release mode resolution' {
     }
 
     It 'recognizes an already published release during resume' {
-        $published = [pscustomobject]@{ draft = $false }
+        $published = [pscustomobject]@{ draft = $false; prerelease = $false }
         $plan = Resolve-PureBaseReleaseMode -CurrentVersion '0.2.0' -TargetVersion '0.2.0' -Resume -ExistingRelease $published
         $plan.ReleaseState | Should -Be 'published'
     }
@@ -79,8 +78,8 @@ Describe 'Release mode resolution' {
 }
 
 Describe 'Resume tag handling' {
-    It 'creates a missing tag' {
-        Resolve-PureBaseResumeTagAction -HeadSha 'abcdef' | Should -Be 'create'
+    It 'rejects a missing tag during resume' {
+        { Resolve-PureBaseResumeTagAction -HeadSha 'abcdef' } | Should -Throw '*must exist*'
     }
 
     It 'reuses a tag pointing to HEAD' {
@@ -132,6 +131,7 @@ Describe 'VPM dispatch payload' {
             -Repository 'PenguinDOOM/Pure-Base' `
             -Version '0.2.0' `
             -CommitSha 'abcdef' `
+            -PolicyCommitSha 'abcdef' `
             -AssetName 'jp.penguin.purebase-0.2.0.zip' `
             -Sha256 '0123456789abcdef' `
             -ReleaseUrl 'https://github.com/PenguinDOOM/Pure-Base/releases/tag/0.2.0'
@@ -393,5 +393,411 @@ Describe 'Production workflow integration' {
         $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
         $dailyWorkflow | Should -Match 'PR_AUTHOR: \$\{\{ github\.event\.pull_request\.user\.login \}\}'
         $dailyWorkflow | Should -Match '(?ms)Resolve-PureBaseDailySource.*-PullRequestAuthor\s+\$env:PR_AUTHOR'
+    }
+}
+
+Describe 'Prerelease SemVer grammar and precedence' {
+    $sharedAcceptanceVectors = @(
+        @{ Version = '0.1.0-alpha.1' },
+        @{ Version = '0.1.0-beta.1' },
+        @{ Version = '0.1.0-beta.2' },
+        @{ Version = '0.1.0-rc.1' },
+        @{ Version = '0.1.0' }
+    )
+    $sharedRejectionVectors = @(
+        'v0.1.0',
+        '01.0.0',
+        '0.1',
+        '0.1.0-',
+        '0.1.0-beta..1',
+        '0.1.0-01',
+        '0.1.0+build.1',
+        '0.1.0-beta.1+build.1'
+    )
+    $sharedOrderingVectors = @(
+        @{ Lower = '0.1.0-alpha'; Higher = '0.1.0-alpha.1' },
+        @{ Lower = '0.1.0-alpha.1'; Higher = '0.1.0-alpha.beta' },
+        @{ Lower = '0.1.0-alpha.beta'; Higher = '0.1.0-beta' },
+        @{ Lower = '0.1.0-beta'; Higher = '0.1.0-beta.2' },
+        @{ Lower = '0.1.0-beta.2'; Higher = '0.1.0-beta.11' },
+        @{ Lower = '0.1.0-beta.11'; Higher = '0.1.0-rc.1' },
+        @{ Lower = '0.1.0-rc.1'; Higher = '0.1.0' }
+    )
+    $sharedUnboundedVectors = @(
+        @{ Lower = '18446744073709551615.999.999'; Higher = '18446744073709551616.0.0' },
+        @{ Lower = '0.1.0-beta.18446744073709551615'; Higher = '0.1.0-beta.18446744073709551616' }
+    )
+
+    It 'accepts shared SemVer vector <Version> without normalizing its text' -ForEach $sharedAcceptanceVectors {
+        $parsed = ConvertTo-PureBaseSemVer -Value $Version
+        $parsed.original | Should -Be $Version
+    }
+
+    It 'rejects shared SemVer vector <_>' -ForEach $sharedRejectionVectors {
+        { ConvertTo-PureBaseSemVer -Value $Value } | Should -Throw
+    }
+
+    It 'orders shared SemVer vector <Lower> before <Higher>' -ForEach $sharedOrderingVectors {
+        (Compare-PureBaseSemVer -Left $Lower -Right $Higher) | Should -BeLessThan 0
+    }
+
+    It 'orders unbounded shared SemVer vector <Lower> before <Higher>' -ForEach $sharedUnboundedVectors {
+        (Compare-PureBaseSemVer -Left $Lower -Right $Higher) | Should -BeLessThan 0
+    }
+}
+
+Describe 'Prerelease release transitions and publication safety' {
+    It 'allows a fresh release from <Current> to <Target>' -ForEach @(
+        @{ Current = '0.0.0'; Target = '0.1.0-beta.1' },
+        @{ Current = '0.1.0-beta.1'; Target = '0.1.0-beta.2' },
+        @{ Current = '0.1.0-beta.2'; Target = '0.1.0-rc.1' },
+        @{ Current = '0.1.0-rc.1'; Target = '0.1.0' }
+    ) {
+        (Resolve-PureBaseReleaseMode -CurrentVersion $Current -TargetVersion $Target).Mode | Should -Be 'fresh'
+    }
+
+    It 'rejects a fresh downgrade from 0.1.0 to 0.1.0-beta.2' {
+        { Resolve-PureBaseReleaseMode -CurrentVersion '0.1.0' -TargetVersion '0.1.0-beta.2' } |
+        Should -Throw
+    }
+
+    It 'rejects a resume when the package and trigger SemVer text differs' {
+        { Resolve-PureBaseReleaseMode -CurrentVersion '0.1.0-beta.1' -TargetVersion '0.1.0-beta.2' -Resume } |
+        Should -Throw '*versions are equal*'
+    }
+
+    It 'rejects an existing release whose prerelease kind differs from the target' {
+        $release = [pscustomobject]@{ draft = $true; prerelease = $false }
+        {
+            Resolve-PureBaseReleaseMode `
+                -CurrentVersion '0.1.0-beta.1' `
+                -TargetVersion '0.1.0-beta.1' `
+                -Resume `
+                -ExistingTagSha 'abcdef' `
+                -ExistingRelease $release
+        } | Should -Throw '*prerelease*'
+    }
+
+    It 'uses an atomic branch and tag push so an injected rejection cannot publish either ref' {
+        $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-AtomicPush-' + [guid]::NewGuid().ToString('N'))
+        try {
+            $remoteRoot = Join-Path $temporaryRoot 'remote.git'
+            $localRoot = Join-Path $temporaryRoot 'local'
+            New-Item -ItemType Directory -Path $localRoot -Force | Out-Null
+            & git init --bare --quiet $remoteRoot
+            if ($LASTEXITCODE -ne 0) { throw 'git init --bare failed for atomic push fixture.' }
+            & git -C $localRoot init --quiet
+            & git -C $localRoot config user.name 'PureBase Test'
+            & git -C $localRoot config user.email 'purebase-test@example.invalid'
+            [IO.File]::WriteAllText((Join-Path $localRoot 'release.txt'), 'release', [Text.UTF8Encoding]::new($false))
+            & git -C $localRoot add -- release.txt
+            & git -C $localRoot commit --quiet -m release
+            & git -C $localRoot tag --annotate 0.1.0 --message release
+            & git -C $localRoot remote add origin $remoteRoot
+            $hookPath = Join-Path $remoteRoot 'hooks/pre-receive'
+            [IO.File]::WriteAllText($hookPath, "#!/bin/sh`nwhile read old new ref; do`n  if [ `"`$ref`" = `"refs/tags/0.1.0`" ]; then exit 1; fi`ndone`nexit 0`n", [Text.UTF8Encoding]::new($false))
+
+            & git -C $localRoot push --atomic origin HEAD:master refs/tags/0.1.0 2>$null
+            $LASTEXITCODE | Should -Not -Be 0
+            (& git -C $remoteRoot show-ref --verify --quiet refs/heads/master) | Out-Null
+            $LASTEXITCODE | Should -Not -Be 0
+            (& git -C $remoteRoot show-ref --verify --quiet refs/tags/0.1.0) | Out-Null
+            $LASTEXITCODE | Should -Not -Be 0
+
+            $releaseScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw
+            $releaseScript | Should -Match ([regex]::Escape("Invoke-Git @('push', '--atomic', 'origin'"))
+            ($releaseScript -match [regex]::Escape('Invoke-Git @(''push'', ''origin'', "HEAD:$Branch")')) | Should -BeFalse
+        }
+        finally {
+            Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'updates the target manifest before validation and leaves all remote side effects after it' {
+        $releaseScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw
+        $targetManifestIndex = $releaseScript.IndexOf('Set-PackageVersion $targetText')
+        $validationIndex = $releaseScript.LastIndexOf('Invoke-Validation')
+        $commitIndex = $releaseScript.LastIndexOf('Commit-And-Tag $targetText')
+        $releaseIndex = $releaseScript.LastIndexOf('Publish-Release $targetText')
+        $dispatchIndex = $releaseScript.LastIndexOf('Invoke-Api POST "$apiRoot/repos/$VpmRepository/dispatches"')
+
+        $targetManifestIndex | Should -BeGreaterThan -1
+        $validationIndex | Should -BeGreaterThan $targetManifestIndex
+        $commitIndex | Should -BeGreaterThan $validationIndex
+        $releaseIndex | Should -BeGreaterThan $validationIndex
+        $dispatchIndex | Should -BeGreaterThan $validationIndex
+    }
+
+    It 'requires the resume tag to point at the release HEAD instead of accepting an advanced HEAD' {
+        { Resolve-PureBaseResumeTagAction -HeadSha 'advanced-head' -ExistingTagSha 'release-head' } |
+        Should -Throw '*different commit*'
+    }
+}
+
+Describe 'Release orchestration validation failure' {
+    It 'updates the manifest before validation and stops before every remote mutation' {
+        $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Release-Orchestration-' + [guid]::NewGuid().ToString('N'))
+        $previousReleaseToken = $env:PUREBASE_RELEASE_TOKEN
+        $previousDispatchToken = $env:PUREBASE_DISPATCH_TOKEN
+        $previousApiRoot = $env:GITHUB_API_URL
+        try {
+            $packageRoot = Join-Path $temporaryRoot 'package'
+            $remoteRoot = Join-Path $temporaryRoot 'remote.git'
+            $pushLogPath = Join-Path $temporaryRoot 'push.log'
+            $validationArtifacts = Join-Path $temporaryRoot 'validation-artifacts'
+            $releaseArtifacts = Join-Path $temporaryRoot 'release-artifacts'
+            $unityEditorPath = Join-Path $temporaryRoot 'Unity.exe'
+            $targetVersion = '0.2.0-beta.7'
+            $assetName = "jp.penguin.purebase-$targetVersion.zip"
+            New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+            New-Item -ItemType File -Path $unityEditorPath -Force | Out-Null
+            & git init --bare --quiet $remoteRoot
+            if ($LASTEXITCODE -ne 0) { throw 'git init --bare failed for orchestration fixture.' }
+            $hookPath = Join-Path $remoteRoot 'hooks/pre-receive'
+            $hookLogPath = $pushLogPath.Replace('\', '/')
+            [IO.File]::WriteAllText($hookPath, "#!/bin/sh`nprintf 'push\n' >> '$hookLogPath'`n", [Text.UTF8Encoding]::new($false))
+            & git -C $packageRoot init --initial-branch master --quiet
+            if ($LASTEXITCODE -ne 0) { throw 'git init failed for orchestration fixture.' }
+            & git -C $packageRoot config user.name 'PureBase Test'
+            & git -C $packageRoot config user.email 'purebase-test@example.invalid'
+            [IO.File]::WriteAllText((Join-Path $packageRoot 'package.json'), '{"name":"jp.penguin.purebase","version":"0.2.0-beta.6"}' + "`n", [Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllText((Join-Path $packageRoot 'update_trigger.json'), "{`"version`":`"$targetVersion`"}`n", [Text.UTF8Encoding]::new($false))
+            & git -C $packageRoot add -- package.json update_trigger.json
+            & git -C $packageRoot commit --quiet -m fixture
+            if ($LASTEXITCODE -ne 0) { throw 'git commit failed for orchestration fixture.' }
+            & git -C $packageRoot remote add origin $remoteRoot
+            if ($LASTEXITCODE -ne 0) { throw 'git remote add failed for orchestration fixture.' }
+
+            $apiCalls = [Collections.Generic.List[object]]::new()
+            $validationObservations = [Collections.Generic.List[object]]::new()
+            $env:PUREBASE_RELEASE_TOKEN = 'test-release-token'
+            $env:PUREBASE_DISPATCH_TOKEN = 'test-dispatch-token'
+            $env:GITHUB_API_URL = 'https://api.example.invalid'
+            $validationInvoker = {
+                param($ObservedPackageRoot, $ObservedUnityEditorPath, $ObservedValidationArtifactDirectory, $ObservedAssetName)
+                $observedVersion = [string]((Get-Content -LiteralPath (Join-Path $ObservedPackageRoot 'package.json') -Raw | ConvertFrom-Json).version)
+                $validationObservations.Add([pscustomobject]@{
+                    PackageVersion = $observedVersion
+                    AssetName = $ObservedAssetName
+                    UnityEditorPath = $ObservedUnityEditorPath
+                    ArtifactDirectory = $ObservedValidationArtifactDirectory
+                }) | Out-Null
+                throw 'Injected validation failure.'
+            }.GetNewClosure()
+
+            Mock Invoke-RestMethod {
+                param($Method, $Uri)
+                $apiCalls.Add([pscustomobject]@{ Method = $Method; Uri = $Uri }) | Out-Null
+                if ($Uri -match '/immutable-releases$') { return [pscustomobject]@{ enabled = $true } }
+                return $null
+            }
+
+            {
+                & (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') `
+                    -PackageRoot $packageRoot `
+                    -UnityEditorPath $unityEditorPath `
+                    -ValidationArtifactDirectory $validationArtifacts `
+                    -ReleaseArtifactDirectory $releaseArtifacts `
+                    -Repository 'test/Pure-Base' `
+                    -Branch 'master' `
+                    -ConfirmedVersion $targetVersion `
+                    -VpmRepository 'test/VPM-Repository' `
+                    -AppSlug 'purebase-test' `
+                    -ValidationInvoker $validationInvoker
+            } | Should -Throw '*Injected validation failure*'
+
+            $validationObservations.Count | Should -Be 1
+            $validationObservations[0].PackageVersion | Should -Be $targetVersion
+            $validationObservations[0].AssetName | Should -Be $assetName
+            $validationObservations[0].UnityEditorPath | Should -Be $unityEditorPath
+            $validationObservations[0].ArtifactDirectory | Should -Be $validationArtifacts
+            @($apiCalls | Where-Object { $_.Method -in @('POST', 'PATCH', 'DELETE') }).Count | Should -Be 0
+            @($apiCalls | Where-Object { $_.Uri -match '/dispatches$' }).Count | Should -Be 0
+            $pushCount = if (Test-Path -LiteralPath $pushLogPath) { @(Get-Content -LiteralPath $pushLogPath).Count } else { 0 }
+            $pushCount | Should -Be 0
+            (& git -C $remoteRoot show-ref) | Should -BeNullOrEmpty
+            $LASTEXITCODE | Should -Not -Be 0
+        }
+        finally {
+            $env:PUREBASE_RELEASE_TOKEN = $previousReleaseToken
+            $env:PUREBASE_DISPATCH_TOKEN = $previousDispatchToken
+            $env:GITHUB_API_URL = $previousApiRoot
+            Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+Describe 'Prerelease release naming and dispatch' {
+    BeforeAll {
+        $version = '0.1.0-beta.1'
+        $assetName = 'jp.penguin.purebase-0.1.0-beta.1.zip'
+        $releaseUrl = 'https://github.com/PenguinDOOM/Pure-Base/releases/tag/0.1.0-beta.1'
+    }
+
+    It 'preserves exact prerelease text in the package URL' {
+        New-PureBasePackageUrl -Repository 'PenguinDOOM/Pure-Base' -Version $version -AssetName $assetName |
+        Should -Be "https://github.com/PenguinDOOM/Pure-Base/releases/download/$version/$assetName"
+    }
+
+    It 'preserves exact prerelease text in the tag, name, ZIP, release URL, and dispatch payload' {
+        $payload = New-PureBaseDispatchPayload `
+            -PackageName 'jp.penguin.purebase' `
+            -Repository 'PenguinDOOM/Pure-Base' `
+            -Version $version `
+            -CommitSha ('a' * 40) `
+            -PolicyCommitSha ('b' * 40) `
+            -AssetName $assetName `
+            -Sha256 ('c' * 64) `
+            -ReleaseUrl $releaseUrl
+
+        $payload.client_payload.version | Should -Be $version
+        $payload.client_payload.tag | Should -Be $version
+        $payload.client_payload.assetName | Should -Be $assetName
+        $payload.client_payload.packageurl | Should -Be "https://github.com/PenguinDOOM/Pure-Base/releases/download/$version/$assetName"
+        $payload.client_payload.releaseUrl | Should -Be $releaseUrl
+        $payload.client_payload.policyCommitSha | Should -Be ('b' * 40)
+    }
+}
+
+Describe 'VPM yank policy dispatch preflight' {
+    It 'requires a concrete yank dispatch API that validates policy before repository dispatch' {
+        Get-Command -Name Invoke-PureBaseYankDispatch -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+
+    It 'requires a concrete yank policy reader API' {
+        Get-Command -Name Read-PureBaseVpmYankPolicy -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+
+    It 'rejects policy with <Name> before invoking repository dispatch' -ForEach @(
+        @{ Name = 'UTF-8 BOM'; Bytes = [byte[]](0xEF, 0xBB, 0xBF, 0x7B, 0x7D) },
+        @{ Name = 'invalid UTF-8'; Bytes = [byte[]](0x7B, 0xFF, 0x7D) },
+        @{ Name = 'missing required schemaVersion key'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'missing required package key'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"versions":{}}') },
+        @{ Name = 'missing required versions key'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase"}') },
+        @{ Name = 'top-level duplicate key'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"schemaVersion":1,"package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'nested duplicate key'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"0.1.0":"first","0.1.0":"second"}}') },
+        @{ Name = 'root trailing comma'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{},}') },
+        @{ Name = 'versions trailing comma'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"0.1.0":"reason",}}') },
+        @{ Name = 'trailing data'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{}} trailing') },
+        @{ Name = 'unknown schema key'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{},"unknown":true}') },
+        @{ Name = 'Boolean schemaVersion'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":true,"package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'string schemaVersion'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":"1","package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'NaN schemaVersion'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":NaN,"package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'Infinity schemaVersion'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":Infinity,"package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'unsupported schemaVersion'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":2,"package":"jp.penguin.purebase","versions":{}}') },
+        @{ Name = 'wrong package value'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.other","versions":{}}') },
+        @{ Name = 'non-object versions value'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":[]}') },
+        @{ Name = 'invalid SemVer'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"v0.1.0":"reason"}}') },
+        @{ Name = 'non-string reason'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"0.1.0":true}}') },
+        @{ Name = 'blank reason'; Bytes = [Text.Encoding]::UTF8.GetBytes('{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"0.1.0":"  "}}') }
+    ) {
+        if ($null -eq (Get-Command -Name Invoke-PureBaseYankDispatch -ErrorAction SilentlyContinue)) {
+            Set-ItResult -Skipped -Because 'Invoke-PureBaseYankDispatch is not implemented.'
+            return
+        }
+
+        $policyPath = Join-Path $TestDrive 'vpm-yanks.json'
+        [IO.File]::WriteAllBytes($policyPath, $Bytes)
+        $calls = [Collections.Generic.List[object]]::new()
+        $apiInvoker = { param($Method, $Uri, $Token, $Body) $calls.Add($Uri) | Out-Null }.GetNewClosure()
+
+        { Invoke-PureBaseYankDispatch -PolicyPath $policyPath -PolicyCommitSha ('a' * 40) -ApiInvoker $apiInvoker } |
+        Should -Throw
+        $calls.Count | Should -Be 0
+    }
+
+    It 'accepts a policy at the explicit 64 KiB boundary' {
+        if ($null -eq (Get-Command -Name Read-PureBaseVpmYankPolicy -ErrorAction SilentlyContinue)) {
+            Set-ItResult -Skipped -Because 'Read-PureBaseVpmYankPolicy is not implemented.'
+            return
+        }
+
+        $prefix = '{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"0.1.0":"'
+        $suffix = '"}}'
+        $reasonLength = 65536 - [Text.Encoding]::UTF8.GetByteCount($prefix + $suffix)
+        $boundaryPath = Join-Path $TestDrive 'boundary-policy.json'
+        [IO.File]::WriteAllText($boundaryPath, $prefix + ('x' * $reasonLength) + $suffix, [Text.UTF8Encoding]::new($false))
+
+        { Read-PureBaseVpmYankPolicy -Path $boundaryPath } | Should -Not -Throw
+    }
+
+    It 'rejects a policy at the explicit 64 KiB plus one byte boundary' {
+        if ($null -eq (Get-Command -Name Read-PureBaseVpmYankPolicy -ErrorAction SilentlyContinue)) {
+            Set-ItResult -Skipped -Because 'Read-PureBaseVpmYankPolicy is not implemented.'
+            return
+        }
+
+        $prefix = '{"schemaVersion":1,"package":"jp.penguin.purebase","versions":{"0.1.0":"'
+        $suffix = '"}}'
+        $reasonLength = 65536 - [Text.Encoding]::UTF8.GetByteCount($prefix + $suffix)
+        $oversizedPath = Join-Path $TestDrive 'oversized-policy.json'
+        [IO.File]::WriteAllText($oversizedPath, $prefix + ('x' * ($reasonLength + 1)) + $suffix, [Text.UTF8Encoding]::new($false))
+
+        { Read-PureBaseVpmYankPolicy -Path $oversizedPath } | Should -Throw '*64 KiB*'
+    }
+}
+
+Describe 'VPM yank sender workflow contracts' {
+    BeforeAll {
+        $senderWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/sync-vpm-yanks.yml') -Raw) -replace "`r`n", "`n"
+        $payloadStart = $senderWorkflow.IndexOf('$payload =')
+        $jsonStart = $senderWorkflow.IndexOf('$body =', $payloadStart)
+        $payloadSection = $senderWorkflow.Substring($payloadStart, $jsonStart - $payloadStart)
+    }
+
+    It 'triggers only on master policy pushes and manual dispatch' {
+        $senderWorkflow | Should -Match '(?m)^  push:$'
+        $senderWorkflow | Should -Match '(?ms)^  push:\n    branches:\n      - master\n    paths:\n      - vpm-yanks\.json\n'
+        $senderWorkflow | Should -Match '(?m)^  workflow_dispatch:$'
+        $senderWorkflow | Should -Not -Match '(?ms)^  workflow_dispatch:\n\s+inputs:'
+    }
+
+    It 'rechecks master and validates the current full commit SHA' {
+        $senderWorkflow | Should -Match '(?m)^\s+SELECTED_BRANCH: \$\{\{ github\.ref_name \}\}$'
+        $senderWorkflow | Should -Match "\$env:SELECTED_BRANCH -ne 'master'"
+        $senderWorkflow | Should -Match '\$env:POLICY_COMMIT_SHA -notmatch'
+        $senderWorkflow | Should -Match '\^\[0-9a-fA-F\]\{40\}\$'
+        $senderWorkflow | Should -Match '(?m)^\s+POLICY_COMMIT_SHA: \$\{\{ github\.sha \}\}$'
+    }
+
+    It 'uses the release environment and least workflow permissions' {
+        $senderWorkflow | Should -Match '(?m)^  contents: read$'
+        $senderWorkflow | Should -Match '(?m)^\s+environment: release$'
+        $senderWorkflow | Should -Not -Match '(?m)^\s+contents: write$'
+        $senderWorkflow | Should -Not -Match '(?m)^\s+administration:'
+        $senderWorkflow | Should -Match 'client-id: \$\{\{ secrets\.APP_CLIENT_ID \}\}'
+        $senderWorkflow | Should -Match 'private-key: \$\{\{ secrets\.APP_PRIVATE_KEY \}\}'
+        $senderWorkflow | Should -Match 'owner: \$\{\{ steps\.validate-config\.outputs\.vpm_owner \}\}'
+        $senderWorkflow | Should -Match 'repositories: \$\{\{ steps\.validate-config\.outputs\.vpm_repository \}\}'
+        $senderWorkflow | Should -Match 'permission-contents: write'
+    }
+
+    It 'validates the strict policy before dispatch and skips dispatch after validation failure' {
+        $validationIndex = $senderWorkflow.IndexOf('Invoke-PureBaseYankDispatch')
+        $dispatchIndex = $senderWorkflow.IndexOf('Invoke-RestMethod')
+        $validationIndex | Should -BeGreaterThan -1
+        $dispatchIndex | Should -BeGreaterThan $validationIndex
+        $senderWorkflow | Should -Match "if: steps\.validate-policy\.outcome == 'success'"
+        $policyPathContract = [regex]::Escape("-PolicyPath (Join-Path `$env:GITHUB_WORKSPACE 'vpm-yanks.json')")
+        $senderWorkflow | Should -Match $policyPathContract
+    }
+
+    It 'sends only the fixed receiver event and payload fields' {
+        $payloadSection | Should -Match "event_type = 'sync-vpm-yanks'"
+        $payloadSection | Should -Match "packageName = 'jp\.penguin\.purebase'"
+        $payloadSection | Should -Match "sourceRepository = 'PenguinDOOM/Pure-Base'"
+        $payloadSection | Should -Match 'policyCommitSha = \$env:POLICY_COMMIT_SHA'
+        $payloadSection | Should -Not -Match '(?i)sourcePath|path|branch|reason|versions'
+        $senderWorkflow | Should -Match 'https://api\.github\.com/repos/\$env:VPM_REPOSITORY/dispatches'
+    }
+
+    It 'does not expose policy reasons or mutate repository refs' {
+        $senderWorkflow | Should -Not -Match '(?i)\breason\b'
+        $senderWorkflow | Should -Not -Match '(?im)git\s+push'
+        $senderWorkflow | Should -Match 'persist-credentials: false'
+        $senderWorkflow | Should -Match 'GITHUB_STEP_SUMMARY'
+        $senderWorkflow | Should -Match 'Policy commit SHA:'
+        $senderWorkflow | Should -Match 'Yank entry count:'
+        $senderWorkflow | Should -Match 'Target repository:'
     }
 }

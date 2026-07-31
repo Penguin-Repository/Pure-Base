@@ -35,9 +35,19 @@ Pure Base provides four minimal Built-in Render Pipeline base shaders for Shader
 - The integration harness is fixed to Unity `2022.3.22f1` and forces D3D11 for test execution.
 - Material transparency and transparent blending are not supported. All product shaders use fixed Cutout coverage.
 
-The package metadata identifies this package as `jp.penguin.purebase` version `0.1.0`. The package-owned validation source of truth is `Packages/jp.penguin.purebase/Tests`.
+For the one-time migration starting point, under the fresh-release precondition that the target version has no existing tag or GitHub release, the package manifest in `package.json` is `jp.penguin.purebase` version `0.0.0`, `update_trigger.json` selects `0.1.0-beta.1`, and `vpm-yanks.json` has an empty `versions` policy. Release version selection comes from `update_trigger.json`: the manual Release workflow validates that exact SemVer, writes it to `package.json`, tags the same version, and publishes the resulting package. Both stable and prerelease versions are supported. The package-owned validation source of truth is `Packages/jp.penguin.purebase/Tests`.
 
 The release ZIP excludes `Tests/**` and test-only `*.scmodule` files. Tracked `.scmodule` files are test fixtures and are allowed only within the package-owned `Tests/**` fixture boundary.
+
+## Release and VPM availability
+
+The Release workflow is not stable-only. A version such as `0.1.0-beta.1` is published as a GitHub prerelease, while `0.1.0` is published as stable. Prerelease visibility in a VPM client depends on that client's behavior; this package does not promise that every VCC client hides or displays prereleases in the same way.
+
+`vpm-yanks.json` is a desired-state policy for the VPM repository. A version key means **Yank** that version, and removing the key means **Unyank** it. The reason value is public operational documentation, not a secret channel. Never put secrets, credentials, personal data, or other private information in it.
+
+Changes to `vpm-yanks.json` on the literal `master` branch trigger the synchronization workflow. Operators can also run it manually from `master` when a dispatch is stale or a receiver outage has been recovered. The workflow validates the policy at the current commit before sending a fixed `sync-vpm-yanks` event; it does not accept arbitrary source paths or branches. Manual replay uses the current policy commit as the source of truth.
+
+The initial Yank rollout is gated: keep the policy empty until the VPM receiver is ready and the target `0.1.0-beta.1` release is registered in the VPM feed. Once both are confirmed, the policy may add the first prerelease, `0.1.0-beta.1`, for the end-to-end Yank/Unyank test. An empty policy is a no-op desired state, and no version may be added before its release exists in the target feed. Feed and receiver updates are eventually consistent; a stale or premature dispatch fails closed without changing the listing, so retry from `master` with the current policy commit after propagation. ALCOM prerelease and package-feed behavior is implementation-specific and is not guaranteed for other VCC clients.
 
 ## Shader Paths
 

@@ -1169,3 +1169,7 @@ finally {
     Remove-Item -LiteralPath $libraryPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $fakeUnityPath -Force -ErrorAction SilentlyContinue
 }
+
+$runnerSource = Get-Content -LiteralPath $runnerPath -Raw
+Assert-Harness -Condition ($runnerSource -match '\$packageJson\.version') -Message 'Release validation must derive the archive name from package.json.version.'
+Assert-Harness -Condition ($runnerSource -notmatch 'jp\.penguin\.purebase-0\.1\.0\.zip') -Message 'Release validation must not use a fixed 0.1.0 archive name.'

@@ -1,0 +1,126 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Sync VPM yanks
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - vpm-yanks.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pure-base-vpm-yanks
+  cancel-in-progress: false
+
+env:
+  VPM_REPOSITORY: ${{ vars.VPM_REPOSITORY }}
+
+jobs:
+  sync:
+    name: Validate and dispatch VPM yank policy
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout policy commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate sender configuration
+        id: validate-config
+        shell: pwsh
+        env:
+          SELECTED_BRANCH: ${{ github.ref_name }}
+          POLICY_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          if ($env:SELECTED_BRANCH -ne 'master') {
+            throw "The VPM yank workflow may run only from the master branch, not '$env:SELECTED_BRANCH'."
+          }
+          if ($env:POLICY_COMMIT_SHA -notmatch '^[0-9a-fA-F]{40}$') {
+            throw 'The VPM yank workflow requires a full Git commit SHA.'
+          }
+          if ($env:VPM_REPOSITORY -notmatch '^[^/]+/[^/]+$') {
+            throw 'Repository variable VPM_REPOSITORY must use owner/name form.'
+          }
+          $vpmOwner, $vpmRepository = $env:VPM_REPOSITORY -split '/', 2
+          "vpm_owner=$vpmOwner" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "vpm_repository=$vpmRepository" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Validate VPM yank policy
+        id: validate-policy
+        shell: pwsh
+        env:
+          POLICY_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          Import-Module (Join-Path $env:GITHUB_WORKSPACE '.github/scripts/PureBase.Automation.psm1') -Force
+          $policy = Invoke-PureBaseYankDispatch `
+            -PolicyPath (Join-Path $env:GITHUB_WORKSPACE 'vpm-yanks.json') `
+            -PolicyCommitSha $env:POLICY_COMMIT_SHA `
+            -ApiInvoker { param($Method, $Uri, $Token, $Body) throw 'Repository dispatch is not allowed during policy validation.' }
+
+          "policy_sha=$env:POLICY_COMMIT_SHA" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "entry_count=$($policy.versions.Count)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "target_repository=$env:VPM_REPOSITORY" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          @(
+            '## VPM yank synchronization'
+            ''
+            "- Policy commit SHA: ``$env:POLICY_COMMIT_SHA``"
+            "- Yank entry count: $($policy.versions.Count)"
+            "- Target repository: ``$env:VPM_REPOSITORY``"
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Create VPM dispatch GitHub App token
+        id: dispatch-app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ steps.validate-config.outputs.vpm_owner }}
+          repositories: ${{ steps.validate-config.outputs.vpm_repository }}
+          permission-contents: write
+
+      - name: Dispatch VPM yank policy
+        if: steps.validate-policy.outcome == 'success'
+        shell: pwsh
+        env:
+          VPM_DISPATCH_TOKEN: ${{ steps.dispatch-app-token.outputs.token }}
+          POLICY_COMMIT_SHA: ${{ steps.validate-policy.outputs.policy_sha }}
+        run: |
+          $payload = [ordered]@{
+            event_type = 'sync-vpm-yanks'
+            client_payload = [ordered]@{
+              packageName = 'jp.penguin.purebase'
+              sourceRepository = 'PenguinDOOM/Pure-Base'
+              policyCommitSha = $env:POLICY_COMMIT_SHA
+            }
+          }
+          $headers = @{
+            Accept = 'application/vnd.github+json'
+            Authorization = "Bearer $env:VPM_DISPATCH_TOKEN"
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $body = $payload | ConvertTo-Json -Depth 3 -Compress
+          Invoke-RestMethod `
+            -Method Post `
+            -Uri "https://api.github.com/repos/$env:VPM_REPOSITORY/dispatches" `
+            -Headers $headers `
+            -Body $body `
+            -ContentType 'application/json'
