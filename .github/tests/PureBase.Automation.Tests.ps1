@@ -565,6 +565,10 @@ Describe 'Release orchestration validation failure' {
             $hookPath = Join-Path $remoteRoot 'hooks/pre-receive'
             $hookLogPath = $pushLogPath.Replace('\', '/')
             [IO.File]::WriteAllText($hookPath, "#!/bin/sh`nprintf 'push\n' >> '$hookLogPath'`n", [Text.UTF8Encoding]::new($false))
+            if (-not $IsWindows) {
+                & chmod +x -- $hookPath
+                if ($LASTEXITCODE -ne 0) { throw 'chmod failed for resume push detection hook.' }
+            }
             & git -C $packageRoot init --initial-branch master --quiet
             if ($LASTEXITCODE -ne 0) { throw 'git init failed for orchestration fixture.' }
             & git -C $packageRoot config user.name 'PureBase Test'
