@@ -2545,9 +2545,10 @@ $failed = $true
 $executionFailure = $null
 try {
     $archiveDirectory = Join-Path $runRoot 'archive'
+    $packageJson = Get-Content -LiteralPath (Join-Path $packageRoot 'package.json') -Raw | ConvertFrom-Json
     & (Join-Path $scriptRoot 'Build-PureBaseRelease.ps1') -OutputDirectory $archiveDirectory
     if ($LASTEXITCODE -ne 0) { throw 'Approved release archive builder failed.' }
-    $zipPath = Join-Path $archiveDirectory 'jp.penguin.purebase-0.1.0.zip'
+    $zipPath = Join-Path $archiveDirectory ('jp.penguin.purebase-' + [string]$packageJson.version + '.zip')
     if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Approved release archive builder did not produce the expected ZIP.' }
     $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.1.9.sha256.json'
     Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.1.9.sha256.json') -Destination $shaderCoreManifestPath -Force

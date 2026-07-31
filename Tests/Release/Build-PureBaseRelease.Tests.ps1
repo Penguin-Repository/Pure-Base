@@ -120,3 +120,19 @@ Describe 'Shader-Core identity manifest generation' {
         Assert-ManifestHarness -Condition ($failure.Exception.Message -match "First divergent entry at expected ordinal 0 \(actual ordinal 0\): expected-only path 'identity-probe\.txt' SHA-256 '[a-f0-9]{64}'\.") -Message 'Removed-entry diagnostic omitted the first expected-only entry.'
     }
 }
+
+Describe 'Release archive version and policy contracts' {
+    It 'derives stable and prerelease ZIP names from package.json.version' {
+        $builderSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1') -Raw
+
+        $builderSource | Should -Match '\$packageJson\.version'
+        $builderSource | Should -Not -Match 'jp\.penguin\.purebase-0\.1\.0\.zip'
+    }
+
+    It 'explicitly excludes vpm-yanks.json from dynamic release ZIP inputs' {
+        $contractPath = Join-Path $PSScriptRoot 'release-content.json'
+        $contract = Get-Content -LiteralPath $contractPath -Raw
+
+        $contract | Should -Match '"vpm-yanks\.json"'
+    }
+}

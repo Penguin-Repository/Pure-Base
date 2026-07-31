@@ -452,6 +452,7 @@ $contract = Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
 if ($contract.schemaVersion -ne 1) {
     throw "Unsupported release contract schema version '$($contract.schemaVersion)'."
 }
+$packageJson = Get-Content -LiteralPath (Join-Path $packageRoot 'package.json') -Raw | ConvertFrom-Json
 
 if ($WriteShaderCoreManifest) {
     Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
@@ -495,7 +496,7 @@ else {
 }
 
 $stageDirectory = Join-Path $outputDirectoryFullPath ('purebase-release-stage-' + [guid]::NewGuid().ToString('N'))
-$zipPath = Join-Path $outputDirectoryFullPath 'jp.penguin.purebase-0.1.0.zip'
+$zipPath = Join-Path $outputDirectoryFullPath ('jp.penguin.purebase-' + [string]$packageJson.version + '.zip')
 $hashPath = $zipPath + '.sha256'
 try {
     [void](New-Item -ItemType Directory -Path $stageDirectory -Force)
@@ -552,6 +553,12 @@ try {
                 throw "ZIP omits required release entry '$requiredEntry'."
             }
         }
+        $packageEntry = @($zip.Entries | Where-Object FullName -ceq 'package.json')
+        if ($packageEntry.Count -ne 1) { throw 'ZIP must contain exactly one package.json.' }
+        $reader = [IO.StreamReader]::new($packageEntry[0].Open(), [Text.UTF8Encoding]::new($false, $true))
+        try { $zipPackageVersion = [string](($reader.ReadToEnd() | ConvertFrom-Json).version) }
+        finally { $reader.Dispose() }
+        if ($zipPackageVersion -cne [string]$packageJson.version) { throw 'ZIP package.json version does not match the archive filename.' }
     }
     finally {
         $zip.Dispose()

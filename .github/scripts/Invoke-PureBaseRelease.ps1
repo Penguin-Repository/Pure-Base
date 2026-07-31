@@ -23,6 +23,7 @@ param(
     [Parameter(Mandatory)][string]$ConfirmedVersion,
     [Parameter(Mandatory)][string]$VpmRepository,
     [Parameter(Mandatory)][string]$AppSlug,
+    [Parameter()][scriptblock]$ValidationInvoker,
     [switch]$Resume
 )
 
@@ -77,14 +78,18 @@ function Get-Release([string]$Version) {
     @($all | Where-Object tag_name -eq $Version | Select-Object -First 1)[0]
 }
 
-function Get-TagSha([string]$Version) {
+function Get-TagSha([string]$Version, [switch]$RequireAnnotated) {
     $result = Invoke-Git @('rev-parse', "refs/tags/$Version^{commit}") -AllowFailure
     if ($result.ExitCode -eq 0) { return $result.Output }
     return ''
 }
 
-function Invoke-Validation {
+function Invoke-Validation([string]$AssetName) {
     Write-State 'validation'
+    if ($null -ne $ValidationInvoker) {
+        & $ValidationInvoker $PackageRoot $UnityEditorPath $ValidationArtifactDirectory $AssetName
+        return
+    }
     & (Join-Path $PackageRoot 'Tests/Release/Run-PureBaseReleaseValidation.ps1') -UnityEditorPath $UnityEditorPath -ArtifactDirectory $ValidationArtifactDirectory
     if ($LASTEXITCODE -ne 0) { throw "Release validation failed with exit code $LASTEXITCODE." }
 }
@@ -97,15 +102,15 @@ function Set-PackageVersion([string]$Version) {
 }
 
 function Commit-And-Tag([string]$Version) {
-    Set-PackageVersion $Version
+    $changedPaths = @((Invoke-Git @('diff', '--name-only')).Output -split "`n" | Where-Object { $_ })
+    if ($changedPaths.Count -ne 1 -or $changedPaths[0] -ne 'package.json') { throw 'Fresh release may commit only the package.json version change.' }
     Invoke-Git @('config', 'user.name', "$AppSlug[bot]") | Out-Null
     Invoke-Git @('config', 'user.email', "$AppSlug[bot]@users.noreply.github.com") | Out-Null
     Invoke-Git @('add', '--', 'package.json') | Out-Null
     Invoke-Git @('commit', '-m', "Release $Version", '-m', 'Automatically updated by GitHub Actions after release validation.') | Out-Null
     $sha = (Invoke-Git @('rev-parse', 'HEAD')).Output
-    Invoke-Git @('push', 'origin', "HEAD:$Branch") | Out-Null
     Invoke-Git @('tag', '--annotate', $Version, '--message', "Release $Version", $sha) | Out-Null
-    Invoke-Git @('push', 'origin', "refs/tags/$Version") | Out-Null
+    Invoke-Git @('push', '--atomic', 'origin', "HEAD:$Branch", "refs/tags/$Version") | Out-Null
     $sha
 }
 
@@ -113,12 +118,10 @@ function Ensure-ResumeTag([string]$Version) {
     $sha = (Invoke-Git @('rev-parse', 'HEAD')).Output
     $headPackage = Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw | ConvertFrom-Json
     if ([string]$headPackage.version -ne $Version) { throw 'Resume requires HEAD package.json to contain the selected version.' }
-    $tagSha = Get-TagSha $Version
-    $tagAction = Resolve-PureBaseResumeTagAction -HeadSha $sha -ExistingTagSha $tagSha
-    if ($tagAction -eq 'create') {
-        Invoke-Git @('tag', '--annotate', $Version, '--message', "Release $Version", $sha) | Out-Null
-        Invoke-Git @('push', 'origin', "refs/tags/$Version") | Out-Null
-    }
+    $tagReference = Invoke-Git @('cat-file', '-t', "refs/tags/$Version") -AllowFailure
+    if ($tagReference.ExitCode -ne 0 -or $tagReference.Output -ne 'tag') { throw 'Resume requires an existing annotated release tag.' }
+    $tagSha = Get-TagSha $Version -RequireAnnotated
+    [void](Resolve-PureBaseResumeTagAction -HeadSha $sha -ExistingTagSha $tagSha)
     $sha
 }
 
@@ -131,6 +134,18 @@ function Build-Zip([string]$Version) {
     $zips = @(Get-ChildItem $builder -Filter "$packageName-*.zip" -File)
     if ($zips.Count -ne 1) { throw "Expected exactly one audited ZIP, found $($zips.Count)." }
     $name = "$packageName-$Version.zip"
+    if ($zips[0].Name -cne $name) { throw "Audited ZIP '$($zips[0].Name)' does not match target version '$Version'." }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($zips[0].FullName)
+    try {
+        $manifestEntries = @($archive.Entries | Where-Object FullName -ceq 'package.json')
+        if ($manifestEntries.Count -ne 1) { throw 'Audited ZIP must contain exactly one package.json.' }
+        $reader = [IO.StreamReader]::new($manifestEntries[0].Open(), [Text.UTF8Encoding]::new($false, $true))
+        try { $archiveVersion = [string](($reader.ReadToEnd() | ConvertFrom-Json).version) }
+        finally { $reader.Dispose() }
+        if ($archiveVersion -cne $Version) { throw "Audited ZIP package.json version '$archiveVersion' does not match '$Version'." }
+    }
+    finally { $archive.Dispose() }
     $path = Join-Path $ReleaseArtifactDirectory $name
     Copy-Item $zips[0].FullName $path -Force
     $sha = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -144,23 +159,32 @@ function Assert-Asset($Release, $Artifact) {
     if ([string]$asset[0].digest -ne "sha256:$($Artifact.Sha256)") { throw 'Release asset digest does not match the audited ZIP.' }
 }
 
-function Publish-Release([string]$Version, [string]$CommitSha, $Artifact, [bool]$IsResume) {
+function Assert-ReleasePrereleaseState($Release, [bool]$ExpectedPrerelease, [string]$Version) {
+    $property = $Release.PSObject.Properties['prerelease']
+    if ($null -eq $property -or $property.Value -isnot [bool] -or [bool]$property.Value -ne $ExpectedPrerelease) {
+        throw "Release '$Version' prerelease state does not match the target version."
+    }
+}
+
+function Publish-Release([string]$Version, [string]$CommitSha, $Artifact, [bool]$IsResume, [bool]$IsPrerelease) {
     $release = Get-Release $Version
+    if ($release) { Assert-ReleasePrereleaseState -Release $release -ExpectedPrerelease $IsPrerelease -Version $Version }
     if ($release -and -not $release.draft) {
         if (-not $IsResume) { throw "Release '$Version' already exists." }
         return $release
     }
     if (-not $release) {
-        $release = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $Version; target_commitish = $CommitSha; name = $Version; draft = $true; prerelease = $false; generate_release_notes = $true })
+        $release = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $Version; target_commitish = $CommitSha; name = $Version; draft = $true; prerelease = $IsPrerelease; generate_release_notes = $true })
     }
     foreach ($asset in @($release.assets | Where-Object name -eq $Artifact.Name)) {
         Invoke-Api DELETE "$apiRoot/repos/$Repository/releases/assets/$($asset.id)" $releaseToken | Out-Null
     }
     $upload = ([string]$release.upload_url) -replace '\{\?name,label\}$', ''
     Invoke-Api POST "$upload?name=$([Uri]::EscapeDataString($Artifact.Name))" $releaseToken $null $Artifact.Path | Out-Null
-    Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken @{ draft = $false } | Out-Null
+    Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken @{ draft = $false; prerelease = $IsPrerelease } | Out-Null
     $published = Get-Release $Version
     if (-not $published -or $published.draft) { throw "Release '$Version' was not published." }
+    Assert-ReleasePrereleaseState -Release $published -ExpectedPrerelease $IsPrerelease -Version $Version
     if ($null -eq $published.PSObject.Properties['immutable'] -or -not [bool]$published.immutable) {
         throw "Release '$Version' was published but GitHub did not report it as immutable."
     }
@@ -200,11 +224,12 @@ Write-State 'release-mode-resolved' @{
     releaseState = $releaseMode.ReleaseState
 }
 
-Invoke-Validation
+$assetName = "$packageName-$targetText.zip"
+if (-not $isResume) { Set-PackageVersion $targetText }
+Invoke-Validation $assetName
 $commitSha = if ($isResume) { Ensure-ResumeTag $targetText } else { Commit-And-Tag $targetText }
 Write-State 'version-committed-and-tagged' @{ commitSha = $commitSha; resume = $isResume }
 
-$assetName = "$packageName-$targetText.zip"
 if ($isResume -and $releaseMode.ReleaseState -eq 'published') {
     $artifact = Resolve-PureBasePublishedArtifact -Release $existingRelease -AssetName $assetName
     $release = $existingRelease
@@ -213,7 +238,7 @@ if ($isResume -and $releaseMode.ReleaseState -eq 'published') {
 else {
     $artifact = Build-Zip $targetText
     Write-State 'final-archive-built' @{ commitSha = $commitSha; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
-    $release = Publish-Release $targetText $commitSha $artifact $isResume
+    $release = Publish-Release $targetText $commitSha $artifact $isResume ([bool]$releaseMode.PrereleaseKind)
     Write-State 'immutable-release-published' @{ commitSha = $commitSha; releaseUrl = [string]$release.html_url; sha256 = $artifact.Sha256 }
 }
 
@@ -222,6 +247,7 @@ $dispatchPayload = New-PureBaseDispatchPayload `
     -Repository $Repository `
     -Version $targetText `
     -CommitSha $commitSha `
+    -PolicyCommitSha $commitSha `
     -AssetName $artifact.Name `
     -Sha256 $artifact.Sha256 `
     -ReleaseUrl ([string]$release.html_url)

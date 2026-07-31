@@ -28,6 +28,7 @@
     ".serena/**",
     "AGENTS.md",
     "**/AGENTS.md",
+    "vpm-yanks.json",
     "*.agent.md",
     "**/*.agent.md",
     "*.instructions.md",

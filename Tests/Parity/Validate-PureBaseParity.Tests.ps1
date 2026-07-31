@@ -92,7 +92,8 @@ function New-ChangedPathEntries {
 function New-SyntheticArtifacts {
     param(
         [Parameter(Mandatory = $true)]$Manifest,
-        [Parameter(Mandatory = $true)]$ReleaseContentContract
+        [Parameter(Mandatory = $true)]$ReleaseContentContract,
+        [Parameter()][string]$PackageVersion = '0.1.0'
     )
 
     $root = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseParity-' + [guid]::NewGuid().ToString('N'))
@@ -156,10 +157,12 @@ function New-SyntheticArtifacts {
     foreach ($requiredEntry in @($ReleaseContentContract.requiredEntries)) {
         $stagePath = Join-Path $stagingDirectory ([string]$requiredEntry).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
         [void](New-Item -ItemType Directory -Path (Split-Path -Parent $stagePath) -Force)
-        [System.IO.File]::WriteAllText($stagePath, [string]$requiredEntry, (New-Object System.Text.UTF8Encoding($false)))
+        $content = if ($requiredEntry -eq 'package.json') { '{"name":"jp.penguin.purebase","version":"' + $PackageVersion + '"}' } else { [string]$requiredEntry }
+        [System.IO.File]::WriteAllText($stagePath, $content, (New-Object System.Text.UTF8Encoding($false)))
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($stagingDirectory, (Join-Path $archiveDirectory 'jp.penguin.purebase-0.1.0.zip'))
+    $releaseZipPath = Join-Path $archiveDirectory ('jp.penguin.purebase-' + $PackageVersion + '.zip')
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($stagingDirectory, $releaseZipPath)
     $releaseLabels = @($Manifest.releaseArtifactLayout.fullMatrixLabels)
     $releaseRunDirectories = $Manifest.releaseArtifactLayout.fullMatrixRunDirectories
     Write-Json -Path (Join-Path $release 'run-summary.json') -Value ([ordered]@{ validationScope = 'full-release-validation-matrix'; outcomes = @($releaseLabels | ForEach-Object { [ordered]@{ label = [string]$_ } }) })
@@ -178,7 +181,7 @@ function New-SyntheticArtifacts {
         })
     Write-Json -Path (Join-Path $bootstrap 'semantic-transition-report.json') -Value ([ordered]@{ schemaName = 'purebase-first-bootstrap-semantic-transition'; schemaVersion = 1; verdict = 'accepted'; summary = [ordered]@{ accepted = 34; rejected = 0; unclassified = 0 } })
     Write-Json -Path (Join-Path $bootstrap 'second-bootstrap/fixed-point-report.json') -Value ([ordered]@{ schemaName = 'purebase-second-bootstrap-fixed-point'; schemaVersion = 1; rootsEqual = $true; added = @(); changed = @(); removed = @() })
-    return [pscustomobject]@{ root = $root; legacy = $legacy; daily = $daily; release = $release }
+    return [pscustomobject]@{ root = $root; legacy = $legacy; daily = $daily; release = $release; releaseZipPath = $releaseZipPath }
 }
 
 function Invoke-ValidatorCase {
@@ -446,15 +449,19 @@ Invoke-ValidatorCase -Name 'incomplete-release-boundary-audit' -Manifest $manife
 }
 Invoke-ValidatorCase -Name 'zip-tests-forbidden' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -Mutate {
     param($artifacts)
-    Add-ZipEntry -Path (Join-Path $artifacts.release 'archive/jp.penguin.purebase-0.1.0.zip') -EntryName 'Tests/forbidden.txt'
+    Add-ZipEntry -Path $artifacts.releaseZipPath -EntryName 'Tests/forbidden.txt'
 }
 Invoke-ValidatorCase -Name 'zip-scmodule-forbidden' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -Mutate {
     param($artifacts)
-    Add-ZipEntry -Path (Join-Path $artifacts.release 'archive/jp.penguin.purebase-0.1.0.zip') -EntryName 'Modules/forbidden.scmodule'
+    Add-ZipEntry -Path $artifacts.releaseZipPath -EntryName 'Modules/forbidden.scmodule'
 }
 Invoke-ValidatorCase -Name 'zip-required-release-entry-missing' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'release-zip-required-entry' -Mutate {
     param($artifacts)
-    Remove-ZipEntry -Path (Join-Path $artifacts.release 'archive/jp.penguin.purebase-0.1.0.zip') -EntryName 'Shaders/PureBaseToon.scshader'
+    Remove-ZipEntry -Path $artifacts.releaseZipPath -EntryName 'Shaders/PureBaseToon.scshader'
+}
+Invoke-ValidatorCase -Name 'zip-yank-policy-forbidden' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'release-zip-content' -Mutate {
+    param($artifacts)
+    Add-ZipEntry -Path $artifacts.releaseZipPath -EntryName 'vpm-yanks.json'
 }
 Invoke-ValidatorCase -Name 'cleanup-status-missing' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ExpectedFailureCode 'release-cleanup-status' -Mutate {
     param($artifacts)
@@ -537,5 +544,39 @@ Invoke-ValidatorCase -Name 'semantic-unclassified' -Manifest $manifest -Validato
     Write-Json -Path (Join-Path $artifacts.release 'bootstrap/semantic-transition-report.json') -Value ([ordered]@{ schemaName = 'purebase-first-bootstrap-semantic-transition'; schemaVersion = 1; verdict = 'accepted'; summary = [ordered]@{ accepted = 33; rejected = 0; unclassified = 1 } })
 }
 Invoke-ValidatorCase -Name 'package-root-report' -Manifest $manifest -ValidatorPath $validatorPath -ManifestPath $manifestPath -PackageRoot $packageRoot -ExpectedEligible $false -ReportUnderPackageRoot
+    }
+
+    It 'finds a prerelease archive whose filename exactly matches its package manifest version' {
+        $artifacts = New-SyntheticArtifacts `
+            -Manifest $script:manifest `
+            -ReleaseContentContract $script:releaseContentContract `
+            -PackageVersion '0.1.0-beta.1'
+        try {
+            [IO.Path]::GetFileName($artifacts.releaseZipPath) | Should -Be 'jp.penguin.purebase-0.1.0-beta.1.zip'
+            $hostExecutableName = if ($PSVersionTable.PSEdition -eq 'Core') { 'pwsh.exe' } else { 'powershell.exe' }
+            $hostExecutable = Join-Path $PSHOME $hostExecutableName
+            $reportPath = Join-Path $artifacts.root 'prerelease-report.json'
+            & $hostExecutable -NoProfile -ExecutionPolicy Bypass -File $script:validatorPath -LegacyArtifactRoot $artifacts.legacy -DailyArtifactRoot $artifacts.daily -ReleaseArtifactRoot $artifacts.release -ManifestPath $script:manifestPath -ReportPath $reportPath 2>$null | Out-Null
+
+            $LASTEXITCODE | Should -Be 0
+        }
+        finally {
+            Remove-Item -LiteralPath $artifacts.root -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'rejects a parity mapping that pins a stable release ZIP filename' {
+        Invoke-ValidatorCase -Name 'stable-release-zip-evidence' -Manifest $script:manifest -ValidatorPath $script:validatorPath -ManifestPath $script:manifestPath -PackageRoot $script:packageRoot -ExpectedEligible $false -ExpectedFailureCode 'manifest-mapping' -Mutate {
+            param($artifacts)
+            $copy = Get-Content -LiteralPath $script:manifestPath -Raw | ConvertFrom-Json
+            foreach ($mapping in @($copy.parityMappings)) {
+                $mapping.evidence = @($mapping.evidence | ForEach-Object {
+                        if ($_ -eq 'package-versioned-release-zip') { 'jp.penguin.purebase-0.1.0.zip' } else { $_ }
+                    })
+            }
+            $changedManifest = Join-Path $artifacts.root 'stable-release-zip-evidence.json'
+            Write-Json -Path $changedManifest -Value $copy
+            return $changedManifest
+        }
     }
 }
