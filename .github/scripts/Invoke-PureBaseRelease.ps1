@@ -75,7 +75,16 @@ function Get-Release([string]$Version) {
     try { return Invoke-Api GET "$apiRoot/repos/$Repository/releases/tags/$([Uri]::EscapeDataString($Version))" $releaseToken }
     catch { if ($_.Exception.Data['StatusCode'] -ne 404) { throw } }
     $all = @(Invoke-Api GET "$apiRoot/repos/$Repository/releases?per_page=100" $releaseToken)
-    @($all | Where-Object tag_name -eq $Version | Select-Object -First 1)[0]
+    if ($all.Count -eq 1 -and $all[0] -is [Object[]]) { $all = $all[0] }
+    foreach ($release in $all) {
+        if ($null -eq $release) { throw 'GitHub releases list contains a null entry.' }
+        $tagNameProperty = $release.PSObject.Properties['tag_name']
+        if ($null -eq $tagNameProperty -or $tagNameProperty.Value -isnot [string] -or [string]::IsNullOrWhiteSpace($tagNameProperty.Value)) {
+            throw 'GitHub releases list contains an entry without a valid tag_name.'
+        }
+        if ([string]::Equals($tagNameProperty.Value, $Version, [StringComparison]::Ordinal)) { return $release }
+    }
+    return $null
 }
 
 function Get-TagSha([string]$Version, [switch]$RequireAnnotated) {
