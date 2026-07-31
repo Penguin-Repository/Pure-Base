@@ -503,9 +503,14 @@ Describe 'Hosted Unity review contracts' {
 
     It 'keeps exactly one unconditional pinned setup call in each Unity execution job' -ForEach @(
         @{ WorkflowName = 'Daily'; Job = 'unity-daily' },
-        @{ WorkflowName = 'Release validation'; Job = 'validate' }
+        @{ WorkflowName = 'Release validation'; Job = 'validate' },
+        @{ WorkflowName = 'Release publishing'; Job = 'release' }
     ) {
-        $Workflow = if ($WorkflowName -eq 'Daily') { $dailyWorkflow } else { $releaseWorkflow }
+        $Workflow = switch ($WorkflowName) {
+            'Daily' { $dailyWorkflow }
+            'Release validation' { $releaseWorkflow }
+            'Release publishing' { $releasePublishingWorkflow }
+        }
         $executionJob = Get-NamedJobBlock -Workflow $Workflow -Name $Job
         $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity 2022.3.22f1'
 
@@ -520,19 +525,19 @@ Describe 'Hosted Unity review contracts' {
     }
 
     It 'preserves top-level read-only workflow permissions' {
-        foreach ($workflow in @($dailyWorkflow, $releaseWorkflow)) {
+        foreach ($workflow in @($dailyWorkflow, $releaseWorkflow, $releasePublishingWorkflow)) {
             $workflow | Should -Match '(?m)^permissions:\n  contents: read$'
         }
     }
 
     It 'permits only SHA-pinned external actions and the planned local helper reference' {
-        $sources = @($dailyWorkflow, $releaseWorkflow)
+        $sources = @($dailyWorkflow, $releaseWorkflow, $releasePublishingWorkflow)
         if ($null -ne $lookupAction) {
             $sources += $lookupAction
         }
 
         $references = @($sources | ForEach-Object { Get-ActionReferences -Source $_ })
-        ($references | Where-Object { $_ -eq './.github/actions/lookup-unity-editor-cache' }).Count | Should -Be 2
+        ($references | Where-Object { $_ -eq './.github/actions/lookup-unity-editor-cache' }).Count | Should -Be 3
         foreach ($reference in $references | Where-Object { $_ -ne './.github/actions/lookup-unity-editor-cache' }) {
             $reference | Should -Match '^[^@]+@[0-9a-f]{40}$'
         }
@@ -582,6 +587,62 @@ Describe 'Hosted Unity review contracts' {
         $releaseWorkflow.Contains('& $env:UNITY_EDITOR_PATH `') | Should -BeTrue
         $resolverScript.Contains('RealEditorPathOutputFile') | Should -BeTrue
         $resolverScript.Contains('real Unity.exe because its audited runner intentionally rejects wrapper executables') | Should -BeTrue
+    }
+
+    It 'uses hosted Unity cache, licensing, and resolved editor paths for release publishing' {
+        $preparationJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'unity-editor-cache'
+        $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
+        $checkoutStep = Get-NamedStepBlock -Job $preparationJob -Name 'Checkout cache lookup helper'
+        $lookupStep = Get-NamedStepBlock -Job $preparationJob -Name 'Look up Unity Editor cache'
+        $fallbackStep = Get-NamedStepBlock -Job $preparationJob -Name 'Restore or create Unity Editor cache'
+        $activationStep = Get-NamedStepBlock -Job $releaseJob -Name 'Activate Unity Personal license'
+        $waitStep = Get-NamedStepBlock -Job $releaseJob -Name 'Wait before retrying Unity license activation'
+        $retryStep = Get-NamedStepBlock -Job $releaseJob -Name 'Retry Unity Personal license activation'
+        $pathStep = Get-NamedStepBlock -Job $releaseJob -Name 'Export Unity editor paths'
+
+        $preparationJob | Should -Match '(?m)^    runs-on: windows-2022$'
+        $checkoutStep | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
+        $checkoutStep | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
+        $checkoutStep | Should -Match '(?m)^          persist-credentials: false$'
+        $lookupStep | Should -Match '(?m)^        uses: \./\.github/actions/lookup-unity-editor-cache$'
+        $lookupStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
+        $lookupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
+        $lookupStep | Should -Match '(?m)^          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"$'
+        $lookupStep | Should -Not -Match '(?m)^          cli-channel:'
+        $fallbackStep | Should -Match '(?m)^        id: unity$'
+        $fallbackStep | Should -Match "(?m)^        if: steps\.unity-cache-lookup\.outputs\.cache-hit != 'true'$"
+        $fallbackStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
+        $fallbackStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
+        $fallbackStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
+        $fallbackStep | Should -Match '(?m)^          cli-channel: beta$'
+        $fallbackStep | Should -Match '(?m)^          cache: "true"$'
+
+        $releaseJob | Should -Match '(?m)^    needs: unity-editor-cache$'
+        $releaseJob | Should -Match '(?m)^    environment: release$'
+        $releaseJob | Should -Match '(?m)^    runs-on: windows-2022$'
+        $releaseJob | Should -Match '(?m)^      group: pure-base-unity-personal-license$'
+        $releaseJob | Should -Match '(?m)^      cancel-in-progress: false$'
+        $releaseJob | Should -Not -Match 'self-hosted'
+        $releaseJob | Should -Not -Match [regex]::Escape('C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe')
+
+        $activationStep | Should -Match '(?m)^        continue-on-error: true$'
+        $activationStep | Should -Match '(?m)^        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af(?: #.*)?$'
+        $activationStep | Should -Match '(?m)^          license: personal$'
+        $activationStep | Should -Match '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$'
+        $activationStep | Should -Match '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$'
+        $activationStep | Should -Match '(?m)^          license-version: "6\.x"$'
+        $waitStep | Should -Match "(?m)^        if: steps\.unity_license\.outcome == 'failure'$"
+        $waitStep | Should -Match '(?m)^        run: Start-Sleep -Seconds 45$'
+        $retryStep | Should -Match "(?m)^        if: steps\.unity_license\.outcome == 'failure'$"
+        $retryStep | Should -Match '(?m)^        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af(?: #.*)?$'
+        $retryStep | Should -Match '(?m)^          license: personal$'
+        $retryStep | Should -Match '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$'
+        $retryStep | Should -Match '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$'
+        $retryStep | Should -Match '(?m)^          license-version: "6\.x"$'
+        $pathStep | Should -Match '-RealEditorPathOutputFile \$realEditorPathFile'
+        $pathStep | Should -Match 'UNITY_EDITOR_PATH=\$watchdogEditorPath'
+        $pathStep | Should -Match 'REAL_UNITY_EDITOR_PATH=\$realEditorPath'
+        $releaseJob | Should -Match '-UnityEditorPath \$env:REAL_UNITY_EDITOR_PATH'
     }
 
     It 'runs release validation before Unity project configuration' {
