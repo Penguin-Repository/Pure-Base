@@ -151,15 +151,18 @@ rejects wrapper executables while proving the required Unity version from the ed
 workflow uploads the complete evidence directory, including a versioned copy of the audited package
 ZIP.
 
-`Release` is manual and requires the exact version currently stored in `update_trigger.json`.
-`package.json` is the package manifest and version source after the workflow writes the requested
-SemVer. For a new release, that version must be newer than `package.json`. Stable and prerelease
-versions are supported; prereleases are published as GitHub prereleases. Prerelease visibility in a
-VPM client depends on that client's behavior; this package does not promise that every VCC client
-hides or displays prereleases in the same way. The workflow validates the pre-update package,
-updates and commits `package.json`, pushes the version tag, builds a new audited ZIP from the
-updated commit, creates a draft release, uploads the ZIP, publishes the release, and sends
-`update-vpm` to the VPM repository using a GitHub App installation token.
+`Release` is manual and requires the exact version currently stored in `update_trigger.json`, which
+is the sole selected release target. `package.json` is the package manifest and version source after
+the workflow writes the requested SemVer. For a fresh release, that version must be newer than
+`package.json` and must have no existing tag or GitHub Release. An existing tag or immutable release
+must not be moved, deleted, or reused for another fresh publication. If strict resume cannot recover
+the existing state, operators must select a later approved SemVer target in `update_trigger.json`.
+Stable and prerelease versions are supported; prereleases are published as GitHub prereleases.
+Prerelease visibility in a VPM client depends on that client's behavior; this package does not
+promise that every VCC client hides or displays prereleases in the same way. The workflow validates
+the pre-update package, updates and commits `package.json`, pushes the version tag, builds a new
+audited ZIP from the updated commit, creates a draft release, uploads the ZIP, publishes the release,
+and sends `update-vpm` to the VPM repository using a GitHub App installation token.
 
 If a run fails after the package version commit, rerun the workflow with the same version and
 `resume` enabled. Resume is fail-closed: `update_trigger.json` and `package.json` must match exactly,
@@ -178,17 +181,17 @@ repository helper before creating any repository dispatch request, then sends on
 policy SHA, entry count, and target repository to the run summary, but never logs Yank reason
 bodies. The policy is desired state: a version entry means Yank and an absent entry means Unyank.
 
-Keep `vpm-yanks.json` empty until the VPM receiver is ready and the target `0.1.0-beta.1` release is
-registered in the VPM feed. Once both are confirmed, the first prerelease, `0.1.0-beta.1`, may be
-added for the end-to-end Yank/Unyank test as a separate approved policy update and synchronization
-from the release artifacts. An empty policy is a no-op desired state, and no version may be added
-before its release exists in the target feed. Feed and receiver updates are eventually consistent;
-a stale or premature dispatch fails closed without changing the listing, so retry from `master` with
-the current policy commit after propagation. For stale state or recovery after a receiver outage,
-correct the desired state on `master` and rerun the workflow manually from `master`. The reason
-value is public operational documentation, not a secret channel. Never put secrets, credentials,
-personal data, or other private information in it. ALCOM prerelease and package-feed behavior is
-implementation-specific and is not guaranteed for other VCC clients.
+Keep `vpm-yanks.json` empty until the VPM receiver is ready and the release for the target selected
+by `update_trigger.json` is registered in the VPM feed. Once both are confirmed, that released
+version may be added for the end-to-end Yank/Unyank test as a separate approved policy update and
+synchronization from the release artifacts. An empty policy is a no-op desired state, and no version
+may be added before its release exists in the target feed. Feed and receiver updates are eventually
+consistent; a stale or premature dispatch fails closed without changing the listing, so retry from
+`master` with the current policy commit after propagation. For stale state or recovery after a
+receiver outage, correct the desired state on `master` and rerun the workflow manually from `master`.
+The reason value is public operational documentation, not a secret channel. Never put secrets,
+credentials, personal data, or other private information in it. ALCOM prerelease and package-feed
+behavior is implementation-specific and is not guaranteed for other VCC clients.
 
 `Automation tests` runs Pester on GitHub-hosted Linux runners. The tests cover stable and prerelease
 version validation, fresh and resume release mode decisions, missing and mismatched tags, VPM
