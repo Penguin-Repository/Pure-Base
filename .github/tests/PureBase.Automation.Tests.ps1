@@ -670,6 +670,10 @@ Describe 'Release orchestration resume publication' {
             $hookPath = Join-Path $remoteRoot 'hooks/pre-receive'
             $hookLogPath = $pushLogPath.Replace('\', '/')
             [IO.File]::WriteAllText($hookPath, "#!/bin/sh`nprintf 'push\n' >> '$hookLogPath'`n", [Text.UTF8Encoding]::new($false))
+            if (-not $IsWindows) {
+                & chmod +x -- $hookPath
+                if ($LASTEXITCODE -ne 0) { throw 'chmod +x failed for orchestration fixture hook.' }
+            }
             & git -C $packageRoot init --initial-branch master --quiet
             if ($LASTEXITCODE -ne 0) { throw 'git init failed for resume fixture.' }
             & git -C $packageRoot config user.name 'PureBase Test'
