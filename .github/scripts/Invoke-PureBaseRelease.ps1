@@ -138,7 +138,8 @@ function Build-Zip([string]$Version) {
     $builder = Join-Path $ReleaseArtifactDirectory 'builder-output'
     if (Test-Path $builder) { Remove-Item $builder -Recurse -Force }
     New-Item -ItemType Directory -Path $builder -Force | Out-Null
-    & (Join-Path $PackageRoot 'Tests/Release/Build-PureBaseRelease.ps1') -OutputDirectory $builder
+    $builderOutput = @(& (Join-Path $PackageRoot 'Tests/Release/Build-PureBaseRelease.ps1') -OutputDirectory $builder)
+    foreach ($line in $builderOutput) { Write-Host $line }
     if ($LASTEXITCODE -ne 0) { throw "Release ZIP builder failed with exit code $LASTEXITCODE." }
     $zips = @(Get-ChildItem $builder -Filter "$packageName-*.zip" -File)
     if ($zips.Count -ne 1) { throw "Expected exactly one audited ZIP, found $($zips.Count)." }
@@ -188,8 +189,8 @@ function Publish-Release([string]$Version, [string]$CommitSha, $Artifact, [bool]
     foreach ($asset in @($release.assets | Where-Object name -eq $Artifact.Name)) {
         Invoke-Api DELETE "$apiRoot/repos/$Repository/releases/assets/$($asset.id)" $releaseToken | Out-Null
     }
-    $upload = ([string]$release.upload_url) -replace '\{\?name,label\}$', ''
-    Invoke-Api POST "$upload?name=$([Uri]::EscapeDataString($Artifact.Name))" $releaseToken $null $Artifact.Path | Out-Null
+    $uploadUri = (([string]$release.upload_url) -replace '\{\?name,label\}$', '') + '?name=' + [Uri]::EscapeDataString($Artifact.Name)
+    Invoke-Api POST $uploadUri $releaseToken $null $Artifact.Path | Out-Null
     Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken @{ draft = $false; prerelease = $IsPrerelease } | Out-Null
     $published = Get-Release $Version
     if (-not $published -or $published.draft) { throw "Release '$Version' was not published." }

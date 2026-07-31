@@ -644,6 +644,151 @@ Describe 'Release orchestration validation failure' {
     }
 }
 
+Describe 'Release orchestration resume publication' {
+    It 'rebuilds and publishes one prerelease asset after reusing an annotated tag without pushing' {
+        $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Resume-Publication-' + [guid]::NewGuid().ToString('N'))
+        $previousReleaseToken = $env:PUREBASE_RELEASE_TOKEN
+        $previousDispatchToken = $env:PUREBASE_DISPATCH_TOKEN
+        $previousApiRoot = $env:GITHUB_API_URL
+        try {
+            $packageRoot = Join-Path $temporaryRoot 'package'
+            $remoteRoot = Join-Path $temporaryRoot 'remote.git'
+            $pushLogPath = Join-Path $temporaryRoot 'push.log'
+            $validationArtifacts = Join-Path $temporaryRoot 'validation-artifacts'
+            $releaseArtifacts = Join-Path $temporaryRoot 'release-artifacts'
+            $unityEditorPath = Join-Path $temporaryRoot 'Unity.exe'
+            $targetVersion = '0.2.0-beta.7'
+            $assetName = "jp.penguin.purebase-$targetVersion.zip"
+            New-Item -ItemType Directory -Path (Join-Path $packageRoot 'Tests/Release') -Force | Out-Null
+            New-Item -ItemType File -Path $unityEditorPath -Force | Out-Null
+            & git init --bare --quiet $remoteRoot
+            if ($LASTEXITCODE -ne 0) { throw 'git init --bare failed for resume fixture.' }
+            $hookPath = Join-Path $remoteRoot 'hooks/pre-receive'
+            $hookLogPath = $pushLogPath.Replace('\', '/')
+            [IO.File]::WriteAllText($hookPath, "#!/bin/sh`nprintf 'push\n' >> '$hookLogPath'`n", [Text.UTF8Encoding]::new($false))
+            & git -C $packageRoot init --initial-branch master --quiet
+            if ($LASTEXITCODE -ne 0) { throw 'git init failed for resume fixture.' }
+            & git -C $packageRoot config user.name 'PureBase Test'
+            & git -C $packageRoot config user.email 'purebase-test@example.invalid'
+            [IO.File]::WriteAllText((Join-Path $packageRoot 'package.json'), "{`"name`":`"jp.penguin.purebase`",`"version`":`"$targetVersion`"}`n", [Text.UTF8Encoding]::new($false))
+            [IO.File]::WriteAllText((Join-Path $packageRoot 'update_trigger.json'), "{`"version`":`"$targetVersion`"}`n", [Text.UTF8Encoding]::new($false))
+            $builderPath = Join-Path $packageRoot 'Tests/Release/Build-PureBaseRelease.ps1'
+            $builder = @'
+param([Parameter(Mandatory)][string]$OutputDirectory)
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zipPath = Join-Path $OutputDirectory 'jp.penguin.purebase-0.2.0-beta.7.zip'
+$archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
+try {
+    $entry = $archive.CreateEntry('package.json')
+    $writer = [IO.StreamWriter]::new($entry.Open(), [Text.UTF8Encoding]::new($false))
+    try { $writer.Write('{"name":"jp.penguin.purebase","version":"0.2.0-beta.7"}') }
+    finally { $writer.Dispose() }
+}
+finally { $archive.Dispose() }
+
+Write-Output "Release ZIP: $zipPath"
+Write-Output "SHA-256: $((Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant())"
+Write-Output 'Audited entries: 1'
+'@
+            [IO.File]::WriteAllText($builderPath, $builder, [Text.UTF8Encoding]::new($false))
+            & git -C $packageRoot add -- package.json update_trigger.json Tests/Release/Build-PureBaseRelease.ps1
+            & git -C $packageRoot commit --quiet -m fixture
+            if ($LASTEXITCODE -ne 0) { throw 'git commit failed for resume fixture.' }
+            & git -C $packageRoot tag --annotate $targetVersion --message release
+            if ($LASTEXITCODE -ne 0) { throw 'git tag failed for resume fixture.' }
+            & git -C $packageRoot remote add origin $remoteRoot
+            if ($LASTEXITCODE -ne 0) { throw 'git remote add failed for resume fixture.' }
+            $headSha = (& git -C $packageRoot rev-parse HEAD).Trim()
+
+            $apiCalls = [Collections.Generic.List[object]]::new()
+            $validationObservations = [Collections.Generic.List[object]]::new()
+            $releaseCreateBodies = [Collections.Generic.List[string]]::new()
+            $releaseState = @{ Created = $false; UploadedSha = '' }
+            $env:PUREBASE_RELEASE_TOKEN = 'test-release-token'
+            $env:PUREBASE_DISPATCH_TOKEN = 'test-dispatch-token'
+            $env:GITHUB_API_URL = 'https://api.example.invalid'
+            $validationInvoker = {
+                param($ObservedPackageRoot, $ObservedUnityEditorPath, $ObservedValidationArtifactDirectory, $ObservedAssetName)
+                $validationObservations.Add([pscustomobject]@{
+                        PackageVersion = [string]((Get-Content -LiteralPath (Join-Path $ObservedPackageRoot 'package.json') -Raw | ConvertFrom-Json).version)
+                        AssetName = $ObservedAssetName
+                    }) | Out-Null
+            }.GetNewClosure()
+
+            Mock Invoke-RestMethod {
+                param($Method, $Uri, $Body, $InFile)
+                $apiCalls.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Body = $Body; InFile = $InFile }) | Out-Null
+                if ($Uri -match '/immutable-releases$') { return [pscustomobject]@{ enabled = $true } }
+                if ($Uri -match '/releases/tags/') {
+                    if ($releaseState.Created) {
+                        return [pscustomobject]@{
+                            id = 42; draft = $false; prerelease = $true; immutable = $true
+                            html_url = "https://github.com/test/Pure-Base/releases/tag/$targetVersion"
+                            assets = @([pscustomobject]@{ name = $assetName; digest = "sha256:$($releaseState.UploadedSha)" })
+                        }
+                    }
+                    $exception = [InvalidOperationException]::new('Not Found')
+                    $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
+                    throw $exception
+                }
+                if ($Uri -match '/releases\?per_page=100$') { return ,([object[]]@()) }
+                if ($Method -eq 'POST' -and $Uri -match '/repos/test/Pure-Base/releases$') {
+                    $releaseCreateBodies.Add([string]$Body) | Out-Null
+                    $releaseState.Created = $true
+                    return [pscustomobject]@{ id = 42; draft = $true; prerelease = $true; upload_url = 'https://uploads.example.invalid/releases/42/assets{?name,label}'; assets = @() }
+                }
+                if ($Method -eq 'POST' -and $Uri -match '^https://uploads\.example\.invalid/') {
+                    $releaseState.UploadedSha = (Get-FileHash -LiteralPath $InFile -Algorithm SHA256).Hash.ToLowerInvariant()
+                    return $null
+                }
+                return $null
+            }
+
+            & (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') `
+                -PackageRoot $packageRoot `
+                -UnityEditorPath $unityEditorPath `
+                -ValidationArtifactDirectory $validationArtifacts `
+                -ReleaseArtifactDirectory $releaseArtifacts `
+                -Repository 'test/Pure-Base' `
+                -Branch 'master' `
+                -ConfirmedVersion $targetVersion `
+                -VpmRepository 'test/VPM-Repository' `
+                -AppSlug 'purebase-test' `
+                -ValidationInvoker $validationInvoker `
+                -Resume
+
+            $validationObservations.Count | Should -Be 1
+            $validationObservations[0].PackageVersion | Should -Be $targetVersion
+            $validationObservations[0].AssetName | Should -Be $assetName
+            $releaseCreateBodies.Count | Should -Be 1
+            $releaseCreate = $releaseCreateBodies[0] | ConvertFrom-Json
+            $releaseCreate.tag_name | Should -Be $targetVersion
+            $releaseCreate.target_commitish | Should -Be $headSha
+            $releaseCreate.draft | Should -BeTrue
+            $releaseCreate.prerelease | Should -BeTrue
+            @($apiCalls | Where-Object { $_.Method -eq 'POST' -and $_.Uri -match '^https://uploads\.example\.invalid/' }).Count | Should -Be 1
+            $upload = @($apiCalls | Where-Object { $_.Method -eq 'POST' -and $_.Uri -match '^https://uploads\.example\.invalid/' })[0]
+            (Split-Path -Leaf $upload.InFile) | Should -Be $assetName
+            $releaseState.UploadedSha | Should -Match '^[0-9a-f]{64}$'
+            @($apiCalls | Where-Object { $_.Method -eq 'PATCH' -and $_.Uri -match '/releases/42$' }).Count | Should -Be 1
+            @($apiCalls | Where-Object { $_.Method -eq 'POST' -and $_.Uri -match '/dispatches$' }).Count | Should -Be 1
+            $state = Get-Content -LiteralPath (Join-Path $releaseArtifacts 'release-state.json') -Raw | ConvertFrom-Json
+            $state.phase | Should -Be 'completed'
+            $state.assetSource | Should -Be 'rebuilt'
+            $state.sha256 | Should -Be $releaseState.UploadedSha
+            $pushCount = if (Test-Path -LiteralPath $pushLogPath) { @(Get-Content -LiteralPath $pushLogPath).Count } else { 0 }
+            $pushCount | Should -Be 0
+        }
+        finally {
+            $env:PUREBASE_RELEASE_TOKEN = $previousReleaseToken
+            $env:PUREBASE_DISPATCH_TOKEN = $previousDispatchToken
+            $env:GITHUB_API_URL = $previousApiRoot
+            Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 Describe 'Prerelease release naming and dispatch' {
     BeforeAll {
         $version = '0.1.0-beta.1'
