@@ -35,19 +35,19 @@ Pure Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限�
 - integration harness は Unity `2022.3.22f1` に固定され、test execution には D3D11 を強制します。
 - Material transparency と transparent blending はサポートされません。すべての product shader は固定の Cutout coverage を使用します。
 
-one-time migration の開始状態は、target version に既存の tag または GitHub release がない fresh-release precondition の下で、`package.json` の package manifest が `jp.penguin.purebase` version `0.0.0`、`update_trigger.json` の選択 version が `0.1.0-beta.1`、`vpm-yanks.json` の `versions` policy が空です。release version の選択元は `update_trigger.json` です。manual の Release workflow はその exact SemVer を検証し、`package.json` に書き込み、同じ version を tag にして package を publish します。stable version と prerelease version の両方をサポートします。package-owned validation の source of truth は `Packages/jp.penguin.purebase/Tests` です。
+`update_trigger.json` は選択する release target の唯一の source of truth です。fresh release では、その exact SemVer は current `package.json` version より新しく、既存の tag または GitHub Release があってはなりません。manual の Release workflow はその exact SemVer を検証し、`package.json` に書き込み、同じ version を tag にして package を publish します。既存の tag または immutable release を移動、削除、または別の fresh publication に再利用してはなりません。strict resume でその状態を回復できない場合は、`update_trigger.json` で後続の承認済み SemVer target を選択してください。stable version と prerelease version の両方をサポートします。package-owned validation の source of truth は `Packages/jp.penguin.purebase/Tests` です。
 
 release ZIP には `Tests/**` と test-only の `*.scmodule` files は含まれません。追跡対象の `.scmodule` files は test fixtures であり、package-owned の `Tests/**` fixture boundary 内でのみ許可されます。
 
 ## Release と VPM の公開状態
 
-Release workflow は stable-only ではありません。`0.1.0-beta.1` のような version は GitHub prerelease として publish され、`0.1.0` は stable として publish されます。VPM client での prerelease の表示は client の実装に依存するため、すべての VCC client が同じように prerelease を非表示または表示するとは限りません。
+Release workflow は stable-only ではありません。prerelease は GitHub prerelease として publish され、stable version は stable として publish されます。VPM client での prerelease の表示は client の実装に依存するため、すべての VCC client が同じように prerelease を非表示または表示するとは限りません。
 
 `vpm-yanks.json` は VPM repository の desired-state policy です。version key が存在する version は **Yank**、key を削除した version は **Unyank** になります。reason value は public な運用情報であり、secret を渡すための channel ではありません。secret、credential、個人情報、その他の非公開情報を記載しないでください。
 
 literal `master` branch の `vpm-yanks.json` 変更で synchronization workflow が起動します。dispatch が stale になった場合や receiver outage の復旧後は、`master` から manual に再実行できます。workflow は current commit の policy を dispatch 前に検証し、固定された `sync-vpm-yanks` event だけを送信します。任意の source path や branch は受け付けません。manual replay では current policy commit が source of truth になります。
 
-initial Yank rollout には gate があります。VPM receiver の準備ができ、target `0.1.0-beta.1` release が VPM feed に登録されたことを確認するまで policy は空のままにしてください。両方を確認した後は、最初の prerelease である `0.1.0-beta.1` を end-to-end の Yank/Unyank test のために policy に追加できます。空の policy は no-op の desired state であり、target feed に release が存在する前に version を追加しないでください。feed と receiver の更新には eventual consistency があるため、stale または早すぎる dispatch は listing を変更せず fail closed します。反映後に `master` から current policy commit で retry してください。ALCOM の prerelease と package feed の挙動は実装依存であり、他の VCC client については保証されません。
+initial Yank rollout には gate があります。VPM receiver の準備ができ、`update_trigger.json` で選択された target の release が VPM feed に登録されたことを確認するまで policy は空のままにしてください。両方を確認した後は、その release 済み version を、個別に承認された policy update として end-to-end の Yank/Unyank test のために追加できます。空の policy は no-op の desired state であり、target feed に release が存在する前に version を追加しないでください。feed と receiver の更新には eventual consistency があるため、stale または早すぎる dispatch は listing を変更せず fail closed します。反映後に `master` から current policy commit で retry してください。ALCOM の prerelease と package feed の挙動は実装依存であり、他の VCC client については保証されません。
 
 ## シェーダーパス
 
