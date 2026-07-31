@@ -544,7 +544,7 @@ Describe 'Prerelease release transitions and publication safety' {
 }
 
 Describe 'Release orchestration validation failure' {
-    It 'updates the manifest before validation and stops before every remote mutation' {
+    It 'continues to validation when a missing release tag has an empty release list and stops before every remote mutation' {
         $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Release-Orchestration-' + [guid]::NewGuid().ToString('N'))
         $previousReleaseToken = $env:PUREBASE_RELEASE_TOKEN
         $previousDispatchToken = $env:PUREBASE_DISPATCH_TOKEN
@@ -598,6 +598,12 @@ Describe 'Release orchestration validation failure' {
                 param($Method, $Uri)
                 $apiCalls.Add([pscustomobject]@{ Method = $Method; Uri = $Uri }) | Out-Null
                 if ($Uri -match '/immutable-releases$') { return [pscustomobject]@{ enabled = $true } }
+                if ($Uri -match '/releases/tags/') {
+                    $exception = [InvalidOperationException]::new('Not Found')
+                    $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
+                    throw $exception
+                }
+                if ($Uri -match '/releases\?per_page=100$') { return ,([object[]]@()) }
                 return $null
             }
 
@@ -620,6 +626,8 @@ Describe 'Release orchestration validation failure' {
             $validationObservations[0].AssetName | Should -Be $assetName
             $validationObservations[0].UnityEditorPath | Should -Be $unityEditorPath
             $validationObservations[0].ArtifactDirectory | Should -Be $validationArtifacts
+            @($apiCalls | Where-Object { $_.Uri -match '/releases/tags/' }).Count | Should -Be 1
+            @($apiCalls | Where-Object { $_.Uri -match '/releases\?per_page=100$' }).Count | Should -Be 1
             @($apiCalls | Where-Object { $_.Method -in @('POST', 'PATCH', 'DELETE') }).Count | Should -Be 0
             @($apiCalls | Where-Object { $_.Uri -match '/dispatches$' }).Count | Should -Be 0
             $pushCount = if (Test-Path -LiteralPath $pushLogPath) { @(Get-Content -LiteralPath $pushLogPath).Count } else { 0 }
