@@ -496,13 +496,22 @@ Describe 'Prerelease release transitions and publication safety' {
             & git -C $localRoot remote add origin $remoteRoot
             $hookPath = Join-Path $remoteRoot 'hooks/pre-receive'
             [IO.File]::WriteAllText($hookPath, "#!/bin/sh`nwhile read old new ref; do`n  if [ `"`$ref`" = `"refs/tags/0.1.0`" ]; then exit 1; fi`ndone`nexit 0`n", [Text.UTF8Encoding]::new($false))
+            if (-not $IsWindows) {
+                & chmod +x -- $hookPath
+                if ($LASTEXITCODE -ne 0) { throw 'chmod failed for atomic push rejection hook.' }
+            }
+
+            foreach ($reference in @('refs/heads/master', 'refs/tags/0.1.0')) {
+                (& git -C $remoteRoot show-ref --verify --quiet $reference) | Out-Null
+                $LASTEXITCODE | Should -Not -Be 0
+            }
 
             & git -C $localRoot push --atomic origin HEAD:master refs/tags/0.1.0 2>$null
             $LASTEXITCODE | Should -Not -Be 0
-            (& git -C $remoteRoot show-ref --verify --quiet refs/heads/master) | Out-Null
-            $LASTEXITCODE | Should -Not -Be 0
-            (& git -C $remoteRoot show-ref --verify --quiet refs/tags/0.1.0) | Out-Null
-            $LASTEXITCODE | Should -Not -Be 0
+            foreach ($reference in @('refs/heads/master', 'refs/tags/0.1.0')) {
+                (& git -C $remoteRoot show-ref --verify --quiet $reference) | Out-Null
+                $LASTEXITCODE | Should -Not -Be 0
+            }
 
             $releaseScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw
             $releaseScript | Should -Match ([regex]::Escape("Invoke-Git @('push', '--atomic', 'origin'"))
