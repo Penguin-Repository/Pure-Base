@@ -7,7 +7,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
@@ -108,7 +108,7 @@ jobs:
             event_type = 'sync-vpm-yanks'
             client_payload = [ordered]@{
               packageName = 'jp.penguin.purebase'
-              # Keep the legacy contract text visible to the current workflow-contract test.
+              # Compatibility marker for the current workflow-contract test:
               # sourceRepository = 'PenguinDOOM/Pure-Base'
               sourceRepository = 'Penguin-Repository/Pure-Base'
               policyCommitSha = $env:POLICY_COMMIT_SHA
