@@ -18,16 +18,22 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Exact version from update_trigger.json
+        description: Confirm exact version from the checked-out package.json
         required: true
         type: string
       resume:
-        description: Resume after the package version commit, tag, draft release, or published release
+        description: Resume only for an exact annotated tag and matching draft or published Release at the same SHA
+        required: false
+        default: false
+        type: boolean
+      preflight_only:
+        description: Check the validated artifact and release state without mutating GitHub
         required: false
         default: false
         type: boolean
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -40,57 +46,16 @@ env:
   GIT_CONFIG_VALUE_0: "false"
   GIT_CONFIG_KEY_1: core.eol
   GIT_CONFIG_VALUE_1: lf
-  CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
   PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
   RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
   VPM_REPOSITORY: ${{ vars.VPM_REPOSITORY }}
 
 jobs:
-  unity-editor-cache:
-    name: Prepare Unity 2022.3.22f1 cache
-    runs-on: windows-2022
-    timeout-minutes: 60
-    steps:
-      - name: Checkout cache lookup helper
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Look up Unity Editor cache
-        id: unity-cache-lookup
-        uses: ./.github/actions/lookup-unity-editor-cache
-        with:
-          unity-version: "2022.3.22f1"
-          cli-version: "1.0.0-beta.3"
-          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"
-
-      - name: Restore or create Unity Editor cache
-        id: unity
-        if: steps.unity-cache-lookup.outputs.cache-hit != 'true'
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
-        with:
-          unity-version: "2022.3.22f1"
-          cli-version: "1.0.0-beta.3"
-          cli-channel: beta
-          cache: "true"
-
-      - name: Report Unity Editor cache status
-        shell: pwsh
-        run: |
-          if ("${{ steps.unity-cache-lookup.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache metadata lookup hit for 2022.3.22f1; this preparation job did not download, extract, or install the Editor." >> $env:GITHUB_STEP_SUMMARY
-          }
-          else {
-            "Unity Editor cache metadata lookup missed; setup-unity-cli ran to restore or install the Editor, and a newly installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
-          }
-
   release:
-    name: Validate and publish immutable release
-    needs: unity-editor-cache
+    name: Publish immutable release
     environment: release
     concurrency:
-      group: pure-base-unity-personal-license
+      group: pure-base-release-publishing
       cancel-in-progress: false
     runs-on: windows-2022
     timeout-minutes: 480
@@ -98,7 +63,6 @@ jobs:
       - name: Initialize artifact roots
         shell: pwsh
         run: |
-          "VALIDATION_ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
           "RELEASE_ARTIFACT_ROOT=${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}" >> $env:GITHUB_ENV
 
       - name: Validate release configuration
@@ -131,6 +95,8 @@ jobs:
           client-id: ${{ secrets.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
           permission-contents: write
+          permission-actions: read
+          permission-workflows: write
           permission-administration: read
 
       - name: Create VPM dispatch GitHub App token
@@ -143,94 +109,17 @@ jobs:
           repositories: ${{ steps.release-config.outputs.vpm_repository }}
           permission-contents: write
 
-      - name: Remove previous CI project shell
-        shell: pwsh
-        run: |
-          if (Test-Path -LiteralPath $env:CI_PROJECT_ROOT) {
-            Remove-Item -LiteralPath $env:CI_PROJECT_ROOT -Recurse -Force
-          }
-
-      - name: Checkout Pure-Base release branch
+      - name: Checkout exact dispatch SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.sha }}
           path: PureBaseCi/Packages/jp.penguin.purebase
           fetch-depth: 0
           fetch-tags: true
           token: ${{ steps.release-app-token.outputs.token }}
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Install verified Shader-Core 0.1.9 release
-        shell: pwsh
-        run: |
-          & "$env:PACKAGE_ROOT/.github/scripts/Install-VerifiedShaderCoreRelease.ps1" `
-            -ProjectRoot $env:CI_PROJECT_ROOT `
-            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip' `
-            -ExpectedSha256 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
-
-      - name: Restore Unity 2022.3.22f1
-        id: unity
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
-        with:
-          unity-version: "2022.3.22f1"
-          cli-version: "1.0.0-beta.3"
-          cli-channel: beta
-          cache: "true"
-
-      - name: Report Unity Editor cache handoff
-        shell: pwsh
-        run: |
-          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
-          }
-          else {
-            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so release publishing will continue." >> $env:GITHUB_STEP_SUMMARY
-          }
-
-      - name: Activate Unity Personal license
-        id: unity_license
-        continue-on-error: true
-        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
-        with:
-          license: personal
-          username: ${{ secrets.UNITY_EMAIL }}
-          password: ${{ secrets.UNITY_PASSWORD }}
-          license-version: "6.x"
-
-      - name: Wait before retrying Unity license activation
-        if: steps.unity_license.outcome == 'failure'
-        shell: pwsh
-        run: Start-Sleep -Seconds 45
-
-      - name: Retry Unity Personal license activation
-        if: steps.unity_license.outcome == 'failure'
-        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
-        with:
-          license: personal
-          username: ${{ secrets.UNITY_EMAIL }}
-          password: ${{ secrets.UNITY_PASSWORD }}
-          license-version: "6.x"
-
-      - name: Export Unity editor paths
-        shell: pwsh
-        run: |
-          $realEditorPathFile = Join-Path $env:RUNNER_TEMP 'PureBase.RealUnityEditorPath.txt'
-          $watchdogEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
-            -EditorPath '${{ steps.unity.outputs.editor-path }}' `
-            -RealEditorPathOutputFile $realEditorPathFile
-          $realEditorPath = (Get-Content -LiteralPath $realEditorPathFile -Raw).Trim()
-          "UNITY_EDITOR_PATH=$watchdogEditorPath" >> $env:GITHUB_ENV
-          "REAL_UNITY_EDITOR_PATH=$realEditorPath" >> $env:GITHUB_ENV
-          "Configure Unity watchdog path: $watchdogEditorPath" >> $env:GITHUB_STEP_SUMMARY
-          "Release publishing Unity.exe path: $realEditorPath" >> $env:GITHUB_STEP_SUMMARY
-
-      - name: Prepare Unity project shell
-        shell: pwsh
-        run: |
-          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
-            -ProjectRoot $env:CI_PROJECT_ROOT
-
-      - name: Validate, version, tag, publish, and dispatch
+      - name: Promote validated artifact release
         shell: pwsh
         env:
           PUREBASE_RELEASE_TOKEN: ${{ steps.release-app-token.outputs.token }}
@@ -238,28 +127,28 @@ jobs:
           APP_SLUG: ${{ steps.release-app-token.outputs.app-slug }}
           CONFIRMED_VERSION: ${{ inputs.version }}
           RESUME_RELEASE: ${{ inputs.resume }}
+          PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
         run: |
           $resume = $env:RESUME_RELEASE -eq 'true'
+          $preflightOnly = $env:PREFLIGHT_ONLY -eq 'true'
           & "$env:PACKAGE_ROOT/.github/scripts/Invoke-PureBaseRelease.ps1" `
             -PackageRoot $env:PACKAGE_ROOT `
-            -UnityEditorPath $env:REAL_UNITY_EDITOR_PATH `
-            -ValidationArtifactDirectory $env:VALIDATION_ARTIFACT_ROOT `
+            -ValidatedEventSha '${{ github.sha }}' `
             -ReleaseArtifactDirectory $env:RELEASE_ARTIFACT_ROOT `
             -Repository '${{ github.repository }}' `
             -Branch $env:RELEASE_BRANCH `
             -ConfirmedVersion $env:CONFIRMED_VERSION `
             -VpmRepository $env:VPM_REPOSITORY `
             -AppSlug $env:APP_SLUG `
-            -Resume:$resume
+            -Resume:$resume `
+            -PreflightOnly:$preflightOnly
 
       - name: Upload release evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: pure-base-release-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
-            ${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}\PureBase-Release-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 30
           compression-level: 0

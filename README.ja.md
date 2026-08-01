@@ -35,7 +35,29 @@ Pure Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限�
 - integration harness は Unity `2022.3.22f1` に固定され、test execution には D3D11 を強制します。
 - Material transparency と transparent blending はサポートされません。すべての product shader は固定の Cutout coverage を使用します。
 
-`update_trigger.json` は選択する release target の唯一の source of truth です。fresh release では、その exact SemVer は current `package.json` version より新しく、既存の tag または GitHub Release があってはなりません。manual の Release workflow はその exact SemVer を検証し、`package.json` に書き込み、同じ version を tag にして package を publish します。既存の tag または immutable release を移動、削除、または別の fresh publication に再利用してはなりません。strict resume でその状態を回復できない場合は、`update_trigger.json` で後続の承認済み SemVer target を選択してください。stable version と prerelease version の両方をサポートします。package-owned validation の source of truth は `Packages/jp.penguin.purebase/Tests` です。
+## Release の準備と公開
+
+`package.json` が release identity と version の唯一の declaration です。manual の `Release`
+workflow に渡す `version` input は、checkout 済み package の exact version を確認するだけで、
+version の書き込みや commit は行いません。package の変更を準備して commit し、その exact
+commit SHA に対して hosted の `Release validation` workflow を実行した後、同じ branch と SHA
+から `Release` を実行します。validation は deterministic な Store-mode ZIP、lowercase の
+SHA-256 sidecar、schema-1 の `release-validation.json` provenance manifest を1つの artifact
+に生成します。`Release` は matching validation run のうち最新の run と attempt を選び、
+失効していない artifact と digest を検証して、download した ZIP だけを rebuild せずに公開します。
+
+最新の matching validation run が失効、失敗、または利用できない場合は、同じ SHA で
+validation を再実行してください。古い成功 run や package の rebuild には fallback しません。
+fresh release には既存の tag と GitHub Release があってはなりません。resume には同じ SHA を
+指す exact annotated tag と matching draft または published Release の両方が必要です。tag
+だけが残った failure は自動修復せず、operator が調査します。draft resume で許可されるのは
+badge の修復と、欠落した asset の upload または exact digest の asset の再利用だけです。
+published resume は release branch が同じ SHA を指している場合だけ許可され、immutable
+Release の body と asset は変更しません。legacy または missing badge も変更しません。任意の `preflight_only=true` は本番公開前に実行できる
+hosted の no-mutation check で、tag、Release、asset、VPM dispatch を作成しません。Release
+path は Unity、ZIP rebuild、`package.json` の書き込み、commit、release branch の push を
+行いません。package-owned validation の source of truth は `Packages/jp.penguin.purebase/Tests`
+です。
 
 release ZIP には `Tests/**` と test-only の `*.scmodule` files は含まれません。追跡対象の `.scmodule` files は test fixtures であり、package-owned の `Tests/**` fixture boundary 内でのみ許可されます。
 
@@ -47,7 +69,16 @@ Release workflow は stable-only ではありません。prerelease は GitHub p
 
 literal `master` branch の `vpm-yanks.json` 変更で synchronization workflow が起動します。dispatch が stale になった場合や receiver outage の復旧後は、`master` から manual に再実行できます。workflow は current commit の policy を dispatch 前に検証し、固定された `sync-vpm-yanks` event だけを送信します。任意の source path や branch は受け付けません。manual replay では current policy commit が source of truth になります。
 
-initial Yank rollout には gate があります。VPM receiver の準備ができ、`update_trigger.json` で選択された target の release が VPM feed に登録されたことを確認するまで policy は空のままにしてください。両方を確認した後は、その release 済み version を、個別に承認された policy update として end-to-end の Yank/Unyank test のために追加できます。空の policy は no-op の desired state であり、target feed に release が存在する前に version を追加しないでください。feed と receiver の更新には eventual consistency があるため、stale または早すぎる dispatch は listing を変更せず fail closed します。反映後に `master` から current policy commit で retry してください。ALCOM の prerelease と package feed の挙動は実装依存であり、他の VCC client については保証されません。
+initial Yank rollout には gate があります。VPM receiver の準備ができ、confirmed release version
+が VPM feed に登録されたことを確認するまで policy は空のままにしてください。両方を確認した
+後は、その release 済み version を、個別に承認された policy update として end-to-end の
+Yank/Unyank test のために追加できます。空の policy は no-op の desired state であり、target
+feed に release が存在する前に version を追加しないでください。feed と receiver の更新には
+eventual consistency があるため、stale または早すぎる dispatch は listing を変更せず fail
+closed します。反映後に `master` から current policy commit で retry してください。VPM
+receiver、VPM repository、既存の `update-vpm` payload contract はこの release pipeline の対象外
+であり、変更されません。ALCOM の prerelease と package feed の挙動は実装依存であり、他の
+VCC client については保証されません。
 
 ## シェーダーパス
 

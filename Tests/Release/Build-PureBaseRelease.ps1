@@ -495,23 +495,42 @@ else {
     [void](New-Item -ItemType Directory -Path $outputDirectoryFullPath -Force)
 }
 
-$stageDirectory = Join-Path $outputDirectoryFullPath ('purebase-release-stage-' + [guid]::NewGuid().ToString('N'))
 $zipPath = Join-Path $outputDirectoryFullPath ('jp.penguin.purebase-' + [string]$packageJson.version + '.zip')
 $hashPath = $zipPath + '.sha256'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+if (Test-Path -LiteralPath $zipPath) {
+    Remove-Item -LiteralPath $zipPath -Force
+}
+$zipStream = [System.IO.File]::Open($zipPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
 try {
-    [void](New-Item -ItemType Directory -Path $stageDirectory -Force)
-    foreach ($relativePath in $releaseFiles) {
-        $sourceItem = Get-ItemInsideRoot -Root $packageRoot -RelativePath $relativePath
-        $stagePath = Join-Path $stageDirectory $relativePath.Replace('/', [System.IO.Path]::DirectorySeparatorChar)
-        [void](New-Item -ItemType Directory -Path (Split-Path -Parent $stagePath) -Force)
-        Copy-Item -LiteralPath $sourceItem.FullName -Destination $stagePath -Force
-    }
+    $zipWriter = [System.IO.Compression.ZipArchive]::new($zipStream, [System.IO.Compression.ZipArchiveMode]::Create, $false)
+    try {
+        $entryTimestamp = [System.DateTimeOffset]::new(2026, 1, 1, 9, 0, 0, [System.TimeSpan]::Zero)
+        $regularFileExternalAttributes = [System.IO.FileAttributes]::Normal
+        foreach ($relativePath in (Get-OrdinalSortedStrings -Values $releaseFiles.ToArray())) {
+            $sourceItem = Get-ItemInsideRoot -Root $packageRoot -RelativePath $relativePath
+            $entry = $zipWriter.CreateEntry($relativePath, [System.IO.Compression.CompressionLevel]::NoCompression)
+            $entry.LastWriteTime = $entryTimestamp
+            $entry.ExternalAttributes = $regularFileExternalAttributes
 
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    if (Test-Path -LiteralPath $zipPath) {
-        Remove-Item -LiteralPath $zipPath -Force
+            $sourceStream = [System.IO.File]::Open($sourceItem.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+            $entryStream = $entry.Open()
+            try {
+                $sourceStream.CopyTo($entryStream)
+            }
+            finally {
+                $entryStream.Dispose()
+                $sourceStream.Dispose()
+            }
+        }
     }
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($stageDirectory, $zipPath, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+    finally {
+        $zipWriter.Dispose()
+    }
+}
+finally {
+    $zipStream.Dispose()
+}
 
     $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
     try {
@@ -566,12 +585,6 @@ try {
 
     $zipHash = Get-Sha256Hex -Path $zipPath
     Set-Content -LiteralPath $hashPath -Value $zipHash -Encoding ASCII
-    Write-Output "Release ZIP: $zipPath"
-    Write-Output "SHA-256: $zipHash"
-    Write-Output "Audited entries: $($releaseFiles.Count)"
-}
-finally {
-    if (Test-Path -LiteralPath $stageDirectory) {
-        Remove-Item -LiteralPath $stageDirectory -Recurse -Force
-    }
-}
+Write-Output "Release ZIP: $zipPath"
+Write-Output "SHA-256: $zipHash"
+Write-Output "Audited entries: $($releaseFiles.Count)"

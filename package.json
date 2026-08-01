@@ -10,8 +10,8 @@
   "vpmDependencies": {
     "jp.lilxyzw.shadercore": "0.1.9"
   },
-  "changelogUrl": "",
-  "licensesUrl": "",
+  "changelogUrl": "https://github.com/PenguinDOOM/Pure-Base/releases",
+  "licensesUrl": "https://github.com/PenguinDOOM/Pure-Base/blob/master/LICENSE",
   "license": "Apache-2.0",
   "keywords": [
     "Shader"
