@@ -620,6 +620,21 @@ Describe 'Hosted Unity review contracts' {
         )
     }
 
+    It 'captures detached-safe local branch snapshots for Release validation' -Tag ReleaseValidationProducer {
+        $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
+        $initialSnapshotStep = Get-NamedStepBlock -Job $validationJob -Name 'Capture initial repository state'
+        $finalSnapshotStep = Get-NamedStepBlock -Job $validationJob -Name 'Assert repository state unchanged'
+        $safeExpression = '(& git branch --show-current | Out-String).Trim()'
+        $unsafeExpression = '(& git branch --show-current).Trim()'
+
+        $initialSnapshotStep | Should -Not -BeNullOrEmpty
+        $finalSnapshotStep | Should -Not -BeNullOrEmpty
+        $initialSnapshotStep.Contains($safeExpression) | Should -BeTrue
+        $finalSnapshotStep.Contains($safeExpression) | Should -BeTrue
+        $releaseWorkflow | Should -Not -Match ([regex]::Escape($unsafeExpression))
+        ([regex]::Matches($releaseWorkflow, [regex]::Escape($safeExpression))).Count | Should -Be 2
+    }
+
     It 'stages the same verified Shader-Core release asset in every Unity validation consumer' {
         $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip'
         $expectedSha256 = 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'

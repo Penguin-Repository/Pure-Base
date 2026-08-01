@@ -104,7 +104,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
             $initialCleanTree = (& git status --porcelain | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
-            $initialLocalBranch = (& git branch --show-current).Trim()
+            $initialLocalBranch = (& git branch --show-current | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
             $initialLocalRefs = (& git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git for-each-ref failed.' }
@@ -255,7 +255,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
             $finalCleanTree = (& git status --porcelain | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
-            $finalLocalBranch = (& git branch --show-current).Trim()
+            $finalLocalBranch = (& git branch --show-current | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
             $finalLocalRefs = (& git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git for-each-ref failed.' }
