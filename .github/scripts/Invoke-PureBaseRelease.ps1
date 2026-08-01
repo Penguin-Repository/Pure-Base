@@ -171,7 +171,7 @@ function Get-ValidatedArtifact([long]$RunId, [int]$RunAttempt, [string]$AssetNam
         $archivePath = Join-Path $ReleaseArtifactDirectory 'validation-artifact-download.zip'
         $requestInvoker = {
             param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection)
-            if ($OutFile) { Invoke-WebRequest -Method $Method -Uri $Uri -Headers $Headers -OutFile $OutFile -MaximumRedirection $MaximumRedirection -ErrorAction Stop }
+            if ($OutFile) { Invoke-WebRequest -Method $Method -Uri $Uri -Headers $Headers -OutFile $OutFile -PassThru -MaximumRedirection $MaximumRedirection -ErrorAction Stop }
             else { Invoke-WebRequest -Method $Method -Uri $Uri -Headers $Headers -MaximumRedirection $MaximumRedirection -ErrorAction Stop }
         }
         Invoke-PureBaseArtifactArchiveDownload -ArchiveUri "$apiRoot/repos/$Repository/actions/artifacts/$($validationArtifact.id)/zip" -Token $releaseToken -DestinationPath $archivePath -RequestInvoker $requestInvoker | Out-Null

@@ -754,6 +754,7 @@ function Invoke-PureBaseArtifactRequestWithoutRedirect {
 
     try {
         $response = & $RequestInvoker 'GET' $Uri $Headers $OutFile 0
+        if ($null -eq $response) { throw 'Validation artifact archive response contract violation: request adapter returned no HTTP response.' }
         return Get-PureBaseArtifactHttpResponse -Response $response
     }
     catch {
@@ -769,7 +770,7 @@ function Invoke-PureBaseArtifactArchiveDownload {
         [Parameter(Mandatory)][string]$ArchiveUri, [Parameter(Mandatory)][string]$Token, [Parameter(Mandatory)][string]$DestinationPath,
         [Parameter()][scriptblock]$RequestInvoker = {
             param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection)
-            if ($OutFile) { Invoke-WebRequest -Method $Method -Uri $Uri -Headers $Headers -OutFile $OutFile -MaximumRedirection $MaximumRedirection -ErrorAction Stop }
+            if ($OutFile) { Invoke-WebRequest -Method $Method -Uri $Uri -Headers $Headers -OutFile $OutFile -PassThru -MaximumRedirection $MaximumRedirection -ErrorAction Stop }
             else { Invoke-WebRequest -Method $Method -Uri $Uri -Headers $Headers -MaximumRedirection $MaximumRedirection -ErrorAction Stop }
         },
         [ValidateRange(0, 3)][int]$MaximumRedirects = 3

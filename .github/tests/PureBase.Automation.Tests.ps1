@@ -346,6 +346,11 @@ Describe 'Production workflow integration' {
         $releaseScript | Should -Not -Match 'Build-Zip|Compress-Archive|ZipFile\]::Create|CreateFromDirectory'
     }
 
+    It 'keeps the runner artifact download adapter response-producing' {
+        $releaseScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw
+        $releaseScript | Should -Match '(?ms)\$requestInvoker\s*=\s*\{.*?if \(\$OutFile\) \{\s*Invoke-WebRequest.*-OutFile \$OutFile.*-PassThru.*\}'
+    }
+
     It 'uses the tested authorization function before allocating the Unity runner' {
         $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
         $dailyWorkflow | Should -Match 'Resolve-PureBaseDailySource'
@@ -1946,28 +1951,41 @@ Describe 'Validated artifact archive and mutation gate contracts' {
         { Assert-PureBaseArtifactRedirectLocation -Location 'http://objects.example.invalid/archive.zip' } | Should -Throw '*absolute HTTPS redirect*'
     }
 
-    It 'downloads an authenticated 302 HTTPS redirect without forwarding authorization' {
+    It 'downloads an authenticated 302 HTTPS redirect only when the signed request preserves its response' {
         $destinationPath = Join-Path $TestDrive 'archive.zip'
         $requests = [Collections.Generic.List[object]]::new()
-        $requestInvoker = {
-            param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection)
-            $requests.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Headers = $Headers; OutFile = $OutFile; MaximumRedirection = $MaximumRedirection }) | Out-Null
+        Mock Invoke-WebRequest -ModuleName PureBase.Automation {
+            param($Method, $Uri, $Headers, $OutFile, [switch]$PassThru, $MaximumRedirection)
+            $requests.Add([pscustomobject]@{ Method = $Method; Uri = $Uri; Headers = $Headers; OutFile = $OutFile; PassThru = [bool]$PassThru; MaximumRedirection = $MaximumRedirection }) | Out-Null
             if ($Uri -eq 'https://api.github.com/actions/artifacts/7/zip') {
                 return [pscustomobject]@{ StatusCode = 302; Headers = @{ Location = 'https://objects.example.invalid/archive.zip' } }
             }
+            if (-not $OutFile -or -not $PassThru) { return $null }
             [IO.File]::WriteAllBytes($OutFile, [byte[]](1, 2, 3))
             return [pscustomobject]@{ StatusCode = 200; Headers = @{} }
         }.GetNewClosure()
 
-        Invoke-PureBaseArtifactArchiveDownload -ArchiveUri 'https://api.github.com/actions/artifacts/7/zip' -Token 'release-token' -DestinationPath $destinationPath -RequestInvoker $requestInvoker
+        Invoke-PureBaseArtifactArchiveDownload -ArchiveUri 'https://api.github.com/actions/artifacts/7/zip' -Token 'release-token' -DestinationPath $destinationPath
 
         $requests.Count | Should -Be 2
         $requests[0].Headers.Authorization | Should -Be 'Bearer release-token'
+        $requests[0].PassThru | Should -BeFalse
         $requests[0].MaximumRedirection | Should -Be 0
         $requests[1].Uri | Should -Be 'https://objects.example.invalid/archive.zip'
         $requests[1].Headers.ContainsKey('Authorization') | Should -BeFalse
+        $requests[1].OutFile | Should -Be $destinationPath
+        $requests[1].PassThru | Should -BeTrue
         $requests[1].MaximumRedirection | Should -Be 0
         Test-Path -LiteralPath $destinationPath | Should -BeTrue
+    }
+
+    It 'rejects a normal null artifact response before parsing its HTTP status' {
+        InModuleScope PureBase.Automation {
+            $requestInvoker = { param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection) return $null }
+
+            { Invoke-PureBaseArtifactRequestWithoutRedirect -RequestInvoker $requestInvoker -Uri 'https://objects.example.invalid/archive.zip' -Headers @{ 'User-Agent' = 'Pure-Base-Actions' } -OutFile 'null-response.zip' } |
+            Should -Throw '*response contract violation*'
+        }
     }
 
     It 'handles a native HttpResponseException for the initial authenticated 302 redirect' {
