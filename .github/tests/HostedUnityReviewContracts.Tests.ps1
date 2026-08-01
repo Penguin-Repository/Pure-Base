@@ -16,6 +16,7 @@ Describe 'Hosted Unity review contracts' {
     BeforeAll {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $dailyWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw) -replace "`r`n", "`n"
+        $automationTestsWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/automation-tests.yml') -Raw) -replace "`r`n", "`n"
         $releaseWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release-validation.yml') -Raw) -replace "`r`n", "`n"
         $releasePublishingWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release.yml') -Raw) -replace "`r`n", "`n"
         $releaseAutomationScript = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw) -replace "`r`n", "`n"
@@ -337,6 +338,24 @@ Describe 'Hosted Unity review contracts' {
     It 'uses repository-unique PR concurrency for Daily' {
         $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.number || github.ref }}') | Should -BeTrue
         $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.head.ref || github.ref_name }}') | Should -BeFalse
+    }
+
+    It 'keeps actionlint isolated and preserves the Pester job' {
+        $actionlintJob = Get-NamedJobBlock -Workflow $automationTestsWorkflow -Name 'actionlint'
+        $pesterJob = Get-NamedJobBlock -Workflow $automationTestsWorkflow -Name 'pester'
+        $checkout = Get-NamedStepBlock -Job $actionlintJob -Name 'Checkout repository'
+        $actionlintStep = Get-NamedStepBlock -Job $actionlintJob -Name 'Run actionlint'
+
+        $actionlintJob | Should -Not -BeNullOrEmpty
+        $actionlintJob | Should -Match '(?m)^    runs-on: ubuntu-latest$'
+        $actionlintJob | Should -Not -Match '(?m)^    needs:'
+        $checkout | Should -Match '(?m)^        uses: actions/checkout@'
+        $checkout | Should -Match '(?m)^          persist-credentials: false$'
+        @(Get-ActionReferences -Source $actionlintJob).Count | Should -Be 1
+        $actionlintStep | Should -Match '(?m)^        run: go run github\.com/rhysd/actionlint/cmd/actionlint@v1\.7\.12 -color$'
+        $pesterJob | Should -Not -BeNullOrEmpty
+        $pesterJob | Should -Match '(?m)^    name: Pester 5\.9\.0$'
+        $pesterJob | Should -Match '(?m)^      - name: Run automation tests$'
     }
 
     It 'defines the repository-owned lookup helper cache identity' {
@@ -700,6 +719,12 @@ Describe 'Hosted Unity review contracts' {
         $vpmTokenStep | Should -Not -Match '(?m)^          permission-(actions|workflows|administration):'
     }
 
+    It 'documents artifact-only version confirmation and exact-SHA resume requirements' {
+        $releasePublishingWorkflow | Should -Match '(?m)^        description: Confirm exact version from the checked-out package\.json$'
+        $releasePublishingWorkflow | Should -Match '(?m)^        description: Resume only for an exact annotated tag and matching draft or published Release at the same SHA$'
+        $releasePublishingWorkflow | Should -Not -Match '(?i)update_trigger\.json|resume after|package[ -]version[ -]commit'
+    }
+
     It 'checks out the exact dispatch SHA without persisting the promotion credential' {
         $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
         $checkouts = @([regex]::Matches($releaseJob, '(?ms)^      - name: [^\r\n]*Checkout[^\r\n]*\n.*?(?=^      - name:|\z)') | ForEach-Object Value)
@@ -716,31 +741,43 @@ Describe 'Hosted Unity review contracts' {
     It 'supports an optional no-mutation preflight and repeated release-branch tip checks' {
         $releasePublishingWorkflow | Should -Match '(?m)^      preflight_only:$'
         $releasePublishingWorkflow | Should -Match '(?m)^        default: false$'
-        $releasePublishingWorkflow | Should -Match '(?m)-PreflightOnly(?::|\s)'
+        $releasePublishingWorkflow | Should -Match '(?m)^          PREFLIGHT_ONLY: \$\{\{ inputs\.preflight_only \}\}$'
+
+        $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
+        $releaseInvocation = Get-NamedStepBlock -Job $releaseJob -Name 'Promote validated artifact release'
+        $releaseInvocation | Should -Match '(?m)^          \$preflightOnly = \$env:PREFLIGHT_ONLY -eq ''true''$'
+        $releaseInvocation | Should -Match '(?m)^            -ValidatedEventSha ''\$\{\{ github\.sha \}\}'' `$'
+        $releaseInvocation | Should -Match '(?m)^            -ReleaseArtifactDirectory \$env:RELEASE_ARTIFACT_ROOT `$'
+        $releaseInvocation | Should -Match '(?m)^            -Repository ''\$\{\{ github\.repository \}\}'' `$'
+        $releaseInvocation | Should -Match '(?m)^            -Branch \$env:RELEASE_BRANCH `$'
+        $releaseInvocation | Should -Match '(?m)^            -ConfirmedVersion \$env:CONFIRMED_VERSION `$'
+        $releaseInvocation | Should -Match '(?m)^            -Resume:\$resume `$'
+        $releaseInvocation | Should -Match '(?m)^            -PreflightOnly:\$preflightOnly$'
 
         $releaseAutomationScript | Should -Match '(?m)^function Assert-RemoteReleaseBranchHead\b'
         $releaseAutomationScript | Should -Match '(?m)\[switch\]\$PreflightOnly'
         $releaseAutomationScript | Should -Match '(?m)if \(\$PreflightOnly\)'
-        ([regex]::Matches($releaseAutomationScript, '(?m)Assert-RemoteReleaseBranchHead')).Count | Should -BeGreaterOrEqual 4
+        $releaseAutomationScript | Should -Match '(?ms)^function Invoke-MutationGate.*?^    Assert-RemoteReleaseBranchHead$'
+        $releaseAutomationScript | Should -Match '(?ms)^Write-State ''release-mode-resolved''.*?^Assert-RemoteReleaseBranchHead$.*?^if \(\$PreflightOnly\)'
+        ([regex]::Matches($releaseAutomationScript, '(?m)Assert-RemoteReleaseBranchHead')).Count | Should -Be 3
     }
 
     It 'removes Unity, version-writer, and branch-push responsibilities from the consumer' {
-        $releasePublishingWorkflow | Should -Not -Match '(?i)unity|shader-core|Run-PureBaseReleaseValidation|New-PureBaseCiProject|Export-PureBaseValidationZip|Set-PackageVersion|Build-Zip'
+        $releasePublishingWorkflow | Should -Not -Match '(?i)unity|shader-core|Run-PureBaseReleaseValidation|New-PureBaseCiProject|Export-PureBaseValidationZip|Set-PackageVersion|Build-Zip|Build-PureBaseRelease|Compress-Archive|ValidationArtifactDirectory|VALIDATION_ARTIFACT_ROOT|UnityEditorPath|REAL_UNITY_EDITOR_PATH|UNITY_EDITOR_PATH'
         $releaseAutomationScript | Should -Not -Match '(?m)\[Parameter\(Mandatory\)\]\[string\]\$UnityEditorPath'
         $releaseAutomationScript | Should -Not -Match '(?m)\b(Set-PackageVersion|Build-Zip|Commit-And-Tag|Run-PureBaseReleaseValidation)\b'
         $releaseAutomationScript | Should -Not -Match '(?im)^\s*git\s+push\s+.*(?:refs/heads|HEAD:)'
     }
 
     It 'keeps promotion mutations in the fixed validation-to-dispatch order' {
-        $mainScript = $releaseAutomationScript.Substring($releaseAutomationScript.IndexOf('$packageName'))
+        $mainScript = $releaseAutomationScript.Substring($releaseAutomationScript.IndexOf("Write-State 'preflight'"))
         $anchors = @(
             'Select-PureBaseReleaseValidationRun',
-            'Resolve-PureBaseValidationArtifact',
-            'Assert-PureBaseValidationManifest',
+            'Get-ValidatedArtifact',
             'Assert-RemoteReleaseBranchHead',
             'refs/tags/',
-            'Publish-Release',
-            'Resolve-PureBasePublishedArtifact',
+            'Resolve-PureBaseDraftAssetAction',
+            'Assert-PureBasePublishedResumeArtifact',
             'New-PureBaseDispatchPayload'
         )
 

@@ -117,9 +117,43 @@ Fixed test-host module selections belong to the Initialize lane. They must not l
 ## Release validation
 
 > [!Important]
-> Since release validation involves extensive read and write operations, it is recommended to perform it in a CI/CD environment rather than locally.
+> Do not run `Tests/Release/Run-PureBaseReleaseValidation.ps1` locally during normal
+> LLM-assisted development. Release validation is the hosted producer lane; the production
+> Release workflow consumes its exact-SHA artifact.
 
 `Tests/Release/Run-PureBaseReleaseValidation.ps1` is the release consumer lane. It requires `-UnityEditorPath` and accepts an external `-ArtifactDirectory`; `-KeepConsumer` retains the consumer directory for inspection.
+
+The hosted `Release validation` workflow checks out the release-preparation commit at its exact
+SHA, runs this consumer lane, and verifies that the package checkout and refs remain unchanged. It
+then exports one validation artifact with this layout:
+
+```text
+pure-base-release-validation-<run-id>-<run-attempt>/
+   validated-package/
+      jp.penguin.purebase-<version>.zip
+      jp.penguin.purebase-<version>.zip.sha256
+      release-validation.json
+```
+
+The ZIP is deterministic and uses Store mode. The sidecar contains one lowercase SHA-256 line.
+The schema-1 manifest binds the ZIP to the repository, exact head SHA, head branch, workflow run
+ID and attempt, package version, asset name, and SHA-256. The producer creates and uploads this
+evidence only after the audited ZIP and all provenance checks succeed.
+
+The `Release` workflow is the consumer. It must be dispatched from the same release branch and
+exact SHA after validation. It selects the latest matching `release-validation.yml` run and attempt,
+requires that run to be completed successfully, requires one unexpired artifact with matching
+provenance, and verifies the downloaded ZIP against both the manifest and sidecar. Artifact expiry,
+latest-run failure, or any provenance/digest mismatch requires a new hosted validation run for the
+same SHA; an older successful run and a Release-side rebuild are not fallback paths. The published
+asset is the downloaded validated ZIP itself.
+
+Release does not run Unity validation, rebuild the ZIP, write or commit package files, or push the
+release branch. It rechecks the release branch before remote mutations and performs digest,
+published-state, and immutable-release verification before the existing VPM dispatch, which is
+last. A published resume leaves a legacy or missing badge body unchanged. `preflight_only=true` provides an optional hosted no-mutation check before first production
+publication. The VPM receiver, repository, and existing dispatch payload contract remain outside
+this release validation boundary.
 
 The runner builds the audited release ZIP and validates it in one disposable external `ConsumerProject` directory. Cold resets remove only that consumer directory's `Library`, while the runner verifies the remaining immutable consumer inputs. Unless `-KeepConsumer` is specified, the consumer directory is removed after validation.
 

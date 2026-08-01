@@ -35,7 +35,28 @@ Pure Base provides four minimal Built-in Render Pipeline base shaders for Shader
 - The integration harness is fixed to Unity `2022.3.22f1` and forces D3D11 for test execution.
 - Material transparency and transparent blending are not supported. All product shaders use fixed Cutout coverage.
 
-`update_trigger.json` is the sole selected release target. For a fresh release, its exact SemVer must be newer than the current `package.json` version and have no existing tag or GitHub Release. The manual Release workflow validates that exact SemVer, writes it to `package.json`, tags the same version, and publishes the resulting package. An existing tag or immutable release must not be moved, deleted, or reused for another fresh publication. When strict resume cannot recover that state, select a later approved SemVer target in `update_trigger.json`. Both stable and prerelease versions are supported. The package-owned validation source of truth is `Packages/jp.penguin.purebase/Tests`.
+## Release preparation and publication
+
+`package.json` is the sole release identity and version declaration. The `version` input to the
+manual `Release` workflow confirms the exact version in the checked-out package; it does not write
+or commit a version. Prepare and commit the package changes, run the hosted `Release validation`
+workflow for that exact commit SHA, then run `Release` from the same branch and SHA. Validation
+produces a deterministic Store-mode ZIP, a lowercase SHA-256 sidecar, and a schema-1
+`release-validation.json` provenance manifest in one artifact. `Release` selects the latest
+matching validation run and attempt, verifies the unexpired artifact and its digest, and publishes
+the downloaded ZIP without rebuilding it.
+
+An expired or unsuccessful latest matching validation run requires a new validation run for the
+same SHA. Release does not use an older successful run or rebuild the package. A fresh release
+requires no existing tag or GitHub Release. Resume requires an exact annotated tag plus a matching
+draft or published Release at the same SHA; a tag-only failure needs operator investigation. Draft
+resume is limited to badge repair and missing-asset upload or exact-digest reuse. Published resume
+requires the release branch to remain at the same SHA and does not change the immutable Release
+body or assets, including a legacy or missing badge. The optional `preflight_only=true` input performs these hosted checks without
+creating a tag, Release, asset, or VPM dispatch, and should be run before the first production
+publication. The Release path does not run Unity, rebuild the ZIP, write or commit `package.json`,
+or push the release branch. The package-owned validation source of truth is
+`Packages/jp.penguin.purebase/Tests`.
 
 The release ZIP excludes `Tests/**` and test-only `*.scmodule` files. Tracked `.scmodule` files are test fixtures and are allowed only within the package-owned `Tests/**` fixture boundary.
 
@@ -47,7 +68,15 @@ The Release workflow is not stable-only. A prerelease is published as a GitHub p
 
 Changes to `vpm-yanks.json` on the literal `master` branch trigger the synchronization workflow. Operators can also run it manually from `master` when a dispatch is stale or a receiver outage has been recovered. The workflow validates the policy at the current commit before sending a fixed `sync-vpm-yanks` event; it does not accept arbitrary source paths or branches. Manual replay uses the current policy commit as the source of truth.
 
-The initial Yank rollout is gated: keep the policy empty until the VPM receiver is ready and the release for the target selected by `update_trigger.json` is registered in the VPM feed. Once both are confirmed, the policy may add that released version for the end-to-end Yank/Unyank test as a separate approved policy update. An empty policy is a no-op desired state, and no version may be added before its release exists in the target feed. Feed and receiver updates are eventually consistent; a stale or premature dispatch fails closed without changing the listing, so retry from `master` with the current policy commit after propagation. ALCOM prerelease and package-feed behavior is implementation-specific and is not guaranteed for other VCC clients.
+The initial Yank rollout is gated: keep the policy empty until the VPM receiver is ready and the
+confirmed release version is registered in the VPM feed. Once both are confirmed, the policy may add
+that released version for the end-to-end Yank/Unyank test as a separate approved policy update. An
+empty policy is a no-op desired state, and no version may be added before its release exists in the
+target feed. Feed and receiver updates are eventually consistent; a stale or premature dispatch
+fails closed without changing the listing, so retry from `master` with the current policy commit
+after propagation. The VPM receiver, VPM repository, and existing `update-vpm` payload contract
+remain unchanged and are outside the release pipeline. ALCOM prerelease and package-feed behavior
+is implementation-specific and is not guaranteed for other VCC clients.
 
 ## Shader Paths
 

@@ -151,26 +151,48 @@ rejects wrapper executables while proving the required Unity version from the ed
 workflow uploads the complete evidence directory, including a versioned copy of the audited package
 ZIP.
 
-`Release` is manual and requires the exact version currently stored in `update_trigger.json`, which
-is the sole selected release target. `package.json` is the package manifest and version source after
-the workflow writes the requested SemVer. For a fresh release, that version must be newer than
-`package.json` and must have no existing tag or GitHub Release. An existing tag or immutable release
-must not be moved, deleted, or reused for another fresh publication. If strict resume cannot recover
-the existing state, operators must select a later approved SemVer target in `update_trigger.json`.
+`package.json` is the sole release identity and version declaration. The `version` input to the
+manual `Release` workflow is confirmation only: it must exactly match the checked-out package
+version, and the workflow never writes or commits a package version. A release-preparation commit
+therefore follows this hosted sequence:
+
+1. Commit the intended package changes, including the exact `package.json` version, on the configured
+  release branch.
+2. Manually run `Release validation` for that exact commit SHA. This read-only producer validates
+  the package and emits a deterministic Store-mode ZIP, its lowercase SHA-256 sidecar, and a
+  schema-1 `release-validation.json` provenance manifest in one Actions artifact.
+3. Manually run `Release` from the same release-branch SHA and confirm the same package version.
+  It selects the latest matching `release-validation.yml` `workflow_dispatch` run by run number and
+  attempt, downloads that run's unexpired artifact, and revalidates its provenance, ZIP, manifest,
+  and digest. The downloaded ZIP is the only publication payload; Release never rebuilds it.
+
+The selected validation run itself must be completed successfully. If the artifact is missing,
+expired, malformed, or the latest matching run is non-success, queued, cancelled, or otherwise not
+usable, run `Release validation` again for the same SHA. Release does not fall back to an older
+successful run, a published asset, or a new ZIP build.
+
+The workflow has strict fresh and resume states. A fresh release requires no tag and no GitHub
+Release for the confirmed version. It may create only an annotated tag at the validated SHA; it
+does not write the package, create a commit, or push the release branch. A resume requires both an
+exact annotated tag and a matching draft or published Release at the same SHA. A tag-only failure
+is not automatically repaired and requires operator investigation. Draft resume is limited to
+repairing the generated badge body and uploading or reusing one exact-digest missing asset;
+mismatched or duplicate assets fail closed. Published resume is allowed only while the configured
+release branch still points to the same SHA. It verifies the immutable Release and asset digest and
+does not mutate the published Release body or assets, including a legacy or missing badge.
+
+Before the first production publication, operators may run `Release` with `preflight_only=true`
+for the same branch, SHA, and version. This hosted no-mutation check exercises token permissions,
+exact checkout, latest-run/artifact verification, release-state resolution, and the remote branch
+tip gate, then records evidence without creating a tag, Release, asset, or dispatch. The production
+Release path performs no Unity setup or validation, package write, commit, rebuild, or release-
+branch push. It rechecks the release branch before each remote mutation, verifies the asset digest
+before publish, verifies the published and immutable state afterward, and sends the existing VPM
+dispatch last.
+
 Stable and prerelease versions are supported; prereleases are published as GitHub prereleases.
 Prerelease visibility in a VPM client depends on that client's behavior; this package does not
-promise that every VCC client hides or displays prereleases in the same way. The workflow validates
-the pre-update package, updates and commits `package.json`, pushes the version tag, builds a new
-audited ZIP from the updated commit, creates a draft release, uploads the ZIP, publishes the release,
-and sends `update-vpm` to the VPM repository using a GitHub App installation token.
-
-If a run fails after the package version commit, rerun the workflow with the same version and
-`resume` enabled. Resume is fail-closed: `update_trigger.json` and `package.json` must match exactly,
-and an existing annotated release tag must point to HEAD. A missing tag or an advanced HEAD
-requires operator investigation rather than auto-recovery. Resume mode reruns release validation,
-resumes an existing draft, accepts an already published release only when its asset matches, and
-retries the VPM dispatch. Creating and filling a draft before publication minimizes the immutable
-release failure window.
+promise that every VCC client hides or displays prereleases in the same way.
 
 `Sync VPM yanks` runs on a `vpm-yanks.json` push to the literal `master` branch or by manual
 dispatch from `master`. It uses the existing `release` environment and the same `APP_CLIENT_ID` and
@@ -181,17 +203,19 @@ repository helper before creating any repository dispatch request, then sends on
 policy SHA, entry count, and target repository to the run summary, but never logs Yank reason
 bodies. The policy is desired state: a version entry means Yank and an absent entry means Unyank.
 
-Keep `vpm-yanks.json` empty until the VPM receiver is ready and the release for the target selected
-by `update_trigger.json` is registered in the VPM feed. Once both are confirmed, that released
-version may be added for the end-to-end Yank/Unyank test as a separate approved policy update and
-synchronization from the release artifacts. An empty policy is a no-op desired state, and no version
-may be added before its release exists in the target feed. Feed and receiver updates are eventually
-consistent; a stale or premature dispatch fails closed without changing the listing, so retry from
-`master` with the current policy commit after propagation. For stale state or recovery after a
-receiver outage, correct the desired state on `master` and rerun the workflow manually from `master`.
-The reason value is public operational documentation, not a secret channel. Never put secrets,
-credentials, personal data, or other private information in it. ALCOM prerelease and package-feed
-behavior is implementation-specific and is not guaranteed for other VCC clients.
+Keep `vpm-yanks.json` empty until the VPM receiver is ready and the confirmed release version is
+registered in the VPM feed. Once both are confirmed, that released version may be added for the
+end-to-end Yank/Unyank test as a separate approved policy update and synchronization from the
+release artifacts. An empty policy is a no-op desired state, and no version may be added before its
+release exists in the target feed. Feed and receiver updates are eventually consistent; a stale or
+premature dispatch fails closed without changing the listing, so retry from `master` with the
+current policy commit after propagation. For stale state or recovery after a receiver outage,
+correct the desired state on `master` and rerun the workflow manually from `master`. The VPM
+receiver, VPM repository, and existing `update-vpm` payload contract are outside this release
+pipeline documentation change and remain unchanged. The reason value is public operational
+documentation, not a secret channel. Never put secrets, credentials, personal data, or other
+private information in it. ALCOM prerelease and package-feed behavior is implementation-specific
+and is not guaranteed for other VCC clients.
 
 `Automation tests` runs Pester on GitHub-hosted Linux runners. The tests cover stable and prerelease
 version validation, fresh and resume release mode decisions, missing and mismatched tags, VPM

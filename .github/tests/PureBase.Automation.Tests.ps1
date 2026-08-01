@@ -67,6 +67,40 @@ Describe 'Git process output isolation' {
             }
         }
     }
+
+    It 'passes App-token authentication only through child Git configuration' {
+        $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Git-Authentication-Test-' + [guid]::NewGuid().ToString('N'))
+        $environmentNames = @('GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0', 'GIT_CONFIG_KEY_1', 'GIT_CONFIG_VALUE_1', 'GIT_CONFIG_KEY_2', 'GIT_CONFIG_VALUE_2')
+        $previousEnvironment = @{}
+        try {
+            foreach ($name in $environmentNames) { $previousEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
+            $env:GIT_CONFIG_COUNT = '2'
+            $env:GIT_CONFIG_KEY_0 = 'core.autocrlf'
+            $env:GIT_CONFIG_VALUE_0 = 'false'
+            $env:GIT_CONFIG_KEY_1 = 'core.eol'
+            $env:GIT_CONFIG_VALUE_1 = 'lf'
+            New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+            & git -C $temporaryRoot init --quiet
+            if ($LASTEXITCODE -ne 0) { throw 'git init failed for test fixture.' }
+
+            $result = Invoke-PureBaseGit `
+                -PackageRoot $temporaryRoot `
+                -AuthenticationToken 'test-release-token' `
+                -Arguments @('-c', 'alias.assert-auth=!sh -c ''test "$GIT_CONFIG_COUNT" = "3"; test "$GIT_CONFIG_KEY_2" = "http.https://github.com/.extraheader"; test -n "$GIT_CONFIG_VALUE_2"; echo authenticated''', 'assert-auth')
+
+            $result.ExitCode | Should -Be 0
+            $result.Output | Should -Be 'authenticated'
+            $env:GIT_CONFIG_COUNT | Should -Be '2'
+            $env:GIT_CONFIG_KEY_2 | Should -BeNullOrEmpty
+            $env:GIT_CONFIG_VALUE_2 | Should -BeNullOrEmpty
+        }
+        finally {
+            foreach ($name in $environmentNames) { [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], 'Process') }
+            if (Test-Path -LiteralPath $temporaryRoot) {
+                Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+            }
+        }
+    }
 }
 
 Describe 'VPM dispatch payload' {
@@ -307,7 +341,7 @@ Describe 'Production workflow integration' {
         $releaseScript | Should -Not -Match 'UnityEditorPath|UNITY_LICENSE|ConsumerProject'
         $releaseScript | Should -Not -Match 'Set-PackageVersion|WriteAllText.*package\.json|Set-Content.*package\.json'
         $releaseScript | Should -Not -Match "Invoke-Git\s+@\('commit'|git\s+commit"
-        $releaseScript | Should -Not -Match 'HEAD:|refs/heads/|--atomic'
+        $releaseScript | Should -Not -Match 'HEAD:|--atomic|push[^\r\n]*refs/heads/'
         $releaseScript | Should -Not -Match 'update_trigger\.json'
         $releaseScript | Should -Not -Match 'Build-Zip|Compress-Archive|ZipFile\]::Create|CreateFromDirectory'
     }
@@ -420,6 +454,13 @@ Describe 'Validated artifact fresh release orchestration' {
                         [pscustomobject]@{ Name = [string]$_.name; Digest = [string]$_.digest }
                     })
             }
+            $expectedAssetDigest = ''
+            if ($null -ne $Release) {
+                $matchingAssets = @($Release.assets | Where-Object name -eq $AssetName | Select-Object -First 1)
+                if ($matchingAssets.Count -eq 1 -and $null -ne $matchingAssets[0].PSObject.Properties['digest']) {
+                    $expectedAssetDigest = [string]$matchingAssets[0].digest
+                }
+            }
             [pscustomobject]@{
                 Exists = ($null -ne $Release)
                 TagName = if ($null -eq $Release) { '' } else { [string]$Release.tag_name }
@@ -428,7 +469,7 @@ Describe 'Validated artifact fresh release orchestration' {
                 Immutable = if ($null -eq $Release) { $null } else { [bool]$Release.immutable }
                 Body = if ($null -eq $Release) { '' } else { [string]$Release.body }
                 Assets = $assets
-                ExpectedAssetDigest = if ($null -eq $Release) { '' } else { [string](@($Release.assets | Where-Object name -eq $AssetName | Select-Object -First 1).digest) }
+                ExpectedAssetDigest = $expectedAssetDigest
             }
         }
 
@@ -438,8 +479,11 @@ Describe 'Validated artifact fresh release orchestration' {
                 [ValidateSet('fresh', 'draft-resume', 'published-resume')][string]$ReleaseState = 'fresh',
                 [ValidateSet('none', 'tag-push', 'draft-create', 'draft-body-repair', 'asset-upload', 'publish', 'vpm-dispatch')][string]$AdvanceBranchBeforeMutation = 'none',
                 [ValidateSet('current', 'stale', 'legacy-missing-badge')][string]$DraftBody = 'current',
-                [ValidateSet('absent', 'matching', 'mismatched', 'duplicate')][string]$DraftAssetState = 'absent',
-                [ValidateSet('valid', 'malformed-manifest', 'manifest-hash-mismatch', 'missing-package-manifest', 'duplicate-package-manifest')][string]$ValidatedArtifactState = 'valid'
+                [ValidateSet('absent', 'matching', 'mismatched', 'duplicate', 'missing-state', 'open-state')][string]$DraftAssetState = 'absent',
+                [ValidateSet('uploaded', 'missing-state', 'open-state')][string]$UploadedAssetState = 'uploaded',
+                [ValidateSet('valid', 'malformed-manifest', 'manifest-hash-mismatch', 'missing-package-manifest', 'duplicate-package-manifest', 'unexpected-payload-layout', 'malformed-manifest-with-unexpected-payload-layout')][string]$ValidatedArtifactState = 'valid',
+                [ValidateSet('detached', 'attached', 'wrong-head')][string]$CheckoutShape = 'detached',
+                [switch]$CaptureGitTransport
             )
 
             $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Validated-Artifact-Release-' + [guid]::NewGuid().ToString('N'))
@@ -449,9 +493,10 @@ Describe 'Validated artifact fresh release orchestration' {
             $releaseArtifacts = Join-Path $temporaryRoot 'release-artifacts'
             $validationArtifactArchive = Join-Path $temporaryRoot 'validation-artifact.zip'
             $pushLogPath = Join-Path $temporaryRoot 'push.log'
+            $gitTransport = [Collections.Generic.List[string]]::new()
             $version = '0.2.0-beta.7'
             $assetName = "jp.penguin.purebase-$version.zip"
-            $canonicalBadge = "[![Downloads](https://img.shields.io/github/downloads/test/Pure-Base/$version/$assetName?label=downloads)]"
+            $canonicalBadge = "[![Downloads](https://img.shields.io/github/downloads/test/Pure-Base/$version/${assetName}?label=downloads)]"
             $generatedNotesBody = 'Generated release notes from GitHub'
             $currentReleaseBody = "$canonicalBadge`n$generatedNotesBody"
             try {
@@ -470,6 +515,15 @@ Describe 'Validated artifact fresh release orchestration' {
                 & git -C $packageRoot push --quiet origin master --tags
                 $eventSha = (& git -C $packageRoot rev-parse HEAD).Trim()
                 $initialBranchSha = (& git -C $remoteRoot rev-parse refs/heads/master).Trim()
+                switch ($CheckoutShape) {
+                    'detached' { & git -C $packageRoot checkout --detach --quiet $eventSha }
+                    'wrong-head' {
+                        [IO.File]::WriteAllText((Join-Path $packageRoot 'wrong-head.txt'), "wrong head`n", [Text.UTF8Encoding]::new($false))
+                        & git -C $packageRoot add -- wrong-head.txt
+                        & git -C $packageRoot commit --quiet -m wrong-head
+                        & git -C $packageRoot checkout --detach --quiet HEAD
+                    }
+                }
 
                 $zipPath = Join-Path $validatedPackageDirectory $assetName
                 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -496,8 +550,13 @@ Describe 'Validated artifact fresh release orchestration' {
                             workflowRunId = 11; workflowRunAttempt = 2; version = $version; assetName = $assetName
                             sha256 = if ($ValidatedArtifactState -eq 'manifest-hash-mismatch') { '0' * 64 } else { $zipSha256 }
                         } | ConvertTo-Json -Compress) + "`n", [Text.UTF8Encoding]::new($false))
-                if ($ValidatedArtifactState -eq 'malformed-manifest') {
+                if ($ValidatedArtifactState -in @('malformed-manifest', 'malformed-manifest-with-unexpected-payload-layout')) {
                     [IO.File]::WriteAllText($validationManifestPath, '{invalid manifest' + "`n", [Text.UTF8Encoding]::new($false))
+                }
+                if ($ValidatedArtifactState -in @('unexpected-payload-layout', 'malformed-manifest-with-unexpected-payload-layout')) {
+                    $unexpectedDirectory = Join-Path $validatedPackageDirectory 'unexpected'
+                    New-Item -ItemType Directory -Path $unexpectedDirectory -Force | Out-Null
+                    [IO.File]::WriteAllText((Join-Path $unexpectedDirectory 'nested.txt'), "unexpected payload`n", [Text.UTF8Encoding]::new($false))
                 }
                 $validationArtifactStaging = Join-Path $temporaryRoot 'validation-artifact-staging'
                 $validationArtifactPayload = Join-Path $validationArtifactStaging 'validated-package'
@@ -532,15 +591,27 @@ Describe 'Validated artifact fresh release orchestration' {
                 $env:PUREBASE_RELEASE_TOKEN = 'test-release-token'
                 $env:PUREBASE_DISPATCH_TOKEN = 'test-dispatch-token'
                 $env:GITHUB_API_URL = 'https://api.example.invalid'
+                if ($CaptureGitTransport) {
+                    $originalGitInvoker = (Get-Command Invoke-PureBaseGit -CommandType Function).ScriptBlock
+                    Mock Invoke-PureBaseGit {
+                        param([string]$PackageRoot, [string[]]$Arguments, [string]$AuthenticationToken, [string]$GitServerUrl, [switch]$AllowFailure)
+                        if ($Arguments[0] -in @('fetch', 'push')) {
+                            $gitTransport.Add("$($Arguments[0]):$(if ($AuthenticationToken) { 'authenticated' } else { 'missing' })") | Out-Null
+                        }
+                        & $originalGitInvoker @PSBoundParameters
+                    }.GetNewClosure()
+                }
                 $apiCalls = [Collections.Generic.List[object]]::new()
                 $operationLog = [Collections.Generic.List[object]]::new()
                 $mutationBoundaries = [Collections.Generic.List[string]]::new()
                 $tagPushCountAtGate = [Collections.Generic.Dictionary[string, int]]::new()
                 $dispatchPayloads = [Collections.Generic.List[object]]::new()
                 $initialAssets = switch ($DraftAssetState) {
-                    'matching' { @([pscustomobject]@{ id = 7; name = $assetName; digest = "sha256:$zipSha256"; browser_download_url = "https://downloads.example.invalid/$assetName" }) }
-                    'mismatched' { @([pscustomobject]@{ id = 7; name = $assetName; digest = 'sha256:' + ('0' * 64); browser_download_url = "https://downloads.example.invalid/$assetName" }) }
-                    'duplicate' { @([pscustomobject]@{ id = 7; name = $assetName; digest = "sha256:$zipSha256" }, [pscustomobject]@{ id = 8; name = $assetName; digest = "sha256:$zipSha256" }) }
+                    'matching' { @([pscustomobject]@{ id = 7; name = $assetName; state = 'uploaded'; digest = "sha256:$zipSha256"; browser_download_url = "https://downloads.example.invalid/$assetName" }) }
+                    'mismatched' { @([pscustomobject]@{ id = 7; name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('0' * 64); browser_download_url = "https://downloads.example.invalid/$assetName" }) }
+                    'duplicate' { @([pscustomobject]@{ id = 7; name = $assetName; state = 'uploaded'; digest = "sha256:$zipSha256" }, [pscustomobject]@{ id = 8; name = $assetName; state = 'uploaded'; digest = "sha256:$zipSha256" }) }
+                    'missing-state' { @([pscustomobject]@{ id = 7; name = $assetName; digest = "sha256:$zipSha256"; browser_download_url = "https://downloads.example.invalid/$assetName" }) }
+                    'open-state' { @([pscustomobject]@{ id = 7; name = $assetName; state = 'open'; digest = "sha256:$zipSha256"; browser_download_url = "https://downloads.example.invalid/$assetName" }) }
                     default { @() }
                 }
                 $release = if ($ReleaseState -eq 'fresh') {
@@ -566,11 +637,18 @@ Describe 'Validated artifact fresh release orchestration' {
                 }.GetNewClosure()
                 Mock Invoke-RestMethod {
                     param($Method, $Uri, $Body, $InFile)
+                    $assetDigest = ''
+                    if ($null -ne $release) {
+                        $matchingAssets = @($release.assets | Where-Object name -eq $assetName | Select-Object -First 1)
+                        if ($matchingAssets.Count -eq 1 -and $null -ne $matchingAssets[0].PSObject.Properties['digest']) {
+                            $assetDigest = [string]$matchingAssets[0].digest
+                        }
+                    }
                     $apiCall = [pscustomobject]@{
                             Method = $Method; Uri = $Uri; Body = $Body; InFile = $InFile
                             ReleaseDraft = if ($null -eq $release) { $null } else { $release.draft }
                             ReleaseImmutable = if ($null -eq $release) { $null } else { $release.immutable }
-                            AssetDigest = if ($null -eq $release) { $null } else { (@($release.assets | Where-Object name -eq $assetName | Select-Object -First 1).digest) }
+                            AssetDigest = $assetDigest
                             StateBefore = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                             StateAfter = $null
                         }
@@ -584,8 +662,8 @@ Describe 'Validated artifact fresh release orchestration' {
                         $operationLog.Add([pscustomobject]@{ Kind = 'validation-run'; Boundary = ''; ApiCall = $apiCall }) | Out-Null
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                         return [pscustomobject]@{
-                            workflow_runs = @([pscustomobject]@{
-                                    id = 11; path = 'release-validation.yml'; head_sha = $eventSha; head_branch = 'master'
+                                workflow_runs = @([pscustomobject]@{
+                                    id = 11; path = '.github/workflows/release-validation.yml'; head_sha = $eventSha; head_branch = 'master'
                                     event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success'
                                 })
                         }
@@ -594,9 +672,12 @@ Describe 'Validated artifact fresh release orchestration' {
                         $operationLog.Add([pscustomobject]@{ Kind = 'validation-artifact'; Boundary = ''; ApiCall = $apiCall }) | Out-Null
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                         return [pscustomobject]@{
+                            total_count = 1
                             artifacts = @([pscustomobject]@{
-                                    id = 7; name = 'pure-base-release-validation-11-2'; expired = $false
-                                    workflow_run = [pscustomobject]@{ id = 11; run_attempt = 2 }
+                                    id = 7; node_id = 'MDg6QXJ0aWZhY3Q3'; name = 'pure-base-release-validation-11-2'; size_in_bytes = 1024
+                                    url = 'https://api.example.invalid/repos/test/Pure-Base/actions/artifacts/7'; archive_download_url = 'https://api.example.invalid/repos/test/Pure-Base/actions/artifacts/7/zip'
+                                    expired = $false; created_at = '2026-08-01T00:00:00Z'; updated_at = '2026-08-01T00:00:00Z'; expires_at = '2026-08-31T00:00:00Z'
+                                    workflow_run = [pscustomobject]@{ id = 11; repository_id = 1; head_repository_id = 1; head_branch = 'master'; head_sha = $eventSha }
                                 })
                         }
                     }
@@ -629,9 +710,11 @@ Describe 'Validated artifact fresh release orchestration' {
                         return $release
                     }
                     if ($Method -eq 'POST' -and $Uri -match '/assets\?name=') {
-                        $release.assets = @($release.assets) + [pscustomobject]@{
+                        $uploadedAsset = [ordered]@{
                             id = 9; name = $assetName; digest = "sha256:$zipSha256"; browser_download_url = "https://downloads.example.invalid/$assetName"
                         }
+                        if ($UploadedAssetState -ne 'missing-state') { $uploadedAsset.state = if ($UploadedAssetState -eq 'open-state') { 'open' } else { 'uploaded' } }
+                        $release.assets = @($release.assets) + [pscustomobject]$uploadedAsset
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                         return $release.assets[-1]
                     }
@@ -689,6 +772,7 @@ Describe 'Validated artifact fresh release orchestration' {
                     OperationLog = $operationLog.ToArray(); TagPushCountAtGate = $tagPushCountAtGate; DispatchPayloads = $dispatchPayloads.ToArray()
                     CanonicalBadge = $canonicalBadge; CurrentReleaseBody = $currentReleaseBody; GeneratedNotesBody = $generatedNotesBody; InitialReleaseState = $initialReleaseState; ValidatedArtifactState = $ValidatedArtifactState
                     ValidationArtifactArchive = $validationArtifactArchive; ReleaseArtifactDirectory = $releaseArtifacts
+                    GitTransport = $gitTransport.ToArray()
                 }
             }
             catch {
@@ -708,6 +792,42 @@ Describe 'Validated artifact fresh release orchestration' {
         function New-StaleDraftBodyRepairFixture {
             return New-ValidatedArtifactReleaseFixture -ReleaseState 'draft-resume' -DraftBody 'stale' -DraftAssetState 'matching'
         }
+    }
+
+    It 'rejects a <DraftAssetState> matching asset during <ReleaseState> resume before delete, replace, publish, or dispatch mutation' -ForEach @(
+        @{ ReleaseState = 'draft-resume'; DraftAssetState = 'missing-state' },
+        @{ ReleaseState = 'draft-resume'; DraftAssetState = 'open-state' },
+        @{ ReleaseState = 'published-resume'; DraftAssetState = 'missing-state' },
+        @{ ReleaseState = 'published-resume'; DraftAssetState = 'open-state' }
+    ) {
+        $fixture = New-ValidatedArtifactReleaseFixture -ReleaseState $ReleaseState -DraftAssetState $DraftAssetState
+        try {
+            $fixture.Failure | Should -Not -BeNullOrEmpty
+            $fixture.Failure.Exception.Message | Should -Match 'uploaded state'
+            $fixture.MutationBoundaries.Count | Should -Be 0
+            @($fixture.ApiCalls | Where-Object {
+                    $_.Method -in @('DELETE', 'PATCH', 'POST') -and $_.Uri -match '/releases/42$|/assets\?|/dispatches$'
+                }).Count | Should -Be 0
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
+    }
+
+    It 'rejects a <UploadedAssetState> upload response/final reread before publish or dispatch mutation' -ForEach @(
+        @{ UploadedAssetState = 'missing-state' },
+        @{ UploadedAssetState = 'open-state' }
+    ) {
+        $fixture = New-ValidatedArtifactReleaseFixture -UploadedAssetState $UploadedAssetState
+        try {
+            $fixture.Failure | Should -Not -BeNullOrEmpty
+            $fixture.Failure.Exception.Message | Should -Match 'uploaded state'
+            $fixture.MutationBoundaries | Should -Contain 'asset-upload'
+            $fixture.MutationBoundaries | Should -Not -Contain 'publish'
+            $fixture.MutationBoundaries | Should -Not -Contain 'vpm-dispatch'
+            @($fixture.ApiCalls | Where-Object {
+                    $_.Method -in @('DELETE', 'PATCH', 'POST') -and $_.Uri -match '/releases/42$|/dispatches$'
+                }).Count | Should -Be 0
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
     }
 
     It 'runs an artifact-only release invocation with package.json as the sole identity declaration and no update-trigger data' {
@@ -733,6 +853,20 @@ Describe 'Validated artifact fresh release orchestration' {
             Test-Path -LiteralPath (Join-Path $fixture.PackageRoot 'update_trigger.json') | Should -BeFalse
             @(& git -C $fixture.RemoteRoot ls-tree -r --name-only $fixture.EventSha) | Should -Be @('package.json')
             $fixture.Failure | Should -BeNullOrEmpty
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
+    }
+
+    It 'requires the production runner checkout to be detached at the validated event SHA' -ForEach @(
+        @{ CheckoutShape = 'attached'; ExpectedError = 'detached' },
+        @{ CheckoutShape = 'wrong-head'; ExpectedError = 'HEAD.*ValidatedEventSha' }
+    ) {
+        $fixture = New-ValidatedArtifactReleaseFixture -CheckoutShape $CheckoutShape
+        try {
+            $fixture.Failure | Should -Not -BeNullOrEmpty
+            $fixture.Failure.Exception.Message | Should -Match $ExpectedError
+            $fixture.MutationBoundaries.Count | Should -Be 0
+            @($fixture.ApiCalls | Where-Object { $_.Method -in @('POST', 'PATCH', 'DELETE') }).Count | Should -Be 0
         }
         finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
     }
@@ -774,6 +908,25 @@ Describe 'Validated artifact fresh release orchestration' {
             (& git -C $fixture.RemoteRoot cat-file -t "refs/tags/$($fixture.Version)").Trim() | Should -Be 'tag'
             (& git -C $fixture.RemoteRoot rev-parse "refs/tags/$($fixture.Version)^{commit}").Trim() | Should -Be $fixture.EventSha
             @(Get-Content -LiteralPath $fixture.PushLogPath) | Should -Be @("refs/tags/$($fixture.Version)")
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
+    }
+
+    It 'uses transient App-token Git transport for every branch-tip fetch and tag push without persisting credentials' {
+        $fixture = New-ValidatedArtifactReleaseFixture -CaptureGitTransport
+        try {
+            $fixture.Failure | Should -BeNullOrEmpty
+            $transport = @($fixture.GitTransport)
+            $fetchTransport = @($transport | Where-Object { $_ -like 'fetch:*' })
+            $pushTransport = @($transport | Where-Object { $_ -like 'push:*' })
+            $fetchTransport.Count | Should -BeGreaterThan 0
+            $pushTransport | Should -Be @('push:authenticated')
+            @($fetchTransport | Where-Object { $_ -ne 'fetch:authenticated' }).Count | Should -Be 0
+            $releaseEvidence = Get-Content -LiteralPath (Join-Path $fixture.ReleaseArtifactDirectory 'release-state.json') -Raw
+            $releaseEvidence | Should -Not -Match 'test-release-token|AUTHORIZATION|extraheader'
+            (& git -C $fixture.PackageRoot remote get-url origin).Trim() | Should -Be $fixture.RemoteRoot
+            & git -C $fixture.PackageRoot config --local --get-regexp '^http\..*extraheader$'
+            $LASTEXITCODE | Should -Not -Be 0
         }
         finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
     }
@@ -856,7 +1009,8 @@ Describe 'Validated artifact fresh release orchestration' {
             $releaseState.Exists | Should -Be $ReleaseExists
             $releaseState.Draft | Should -Be $ExpectedDraft
             $releaseState.Immutable | Should -Be $ExpectedImmutable
-            $releaseState.Body | Should -Be (if ($ExpectedBody -eq 'canonical') { $fixture.CurrentReleaseBody } else { $ExpectedBody })
+            $expectedBody = if ($ExpectedBody -eq 'canonical') { $fixture.CurrentReleaseBody } else { $ExpectedBody }
+            $releaseState.Body | Should -Be $expectedBody
             $releaseState.Assets.Count | Should -Be $ExpectedAssetCount
             if ($ReleaseExists) {
                 $releaseState.TagName | Should -Be $fixture.Version
@@ -924,7 +1078,10 @@ Describe 'Validated artifact fresh release orchestration' {
         @{ Condition = 'missing package payload'; ValidatedArtifactState = 'missing-package-manifest'; ReleaseState = 'published-resume' },
         @{ Condition = 'duplicate package payload'; ValidatedArtifactState = 'duplicate-package-manifest'; ReleaseState = 'fresh' },
         @{ Condition = 'duplicate package payload'; ValidatedArtifactState = 'duplicate-package-manifest'; ReleaseState = 'draft-resume' },
-        @{ Condition = 'duplicate package payload'; ValidatedArtifactState = 'duplicate-package-manifest'; ReleaseState = 'published-resume' }
+        @{ Condition = 'duplicate package payload'; ValidatedArtifactState = 'duplicate-package-manifest'; ReleaseState = 'published-resume' },
+        @{ Condition = 'an unexpected nested payload file'; ValidatedArtifactState = 'unexpected-payload-layout'; ReleaseState = 'fresh' },
+        @{ Condition = 'an unexpected nested payload file'; ValidatedArtifactState = 'unexpected-payload-layout'; ReleaseState = 'draft-resume' },
+        @{ Condition = 'an unexpected nested payload file'; ValidatedArtifactState = 'unexpected-payload-layout'; ReleaseState = 'published-resume' }
     ) {
         $fixture = New-ValidatedArtifactReleaseFixture -ReleaseState $ReleaseState -DraftAssetState 'matching' -ValidatedArtifactState $ValidatedArtifactState
         try {
@@ -934,15 +1091,49 @@ Describe 'Validated artifact fresh release orchestration' {
             $fixture.MutationBoundaries.Count | Should -Be 0
             @($fixture.ApiCalls | Where-Object { $_.Method -in @('POST', 'PATCH', 'DELETE') -and $_.Uri -match '/releases|/assets|/dispatches' }).Count | Should -Be 0
             $fixture.DispatchPayloads.Count | Should -Be 0
-            $releaseState = Get-ValidatedArtifactReleaseState -Release $fixture.Release -AssetName $fixture.AssetName
-            $releaseState.Exists | Should -Be $fixture.InitialReleaseState.Exists
-            $releaseState.TagName | Should -Be $fixture.InitialReleaseState.TagName
-            $releaseState.TargetCommitish | Should -Be $fixture.InitialReleaseState.TargetCommitish
-            $releaseState.Draft | Should -Be $fixture.InitialReleaseState.Draft
-            $releaseState.Immutable | Should -Be $fixture.InitialReleaseState.Immutable
-            $releaseState.Body | Should -Be $fixture.InitialReleaseState.Body
-            $releaseState.ExpectedAssetDigest | Should -Be $fixture.InitialReleaseState.ExpectedAssetDigest
-            @($releaseState.Assets | ForEach-Object { "$($_.Name)|$($_.Digest)" }) | Should -Be @($fixture.InitialReleaseState.Assets | ForEach-Object { "$($_.Name)|$($_.Digest)" })
+            $observedReleaseState = Get-ValidatedArtifactReleaseState -Release $fixture.Release -AssetName $fixture.AssetName
+            $observedReleaseState.Exists | Should -Be $fixture.InitialReleaseState.Exists
+            $observedReleaseState.TagName | Should -Be $fixture.InitialReleaseState.TagName
+            $observedReleaseState.TargetCommitish | Should -Be $fixture.InitialReleaseState.TargetCommitish
+            $observedReleaseState.Draft | Should -Be $fixture.InitialReleaseState.Draft
+            $observedReleaseState.Immutable | Should -Be $fixture.InitialReleaseState.Immutable
+            $observedReleaseState.Body | Should -Be $fixture.InitialReleaseState.Body
+            $observedReleaseState.ExpectedAssetDigest | Should -Be $fixture.InitialReleaseState.ExpectedAssetDigest
+            @($observedReleaseState.Assets | ForEach-Object { "$($_.Name)|$($_.Digest)" }) | Should -Be @($fixture.InitialReleaseState.Assets | ForEach-Object { "$($_.Name)|$($_.Digest)" })
+            if ($ReleaseState -eq 'fresh') {
+                (& git -C $fixture.RemoteRoot show-ref --verify --quiet "refs/tags/$($fixture.Version)")
+                $LASTEXITCODE | Should -Not -Be 0
+            }
+            else {
+                (& git -C $fixture.RemoteRoot rev-parse "refs/tags/$($fixture.Version)^{commit}").Trim() | Should -Be $fixture.EventSha
+            }
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
+    }
+
+    It 'rejects an invalid manifest behind an unexpected payload layout during <ReleaseState> before tag, release, asset, publish, or dispatch mutation' -ForEach @(
+        @{ ReleaseState = 'fresh' },
+        @{ ReleaseState = 'draft-resume' },
+        @{ ReleaseState = 'published-resume' }
+    ) {
+        $fixture = New-ValidatedArtifactReleaseFixture -ReleaseState $ReleaseState -DraftAssetState 'matching' -ValidatedArtifactState 'malformed-manifest-with-unexpected-payload-layout'
+        try {
+            $fixture.Failure | Should -Not -BeNullOrEmpty
+            $fixture.Failure.Exception.Message | Should -Match 'validation payload layout.*directories.*nested files'
+            $fixture.Failure.Exception.Message | Should -Not -Match 'Validation artifact manifest is invalid'
+            (& git -C $fixture.RemoteRoot rev-parse refs/heads/master).Trim() | Should -Be $fixture.InitialBranchSha
+            $fixture.MutationBoundaries.Count | Should -Be 0
+            @($fixture.ApiCalls | Where-Object { $_.Method -in @('POST', 'PATCH', 'DELETE') -and $_.Uri -match '/releases|/assets|/dispatches' }).Count | Should -Be 0
+            $fixture.DispatchPayloads.Count | Should -Be 0
+            $observedReleaseState = Get-ValidatedArtifactReleaseState -Release $fixture.Release -AssetName $fixture.AssetName
+            $observedReleaseState.Exists | Should -Be $fixture.InitialReleaseState.Exists
+            $observedReleaseState.TagName | Should -Be $fixture.InitialReleaseState.TagName
+            $observedReleaseState.TargetCommitish | Should -Be $fixture.InitialReleaseState.TargetCommitish
+            $observedReleaseState.Draft | Should -Be $fixture.InitialReleaseState.Draft
+            $observedReleaseState.Immutable | Should -Be $fixture.InitialReleaseState.Immutable
+            $observedReleaseState.Body | Should -Be $fixture.InitialReleaseState.Body
+            $observedReleaseState.ExpectedAssetDigest | Should -Be $fixture.InitialReleaseState.ExpectedAssetDigest
+            @($observedReleaseState.Assets | ForEach-Object { "$($_.Name)|$($_.Digest)" }) | Should -Be @($fixture.InitialReleaseState.Assets | ForEach-Object { "$($_.Name)|$($_.Digest)" })
             if ($ReleaseState -eq 'fresh') {
                 (& git -C $fixture.RemoteRoot show-ref --verify --quiet "refs/tags/$($fixture.Version)")
                 $LASTEXITCODE | Should -Not -Be 0
@@ -1378,38 +1569,38 @@ Describe 'Exact-SHA validated promotion contracts' {
 
     It 'selects only the latest exact validation run after combining paginated results' {
         $runs = @(
-            [pscustomobject]@{ path = 'release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 10; run_attempt = 1; status = 'completed'; conclusion = 'success' },
-            [pscustomobject]@{ path = 'release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success' },
+            [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 10; run_attempt = 1; status = 'completed'; conclusion = 'success' },
+            [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success' },
             [pscustomobject]@{ path = 'daily.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 99; run_attempt = 1; status = 'completed'; conclusion = 'success' }
         )
 
-        $selected = Select-PureBaseReleaseValidationRun -Runs $runs -HeadSha $headSha -Branch 'master' -WorkflowPath 'release-validation.yml'
+        $selected = Select-PureBaseReleaseValidationRun -Runs $runs -HeadSha $headSha -Branch 'master' -WorkflowPath '.github/workflows/release-validation.yml'
         $selected.run_number | Should -Be 11
         $selected.run_attempt | Should -Be 2
     }
 
     It 'rejects a selector candidate with the wrong commit SHA' {
-        $run = [pscustomobject]@{ path = 'release-validation.yml'; head_sha = ('b' * 40); head_branch = 'master'; event = 'workflow_dispatch'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
+        $run = [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = ('b' * 40); head_branch = 'master'; event = 'workflow_dispatch'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
         { Select-PureBaseReleaseValidationRun -Runs @($run) -HeadSha $headSha -Branch 'master' -WorkflowPath 'release-validation.yml' } | Should -Throw '*matching validation run*'
     }
 
     It 'rejects a selector candidate from the wrong branch' {
-        $run = [pscustomobject]@{ path = 'release-validation.yml'; head_sha = $headSha; head_branch = 'release'; event = 'workflow_dispatch'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
+        $run = [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = $headSha; head_branch = 'release'; event = 'workflow_dispatch'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
         { Select-PureBaseReleaseValidationRun -Runs @($run) -HeadSha $headSha -Branch 'master' -WorkflowPath 'release-validation.yml' } | Should -Throw '*matching validation run*'
     }
 
     It 'rejects a selector candidate from the wrong event' {
-        $run = [pscustomobject]@{ path = 'release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'push'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
+        $run = [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'push'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
         { Select-PureBaseReleaseValidationRun -Runs @($run) -HeadSha $headSha -Branch 'master' -WorkflowPath 'release-validation.yml' } | Should -Throw '*matching validation run*'
     }
 
     It 'rejects a selector candidate with null commit metadata' {
-        $run = [pscustomobject]@{ path = 'release-validation.yml'; head_sha = $null; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
+        $run = [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = $null; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 1; run_attempt = 1; status = 'completed'; conclusion = 'success' }
         { Select-PureBaseReleaseValidationRun -Runs @($run) -HeadSha $headSha -Branch 'master' -WorkflowPath 'release-validation.yml' } | Should -Throw '*matching validation run*'
     }
 
     It 'accepts a unique unexpired artifact for the selected run attempt' {
-        $artifact = [pscustomobject]@{ id = 7; name = "pure-base-release-validation-11-2"; expired = $false; workflow_run = [pscustomobject]@{ id = 11; run_attempt = 2 } }
+        $artifact = [pscustomobject]@{ id = 7; name = "pure-base-release-validation-11-2"; expired = $false; workflow_run = [pscustomobject]@{ id = 11; repository_id = 1; head_repository_id = 1; head_branch = 'master'; head_sha = $headSha } }
         $resolved = Resolve-PureBaseValidationArtifact -Artifacts @($artifact) -ExpectedName $artifact.name -WorkflowRunId 11 -WorkflowRunAttempt 2
         $resolved.id | Should -Be 7
     }
@@ -1465,13 +1656,13 @@ Describe 'Exact-SHA validated promotion contracts' {
     }
 
     It 'rejects duplicate artifacts for the selected run attempt' {
-        $artifacts = @([pscustomobject]@{ id = 1; name = 'expected'; expired = $false; workflow_run = [pscustomobject]@{ id = 11; run_attempt = 2 } }, [pscustomobject]@{ id = 2; name = 'expected'; expired = $false; workflow_run = [pscustomobject]@{ id = 11; run_attempt = 2 } })
-        { Resolve-PureBaseValidationArtifact -Artifacts $artifacts -ExpectedName 'expected' -WorkflowRunId 11 -WorkflowRunAttempt 2 } | Should -Throw '*validation artifact*'
+        $artifacts = @([pscustomobject]@{ id = 1; name = 'expected-11-2'; expired = $false; workflow_run = [pscustomobject]@{ id = 11 } }, [pscustomobject]@{ id = 2; name = 'expected-11-2'; expired = $false; workflow_run = [pscustomobject]@{ id = 11 } })
+        { Resolve-PureBaseValidationArtifact -Artifacts $artifacts -ExpectedName 'expected-11-2' -WorkflowRunId 11 -WorkflowRunAttempt 2 } | Should -Throw '*validation artifact*'
     }
 
     It 'rejects an expired artifact for the selected run attempt' {
-        $artifact = [pscustomobject]@{ id = 1; name = 'expected'; expired = $true; workflow_run = [pscustomobject]@{ id = 11; run_attempt = 2 } }
-        { Resolve-PureBaseValidationArtifact -Artifacts @($artifact) -ExpectedName 'expected' -WorkflowRunId 11 -WorkflowRunAttempt 2 } | Should -Throw '*validation artifact*'
+        $artifact = [pscustomobject]@{ id = 1; name = 'expected-11-2'; expired = $true; workflow_run = [pscustomobject]@{ id = 11 } }
+        { Resolve-PureBaseValidationArtifact -Artifacts @($artifact) -ExpectedName 'expected-11-2' -WorkflowRunId 11 -WorkflowRunAttempt 2 } | Should -Throw '*validation artifact*'
     }
 
     It 'renders one leading URL-encoded asset-specific badge for draft release notes' {
@@ -1501,11 +1692,11 @@ Describe 'Exact-SHA validation failure matrix' {
         $assetName = "jp.penguin.purebase-$version.zip"
 
         function New-ExactValidationRun {
-            return [pscustomobject]@{ path = 'release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success' }
+            return [pscustomobject]@{ path = '.github/workflows/release-validation.yml'; head_sha = $headSha; head_branch = 'master'; event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success' }
         }
 
         function New-ExactValidationArtifact {
-            return [pscustomobject]@{ id = 7; name = 'pure-base-release-validation-11-2'; expired = $false; workflow_run = [pscustomobject]@{ id = 11; run_attempt = 2 } }
+            return [pscustomobject]@{ id = 7; name = 'pure-base-release-validation-11-2'; expired = $false; workflow_run = [pscustomobject]@{ id = 11; repository_id = 1; head_repository_id = 1; head_branch = 'master'; head_sha = $headSha } }
         }
 
         function New-ExactValidationManifest {
@@ -1617,7 +1808,7 @@ Describe 'Exact-SHA validation failure matrix' {
         @{ Condition = 'no matching artifact'; Mutate = { param($artifact) @() } },
         @{ Condition = 'a wrong artifact name'; Mutate = { param($artifact) $artifact.name = 'other'; @($artifact) } },
         @{ Condition = 'another workflow run'; Mutate = { param($artifact) $artifact.workflow_run.id = 12; @($artifact) } },
-        @{ Condition = 'another workflow run attempt'; Mutate = { param($artifact) $artifact.workflow_run.run_attempt = 1; @($artifact) } },
+        @{ Condition = 'another workflow run attempt'; Mutate = { param($artifact) $artifact.name = 'pure-base-release-validation-11-1'; @($artifact) } },
         @{ Condition = 'an expired artifact'; Mutate = { param($artifact) $artifact.expired = $true; @($artifact) } },
         @{ Condition = 'duplicate matching artifacts'; Mutate = { param($artifact) @($artifact, (New-ExactValidationArtifact)) } }
     ) {
@@ -1653,28 +1844,54 @@ Describe 'Exact-SHA validation failure matrix' {
     }
 
     It 'reuses one matching draft asset and uploads only when the draft asset is absent' -ForEach @(
-        @{ AssetState = 'absent'; Assets = @(); ExpectedAction = 'upload' },
-        @{ AssetState = 'matching'; Assets = @([pscustomobject]@{ name = $assetName; digest = 'sha256:' + ('c' * 64) }); ExpectedAction = 'reuse' }
+        @{ AssetState = 'absent'; ExpectedAction = 'upload' },
+        @{ AssetState = 'matching'; ExpectedAction = 'reuse' }
     ) {
-        $action = Resolve-PureBaseDraftAssetAction -Assets $Assets -AssetName $assetName -Sha256 ('c' * 64)
+        $fixtureAssets = if ($ExpectedAction -eq 'reuse') { @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('c' * 64) }) } else { @() }
+        $action = Resolve-PureBaseDraftAssetAction -Assets $fixtureAssets -AssetName $assetName -Sha256 ('c' * 64)
         $action | Should -Be $ExpectedAction
     }
 
     It 'rejects a draft asset with <Condition>' -ForEach @(
-        @{ Condition = 'a mismatched digest'; Assets = @([pscustomobject]@{ name = $assetName; digest = 'sha256:' + ('d' * 64) }) },
-        @{ Condition = 'duplicate matching names'; Assets = @([pscustomobject]@{ name = $assetName; digest = 'sha256:' + ('c' * 64) }, [pscustomobject]@{ name = $assetName; digest = 'sha256:' + ('c' * 64) }) }
+        @{ Condition = 'a mismatched digest' },
+        @{ Condition = 'duplicate matching names' }
     ) {
-        { Resolve-PureBaseDraftAssetAction -Assets $Assets -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*release asset*'
+        $fixtureAssets = if ($Condition -eq 'a mismatched digest') {
+            @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('d' * 64) })
+        }
+        else {
+            @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('c' * 64) }, [pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('c' * 64) })
+        }
+        { Resolve-PureBaseDraftAssetAction -Assets $fixtureAssets -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*release asset*'
     }
 
-    It 'accepts a published resume asset only when its digest matches the validation artifact' {
-        $release = [pscustomobject]@{ assets = @([pscustomobject]@{ name = $assetName; digest = 'sha256:' + ('c' * 64) }) }
+    It 'rejects draft reuse when the matching asset has <Condition>' -ForEach @(
+        @{ Condition = 'missing state'; State = $null },
+        @{ Condition = 'open state'; State = 'open' }
+    ) {
+        $asset = [ordered]@{ name = $assetName; digest = 'sha256:' + ('c' * 64) }
+        if ($null -ne $State) { $asset.state = $State }
+        { Resolve-PureBaseDraftAssetAction -Assets @([pscustomobject]$asset) -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*uploaded state*'
+    }
+
+    It 'accepts a published resume asset only when its digest and state match the validation artifact' {
+        $release = [pscustomobject]@{ assets = @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('c' * 64) }) }
         Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $assetName -ValidationArtifactSha256 ('c' * 64)
     }
 
     It 'rejects a published resume asset whose digest differs from the validation artifact' {
-        $release = [pscustomobject]@{ assets = @([pscustomobject]@{ name = $assetName; digest = 'sha256:' + ('d' * 64) }) }
+        $release = [pscustomobject]@{ assets = @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = 'sha256:' + ('d' * 64) }) }
         { Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $assetName -ValidationArtifactSha256 ('c' * 64) } | Should -Throw '*validation artifact*'
+    }
+
+    It 'rejects published resume when the matching asset has <Condition>' -ForEach @(
+        @{ Condition = 'missing state'; State = $null },
+        @{ Condition = 'open state'; State = 'open' }
+    ) {
+        $asset = [ordered]@{ name = $assetName; digest = 'sha256:' + ('c' * 64) }
+        if ($null -ne $State) { $asset.state = $State }
+        $release = [pscustomobject]@{ assets = @([pscustomobject]$asset) }
+        { Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $assetName -ValidationArtifactSha256 ('c' * 64) } | Should -Throw '*uploaded state*'
     }
 }
 
@@ -1753,6 +1970,30 @@ Describe 'Validated artifact archive and mutation gate contracts' {
         Test-Path -LiteralPath $destinationPath | Should -BeTrue
     }
 
+    It 'handles a native HttpResponseException for the initial authenticated 302 redirect' {
+        $destinationPath = Join-Path $TestDrive 'native-exception-archive.zip'
+        $requests = [Collections.Generic.List[object]]::new()
+        $redirectResponse = [Net.Http.HttpResponseMessage]::new([Net.HttpStatusCode]::Found)
+        $redirectResponse.Headers.Location = [Uri]'https://objects.example.invalid/native-exception-archive.zip'
+        $requestInvoker = {
+            param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection)
+            $requests.Add([pscustomobject]@{ Uri = $Uri; Headers = $Headers; OutFile = $OutFile; MaximumRedirection = $MaximumRedirection }) | Out-Null
+            if ($requests.Count -eq 1) { throw [Microsoft.PowerShell.Commands.HttpResponseException]::new('Found', $redirectResponse) }
+            [IO.File]::WriteAllBytes($OutFile, [byte[]](1, 2, 3))
+            return [pscustomobject]@{ StatusCode = 200; Headers = @{} }
+        }.GetNewClosure()
+
+        Invoke-PureBaseArtifactArchiveDownload -ArchiveUri 'https://api.github.com/actions/artifacts/7/zip' -Token 'release-token' -DestinationPath $destinationPath -RequestInvoker $requestInvoker
+
+        $requests.Count | Should -Be 2
+        $requests[0].Headers.Authorization | Should -Be 'Bearer release-token'
+        $requests[0].MaximumRedirection | Should -Be 0
+        $requests[1].Uri | Should -Be 'https://objects.example.invalid/native-exception-archive.zip'
+        $requests[1].Headers.ContainsKey('Authorization') | Should -BeFalse
+        $requests[1].MaximumRedirection | Should -Be 0
+        Test-Path -LiteralPath $destinationPath | Should -BeTrue
+    }
+
     It 'rejects a 410 archive response without following another request' {
         $requests = [Collections.Generic.List[object]]::new()
         $requestInvoker = { param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection) $requests.Add($Uri) | Out-Null; [pscustomobject]@{ StatusCode = 410; Headers = @{} } }.GetNewClosure()
@@ -1779,14 +2020,23 @@ Describe 'Validated artifact archive and mutation gate contracts' {
         Assert-PureBaseValidatedArchive -ValidatedPackageDirectory (Split-Path -Parent $fixture.ZipPath) -AssetName 'jp.penguin.purebase-0.2.0.zip' -ExpectedSha256 $fixture.Sha256 -Version '0.2.0'
     }
 
+    It 'rejects a validated payload with an unexpected nested directory and file' {
+        $fixture = New-ValidatedArchiveFixture -Root (Join-Path $TestDrive 'unexpected-nested-payload') -PackageVersion '0.2.0'
+        $unexpectedDirectory = Join-Path (Split-Path -Parent $fixture.ZipPath) 'unexpected'
+        New-Item -ItemType Directory -Path $unexpectedDirectory -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $unexpectedDirectory 'nested.txt'), "unexpected payload`n", [Text.UTF8Encoding]::new($false))
+
+        { Assert-PureBaseValidatedArchive -ValidatedPackageDirectory (Split-Path -Parent $fixture.ZipPath) -AssetName 'jp.penguin.purebase-0.2.0.zip' -ExpectedSha256 $fixture.Sha256 -Version '0.2.0' } | Should -Throw '*directories*nested files*'
+    }
+
     It 'rejects a ZIP with <Condition>' -ForEach @(
         @{ Condition = 'no package manifest'; PackageEntryNames = @() },
         @{ Condition = 'duplicate root package manifests'; PackageEntryNames = @('package.json', 'package.json') },
         @{ Condition = 'a nested package manifest instead of a root manifest'; PackageEntryNames = @('nested/package.json') },
-        @{ Condition = 'a wrong root package name'; PackageEntryNames = @('package.json'); PackageName = 'jp.penguin.other' }
+        @{ Condition = 'a wrong root package name'; PackageEntryNames = @('package.json') }
     ) {
         $parameters = @{ Root = Join-Path $TestDrive ($Condition -replace '[^A-Za-z0-9]+', '-'); PackageVersion = '0.2.0'; PackageEntryNames = $PackageEntryNames }
-        if ($PSBoundParameters.ContainsKey('PackageName')) { $parameters.PackageName = $PackageName }
+        if ($Condition -eq 'a wrong root package name') { $parameters.PackageName = 'jp.penguin.other' }
         $fixture = New-ValidatedArchiveFixture @parameters
         { Assert-PureBaseValidatedArchive -ValidatedPackageDirectory (Split-Path -Parent $fixture.ZipPath) -AssetName 'jp.penguin.purebase-0.2.0.zip' -ExpectedSha256 $fixture.Sha256 -Version '0.2.0' } | Should -Throw '*validated archive*'
     }
