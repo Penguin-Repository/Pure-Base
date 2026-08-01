@@ -84,6 +84,7 @@ When modifying the project:
 * Do not add `IEquatable<T>`, `Equals`, or `GetHashCode` to private value types solely to silence static analysis.
 * Add value equality only when it is an intentional contract or the type is used by comparison or hash-based APIs.
 * When an analyzer finding is not applicable, record a concrete rationale showing that the type has no equality or hash-based use instead of disabling the rule globally.
+* Unity Roslyn Analyzers, PSScriptAnalyzer, Jackson Linter, Agentlinter, SonarC#, and markdownlint are not supported by local Codacy CLI analysis; check them through Codacy Cloud, and do not treat their absence from local output as validation.
 
 ## Persistent communication
 
