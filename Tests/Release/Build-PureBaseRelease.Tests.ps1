@@ -141,6 +141,78 @@ Describe 'Deterministic release archive contracts' {
     BeforeAll {
         $builderPath = Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1'
 
+        function Get-ZipHeaderEvidence {
+            param([Parameter(Mandatory = $true)][string]$Path)
+
+            $bytes = [IO.File]::ReadAllBytes($Path)
+            $localEntries = New-Object System.Collections.Generic.List[object]
+            $centralEntries = New-Object System.Collections.Generic.List[object]
+            $offset = 0
+            while ($offset -lt $bytes.Length -and [BitConverter]::ToUInt32($bytes, $offset) -eq 0x04034b50) {
+                $flags = [BitConverter]::ToUInt16($bytes, $offset + 6)
+                $compressionMethod = [BitConverter]::ToUInt16($bytes, $offset + 8)
+                $dosTime = [BitConverter]::ToUInt16($bytes, $offset + 10)
+                $dosDate = [BitConverter]::ToUInt16($bytes, $offset + 12)
+                $compressedSize = [BitConverter]::ToUInt32($bytes, $offset + 18)
+                $nameLength = [BitConverter]::ToUInt16($bytes, $offset + 26)
+                $extraLength = [BitConverter]::ToUInt16($bytes, $offset + 28)
+                $name = [Text.Encoding]::UTF8.GetString($bytes, $offset + 30, $nameLength)
+                [void]$localEntries.Add([pscustomobject]@{
+                        Path = $name; Flags = $flags; CompressionMethod = $compressionMethod; DosTime = $dosTime; DosDate = $dosDate; ExtraFieldLength = $extraLength
+                    })
+                $offset += 30 + $nameLength + $extraLength + $compressedSize
+            }
+
+            while ($offset -lt $bytes.Length -and [BitConverter]::ToUInt32($bytes, $offset) -eq 0x02014b50) {
+                $flags = [BitConverter]::ToUInt16($bytes, $offset + 8)
+                $compressionMethod = [BitConverter]::ToUInt16($bytes, $offset + 10)
+                $dosTime = [BitConverter]::ToUInt16($bytes, $offset + 12)
+                $dosDate = [BitConverter]::ToUInt16($bytes, $offset + 14)
+                $nameLength = [BitConverter]::ToUInt16($bytes, $offset + 28)
+                $extraLength = [BitConverter]::ToUInt16($bytes, $offset + 30)
+                $commentLength = [BitConverter]::ToUInt16($bytes, $offset + 32)
+                $externalAttributes = [BitConverter]::ToUInt32($bytes, $offset + 38)
+                $name = [Text.Encoding]::UTF8.GetString($bytes, $offset + 46, $nameLength)
+                [void]$centralEntries.Add([pscustomobject]@{
+                        Path = $name; Flags = $flags; CompressionMethod = $compressionMethod; DosTime = $dosTime; DosDate = $dosDate; ExtraFieldLength = $extraLength; CommentLength = $commentLength; ExternalAttributes = $externalAttributes
+                    })
+                $offset += 46 + $nameLength + $extraLength + $commentLength
+            }
+
+            return [pscustomobject]@{ LocalEntries = $localEntries.ToArray(); CentralEntries = $centralEntries.ToArray() }
+        }
+
+        function Invoke-TimeZoneReleaseBuild {
+            param(
+                [Parameter(Mandatory = $true)][string]$BuilderPath,
+                [Parameter(Mandatory = $true)][string]$OutputDirectory,
+                [Parameter(Mandatory = $true)][string]$TimeZone
+            )
+
+            $escapedBuilderPath = $BuilderPath.Replace("'", "''")
+            $escapedOutputDirectory = $OutputDirectory.Replace("'", "''")
+            $command = "`$offsetMinutes = [int][TimeZoneInfo]::Local.GetUtcOffset([datetime]'2026-01-01T00:00:00Z').TotalMinutes; & '$escapedBuilderPath' -OutputDirectory '$escapedOutputDirectory'; `$exitCode = `$LASTEXITCODE; [Console]::Out.WriteLine('PUREBASE_TIMEZONE_OFFSET=' + `$offsetMinutes); exit `$exitCode"
+            $startInfo = [Diagnostics.ProcessStartInfo]::new('pwsh')
+            $startInfo.UseShellExecute = $false
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            [void]$startInfo.ArgumentList.Add('-NoProfile')
+            [void]$startInfo.ArgumentList.Add('-NonInteractive')
+            [void]$startInfo.ArgumentList.Add('-Command')
+            [void]$startInfo.ArgumentList.Add($command)
+            $startInfo.Environment['TZ'] = $TimeZone
+            $process = [Diagnostics.Process]::Start($startInfo)
+            $standardOutput = $process.StandardOutput.ReadToEnd()
+            $standardError = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            $offsetMatch = [regex]::Match($standardOutput, 'PUREBASE_TIMEZONE_OFFSET=(-?\d+)')
+            if (-not $offsetMatch.Success) {
+                throw "Timezone child process did not report its local offset. Output: $standardOutput Error: $standardError"
+            }
+
+            return [pscustomobject]@{ ExitCode = $process.ExitCode; OffsetMinutes = [int]$offsetMatch.Groups[1].Value; StandardError = $standardError }
+        }
+
         function New-FixedReleaseArchiveFixture {
             param([Parameter(Mandatory = $true)][string]$Root)
 
@@ -194,10 +266,11 @@ Describe 'Deterministic release archive contracts' {
         ($builderSource -match 'CompressionLevel\]::NoCompression') | Should -BeTrue
         ($builderSource -match 'LastWriteTime') | Should -BeTrue
         ($builderSource -match 'ExternalAttributes') | Should -BeTrue
+        ($builderSource -notmatch '\.ToLocalTime\(') | Should -BeTrue
         ($builderSource -notmatch 'CreateFromDirectory') | Should -BeTrue
     }
 
-    It 'produces byte-identical ZIPs with fixed entry metadata from separate PowerShell processes' {
+    It 'produces byte-identical ZIPs with fixed binary metadata from separate PowerShell processes' {
         $fixture = New-FixedReleaseArchiveFixture -Root (Join-Path $TestDrive 'fixed-fixture')
         $firstOutput = Join-Path $TestDrive 'first'
         $secondOutput = Join-Path $TestDrive 'second'
@@ -214,6 +287,28 @@ Describe 'Deterministic release archive contracts' {
         $secondZip = Get-ChildItem -LiteralPath $secondOutput -Filter 'jp.penguin.purebase-*.zip' -File | Select-Object -First 1
         (Get-FileHash -LiteralPath $firstZip.FullName -Algorithm SHA256).Hash | Should -Be (Get-FileHash -LiteralPath $secondZip.FullName -Algorithm SHA256).Hash
 
+        $headerEvidence = Get-ZipHeaderEvidence -Path $firstZip.FullName
+        $headerEvidence.LocalEntries.Count | Should -BeGreaterThan 0
+        $headerEvidence.CentralEntries.Count | Should -Be $headerEvidence.LocalEntries.Count
+        $expectedDosDate = [uint16]((46 -shl 9) -bor (1 -shl 5) -bor 1)
+        $expectedDosTime = [uint16](9 -shl 11)
+        foreach ($entry in $headerEvidence.LocalEntries) {
+            $entry.Flags | Should -Be 0
+            $entry.CompressionMethod | Should -Be 0
+            $entry.DosDate | Should -Be $expectedDosDate
+            $entry.DosTime | Should -Be $expectedDosTime
+            $entry.ExtraFieldLength | Should -Be 0
+        }
+        foreach ($entry in $headerEvidence.CentralEntries) {
+            $entry.Flags | Should -Be 0
+            $entry.CompressionMethod | Should -Be 0
+            $entry.DosDate | Should -Be $expectedDosDate
+            $entry.DosTime | Should -Be $expectedDosTime
+            $entry.ExtraFieldLength | Should -Be 0
+            $entry.CommentLength | Should -Be 0
+            $entry.ExternalAttributes | Should -Be ([uint32][IO.FileAttributes]::Normal)
+        }
+
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $firstArchive = [IO.Compression.ZipFile]::OpenRead($firstZip.FullName)
         $secondArchive = [IO.Compression.ZipFile]::OpenRead($secondZip.FullName)
@@ -223,7 +318,6 @@ Describe 'Deterministic release archive contracts' {
             $firstEntries.FullName | Should -Be $secondEntries.FullName
             foreach ($entry in $firstEntries) {
                 $entry.CompressedLength | Should -Be $entry.Length
-                $entry.LastWriteTime.UtcDateTime | Should -Be ([datetime]'2026-01-01T00:00:00Z')
                 $entry.ExternalAttributes | Should -Not -Be 0
             }
         }
@@ -233,7 +327,33 @@ Describe 'Deterministic release archive contracts' {
         }
     }
 
-    It 'matches the fixed UTF-8 fixture SHA-256 baseline without using the repository package root' {
+    It 'probes UTC and UTC+09:00 child process identity when TZ isolation is supported' {
+        $fixture = New-FixedReleaseArchiveFixture -Root (Join-Path $TestDrive 'timezone-fixture')
+        $utcOutput = Join-Path $TestDrive 'timezone-utc'
+        $tokyoOutput = Join-Path $TestDrive 'timezone-tokyo'
+        New-Item -ItemType Directory -Path $utcOutput, $tokyoOutput -Force | Out-Null
+
+        $utcResult = Invoke-TimeZoneReleaseBuild -BuilderPath $fixture.BuilderPath -OutputDirectory $utcOutput -TimeZone 'UTC'
+        $tokyoResult = Invoke-TimeZoneReleaseBuild -BuilderPath $fixture.BuilderPath -OutputDirectory $tokyoOutput -TimeZone 'Asia/Tokyo'
+        if ($utcResult.OffsetMinutes -eq $tokyoResult.OffsetMinutes) {
+            Set-ItResult -Skipped -Because 'This host does not support TZ-based process-local timezone isolation for PowerShell.'
+            return
+        }
+
+        $utcResult.OffsetMinutes | Should -Be 0
+        $tokyoResult.OffsetMinutes | Should -Be 540
+        $utcResult.ExitCode | Should -Be 0
+        $tokyoResult.ExitCode | Should -Be 0
+        $utcResult.StandardError | Should -BeNullOrEmpty
+        $tokyoResult.StandardError | Should -BeNullOrEmpty
+
+        $utcZip = Get-ChildItem -LiteralPath $utcOutput -Filter 'jp.penguin.purebase-*.zip' -File | Select-Object -First 1
+        $tokyoZip = Get-ChildItem -LiteralPath $tokyoOutput -Filter 'jp.penguin.purebase-*.zip' -File | Select-Object -First 1
+        [IO.File]::ReadAllBytes($utcZip.FullName) | Should -Be ([IO.File]::ReadAllBytes($tokyoZip.FullName))
+        (Get-FileHash -LiteralPath $utcZip.FullName -Algorithm SHA256).Hash | Should -Be (Get-FileHash -LiteralPath $tokyoZip.FullName -Algorithm SHA256).Hash
+    }
+
+    It 'matches the canonical Windows deterministic-writer SHA-256 baseline under the direct ZIP header contract' {
         $fixture = New-FixedReleaseArchiveFixture -Root (Join-Path $TestDrive 'baseline-fixture')
         $outputDirectory = Join-Path $TestDrive 'baseline-output'
         New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
@@ -244,6 +364,6 @@ Describe 'Deterministic release archive contracts' {
         $archive = Get-ChildItem -LiteralPath $outputDirectory -Filter 'jp.penguin.purebase-0.2.0.zip' -File | Select-Object -First 1
         $archive | Should -Not -BeNullOrEmpty
         (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant() |
-        Should -Be '7f5d3c541f7e3d39a39ac6f7fb65b70c96081dea5e08a9cdc3ef805487aac232'
+        Should -Be 'b9ea2454a4dc12be358824865bac7bd8beba293a83c8ec9c129083bc950130a1'
     }
 }

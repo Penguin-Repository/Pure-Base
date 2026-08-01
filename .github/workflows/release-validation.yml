@@ -90,9 +90,43 @@ jobs:
       - name: Checkout Pure-Base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           path: PureBaseCi/Packages/jp.penguin.purebase
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Capture initial repository state
+        shell: pwsh
+        run: |
+          Push-Location $env:PACKAGE_ROOT
+          try {
+            $initialHead = (& git rev-parse HEAD).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
+            $initialCleanTree = (& git status --porcelain | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
+            $initialLocalBranch = (& git branch --show-current).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
+            $initialLocalRefs = (& git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git for-each-ref failed.' }
+          }
+          finally {
+            Pop-Location
+          }
+          $snapshot = [ordered]@{
+            head = $initialHead
+            cleanTree = $initialCleanTree
+            localBranch = $initialLocalBranch
+            localRefs = $initialLocalRefs
+          }
+          if ([string]::IsNullOrWhiteSpace($snapshot.head)) { throw 'Initial repository HEAD snapshot is empty.' }
+          if (-not [string]::IsNullOrEmpty($snapshot.cleanTree)) { throw 'Release validation checkout must start clean.' }
+
+          New-Item -ItemType Directory -Path $env:ARTIFACT_ROOT -Force | Out-Null
+          [IO.File]::WriteAllText(
+            (Join-Path $env:ARTIFACT_ROOT 'repository-state.json'),
+            (($snapshot | ConvertTo-Json -Compress) + "`n"),
+            [Text.UTF8Encoding]::new($false)
+          )
 
       - name: Install verified Shader-Core 0.1.9 release
         shell: pwsh
@@ -198,14 +232,48 @@ jobs:
         run: |
           & "$env:PACKAGE_ROOT/.github/scripts/Export-PureBaseValidationZip.ps1" `
             -PackageRoot $env:PACKAGE_ROOT `
-            -ValidationArtifactDirectory $env:ARTIFACT_ROOT
+            -ValidationArtifactDirectory $env:ARTIFACT_ROOT `
+            -Repository '${{ github.repository }}' `
+            -HeadSha '${{ github.sha }}' `
+            -HeadBranch '${{ github.ref_name }}' `
+            -WorkflowRunId '${{ github.run_id }}' `
+            -WorkflowRunAttempt '${{ github.run_attempt }}'
+
+      - name: Assert repository state unchanged
+        if: always()
+        shell: pwsh
+        run: |
+          $snapshotPath = Join-Path $env:ARTIFACT_ROOT 'repository-state.json'
+          if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
+            throw "Initial repository state snapshot is missing: '$snapshotPath'."
+          }
+          $snapshot = Get-Content -LiteralPath $snapshotPath -Raw | ConvertFrom-Json
+
+          Push-Location $env:PACKAGE_ROOT
+          try {
+            $finalHead = (& git rev-parse HEAD).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
+            $finalCleanTree = (& git status --porcelain | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
+            $finalLocalBranch = (& git branch --show-current).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
+            $finalLocalRefs = (& git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'git for-each-ref failed.' }
+          }
+          finally {
+            Pop-Location
+          }
+          if ($finalHead -cne [string]$snapshot.head) { throw "Repository HEAD changed from '$($snapshot.head)' to '$finalHead'." }
+          if ($finalCleanTree -cne [string]$snapshot.cleanTree -or -not [string]::IsNullOrEmpty($finalCleanTree)) { throw 'Release validation changed the repository working tree.' }
+          if ($finalLocalBranch -cne [string]$snapshot.localBranch) { throw "Local branch changed from '$($snapshot.localBranch)' to '$finalLocalBranch'." }
+          if ($finalLocalRefs -cne [string]$snapshot.localRefs) { throw 'Local branch or tag refs changed during release validation.' }
 
       - name: Upload release validation evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: pure-base-release-validation-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}
-          if-no-files-found: warn
+          path: ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\validated-package\..
+          if-no-files-found: error
           retention-days: 14
           compression-level: 0

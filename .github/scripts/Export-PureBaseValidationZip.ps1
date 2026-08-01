@@ -18,39 +18,88 @@ param(
     [string]$PackageRoot,
 
     [Parameter(Mandatory = $true)]
-    [string]$ValidationArtifactDirectory
+    [string]$ValidationArtifactDirectory,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Repository,
+
+    [Parameter(Mandatory = $true)]
+    [string]$HeadSha,
+
+    [Parameter(Mandatory = $true)]
+    [AllowEmptyString()]
+    [string]$HeadBranch,
+
+    [Parameter(Mandatory = $true)]
+    [long]$WorkflowRunId,
+
+    [Parameter(Mandatory = $true)]
+    [int]$WorkflowRunAttempt
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'PureBase.Automation.psm1') -Force
 
-$package = Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw | ConvertFrom-Json
-$version = [string]$package.version
-[void](ConvertTo-PureBaseSemVer -Value $version)
+if ($Repository -notmatch '^[^/\s]+/[^/\s]+$') { throw 'repository must be valid owner/name form.' }
+if ($HeadSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'head SHA must be valid 40-character hexadecimal.' }
+if ([string]::IsNullOrWhiteSpace($HeadBranch) -or $HeadBranch -match '[\x00-\x1F\x7F\r\n]') { throw 'branch must be valid.' }
+if ($WorkflowRunId -le 0) { throw 'run ID must be valid and greater than zero.' }
+if ($WorkflowRunAttempt -le 0) { throw 'run attempt must be valid and greater than zero.' }
+
+if ([string]::IsNullOrWhiteSpace($PackageRoot)) { throw 'PackageRoot must be valid.' }
+if ([string]::IsNullOrWhiteSpace($ValidationArtifactDirectory)) { throw 'ValidationArtifactDirectory must be valid.' }
+$packageRootFullPath = [IO.Path]::GetFullPath($PackageRoot)
+$validationArtifactRoot = [IO.Path]::GetFullPath($ValidationArtifactDirectory)
+if (-not (Test-Path -LiteralPath $packageRootFullPath -PathType Container)) { throw "PackageRoot must be valid: '$PackageRoot'." }
+if (-not (Test-Path -LiteralPath $validationArtifactRoot -PathType Container)) { throw "ValidationArtifactDirectory must be valid: '$ValidationArtifactDirectory'." }
+
+$packageJsonPath = Join-Path $packageRootFullPath 'package.json'
+if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf)) { throw "package.json is missing from PackageRoot '$PackageRoot'." }
+try {
+    $package = Get-Content -LiteralPath $packageJsonPath -Raw | ConvertFrom-Json
+}
+catch {
+    throw "package.json must contain valid JSON: $($_.Exception.Message)"
+}
+$packageNameProperty = if ($null -ne $package) { $package.PSObject.Properties['name'] } else { $null }
+$packageName = if ($null -ne $packageNameProperty) { [string]$packageNameProperty.Value } else { '' }
+if ($packageName -cne 'jp.penguin.purebase') { throw 'package.json name must be valid jp.penguin.purebase.' }
+$versionProperty = if ($null -ne $package) { $package.PSObject.Properties['version'] } else { $null }
+$version = if ($null -ne $versionProperty) { [string]$versionProperty.Value } else { '' }
+try { [void](ConvertTo-PureBaseSemVer -Value $version) }
+catch { throw "package.json version must be valid strict SemVer: '$version'." }
 
 $sourceZips = @(
-    Get-ChildItem -LiteralPath $ValidationArtifactDirectory -Filter 'jp.penguin.purebase-*.zip' -File -Recurse |
-    Where-Object { $_.DirectoryName -match '[\\/]archive$' }
+    Get-ChildItem -LiteralPath $validationArtifactRoot -Filter 'jp.penguin.purebase-*.zip' -File -Recurse |
+    Where-Object { $_.Directory.Name -ceq 'archive' }
 )
 if ($sourceZips.Count -ne 1) {
-    throw "Release validation must produce exactly one audited package ZIP below '$ValidationArtifactDirectory'."
+    throw "Release validation must produce exactly one audited package ZIP below '$validationArtifactRoot/archive'."
 }
 $sourceZip = $sourceZips[0]
 if ($sourceZip.Name -cne "jp.penguin.purebase-$version.zip") { throw "Audited package ZIP '$($sourceZip.Name)' does not match package.json version '$version'." }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$archive = [IO.Compression.ZipFile]::OpenRead($sourceZip.FullName)
+$archive = $null
 try {
+    $archive = [IO.Compression.ZipFile]::OpenRead($sourceZip.FullName)
     $manifestEntries = @($archive.Entries | Where-Object FullName -ceq 'package.json')
     if ($manifestEntries.Count -ne 1) { throw 'Audited package ZIP must contain exactly one package.json.' }
     $reader = [IO.StreamReader]::new($manifestEntries[0].Open(), [Text.UTF8Encoding]::new($false, $true))
-    try { $zipVersion = [string](($reader.ReadToEnd() | ConvertFrom-Json).version) }
+    try {
+        $zipPackage = $reader.ReadToEnd() | ConvertFrom-Json
+        $zipName = [string]$zipPackage.name
+        $zipVersion = [string]$zipPackage.version
+    }
     finally { $reader.Dispose() }
+    if ($zipName -cne 'jp.penguin.purebase') { throw "Audited package ZIP package.json name '$zipName' does not match 'jp.penguin.purebase'." }
     if ($zipVersion -cne $version) { throw "Audited package ZIP manifest version '$zipVersion' does not match '$version'." }
 }
-finally { $archive.Dispose() }
+catch { throw "Audited package ZIP is invalid: $($_.Exception.Message)" }
+finally { if ($null -ne $archive) { $archive.Dispose() } }
 
-$exportDirectory = Join-Path $ValidationArtifactDirectory 'validated-package'
+$exportDirectory = Join-Path $validationArtifactRoot 'validated-package'
+if (Test-Path -LiteralPath $exportDirectory) { Remove-Item -LiteralPath $exportDirectory -Recurse -Force }
 New-Item -ItemType Directory -Path $exportDirectory -Force | Out-Null
 $destinationZip = Join-Path $exportDirectory "jp.penguin.purebase-$version.zip"
 Copy-Item -LiteralPath $sourceZip.FullName -Destination $destinationZip -Force
@@ -60,6 +109,31 @@ $sha256 = (Get-FileHash -LiteralPath $destinationZip -Algorithm SHA256).Hash.ToL
     $sha256 + "`n",
     [System.Text.ASCIIEncoding]::new()
 )
+
+$manifest = [ordered]@{
+    schemaVersion      = 1
+    repository         = $Repository
+    headSha            = $HeadSha
+    headBranch         = $HeadBranch
+    workflowRunId      = $WorkflowRunId
+    workflowRunAttempt = $WorkflowRunAttempt
+    version            = $version
+    assetName          = [IO.Path]::GetFileName($destinationZip)
+    sha256             = $sha256
+}
+$manifestPath = Join-Path $exportDirectory 'release-validation.json'
+$temporaryManifestPath = "$manifestPath.$([guid]::NewGuid().ToString('N')).tmp"
+try {
+    [IO.File]::WriteAllText(
+        $temporaryManifestPath,
+        (($manifest | ConvertTo-Json -Compress) + "`n"),
+        [Text.UTF8Encoding]::new($false)
+    )
+    Move-Item -LiteralPath $temporaryManifestPath -Destination $manifestPath -Force -ErrorAction Stop
+}
+finally {
+    if (Test-Path -LiteralPath $temporaryManifestPath) { Remove-Item -LiteralPath $temporaryManifestPath -Force -ErrorAction SilentlyContinue }
+}
 
 Write-Output "Validated package ZIP: $destinationZip"
 Write-Output "SHA-256: $sha256"

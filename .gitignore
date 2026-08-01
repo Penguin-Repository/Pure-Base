@@ -112,7 +112,6 @@ InitTestScene*.unity*
 unitypackage-stage.meta
 dist/
 dist.meta
-update_trigger.json.meta
 TestResults/
 TestResults.meta
 testResults.xml
