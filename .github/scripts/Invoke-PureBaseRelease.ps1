@@ -227,7 +227,9 @@ $badge = New-PureBaseReleaseBody -Repository $Repository -Version $ConfirmedVers
 $release = $existingRelease
 if ($null -eq $release) {
     Invoke-MutationGate 'draft-create'
-    $release = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
+    Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true }) | Out-Null
+    $release = Get-Release $ConfirmedVersion
+    if ($null -eq $release) { throw "Created draft release '$ConfirmedVersion' could not be re-read before asset processing." }
 }
 elseif ($releaseMode.ReleaseState -eq 'published') {
     Write-State 'published-release-resume' @{ commitSha = $ValidatedEventSha; assetName = $artifact.Name; sha256 = $artifact.Sha256 }

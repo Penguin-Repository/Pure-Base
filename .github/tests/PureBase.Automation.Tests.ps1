@@ -488,7 +488,9 @@ Describe 'Validated artifact fresh release orchestration' {
                 [ValidateSet('uploaded', 'missing-state', 'open-state')][string]$UploadedAssetState = 'uploaded',
                 [ValidateSet('valid', 'malformed-manifest', 'manifest-hash-mismatch', 'missing-package-manifest', 'duplicate-package-manifest', 'unexpected-payload-layout', 'malformed-manifest-with-unexpected-payload-layout')][string]$ValidatedArtifactState = 'valid',
                 [ValidateSet('detached', 'attached', 'wrong-head')][string]$CheckoutShape = 'detached',
-                [switch]$CaptureGitTransport
+                [switch]$CaptureGitTransport,
+                [switch]$CreateResponseWithoutAssets,
+                [switch]$CanonicalReleaseUnavailableAfterCreation
             )
 
             $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Validated-Artifact-Release-' + [guid]::NewGuid().ToString('N'))
@@ -630,6 +632,7 @@ Describe 'Validated artifact fresh release orchestration' {
                         html_url = "https://github.example.invalid/test/Pure-Base/releases/tag/$version"
                     }
                 }
+                $canonicalRelease = [pscustomobject]@{ Value = $release }
                 $initialReleaseState = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                 $beforeMutation = {
                     param([string]$Boundary)
@@ -654,6 +657,7 @@ Describe 'Validated artifact fresh release orchestration' {
                             ReleaseDraft = if ($null -eq $release) { $null } else { $release.draft }
                             ReleaseImmutable = if ($null -eq $release) { $null } else { $release.immutable }
                             AssetDigest = $assetDigest
+                            CreateResponseHasAssets = $null
                             StateBefore = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                             StateAfter = $null
                         }
@@ -692,9 +696,9 @@ Describe 'Validated artifact fresh release orchestration' {
                         return [pscustomobject]@{ StatusCode = 302; Headers = @{ Location = 'https://objects.example.invalid/validation-artifact.zip' } }
                     }
                     if ($Uri -match '/releases/tags/') {
-                        if ($null -ne $release) {
-                            $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
-                            return $release
+                        if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
+                            $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
+                            return $canonicalRelease.Value
                         }
                         $exception = [InvalidOperationException]::new('Not Found')
                         $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
@@ -711,7 +715,16 @@ Describe 'Validated artifact fresh release orchestration' {
                             body = "$([string]$create.body)`n$generatedNotesBody"; upload_url = 'https://uploads.example.invalid/releases/42/assets{?name,label}'; assets = @()
                             html_url = "https://github.example.invalid/test/Pure-Base/releases/tag/$version"
                         }
+                        $canonicalRelease.Value = $release
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
+                        $apiCall.CreateResponseHasAssets = -not $CreateResponseWithoutAssets
+                        if ($CreateResponseWithoutAssets) {
+                            return [pscustomobject]@{
+                                id = $release.id; tag_name = $release.tag_name; target_commitish = $release.target_commitish; draft = $release.draft
+                                prerelease = $release.prerelease; immutable = $release.immutable; body = $release.body; upload_url = $release.upload_url
+                                html_url = $release.html_url
+                            }
+                        }
                         return $release
                     }
                     if ($Method -eq 'POST' -and $Uri -match '/assets\?name=') {
@@ -772,7 +785,7 @@ Describe 'Validated artifact fresh release orchestration' {
                     Failure = $failure; ApiCalls = $apiCalls.ToArray(); RemoteRoot = $remoteRoot; InitialBranchSha = $initialBranchSha
                     EventSha = $eventSha; Version = $version; PushLogPath = $pushLogPath; PreviousReleaseToken = $previousReleaseToken
                     PreviousDispatchToken = $previousDispatchToken; PreviousApiRoot = $previousApiRoot; TemporaryRoot = $temporaryRoot; ZipPath = $zipPath
-                    ZipSha256 = $zipSha256; MutationBoundaries = $mutationBoundaries.ToArray(); Release = $release; AssetName = $assetName
+                    ZipSha256 = $zipSha256; MutationBoundaries = $mutationBoundaries.ToArray(); Release = $canonicalRelease.Value; AssetName = $assetName
                     ConfirmedVersion = $version; ValidationManifestPath = (Join-Path $validatedPackageDirectory 'release-validation.json'); PackageRoot = $packageRoot
                     OperationLog = $operationLog.ToArray(); TagPushCountAtGate = $tagPushCountAtGate; DispatchPayloads = $dispatchPayloads.ToArray()
                     CanonicalBadge = $canonicalBadge; CurrentReleaseBody = $currentReleaseBody; GeneratedNotesBody = $generatedNotesBody; InitialReleaseState = $initialReleaseState; ValidatedArtifactState = $ValidatedArtifactState
@@ -955,6 +968,60 @@ Describe 'Validated artifact fresh release orchestration' {
             ([regex]::Matches($createRequest.body, '\[!\[Downloads\]\(')).Count | Should -Be 1
             $draftCreates[0].StateAfter.Body | Should -Be "$($fixture.CanonicalBadge)`n$($fixture.GeneratedNotesBody)"
             $draftCreates[0].StateAfter.Body | Should -Be $fixture.CurrentReleaseBody
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
+    }
+
+    It 're-fetches canonical draft data after an assets-less create response before asset processing' {
+        $fixture = New-ValidatedArtifactReleaseFixture -CreateResponseWithoutAssets
+        try {
+            $fixture.Failure | Should -BeNullOrEmpty
+            $draftCreateIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+                    param($call)
+                    $call.Method -eq 'POST' -and $call.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases'
+                })
+            $canonicalReleaseIndex = [array]::FindIndex($fixture.ApiCalls, $draftCreateIndex + 1, [Predicate[object]]{
+                    param($call)
+                    $call.Method -eq 'GET' -and $call.Uri -eq "https://api.example.invalid/repos/test/Pure-Base/releases/tags/$($fixture.Version)"
+                })
+            $assetUploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+                    param($call)
+                    $call.Method -eq 'POST' -and $call.Uri -match '/assets\?name='
+                })
+            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+                    param($call)
+                    $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$'
+                })
+            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+                    param($call)
+                    $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$'
+                })
+            $draftCreateIndex | Should -BeGreaterThan -1
+            $fixture.ApiCalls[$draftCreateIndex].CreateResponseHasAssets | Should -BeFalse
+            $canonicalReleaseIndex | Should -BeGreaterThan $draftCreateIndex
+            $assetUploadIndex | Should -BeGreaterThan $canonicalReleaseIndex
+            $publishIndex | Should -BeGreaterThan $assetUploadIndex
+            $dispatchIndex | Should -BeGreaterThan $publishIndex
+            $fixture.Release.assets.Count | Should -Be 1
+        }
+        finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
+    }
+
+    It 'fails before asset processing when a created draft cannot be re-read canonically' {
+        $fixture = New-ValidatedArtifactReleaseFixture -CanonicalReleaseUnavailableAfterCreation
+        try {
+            $fixture.Failure | Should -Not -BeNullOrEmpty
+            $fixture.Failure.Exception.Message | Should -Match 'Created draft release.*could not be re-read before asset processing'
+            @($fixture.ApiCalls | Where-Object {
+                    $_.Method -eq 'POST' -and $_.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases'
+                }).Count | Should -Be 1
+            $fixture.MutationBoundaries | Should -Contain 'draft-create'
+            $fixture.MutationBoundaries | Should -Not -Contain 'asset-upload'
+            $fixture.MutationBoundaries | Should -Not -Contain 'publish'
+            $fixture.MutationBoundaries | Should -Not -Contain 'vpm-dispatch'
+            @($fixture.ApiCalls | Where-Object {
+                    $_.Method -in @('PATCH', 'POST') -and $_.Uri -match '/releases/42$|/assets\?|/dispatches$'
+                }).Count | Should -Be 0
         }
         finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
     }
