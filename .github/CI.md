@@ -126,9 +126,10 @@ Create these Actions secrets:
 - `APP_PRIVATE_KEY`: GitHub App private key.
 
 Install the same GitHub App on both Pure-Base and the repository named by `VPM_REPOSITORY`.
-Grant repository **Contents: write** on both installations and **Administration: read** on
-Pure-Base. The release workflow creates separate installation tokens for Pure-Base and the VPM
-repository, with each token restricted to its target repository and requested permissions.
+On Pure-Base, grant repository **Contents: write**, **Administration: read**, **Actions: read**,
+and **Workflows: write**. On the VPM repository, grant **Contents: write** only. The release
+workflow creates separate installation tokens for Pure-Base and the VPM repository, with each
+token restricted to its target repository and requested permissions.
 
 Enable immutable releases in the Pure-Base repository settings before the first release. The
 release script checks `GET /repos/{owner}/{repo}/immutable-releases` before running Unity release

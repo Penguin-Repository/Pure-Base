@@ -566,12 +566,12 @@ function Resolve-PureBaseValidationArtifact {
     if (-not $ExpectedName.EndsWith($expectedSuffix, [StringComparison]::Ordinal)) {
         throw 'The expected validation artifact name does not bind the selected workflow run and attempt.'
     }
-    $matches = @($Artifacts | Where-Object {
+    $matchingArtifacts = @($Artifacts | Where-Object {
             $null -ne $_ -and [string]$_.name -ceq $ExpectedName -and -not [bool]$_.expired -and $null -ne $_.workflow_run -and
             [long]$_.id -gt 0 -and [long]$_.workflow_run.id -eq $WorkflowRunId
         })
-    if ($matches.Count -ne 1) { throw 'Expected exactly one unexpired validation artifact for the selected workflow run.' }
-    return $matches[0]
+    if ($matchingArtifacts.Count -ne 1) { throw 'Expected exactly one unexpired validation artifact for the selected workflow run.' }
+    return $matchingArtifacts[0]
 }
 
 function Assert-PureBaseValidationManifest {
@@ -657,17 +657,17 @@ function Resolve-PureBaseDraftAssetAction {
     param([Parameter(Mandatory)][AllowNull()][AllowEmptyCollection()][object[]]$Assets, [Parameter(Mandatory)][string]$AssetName, [Parameter(Mandatory)][string]$Sha256)
 
     if ($Sha256 -notmatch '^[0-9a-f]{64}$') { throw 'Expected release asset SHA-256 must be lowercase hexadecimal.' }
-    $matches = [Collections.Generic.List[object]]::new()
+    $matchingAssets = [Collections.Generic.List[object]]::new()
     foreach ($asset in $Assets) {
         if ($null -ne $asset -and [string]::Equals([string]$asset.name, $AssetName, [StringComparison]::Ordinal)) {
-            $matches.Add($asset)
+            $matchingAssets.Add($asset)
         }
     }
-    if ($matches.Count -eq 0) { return 'upload' }
-    if ($matches.Count -ne 1) { throw "The release asset '$AssetName' is duplicated." }
-    $assetState = if ($null -eq $matches[0].PSObject.Properties['state']) { '' } else { [string]$matches[0].state }
+    if ($matchingAssets.Count -eq 0) { return 'upload' }
+    if ($matchingAssets.Count -ne 1) { throw "The release asset '$AssetName' is duplicated." }
+    $assetState = if ($null -eq $matchingAssets[0].PSObject.Properties['state']) { '' } else { [string]$matchingAssets[0].state }
     if ($assetState -cne 'uploaded') { throw "The release asset '$AssetName' is not in the uploaded state." }
-    if ([string]$matches[0].digest -cne "sha256:$Sha256") { throw "The release asset '$AssetName' does not match the validated SHA-256." }
+    if ([string]$matchingAssets[0].digest -cne "sha256:$Sha256") { throw "The release asset '$AssetName' does not match the validated SHA-256." }
     return 'reuse'
 }
 
@@ -675,11 +675,11 @@ function Assert-PureBasePublishedResumeArtifact {
     [CmdletBinding()]
     param([Parameter(Mandatory)]$Release, [Parameter(Mandatory)][string]$AssetName, [Parameter(Mandatory)][string]$ValidationArtifactSha256)
 
-    $matches = @($Release.assets | Where-Object { $null -ne $_ -and [string]$_.name -ceq $AssetName })
-    if ($matches.Count -ne 1 -or [string]$matches[0].digest -cne "sha256:$ValidationArtifactSha256") { throw 'The published release asset does not match the validation artifact digest.' }
-    $assetState = if ($null -eq $matches[0].PSObject.Properties['state']) { '' } else { [string]$matches[0].state }
+    $matchingAssets = @($Release.assets | Where-Object { $null -ne $_ -and [string]$_.name -ceq $AssetName })
+    if ($matchingAssets.Count -ne 1 -or [string]$matchingAssets[0].digest -cne "sha256:$ValidationArtifactSha256") { throw 'The published release asset does not match the validation artifact digest.' }
+    $assetState = if ($null -eq $matchingAssets[0].PSObject.Properties['state']) { '' } else { [string]$matchingAssets[0].state }
     if ($assetState -cne 'uploaded') { throw "The published release asset '$AssetName' is not in the uploaded state." }
-    return $matches[0]
+    return $matchingAssets[0]
 }
 
 function Assert-PureBaseArtifactRedirectLocation {

@@ -694,9 +694,30 @@ Describe 'Hosted Unity review contracts' {
         $releaseWorkflow | Should -Match '(?m)git\s+for-each-ref'
 
         $uploadStep | Should -Match '(?m)^        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a(?: #.*)?$'
-        $uploadStep | Should -Match '(?m)^          path: .*validated-package'
+        $uploadStep | Should -Match '(?m)^          path: \|$'
         $uploadStep | Should -Match '(?m)^          if-no-files-found: error$'
         $uploadStep | Should -Match '(?m)^          compression-level: 0$'
+    }
+
+    It 'uploads direct evidence children without parent-directory traversal' -Tag ReleaseValidationProducer {
+        $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
+        $uploadStep = Get-NamedStepBlock -Job $validationJob -Name 'Upload release validation evidence'
+        $pathMatch = [regex]::Match(
+            $uploadStep,
+            '(?ms)^          path: \|\n(?<paths>(?:^            [^\r\n]*(?:\r?\n|$))+?)(?=^          [A-Za-z0-9_-]+:|\z)'
+        )
+
+        $pathMatch.Success | Should -BeTrue
+        $pathLines = @(
+            $pathMatch.Groups['paths'].Value -split "\r?\n" |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object { $_.Trim() }
+        )
+        $artifactRoot = '${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}'
+        $pathLines.Count | Should -Be 2
+        $pathLines | Should -Contain "$artifactRoot\validated-package"
+        $pathLines | Should -Contain "$artifactRoot\repository-state.json"
+        ($pathLines -join "`n") | Should -Not -Match '\.\.'
     }
 
     It 'defines Release consumer permissions and separates Pure-Base and VPM token scopes' {
