@@ -136,3 +136,114 @@ Describe 'Release archive version and policy contracts' {
         $contract | Should -Match '"vpm-yanks\.json"'
     }
 }
+
+Describe 'Deterministic release archive contracts' {
+    BeforeAll {
+        $builderPath = Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1'
+
+        function New-FixedReleaseArchiveFixture {
+            param([Parameter(Mandatory = $true)][string]$Root)
+
+            $packageRoot = Join-Path $Root 'Packages/jp.penguin.purebase'
+            $shaderCoreRoot = Join-Path $Root 'Packages/jp.lilxyzw.shadercore'
+            $scriptRoot = Join-Path $packageRoot 'Tests/Release'
+            New-Item -ItemType Directory -Path (Join-Path $packageRoot 'Editor'), (Join-Path $packageRoot 'Shaders'), $scriptRoot, $shaderCoreRoot -Force | Out-Null
+
+            $utf8NoBom = [Text.UTF8Encoding]::new($false)
+            $files = [ordered]@{
+                'LICENSE' = "license fixture`n"
+                'NOTICE' = "notice fixture`n"
+                'README.md' = "# Fixture`n"
+                'Editor/.gitkeep' = ''
+                'Shaders/PureBaseHybrid.scshader' = "Shader fixture Hybrid`n"
+                'Shaders/PureBasePBR.scshader' = "Shader fixture PBR`n"
+                'Shaders/PureBaseToon.scshader' = "Shader fixture Toon`n"
+                'Shaders/PureBaseUnlit.scshader' = "Shader fixture Unlit`n"
+                'package.json' = "{`"name`":`"jp.penguin.purebase`",`"version`":`"0.2.0`",`"vpmDependencies`":{`"jp.lilxyzw.shadercore`":`"0.1.9`"}}`n"
+            }
+            foreach ($entry in $files.GetEnumerator()) {
+                $path = Join-Path $packageRoot $entry.Key
+                New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
+                [IO.File]::WriteAllText($path, $entry.Value, $utf8NoBom)
+            }
+
+            Copy-Item -LiteralPath $builderPath -Destination (Join-Path $scriptRoot 'Build-PureBaseRelease.ps1') -Force
+            Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'release-content.json') -Destination (Join-Path $scriptRoot 'release-content.json') -Force
+            [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.1.9"}' + "`n", $utf8NoBom)
+            [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'identity-probe.txt'), "fixture identity`n", $utf8NoBom)
+
+            & git -C $packageRoot init --initial-branch master --quiet
+            if ($LASTEXITCODE -ne 0) { throw 'git init failed for fixed release archive fixture.' }
+            & git -C $packageRoot config user.name 'PureBase Test'
+            & git -C $packageRoot config user.email 'purebase-test@example.invalid'
+            & git -C $packageRoot add -- .
+            & git -C $packageRoot commit --quiet -m fixture
+            if ($LASTEXITCODE -ne 0) { throw 'git commit failed for fixed release archive fixture.' }
+
+            $fixtureBuilderPath = Join-Path $scriptRoot 'Build-PureBaseRelease.ps1'
+            & pwsh -NoProfile -File $fixtureBuilderPath -WriteShaderCoreManifest
+            if ($LASTEXITCODE -ne 0) { throw 'shader-core fixture manifest generation failed.' }
+            return [pscustomobject]@{ PackageRoot = $packageRoot; BuilderPath = $fixtureBuilderPath }
+        }
+    }
+
+    It 'uses an explicit Store-mode ZIP writer with stable entry order, timestamp, and attributes' {
+        $builderSource = Get-Content -LiteralPath $builderPath -Raw
+
+        ($builderSource -match 'ZipArchiveMode\]::Create') | Should -BeTrue
+        ($builderSource -match 'CompressionLevel\]::NoCompression') | Should -BeTrue
+        ($builderSource -match 'LastWriteTime') | Should -BeTrue
+        ($builderSource -match 'ExternalAttributes') | Should -BeTrue
+        ($builderSource -notmatch 'CreateFromDirectory') | Should -BeTrue
+    }
+
+    It 'produces byte-identical ZIPs with fixed entry metadata from separate PowerShell processes' {
+        $fixture = New-FixedReleaseArchiveFixture -Root (Join-Path $TestDrive 'fixed-fixture')
+        $firstOutput = Join-Path $TestDrive 'first'
+        $secondOutput = Join-Path $TestDrive 'second'
+        New-Item -ItemType Directory -Path $firstOutput, $secondOutput -Force | Out-Null
+
+        & pwsh -NoProfile -File $fixture.BuilderPath -OutputDirectory $firstOutput
+        $firstExitCode = $LASTEXITCODE
+        & pwsh -NoProfile -File $fixture.BuilderPath -OutputDirectory $secondOutput
+        $secondExitCode = $LASTEXITCODE
+        $firstExitCode | Should -Be 0
+        $secondExitCode | Should -Be 0
+
+        $firstZip = Get-ChildItem -LiteralPath $firstOutput -Filter 'jp.penguin.purebase-*.zip' -File | Select-Object -First 1
+        $secondZip = Get-ChildItem -LiteralPath $secondOutput -Filter 'jp.penguin.purebase-*.zip' -File | Select-Object -First 1
+        (Get-FileHash -LiteralPath $firstZip.FullName -Algorithm SHA256).Hash | Should -Be (Get-FileHash -LiteralPath $secondZip.FullName -Algorithm SHA256).Hash
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $firstArchive = [IO.Compression.ZipFile]::OpenRead($firstZip.FullName)
+        $secondArchive = [IO.Compression.ZipFile]::OpenRead($secondZip.FullName)
+        try {
+            $firstEntries = @($firstArchive.Entries | Where-Object { -not $_.FullName.EndsWith('/') })
+            $secondEntries = @($secondArchive.Entries | Where-Object { -not $_.FullName.EndsWith('/') })
+            $firstEntries.FullName | Should -Be $secondEntries.FullName
+            foreach ($entry in $firstEntries) {
+                $entry.CompressedLength | Should -Be $entry.Length
+                $entry.LastWriteTime.UtcDateTime | Should -Be ([datetime]'2026-01-01T00:00:00Z')
+                $entry.ExternalAttributes | Should -Not -Be 0
+            }
+        }
+        finally {
+            $firstArchive.Dispose()
+            $secondArchive.Dispose()
+        }
+    }
+
+    It 'matches the fixed UTF-8 fixture SHA-256 baseline without using the repository package root' {
+        $fixture = New-FixedReleaseArchiveFixture -Root (Join-Path $TestDrive 'baseline-fixture')
+        $outputDirectory = Join-Path $TestDrive 'baseline-output'
+        New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
+
+        & pwsh -NoProfile -File $fixture.BuilderPath -OutputDirectory $outputDirectory
+        $LASTEXITCODE | Should -Be 0
+
+        $archive = Get-ChildItem -LiteralPath $outputDirectory -Filter 'jp.penguin.purebase-0.2.0.zip' -File | Select-Object -First 1
+        $archive | Should -Not -BeNullOrEmpty
+        (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant() |
+        Should -Be '7f5d3c541f7e3d39a39ac6f7fb65b70c96081dea5e08a9cdc3ef805487aac232'
+    }
+}

@@ -18,6 +18,7 @@ Describe 'Hosted Unity review contracts' {
         $dailyWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw) -replace "`r`n", "`n"
         $releaseWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release-validation.yml') -Raw) -replace "`r`n", "`n"
         $releasePublishingWorkflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release.yml') -Raw) -replace "`r`n", "`n"
+        $releaseAutomationScript = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw) -replace "`r`n", "`n"
         $shaderCoreInstallerPath = Join-Path $repositoryRoot '.github/scripts/Install-VerifiedShaderCoreRelease.ps1'
         $shaderCoreInstaller = if (Test-Path -LiteralPath $shaderCoreInstallerPath -PathType Leaf) {
             (Get-Content -LiteralPath $shaderCoreInstallerPath -Raw) -replace "`r`n", "`n"
@@ -503,8 +504,7 @@ Describe 'Hosted Unity review contracts' {
 
     It 'keeps exactly one unconditional pinned setup call in each Unity execution job' -ForEach @(
         @{ WorkflowName = 'Daily'; Job = 'unity-daily' },
-        @{ WorkflowName = 'Release validation'; Job = 'validate' },
-        @{ WorkflowName = 'Release publishing'; Job = 'release' }
+        @{ WorkflowName = 'Release validation'; Job = 'validate' }
     ) {
         $Workflow = switch ($WorkflowName) {
             'Daily' { $dailyWorkflow }
@@ -525,7 +525,7 @@ Describe 'Hosted Unity review contracts' {
     }
 
     It 'preserves top-level read-only workflow permissions' {
-        foreach ($workflow in @($dailyWorkflow, $releaseWorkflow, $releasePublishingWorkflow)) {
+        foreach ($workflow in @($dailyWorkflow, $releaseWorkflow)) {
             $workflow | Should -Match '(?m)^permissions:\n  contents: read$'
         }
     }
@@ -537,7 +537,7 @@ Describe 'Hosted Unity review contracts' {
         }
 
         $references = @($sources | ForEach-Object { Get-ActionReferences -Source $_ })
-        ($references | Where-Object { $_ -eq './.github/actions/lookup-unity-editor-cache' }).Count | Should -Be 3
+        ($references | Where-Object { $_ -eq './.github/actions/lookup-unity-editor-cache' }).Count | Should -Be 2
         foreach ($reference in $references | Where-Object { $_ -ne './.github/actions/lookup-unity-editor-cache' }) {
             $reference | Should -Match '^[^@]+@[0-9a-f]{40}$'
         }
@@ -580,7 +580,7 @@ Describe 'Hosted Unity review contracts' {
         $dailyEditorPathStep | Should -Match "-EditorPath '\$\{\{ steps\.unity\.outputs\.editor-path \}\}'"
     }
 
-    It 'passes a real Unity.exe only to audited release validation' {
+    It 'passes a real Unity.exe only to audited release validation' -Tag ReleaseValidationProducer {
         $releaseWorkflow.Contains('-RealEditorPathOutputFile $realEditorPathFile') | Should -BeTrue
         $releaseWorkflow.Contains('REAL_UNITY_EDITOR_PATH=$realEditorPath') | Should -BeTrue
         $releaseWorkflow.Contains('-UnityEditorPath $env:REAL_UNITY_EDITOR_PATH') | Should -BeTrue
@@ -589,63 +589,7 @@ Describe 'Hosted Unity review contracts' {
         $resolverScript.Contains('real Unity.exe because its audited runner intentionally rejects wrapper executables') | Should -BeTrue
     }
 
-    It 'uses hosted Unity cache, licensing, and resolved editor paths for release publishing' {
-        $preparationJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'unity-editor-cache'
-        $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
-        $checkoutStep = Get-NamedStepBlock -Job $preparationJob -Name 'Checkout cache lookup helper'
-        $lookupStep = Get-NamedStepBlock -Job $preparationJob -Name 'Look up Unity Editor cache'
-        $fallbackStep = Get-NamedStepBlock -Job $preparationJob -Name 'Restore or create Unity Editor cache'
-        $activationStep = Get-NamedStepBlock -Job $releaseJob -Name 'Activate Unity Personal license'
-        $waitStep = Get-NamedStepBlock -Job $releaseJob -Name 'Wait before retrying Unity license activation'
-        $retryStep = Get-NamedStepBlock -Job $releaseJob -Name 'Retry Unity Personal license activation'
-        $pathStep = Get-NamedStepBlock -Job $releaseJob -Name 'Export Unity editor paths'
-
-        $preparationJob | Should -Match '(?m)^    runs-on: windows-2022$'
-        $checkoutStep | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
-        $checkoutStep | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
-        $checkoutStep | Should -Match '(?m)^          persist-credentials: false$'
-        $lookupStep | Should -Match '(?m)^        uses: \./\.github/actions/lookup-unity-editor-cache$'
-        $lookupStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
-        $lookupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
-        $lookupStep | Should -Match '(?m)^          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"$'
-        $lookupStep | Should -Not -Match '(?m)^          cli-channel:'
-        $fallbackStep | Should -Match '(?m)^        id: unity$'
-        $fallbackStep | Should -Match "(?m)^        if: steps\.unity-cache-lookup\.outputs\.cache-hit != 'true'$"
-        $fallbackStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $fallbackStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
-        $fallbackStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
-        $fallbackStep | Should -Match '(?m)^          cli-channel: beta$'
-        $fallbackStep | Should -Match '(?m)^          cache: "true"$'
-
-        $releaseJob | Should -Match '(?m)^    needs: unity-editor-cache$'
-        $releaseJob | Should -Match '(?m)^    environment: release$'
-        $releaseJob | Should -Match '(?m)^    runs-on: windows-2022$'
-        $releaseJob | Should -Match '(?m)^      group: pure-base-unity-personal-license$'
-        $releaseJob | Should -Match '(?m)^      cancel-in-progress: false$'
-        $releaseJob | Should -Not -Match 'self-hosted'
-        $releaseJob | Should -Not -Match [regex]::Escape('C:\Program Files\Unity\Hub\Editor\2022.3.22f1\Editor\Unity.exe')
-
-        $activationStep | Should -Match '(?m)^        continue-on-error: true$'
-        $activationStep | Should -Match '(?m)^        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af(?: #.*)?$'
-        $activationStep | Should -Match '(?m)^          license: personal$'
-        $activationStep | Should -Match '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$'
-        $activationStep | Should -Match '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$'
-        $activationStep | Should -Match '(?m)^          license-version: "6\.x"$'
-        $waitStep | Should -Match "(?m)^        if: steps\.unity_license\.outcome == 'failure'$"
-        $waitStep | Should -Match '(?m)^        run: Start-Sleep -Seconds 45$'
-        $retryStep | Should -Match "(?m)^        if: steps\.unity_license\.outcome == 'failure'$"
-        $retryStep | Should -Match '(?m)^        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af(?: #.*)?$'
-        $retryStep | Should -Match '(?m)^          license: personal$'
-        $retryStep | Should -Match '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$'
-        $retryStep | Should -Match '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$'
-        $retryStep | Should -Match '(?m)^          license-version: "6\.x"$'
-        $pathStep | Should -Match '-RealEditorPathOutputFile \$realEditorPathFile'
-        $pathStep | Should -Match 'UNITY_EDITOR_PATH=\$watchdogEditorPath'
-        $pathStep | Should -Match 'REAL_UNITY_EDITOR_PATH=\$realEditorPath'
-        $releaseJob | Should -Match '-UnityEditorPath \$env:REAL_UNITY_EDITOR_PATH'
-    }
-
-    It 'runs release validation before Unity project configuration' {
+    It 'runs release validation before Unity project configuration' -Tag ReleaseValidationProducer {
         $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
 
         $validationJob | Should -Not -BeNullOrEmpty
@@ -657,13 +601,12 @@ Describe 'Hosted Unity review contracts' {
         )
     }
 
-    It 'stages the same verified Shader-Core release asset in every hosted consumer' {
+    It 'stages the same verified Shader-Core release asset in every Unity validation consumer' {
         $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip'
         $expectedSha256 = 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
         $consumers = @(
             [pscustomobject]@{ Workflow = $dailyWorkflow; Job = 'unity-daily' },
-            [pscustomobject]@{ Workflow = $releaseWorkflow; Job = 'validate' },
-            [pscustomobject]@{ Workflow = $releasePublishingWorkflow; Job = 'release' }
+            [pscustomobject]@{ Workflow = $releaseWorkflow; Job = 'validate' }
         )
 
         $shaderCoreInstaller | Should -Not -BeNullOrEmpty
@@ -679,6 +622,133 @@ Describe 'Hosted Unity review contracts' {
             $step | Should -Match ([regex]::Escape($expectedUrl))
             $step | Should -Match ([regex]::Escape($expectedSha256))
             $step | Should -Not -Match 'actions/checkout|repository:\s*lilxyzw/Shader-Core'
+        }
+    }
+
+    It 'defines Release validation producer permissions, exact SHA checkouts, and credential boundaries' -Tag ReleaseValidationProducer {
+        $releaseWorkflow | Should -Match '(?m)^permissions:\n  contents: read$'
+
+        foreach ($jobName in @('unity-editor-cache', 'validate')) {
+            $job = Get-NamedJobBlock -Workflow $releaseWorkflow -Name $jobName
+            $checkoutName = if ($jobName -eq 'unity-editor-cache') { 'Checkout cache lookup helper' } else { 'Checkout Pure-Base' }
+            $checkout = Get-NamedStepBlock -Job $job -Name $checkoutName
+
+            $job | Should -Not -BeNullOrEmpty
+            $checkout | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
+            $checkout | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
+            $checkout | Should -Match '(?m)^          persist-credentials: false$'
+        }
+    }
+
+    It 'passes validation provenance and package metadata to the producer exporter' -Tag ReleaseValidationProducer {
+        $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
+        $exportStep = Get-NamedStepBlock -Job $validationJob -Name 'Export versioned validation ZIP'
+
+        $exportStep | Should -Not -BeNullOrEmpty
+        Assert-LinesInOrder -Block $exportStep -ExpectedLines @(
+            '            -PackageRoot $env:PACKAGE_ROOT `',
+            '            -ValidationArtifactDirectory $env:ARTIFACT_ROOT `',
+            '            -Repository ''${{ github.repository }}'' `',
+            '            -HeadSha ''${{ github.sha }}'' `',
+            '            -HeadBranch ''${{ github.ref_name }}'' `',
+            '            -WorkflowRunId ''${{ github.run_id }}'' `',
+            '            -WorkflowRunAttempt ''${{ github.run_attempt }}'''
+        )
+    }
+
+    It 'proves producer ref invariants, forbids Git mutation, and uploads validated-package evidence' -Tag ReleaseValidationProducer {
+        $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
+        $uploadStep = Get-NamedStepBlock -Job $validationJob -Name 'Upload release validation evidence'
+
+        Assert-LinesInOrder -Block $validationJob -ExpectedLines @(
+            '      - name: Capture initial repository state',
+            '      - name: Run release validation',
+            '      - name: Configure Unity project',
+            '      - name: Export versioned validation ZIP',
+            '      - name: Assert repository state unchanged',
+            '      - name: Upload release validation evidence'
+        )
+
+        $releaseWorkflow | Should -Not -Match '(?im)^\s*git\s+(commit|push)\b'
+        $releaseWorkflow | Should -Match '(?m)git\s+rev-parse\s+HEAD'
+        $releaseWorkflow | Should -Match '(?m)git\s+status\s+--porcelain'
+        $releaseWorkflow | Should -Match '(?m)git\s+for-each-ref'
+
+        $uploadStep | Should -Match '(?m)^        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a(?: #.*)?$'
+        $uploadStep | Should -Match '(?m)^          path: .*validated-package'
+        $uploadStep | Should -Match '(?m)^          if-no-files-found: error$'
+        $uploadStep | Should -Match '(?m)^          compression-level: 0$'
+    }
+
+    It 'defines Release consumer permissions and separates Pure-Base and VPM token scopes' {
+        $releasePublishingWorkflow | Should -Match '(?m)^permissions:\n  actions: read\n  contents: read$'
+
+        $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
+        $releaseJob | Should -Not -BeNullOrEmpty
+        $releasePublishingWorkflow | Should -Not -Match '(?m)^  unity-editor-cache:$'
+
+        $pureBaseTokenStep = Get-NamedStepBlock -Job $releaseJob -Name 'Create release GitHub App token'
+        $vpmTokenStep = Get-NamedStepBlock -Job $releaseJob -Name 'Create VPM dispatch GitHub App token'
+
+        $pureBaseTokenStep | Should -Match '(?m)^          permission-contents: write$'
+        $pureBaseTokenStep | Should -Match '(?m)^          permission-actions: read$'
+        $pureBaseTokenStep | Should -Match '(?m)^          permission-workflows: write$'
+        $pureBaseTokenStep | Should -Match '(?m)^          permission-administration: read$'
+        $vpmTokenStep | Should -Match '(?m)^          permission-contents: write$'
+        $vpmTokenStep | Should -Match '(?m)^          owner: \$\{\{ steps\.release-config\.outputs\.vpm_owner \}\}$'
+        $vpmTokenStep | Should -Match '(?m)^          repositories: \$\{\{ steps\.release-config\.outputs\.vpm_repository \}\}$'
+        $vpmTokenStep | Should -Not -Match '(?m)^          permission-(actions|workflows|administration):'
+    }
+
+    It 'checks out the exact dispatch SHA without persisting the promotion credential' {
+        $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
+        $checkouts = @([regex]::Matches($releaseJob, '(?ms)^      - name: [^\r\n]*Checkout[^\r\n]*\n.*?(?=^      - name:|\z)') | ForEach-Object Value)
+
+        $checkouts.Count | Should -Be 1
+        $checkouts[0] | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
+        $checkouts[0] | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
+        $checkouts[0] | Should -Match '(?m)^          fetch-depth: 0$'
+        $checkouts[0] | Should -Match '(?m)^          fetch-tags: true$'
+        $checkouts[0] | Should -Match '(?m)^          token: \$\{\{ steps\.release-app-token\.outputs\.token \}\}$'
+        $checkouts[0] | Should -Match '(?m)^          persist-credentials: false$'
+    }
+
+    It 'supports an optional no-mutation preflight and repeated release-branch tip checks' {
+        $releasePublishingWorkflow | Should -Match '(?m)^      preflight_only:$'
+        $releasePublishingWorkflow | Should -Match '(?m)^        default: false$'
+        $releasePublishingWorkflow | Should -Match '(?m)-PreflightOnly(?::|\s)'
+
+        $releaseAutomationScript | Should -Match '(?m)^function Assert-RemoteReleaseBranchHead\b'
+        $releaseAutomationScript | Should -Match '(?m)\[switch\]\$PreflightOnly'
+        $releaseAutomationScript | Should -Match '(?m)if \(\$PreflightOnly\)'
+        ([regex]::Matches($releaseAutomationScript, '(?m)Assert-RemoteReleaseBranchHead')).Count | Should -BeGreaterOrEqual 4
+    }
+
+    It 'removes Unity, version-writer, and branch-push responsibilities from the consumer' {
+        $releasePublishingWorkflow | Should -Not -Match '(?i)unity|shader-core|Run-PureBaseReleaseValidation|New-PureBaseCiProject|Export-PureBaseValidationZip|Set-PackageVersion|Build-Zip'
+        $releaseAutomationScript | Should -Not -Match '(?m)\[Parameter\(Mandatory\)\]\[string\]\$UnityEditorPath'
+        $releaseAutomationScript | Should -Not -Match '(?m)\b(Set-PackageVersion|Build-Zip|Commit-And-Tag|Run-PureBaseReleaseValidation)\b'
+        $releaseAutomationScript | Should -Not -Match '(?im)^\s*git\s+push\s+.*(?:refs/heads|HEAD:)'
+    }
+
+    It 'keeps promotion mutations in the fixed validation-to-dispatch order' {
+        $mainScript = $releaseAutomationScript.Substring($releaseAutomationScript.IndexOf('$packageName'))
+        $anchors = @(
+            'Select-PureBaseReleaseValidationRun',
+            'Resolve-PureBaseValidationArtifact',
+            'Assert-PureBaseValidationManifest',
+            'Assert-RemoteReleaseBranchHead',
+            'refs/tags/',
+            'Publish-Release',
+            'Resolve-PureBasePublishedArtifact',
+            'New-PureBaseDispatchPayload'
+        )
+
+        $lastIndex = -1
+        foreach ($anchor in $anchors) {
+            $currentIndex = $mainScript.IndexOf($anchor)
+            $currentIndex | Should -BeGreaterThan $lastIndex
+            $lastIndex = $currentIndex
         }
     }
 
