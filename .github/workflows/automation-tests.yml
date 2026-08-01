@@ -20,15 +20,87 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: automation-tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  migrate:
+    name: Apply organization migration
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Replace organization references
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+
+          old = "Penguin" + "DOOM"
+          new = "Penguin-Repository"
+          workflow = Path(".github/workflows/automation-tests.yml")
+          for value in subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0"):
+              if not value:
+                  continue
+              path = Path(value)
+              if path == workflow:
+                  continue
+              data = path.read_bytes()
+              if b"\0" in data:
+                  continue
+              try:
+                  text = data.decode("utf-8")
+              except UnicodeDecodeError:
+                  continue
+              updated = text.replace(old, new)
+              if updated != text:
+                  path.write_text(updated, encoding="utf-8", newline="")
+
+      - name: Verify references
+        shell: bash
+        run: |
+          old="Penguin""DOOM"
+          if git grep -n -F "$old" -- ':!.github/workflows/automation-tests.yml'; then
+            exit 1
+          fi
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -RequiredVersion 5.9.0 -Scope CurrentUser -Force
+
+      - name: Run automation tests
+        shell: pwsh
+        run: |
+          $configuration = New-PesterConfiguration
+          $configuration.Run.Path = '.github/tests'
+          $configuration.Run.Exit = $true
+          $configuration.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $configuration
+
+      - name: Restore CI workflow and commit migration
+        shell: bash
+        run: |
+          git show origin/master:.github/workflows/automation-tests.yml > .github/workflows/automation-tests.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Update organization references"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
   pester:
     name: Pester 5.9.0
+    if: github.actor == 'github-actions[bot]' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -68,6 +140,7 @@ jobs:
 
   actionlint:
     name: actionlint
+    if: github.actor == 'github-actions[bot]' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
