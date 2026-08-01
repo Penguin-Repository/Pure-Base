@@ -1,23 +1,27 @@
 name: Migrate organization references
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/update-organization-references
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   migrate:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout migration branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: agent/update-organization-references
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
       - name: Replace legacy organization references
@@ -85,4 +89,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Update organization references"
-          git push origin HEAD:agent/update-organization-references
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
