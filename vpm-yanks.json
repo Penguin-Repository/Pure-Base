@@ -1,7 +1,5 @@
 {
   "schemaVersion": 1,
   "package": "jp.penguin.purebase",
-  "versions": {
-    "0.1.0-beta.2": "Verify end-to-end Yank/Unyank synchronization."
-  }
+  "versions": {}
 }
