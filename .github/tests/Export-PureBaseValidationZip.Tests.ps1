@@ -42,7 +42,7 @@ Describe 'Validated package exporter contracts' {
         finally { $archive.Dispose() }
 
         $arguments = @{
-            PackageRoot = $packageRoot; ValidationArtifactDirectory = $validationRoot; Repository = 'PenguinDOOM/Pure-Base'
+            PackageRoot = $packageRoot; ValidationArtifactDirectory = $validationRoot; Repository = 'Penguin-Repository/Pure-Base'
             HeadSha = ('a' * 40); HeadBranch = 'master'; WorkflowRunId = 101; WorkflowRunAttempt = 2
         }
     }
@@ -59,7 +59,7 @@ Describe 'Validated package exporter contracts' {
 
         $manifest = Get-Content -LiteralPath (Join-Path $exportRoot 'release-validation.json') -Raw | ConvertFrom-Json
         $manifest.schemaVersion | Should -Be 1
-        $manifest.repository | Should -Be 'PenguinDOOM/Pure-Base'
+        $manifest.repository | Should -Be 'Penguin-Repository/Pure-Base'
         $manifest.headSha | Should -Be ('a' * 40)
         $manifest.headBranch | Should -Be 'master'
         $manifest.workflowRunId | Should -Be 101

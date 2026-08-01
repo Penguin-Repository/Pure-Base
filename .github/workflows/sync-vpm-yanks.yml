@@ -108,7 +108,7 @@ jobs:
             event_type = 'sync-vpm-yanks'
             client_payload = [ordered]@{
               packageName = 'jp.penguin.purebase'
-              sourceRepository = 'PenguinDOOM/Pure-Base'
+              sourceRepository = 'Penguin-Repository/Pure-Base'
               policyCommitSha = $env:POLICY_COMMIT_SHA
             }
           }

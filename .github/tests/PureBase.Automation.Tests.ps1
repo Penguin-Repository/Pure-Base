@@ -106,32 +106,32 @@ Describe 'Git process output isolation' {
 Describe 'VPM dispatch payload' {
     It 'creates the exact immutable release asset URL without an empty query string' {
         New-PureBasePackageUrl `
-            -Repository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
             -Version '0.2.0' `
             -AssetName 'jp.penguin.purebase-0.2.0.zip' |
-        Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
+        Should -Be 'https://github.com/Penguin-Repository/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
     }
 
     It 'includes the URL and SHA-256 in repository_dispatch data' {
         $payload = New-PureBaseDispatchPayload `
             -PackageName 'jp.penguin.purebase' `
-            -Repository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
             -Version '0.2.0' `
             -CommitSha 'abcdef' `
             -PolicyCommitSha 'abcdef' `
             -AssetName 'jp.penguin.purebase-0.2.0.zip' `
             -Sha256 '0123456789abcdef' `
-            -ReleaseUrl 'https://github.com/PenguinDOOM/Pure-Base/releases/tag/0.2.0'
+            -ReleaseUrl 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.2.0'
 
         $payload.event_type | Should -Be 'update-vpm'
-        $payload.client_payload.packageurl | Should -Be 'https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
+        $payload.client_payload.packageurl | Should -Be 'https://github.com/Penguin-Repository/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
         $payload.client_payload.sha256 | Should -Be '0123456789abcdef'
     }
 }
 
 Describe 'Daily source authorization' {
     It 'accepts pushes' {
-        $result = Resolve-PureBaseDailySource -EventName push -Repository 'PenguinDOOM/Pure-Base' -PushSha 'abc123'
+        $result = Resolve-PureBaseDailySource -EventName push -Repository 'Penguin-Repository/Pure-Base' -PushSha 'abc123'
         $result.Allowed | Should -BeTrue
         $result.CheckoutRef | Should -Be 'abc123'
     }
@@ -139,8 +139,8 @@ Describe 'Daily source authorization' {
     It 'accepts a non-draft branch from the same repository' {
         $result = Resolve-PureBaseDailySource `
             -EventName pull_request `
-            -Repository 'PenguinDOOM/Pure-Base' `
-            -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
+            -PullRequestHeadRepository 'Penguin-Repository/Pure-Base' `
             -PullRequestHeadSha 'abc123' `
             -PullRequestAuthor 'octocat'
         $result.Allowed | Should -BeTrue
@@ -150,8 +150,8 @@ Describe 'Daily source authorization' {
     It 'accepts repository identity with different owner or repository casing' {
         $result = Resolve-PureBaseDailySource `
             -EventName pull_request `
-            -Repository 'PenguinDOOM/Pure-Base' `
-            -PullRequestHeadRepository 'penguindoom/pure-base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
+            -PullRequestHeadRepository 'penguin-repository/pure-base' `
             -PullRequestHeadSha 'abc123' `
             -PullRequestAuthor 'octocat'
         $result.Allowed | Should -BeTrue
@@ -160,7 +160,7 @@ Describe 'Daily source authorization' {
     It 'rejects an external fork before runner allocation' {
         $result = Resolve-PureBaseDailySource `
             -EventName pull_request `
-            -Repository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
             -PullRequestHeadRepository 'someone/Pure-Base' `
             -PullRequestHeadSha 'abc123' `
             -PullRequestAuthor 'octocat'
@@ -172,8 +172,8 @@ Describe 'Daily source authorization' {
     It 'rejects draft pull requests' {
         $result = Resolve-PureBaseDailySource `
             -EventName pull_request `
-            -Repository 'PenguinDOOM/Pure-Base' `
-            -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
+            -PullRequestHeadRepository 'Penguin-Repository/Pure-Base' `
             -PullRequestHeadSha 'abc123' `
             -PullRequestAuthor 'octocat' `
             -PullRequestDraft $true
@@ -184,8 +184,8 @@ Describe 'Daily source authorization' {
     It 'rejects Dependabot pull requests' {
         $result = Resolve-PureBaseDailySource `
             -EventName pull_request `
-            -Repository 'PenguinDOOM/Pure-Base' `
-            -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
+            -PullRequestHeadRepository 'Penguin-Repository/Pure-Base' `
             -PullRequestHeadSha 'abc123' `
             -PullRequestAuthor 'dependabot[bot]'
         $result.Allowed | Should -BeFalse
@@ -197,8 +197,8 @@ Describe 'Daily source authorization' {
         {
             Resolve-PureBaseDailySource `
                 -EventName pull_request_target `
-                -Repository 'PenguinDOOM/Pure-Base' `
-                -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+                -Repository 'Penguin-Repository/Pure-Base' `
+                -PullRequestHeadRepository 'Penguin-Repository/Pure-Base' `
                 -PullRequestHeadSha 'abc123'
         } | Should -Throw "*Unsupported Daily event 'pull_request_target'*"
     }
@@ -207,7 +207,7 @@ Describe 'Daily source authorization' {
         {
             Resolve-PureBaseDailySource `
                 -EventName workflow_dispatch `
-                -Repository 'PenguinDOOM/Pure-Base'
+                -Repository 'Penguin-Repository/Pure-Base'
         } | Should -Throw "*Unsupported Daily event 'workflow_dispatch'*"
     }
 
@@ -215,7 +215,7 @@ Describe 'Daily source authorization' {
         {
             Resolve-PureBaseDailySource `
                 -EventName push `
-                -Repository 'PenguinDOOM/Pure-Base'
+                -Repository 'Penguin-Repository/Pure-Base'
         } | Should -Throw '*Push events require a commit SHA*'
     }
 
@@ -223,8 +223,8 @@ Describe 'Daily source authorization' {
         {
             Resolve-PureBaseDailySource `
                 -EventName pull_request `
-                -Repository 'PenguinDOOM/Pure-Base' `
-                -PullRequestHeadRepository 'PenguinDOOM/Pure-Base' `
+                -Repository 'Penguin-Repository/Pure-Base' `
+                -PullRequestHeadRepository 'Penguin-Repository/Pure-Base' `
                 -PullRequestAuthor 'octocat'
         } | Should -Throw '*Trusted pull requests require a head commit SHA*'
     }
@@ -241,14 +241,14 @@ Describe 'Immutable Releases preflight' {
 
         $result = Assert-PureBaseImmutableReleasesEnabled `
             -ApiRoot 'https://api.github.com' `
-            -Repository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
             -Token 'token' `
             -ApiInvoker $invoker
 
         $result.enabled | Should -BeTrue
         $calls.Count | Should -Be 1
         $calls[0].Method | Should -Be 'GET'
-        $calls[0].Uri | Should -Be 'https://api.github.com/repos/PenguinDOOM/Pure-Base/immutable-releases'
+        $calls[0].Uri | Should -Be 'https://api.github.com/repos/Penguin-Repository/Pure-Base/immutable-releases'
     }
 
     It 'fails before release validation when immutable releases are disabled' {
@@ -261,7 +261,7 @@ Describe 'Immutable Releases preflight' {
 
         { Assert-PureBaseImmutableReleasesEnabled `
                 -ApiRoot 'https://api.github.com' `
-                -Repository 'PenguinDOOM/Pure-Base' `
+                -Repository 'Penguin-Repository/Pure-Base' `
                 -Token 'token' `
                 -ApiInvoker $invoker } |
         Should -Throw '*must be enabled*'
@@ -271,7 +271,7 @@ Describe 'Immutable Releases preflight' {
         $invoker = { param($Method, $Uri, $Token) [pscustomobject]@{ enabled = $false } }
         { Assert-PureBaseImmutableReleasesEnabled `
                 -ApiRoot 'https://api.github.com' `
-                -Repository 'PenguinDOOM/Pure-Base' `
+                -Repository 'Penguin-Repository/Pure-Base' `
                 -Token 'token' `
                 -ApiInvoker $invoker } |
         Should -Throw '*did not confirm*'
@@ -290,7 +290,7 @@ Describe 'Published immutable release reuse' {
                     name                 = $assetName
                     state                = 'uploaded'
                     digest               = "sha256:$digest"
-                    browser_download_url = "https://github.com/PenguinDOOM/Pure-Base/releases/download/0.2.0/$assetName"
+                    browser_download_url = "https://github.com/Penguin-Repository/Pure-Base/releases/download/0.2.0/$assetName"
                 }
             )
         }
@@ -1371,18 +1371,18 @@ Describe 'Prerelease release naming and dispatch' {
     BeforeAll {
         $version = '0.1.0-beta.1'
         $assetName = 'jp.penguin.purebase-0.1.0-beta.1.zip'
-        $releaseUrl = 'https://github.com/PenguinDOOM/Pure-Base/releases/tag/0.1.0-beta.1'
+        $releaseUrl = 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.1.0-beta.1'
     }
 
     It 'preserves exact prerelease text in the package URL' {
-        New-PureBasePackageUrl -Repository 'PenguinDOOM/Pure-Base' -Version $version -AssetName $assetName |
-        Should -Be "https://github.com/PenguinDOOM/Pure-Base/releases/download/$version/$assetName"
+        New-PureBasePackageUrl -Repository 'Penguin-Repository/Pure-Base' -Version $version -AssetName $assetName |
+        Should -Be "https://github.com/Penguin-Repository/Pure-Base/releases/download/$version/$assetName"
     }
 
     It 'preserves exact prerelease text in the tag, name, ZIP, release URL, and dispatch payload' {
         $payload = New-PureBaseDispatchPayload `
             -PackageName 'jp.penguin.purebase' `
-            -Repository 'PenguinDOOM/Pure-Base' `
+            -Repository 'Penguin-Repository/Pure-Base' `
             -Version $version `
             -CommitSha ('a' * 40) `
             -PolicyCommitSha ('b' * 40) `
@@ -1393,7 +1393,7 @@ Describe 'Prerelease release naming and dispatch' {
         $payload.client_payload.version | Should -Be $version
         $payload.client_payload.tag | Should -Be $version
         $payload.client_payload.assetName | Should -Be $assetName
-        $payload.client_payload.packageurl | Should -Be "https://github.com/PenguinDOOM/Pure-Base/releases/download/$version/$assetName"
+        $payload.client_payload.packageurl | Should -Be "https://github.com/Penguin-Repository/Pure-Base/releases/download/$version/$assetName"
         $payload.client_payload.releaseUrl | Should -Be $releaseUrl
         $payload.client_payload.policyCommitSha | Should -Be ('b' * 40)
     }
@@ -1525,7 +1525,7 @@ Describe 'VPM yank sender workflow contracts' {
     It 'sends only the fixed receiver event and payload fields' {
         $payloadSection | Should -Match "event_type = 'sync-vpm-yanks'"
         $payloadSection | Should -Match "packageName = 'jp\.penguin\.purebase'"
-        $payloadSection | Should -Match "sourceRepository = 'PenguinDOOM/Pure-Base'"
+        $payloadSection | Should -Match "sourceRepository = 'Penguin-Repository/Pure-Base'"
         $payloadSection | Should -Match 'policyCommitSha = \$env:POLICY_COMMIT_SHA'
         $payloadSection | Should -Not -Match '(?i)sourcePath|path|branch|reason|versions'
         $senderWorkflow | Should -Match 'https://api\.github\.com/repos/\$env:VPM_REPOSITORY/dispatches'
@@ -1553,7 +1553,7 @@ Describe 'Exact-SHA validated promotion contracts' {
 
         function New-ExpectedValidationManifest {
             return [ordered]@{
-                schemaVersion = 1; repository = 'PenguinDOOM/Pure-Base'; headSha = $headSha; headBranch = 'master'
+                schemaVersion = 1; repository = 'Penguin-Repository/Pure-Base'; headSha = $headSha; headBranch = 'master'
                 workflowRunId = 11; workflowRunAttempt = 2; version = $version; assetName = $assetName; sha256 = ('c' * 64)
             }
         }
@@ -1679,52 +1679,52 @@ Describe 'Exact-SHA validated promotion contracts' {
 
     It 'accepts a schema 1 manifest matching the selected run and archive' {
         $manifest = New-ExpectedValidationManifest
-        Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64)
+        Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64)
     }
 
     It 'rejects a manifest with an unsupported schema version' {
         $manifest = New-ExpectedValidationManifest; $manifest.schemaVersion = 2
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*schemaVersion*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*schemaVersion*'
     }
 
     It 'rejects a manifest from another repository' {
         $manifest = New-ExpectedValidationManifest; $manifest.repository = 'other/repository'
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*repository*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*repository*'
     }
 
     It 'rejects a manifest with another head SHA' {
         $manifest = New-ExpectedValidationManifest; $manifest.headSha = ('b' * 40)
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*head SHA*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*head SHA*'
     }
 
     It 'rejects a manifest from another head branch' {
         $manifest = New-ExpectedValidationManifest; $manifest.headBranch = 'release'
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*head branch*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*head branch*'
     }
 
     It 'rejects a manifest with another workflow run ID' {
         $manifest = New-ExpectedValidationManifest; $manifest.workflowRunId = 12
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*workflow run ID*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*workflow run ID*'
     }
 
     It 'rejects a manifest with another workflow run attempt' {
         $manifest = New-ExpectedValidationManifest; $manifest.workflowRunAttempt = 1
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*workflow run attempt*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*workflow run attempt*'
     }
 
     It 'rejects a manifest with another package version' {
         $manifest = New-ExpectedValidationManifest; $manifest.version = '0.2.0-beta.2'
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*version*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*version*'
     }
 
     It 'rejects a manifest with another asset name' {
         $manifest = New-ExpectedValidationManifest; $manifest.assetName = 'other.zip'
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*assetName*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*assetName*'
     }
 
     It 'rejects a manifest with another archive SHA-256' {
         $manifest = New-ExpectedValidationManifest; $manifest.sha256 = ('d' * 64)
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*SHA-256*'
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw '*SHA-256*'
     }
 
     It 'rejects duplicate artifacts for the selected run attempt' {
@@ -1773,7 +1773,7 @@ Describe 'Exact-SHA validation failure matrix' {
 
         function New-ExactValidationManifest {
             return [ordered]@{
-                schemaVersion = 1; repository = 'PenguinDOOM/Pure-Base'; headSha = $headSha; headBranch = 'master'
+                schemaVersion = 1; repository = 'Penguin-Repository/Pure-Base'; headSha = $headSha; headBranch = 'master'
                 workflowRunId = 11; workflowRunAttempt = 2; version = $version; assetName = $assetName; sha256 = ('c' * 64)
             }
         }
@@ -1912,7 +1912,7 @@ Describe 'Exact-SHA validation failure matrix' {
     ) {
         $manifest = New-ExactValidationManifest
         $manifest[$Property] = $Value
-        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'PenguinDOOM/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw
+        { Assert-PureBaseValidationManifest -Manifest $manifest -Repository 'Penguin-Repository/Pure-Base' -HeadSha $headSha -HeadBranch 'master' -WorkflowRunId 11 -WorkflowRunAttempt 2 -Version $version -AssetName $assetName -Sha256 ('c' * 64) } | Should -Throw
     }
 
     It 'reuses one matching draft asset and uploads only when the draft asset is absent' -ForEach @(
