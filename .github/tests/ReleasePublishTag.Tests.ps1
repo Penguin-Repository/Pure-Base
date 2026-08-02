@@ -65,11 +65,11 @@ Describe 'Release publication tag preservation' {
     }
 
     It 'retries release lookup five times with exponential backoff' {
-        $attempts = 0
+        $attemptState = [pscustomobject]@{ Count = 0 }
         $delays = [Collections.Generic.List[int]]::new()
         $lookup = {
-            $attempts++
-            if ($attempts -eq 5) { return [pscustomobject]@{ id = 42 } }
+            $attemptState.Count++
+            if ($attemptState.Count -eq 5) { return [pscustomobject]@{ id = 42 } }
             return $null
         }.GetNewClosure()
         $delay = {
@@ -82,7 +82,7 @@ Describe 'Release publication tag preservation' {
             -Delay $delay
 
         $result.id | Should -Be 42
-        $attempts | Should -Be 5
+        $attemptState.Count | Should -Be 5
         $delays.ToArray() | Should -Be @(250, 500, 1000, 2000)
     }
 }
