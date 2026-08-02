@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,124 +18,90 @@ limitations under the License.
 
 Language: [日本語](README.ja.md)
 
-Pure Base provides four minimal Built-in Render Pipeline base shaders for Shader-Core. Each shader is independently usable without an optional module.
+Pure Base is a Unity package that provides four base shaders for Shader-Core.
 
-> [!Important]
-> Pure Base is an unofficial project that is independent of and unrelated to Shader-Core, NonToon, and lilToon.
+Instead of including a large collection of optional effects, it provides a small and understandable foundation that can be extended with Shader-Core modules when needed.
+
+> [!IMPORTANT]
+> Pure Base is an unofficial project developed independently from Shader-Core, NonToon, and lilToon.
 >
-> Pure Base and Penguin do not accept any financial support. Only issues, pull requests, code, and patches are accepted.
->
-> Gen AI (LLM) is used in the development of Pure Base.
+> Generative AI is used during development.
 
-## Requirements
+## What is included
 
-- Built-in Render Pipeline only. URP is not supported.
-- The package requires the exact dependency `jp.lilxyzw.shadercore` `0.1.9`.
-- Pure Base does not automatically allow future `0.1.x` releases. Shader-Core upstream has not declared compatibility across `0.x` releases, and importer, ProjectSettings, and method-shape contracts are sensitive.
-- The integration harness is fixed to Unity `2022.3.22f1` and forces D3D11 for test execution.
-- Material transparency and transparent blending are not supported. All product shaders use fixed Cutout coverage.
-
-## Release preparation and publication
-
-`package.json` is the sole release identity and version declaration. The `version` input to the
-manual `Release` workflow confirms the exact version in the checked-out package; it does not write
-or commit a version. Prepare and commit the package changes, run the hosted `Release validation`
-workflow for that exact commit SHA, then run `Release` from the same branch and SHA. Validation
-produces a deterministic Store-mode ZIP, a lowercase SHA-256 sidecar, and a schema-1
-`release-validation.json` provenance manifest in one artifact. `Release` selects the latest
-matching validation run and attempt, verifies the unexpired artifact and its digest, and publishes
-the downloaded ZIP without rebuilding it.
-
-An expired or unsuccessful latest matching validation run requires a new validation run for the
-same SHA. Release does not use an older successful run or rebuild the package. A fresh release
-requires no existing tag or GitHub Release. Resume requires an exact annotated tag plus a matching
-draft or published Release at the same SHA; a tag-only failure needs operator investigation. Draft
-resume is limited to badge repair and missing-asset upload or exact-digest reuse. Published resume
-requires the release branch to remain at the same SHA and does not change the immutable Release
-body or assets, including a legacy or missing badge. The optional `preflight_only=true` input performs these hosted checks without
-creating a tag, Release, asset, or VPM dispatch, and should be run before the first production
-publication. The Release path does not run Unity, rebuild the ZIP, write or commit `package.json`,
-or push the release branch. The package-owned validation source of truth is
-`Packages/jp.penguin.purebase/Tests`.
-
-The release ZIP excludes `Tests/**` and test-only `*.scmodule` files. Tracked `.scmodule` files are test fixtures and are allowed only within the package-owned `Tests/**` fixture boundary.
-
-## Release and VPM availability
-
-The Release workflow is not stable-only. A prerelease is published as a GitHub prerelease, while a stable version is published as stable. Prerelease visibility in a VPM client depends on that client's behavior; this package does not promise that every VCC client hides or displays prereleases in the same way.
-
-`vpm-yanks.json` is a desired-state policy for the VPM repository. A version key means **Yank** that version, and removing the key means **Unyank** it. The reason value is public operational documentation, not a secret channel. Never put secrets, credentials, personal data, or other private information in it.
-
-Changes to `vpm-yanks.json` on the literal `master` branch trigger the synchronization workflow. Operators can also run it manually from `master` when a dispatch is stale or a receiver outage has been recovered. The workflow validates the policy at the current commit before sending a fixed `sync-vpm-yanks` event; it does not accept arbitrary source paths or branches. Manual replay uses the current policy commit as the source of truth.
-
-The initial Yank rollout is gated: keep the policy empty until the VPM receiver is ready and the
-confirmed release version is registered in the VPM feed. Once both are confirmed, the policy may add
-that released version for the end-to-end Yank/Unyank test as a separate approved policy update. An
-empty policy is a no-op desired state, and no version may be added before its release exists in the
-target feed. Feed and receiver updates are eventually consistent; a stale or premature dispatch
-fails closed without changing the listing, so retry from `master` with the current policy commit
-after propagation. The VPM receiver, VPM repository, and existing `update-vpm` payload contract
-remain unchanged and are outside the release pipeline. ALCOM prerelease and package-feed behavior
-is implementation-specific and is not guaranteed for other VCC clients.
-
-## Shader Paths
-
-| Shader path | Model |
+| Shader | Intended use |
 | --- | --- |
-| `PureBase/Unlit` | Lighting-independent base color output |
-| `PureBase/Toon` | Binary direct diffuse with ambient and lightmap support |
-| `PureBase/PBR` | Continuous metallic BRDF with Unity Standard indirect GI and reflection probes |
-| `PureBase/Hybrid` | Toon-style binary direct diffuse with the PBR specular and IBL path |
+| `PureBase/Unlit` | A display that is not affected by scene lighting |
+| `PureBase/Toon` | Anime-style lighting with clearly separated light and shadow |
+| `PureBase/PBR` | Standard material rendering with metallic and roughness controls |
+| `PureBase/Hybrid` | Toon-style diffuse lighting combined with physically based reflections |
 
-Every shader uses `RenderType=TransparentCutout` with the `AlphaTest` queue and exposes exactly these four passes: `ForwardBase`, `ForwardAdd`, `ShadowCaster`, and `Meta`.
+Every shader can be used without installing an optional module.
 
-## Public Properties
+## Supported environment
 
-All four shaders expose the following common properties:
+- Unity 2022.3
+- Built-in Render Pipeline
+- Shader-Core 0.1.9
 
-`_BaseTexture`, `_BaseColor`, `_SharedMask`, `_SharedGradients`, `_Cutoff`, `_Cull`
+URP and transparent material blending are not supported. Transparent areas use Cutout rendering.
 
-`PureBase/Toon` additionally exposes `_NormalMap` and `_NormalScale`. `PureBase/PBR` and `PureBase/Hybrid` expose the same additional properties, plus `_Metallic` and `_Roughness`. The PBR and Hybrid property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
+## Installation
 
-The complete pass and property contract is documented in [Pure Base shader contract](Docs/pure-base-shader-contract.md).
+Pure Base can be installed through VRChat Creator Companion, ALCOM, or another VPM-compatible package manager.
 
-## Shader-Core Integration
+### 1. Add the package repository
 
-The shared standard phase ABI is, in order:
+Open the following link to add Penguin VPM Repository:
 
-`morph`, `postvertex`, `base`, `light`, `customlight`, `modifylight`, `shade`, `reflection`, `add`, `postpixel`
+[Add Penguin VPM Repository](vcc://vpm/addRepo?url=https://raw.githubusercontent.com/Penguin-Repository/VPM-Repository/refs/heads/master/vpm.json)
 
-`Meta` is a dedicated pass and does not execute the standard phase sequence.
+If the link does not open, paste this URL into your package manager's repository settings:
 
-- `ForwardBase` owns the normal surface and lighting result.
-- `ForwardAdd` contributes additional direct light only and uses black fog semantics.
-- `ShadowCaster` and `Meta` preserve the fixed Cutout coverage contract.
-- PBR and Hybrid `ForwardBase` own Unity Standard indirect GI and reflection-probe evaluation. Their `ForwardAdd` passes do not duplicate indirect lighting.
+```text
+https://raw.githubusercontent.com/Penguin-Repository/VPM-Repository/refs/heads/master/vpm.json
+```
 
-Optional visual features belong in separate Shader-Core modules. Pure Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
+If you have not already added the Shader-Core repository, add this URL as well:
 
-## Validation Lanes
+```text
+https://lilxyzw.github.io/vpm-repos/vpm.json
+```
 
-The package-owned persistent validation lanes are defined under `Tests/`.
+### 2. Add Pure Base to a project
 
-- `Tests/Run-PureBaseRegression.ps1 -Mode Daily` is the read-only Daily lane. It runs only the `PureBase.Tests.Daily` EditMode assembly and protects the project settings and tracked package tree before and after execution.
-- `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` is a separate write-capable setup lane for fixed Shader-Core test hosts. It is not part of Daily.
-- Fixture baking and canonical baseline regeneration are explicit write-capable operations separate from Daily. Daily reads `Tests/Baselines/birp-d3d11-2022.3.22f1.json` and never creates or replaces it.
-- `Tests/Release/Run-PureBaseReleaseValidation.ps1` builds and validates the release ZIP in one disposable external consumer directory. Its cold resets remove only that consumer's `Library`; the runner verifies the remaining immutable consumer inputs and removes the consumer directory at the end unless `-KeepConsumer` is used.
+1. Open the Unity project in your package manager.
+2. Find `PureBase` in the package list.
+3. Select the version you want and add it to the project.
+4. Confirm that Shader-Core 0.1.9 is installed with it.
 
-## Validation
+Pure Base is currently distributed as a prerelease. Some package managers hide prerelease packages by default, so you may need to enable prerelease or development-version visibility.
 
-The final disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11. It covers module-free imports, all ten standard external phase probes, PBR and Hybrid finite/reflection/`ForwardAdd`/specular behavior, Unlit and Toon regressions, a fixed validation-scene bake with Meta and shadow checks, and 56 Built-in Render Pipeline variants.
+## Basic use
 
-The validation result records dynamic lightmap as `NOT_DETERMINISTIC_IN_BATCH_EDITMODE`. This means the batch EditMode harness does not provide a deterministic dynamic-lightmap binding path; it must not be read as verified runtime dynamic-lightmap rendering.
+1. Create a new material in Unity.
+2. Open the material's shader menu and select `PureBase`.
+3. Choose `Unlit`, `Toon`, `PBR`, or `Hybrid` for the intended look.
+4. Set the base color, texture, and other available properties.
+5. Add Shader-Core modules when additional effects are needed.
 
-Release-boundary checks also passed:
+For a simple starting point, choose `Toon` for anime-style materials or `PBR` for general-purpose materials.
 
-- release ZIP excludes `Tests/**` and test-only `*.scmodule` files;
-- tracked `.scmodule` files are confined to the `Tests/**` fixture boundary;
-- no `Assets/PureBase.Tests` inside the package;
-- no URP dependency;
-- PBR and Hybrid public property ABI byte-identical;
-- `_Emission`, `_Rim`, `_MatCap`, and `_ClearCoat` absent.
+## Notes
 
-The package-owned test lanes and their write boundaries are described in [`Tests/README.md`](Tests/README.md).
+- Pure Base is intentionally kept small.
+- Effects such as rim lighting, MatCap, emission, and dissolve are expected to be supplied by separate Shader-Core modules.
+- Behavior and usage may change while the package is in prerelease.
+- When reporting a problem, include the Unity, Pure Base, and Shader-Core versions you used.
+
+## Technical documentation
+
+This README is intended to be enough for installation and basic use.
+
+Implementation details, release operations, compatibility contracts, and validation procedures are collected in [Technical information](Docs/technical-information.md).
+
+## License and support
+
+Pure Base is released under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+Pure Base and Penguin do not accept financial support. Bug reports, suggestions, pull requests, code, and patches are welcome.
