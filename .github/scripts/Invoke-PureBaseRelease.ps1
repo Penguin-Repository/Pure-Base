@@ -101,6 +101,18 @@ function Get-ReleaseById([long]$ReleaseId, [int]$MaximumAttempts = 4) {
     return $null
 }
 
+function Get-ReleaseByTag([string]$Version, [int]$MaximumAttempts = 4) {
+    if ([string]::IsNullOrWhiteSpace($Version)) { throw 'Version is required.' }
+    if ($MaximumAttempts -le 0) { throw 'MaximumAttempts must be positive.' }
+    for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
+        $release = Get-Release $Version
+        if ($null -ne $release) { return $release }
+        if ($attempt -eq $MaximumAttempts) { return $null }
+        Start-Sleep -Milliseconds (100 * $attempt)
+    }
+    return $null
+}
+
 function Get-ReleaseTag([string]$Version) {
     $tagType = Invoke-Git @('cat-file', '-t', "refs/tags/$Version") -AllowFailure
     if ($tagType.ExitCode -ne 0) { return $null }
@@ -314,6 +326,12 @@ if ([string]$release.tag_name -cne $ConfirmedVersion) {
 if ([string]$release.target_commitish -cne $releaseTargetSha) {
     throw "Published release target '$($release.target_commitish)' does not match release target '$releaseTargetSha'."
 }
+$tagRelease = Get-ReleaseByTag -Version $ConfirmedVersion
+if ($null -eq $tagRelease) { throw "Published release '$ConfirmedVersion' could not be resolved by tag." }
+if ($null -eq $tagRelease.PSObject.Properties['id'] -or [long]$tagRelease.id -ne $releaseId) {
+    throw "Published release tag '$ConfirmedVersion' resolved to an unexpected release ID."
+}
+$release = $tagRelease
 [void](Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $releaseTargetSha -Resume -ExistingTag (Get-ReleaseTag $ConfirmedVersion) -ExistingRelease $release)
 Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $artifact.Name -ValidationArtifactSha256 $artifact.Sha256 | Out-Null
 Invoke-MutationGate 'vpm-dispatch'
