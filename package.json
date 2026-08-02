@@ -1,7 +1,7 @@
 {
   "name": "jp.penguin.purebase",
   "displayName": "PureBase",
-  "version": "0.1.0-beta.4",
+  "version": "0.1.0-beta.5",
   "author": {
     "name": "Penguin"
   },
@@ -16,7 +16,7 @@
   "keywords": [
     "Shader"
   ],
-  "url": "",
+  "url": "https://github.com/Penguin-Repository/Pure-Base/releases/download/0.1.0-beta.5/jp.penguin.purebase-0.1.0-beta.5.zip",
   "legacyFolders": {
     "Assets\\PureBase": ""
   }
