@@ -1,0 +1,89 @@
+name: Apply resume review changes directly
+
+on:
+  push:
+    branches:
+      - agent/fix-resume-release-target
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/fix-resume-release-target
+          fetch-depth: 0
+
+      - name: Apply script and documentation changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          script = Path('.github/scripts/Invoke-PureBaseRelease.ps1')
+          text = script.read_text(encoding='utf-8')
+          replacements = {
+              "if ((Invoke-Git @('branch', '--show-current')).Output) { throw 'The release checkout must be detached at ValidatedEventSha.' }":
+                  "if ((Invoke-Git @('branch', '--show-current')).Output) { throw \"The release checkout must be detached at controller SHA '$controllerSha'.\" }",
+              "if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw 'The checked-out HEAD does not equal ValidatedEventSha.' }":
+                  "if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw \"The checked-out HEAD does not equal controller SHA '$controllerSha'.\" }",
+              '-PolicyCommitSha $ValidatedEventSha': '-PolicyCommitSha $controllerSha',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one script occurrence, found {count}: {old}')
+              text = text.replace(old, new, 1)
+          script.write_text(text, encoding='utf-8', newline='')
+
+          documentation = Path('.github/CI.md')
+          docs = documentation.read_text(encoding='utf-8')
+          heading = '### Resuming a historical release target\n'
+          if heading not in docs:
+              docs += '''
+
+### Resuming a historical release target
+
+For a fresh publication, run `Release` from the exact release-branch commit that was validated and
+enter the version from that commit's `package.json`.
+
+For `resume=true`, run `Release` from the **current** configured release-branch tip and enter the
+version of the existing annotated tag. Do not dispatch the obsolete tagged commit. The current
+checkout is the trusted controller: it supplies the release script, the branch-race gate, and the
+current `vpm-yanks.json` policy. The annotated tag supplies the immutable release target: its
+`package.json`, validation run and artifact, GitHub Release `commitSha`, and package asset.
+
+The VPM dispatch intentionally keeps those identities separate. `commitSha` is the historical tagged
+release target, while `policyCommitSha` is the current controller SHA so the receiver evaluates the
+latest Yank/Unyank desired state.
+'''
+          documentation.write_text(docs, encoding='utf-8', newline='')
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -RequiredVersion 5.9.0 -Scope CurrentUser -Force
+
+      - name: Run Pester
+        shell: pwsh
+        run: |
+          $configuration = New-PesterConfiguration
+          $configuration.Run.Path = '.github/tests'
+          $configuration.Run.Exit = $true
+          $configuration.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $configuration
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- .github/scripts/Invoke-PureBaseRelease.ps1 .github/CI.md
+          git commit -m "Address resume review findings"
+          git push origin HEAD:agent/fix-resume-release-target
