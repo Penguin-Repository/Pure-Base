@@ -695,6 +695,15 @@ Describe 'Validated artifact fresh release orchestration' {
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                         return [pscustomobject]@{ StatusCode = 302; Headers = @{ Location = 'https://objects.example.invalid/validation-artifact.zip' } }
                     }
+                    if ($Method -eq 'GET' -and $Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42') {
+                        if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
+                            $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
+                            return $canonicalRelease.Value
+                        }
+                        $exception = [InvalidOperationException]::new('Not Found')
+                        $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
+                        throw $exception
+                    }
                     if ($Uri -match '/releases/tags/') {
                         if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
                             $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
@@ -972,7 +981,7 @@ Describe 'Validated artifact fresh release orchestration' {
         finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
     }
 
-    It 're-fetches canonical draft data after an assets-less create response before asset processing' {
+    It 're-fetches canonical draft data by release ID after an assets-less create response' {
         $fixture = New-ValidatedArtifactReleaseFixture -CreateResponseWithoutAssets
         try {
             $fixture.Failure | Should -BeNullOrEmpty
@@ -982,7 +991,7 @@ Describe 'Validated artifact fresh release orchestration' {
                 })
             $canonicalReleaseIndex = [array]::FindIndex($fixture.ApiCalls, $draftCreateIndex + 1, [Predicate[object]]{
                     param($call)
-                    $call.Method -eq 'GET' -and $call.Uri -eq "https://api.example.invalid/repos/test/Pure-Base/releases/tags/$($fixture.Version)"
+                    $call.Method -eq 'GET' -and $call.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42'
                 })
             $assetUploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
                     param($call)
@@ -1007,11 +1016,11 @@ Describe 'Validated artifact fresh release orchestration' {
         finally { Remove-ValidatedArtifactReleaseFixture -Fixture $fixture }
     }
 
-    It 'fails before asset processing when a created draft cannot be re-read canonically' {
+    It 'fails closed when a created draft cannot be re-read by release ID' {
         $fixture = New-ValidatedArtifactReleaseFixture -CanonicalReleaseUnavailableAfterCreation
         try {
             $fixture.Failure | Should -Not -BeNullOrEmpty
-            $fixture.Failure.Exception.Message | Should -Match 'Created draft release.*could not be re-read before asset processing'
+            $fixture.Failure.Exception.Message | Should -Match 'Created draft release.*could not be re-read by ID before asset processing'
             @($fixture.ApiCalls | Where-Object {
                     $_.Method -eq 'POST' -and $_.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases'
                 }).Count | Should -Be 1
@@ -1329,7 +1338,7 @@ Describe 'Validated artifact fresh release orchestration' {
             $fixture.Failure | Should -BeNullOrEmpty
             $uploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'POST' -and $call.Uri -match '/assets\?name=' })
             $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$' -and $call.Body -match '"draft":false' })
-            $verificationIndex = [array]::FindIndex($fixture.ApiCalls, $uploadIndex + 1, $publishIndex - $uploadIndex - 1, [Predicate[object]]{ param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and $call.AssetDigest -eq "sha256:$($fixture.ZipSha256)" })
+            $verificationIndex = [array]::FindIndex($fixture.ApiCalls, $uploadIndex + 1, $publishIndex - $uploadIndex - 1, [Predicate[object]]{ param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/42$' -and $call.AssetDigest -eq "sha256:$($fixture.ZipSha256)" })
             $uploadIndex | Should -BeGreaterThan -1
             $verificationIndex | Should -BeGreaterThan $uploadIndex
             $publishIndex | Should -BeGreaterThan $verificationIndex
