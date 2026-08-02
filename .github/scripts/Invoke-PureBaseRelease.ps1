@@ -34,6 +34,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'PureBase.Automation.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'PureBase.ReleasePublication.psm1') -Force
 
 $releaseToken = [string]$env:PUREBASE_RELEASE_TOKEN
 $dispatchToken = [string]$env:PUREBASE_DISPATCH_TOKEN
@@ -99,6 +100,10 @@ function Get-ReleaseById([long]$ReleaseId, [int]$MaximumAttempts = 4) {
         }
     }
     return $null
+}
+
+function Get-ReleaseByTag([string]$Version) {
+    Invoke-PureBaseReleaseLookupWithRetry -Lookup { Get-Release $Version }
 }
 
 function Get-ReleaseTag([string]$Version) {
@@ -291,10 +296,22 @@ if ([bool]$release.draft) {
     if ($null -eq $release) { throw "Draft release '$ConfirmedVersion' could not be re-read by ID after asset processing." }
     [void](Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256)
     Invoke-MutationGate 'publish'
-    Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken ([ordered]@{ draft = $false; prerelease = [bool]$releaseMode.PrereleaseKind }) | Out-Null
+    $publishBody = New-PureBaseReleasePublicationBody -Version $ConfirmedVersion -TargetCommitSha $releaseTargetSha -Prerelease ([bool]$releaseMode.PrereleaseKind)
+    $release = Invoke-Api -Method PATCH -Uri "$apiRoot/repos/$Repository/releases/$releaseId" -Token $releaseToken -Body $publishBody
+    [void](Assert-PureBasePublishedReleaseIdentity -Release $release -ExpectedReleaseId $releaseId -Version $ConfirmedVersion -TargetCommitSha $releaseTargetSha)
 }
 
-$release = Get-Release $ConfirmedVersion
+if ($null -eq $release -or [long]$release.id -le 0) {
+    throw "Published release '$ConfirmedVersion' has no valid release ID."
+}
+$releaseId = [long]$release.id
+$release = Get-ReleaseById -ReleaseId $releaseId
+if ($null -eq $release) { throw "Published release '$ConfirmedVersion' could not be re-read by ID." }
+[void](Assert-PureBasePublishedReleaseIdentity -Release $release -ExpectedReleaseId $releaseId -Version $ConfirmedVersion -TargetCommitSha $releaseTargetSha)
+$tagRelease = Get-ReleaseByTag -Version $ConfirmedVersion
+if ($null -eq $tagRelease) { throw "Published release '$ConfirmedVersion' could not be resolved by tag." }
+[void](Assert-PureBasePublishedReleaseIdentity -Release $tagRelease -ExpectedReleaseId $releaseId -Version $ConfirmedVersion -TargetCommitSha $releaseTargetSha)
+$release = $tagRelease
 [void](Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $releaseTargetSha -Resume -ExistingTag (Get-ReleaseTag $ConfirmedVersion) -ExistingRelease $release)
 Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $artifact.Name -ValidationArtifactSha256 $artifact.Sha256 | Out-Null
 Invoke-MutationGate 'vpm-dispatch'
