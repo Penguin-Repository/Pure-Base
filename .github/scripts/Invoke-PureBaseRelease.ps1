@@ -291,10 +291,30 @@ if ([bool]$release.draft) {
     if ($null -eq $release) { throw "Draft release '$ConfirmedVersion' could not be re-read by ID after asset processing." }
     [void](Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256)
     Invoke-MutationGate 'publish'
-    Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken ([ordered]@{ draft = $false; prerelease = [bool]$releaseMode.PrereleaseKind }) | Out-Null
+    $release = Invoke-Api -Method PATCH -Uri "$apiRoot/repos/$Repository/releases/$releaseId" -Token $releaseToken -Body ([ordered]@{
+            tag_name         = $ConfirmedVersion
+            target_commitish = $releaseTargetSha
+            name             = [string]$release.name
+            draft            = $false
+            prerelease       = [bool]$releaseMode.PrereleaseKind
+        })
+    if ($null -eq $release -or $null -eq $release.PSObject.Properties['id'] -or [long]$release.id -ne $releaseId) {
+        throw "Published release '$ConfirmedVersion' returned an invalid release identity."
+    }
 }
 
-$release = Get-Release $ConfirmedVersion
+if ($null -eq $release -or [long]$release.id -le 0) {
+    throw "Published release '$ConfirmedVersion' has no valid release ID."
+}
+$releaseId = [long]$release.id
+$release = Get-ReleaseById -ReleaseId $releaseId
+if ($null -eq $release) { throw "Published release '$ConfirmedVersion' could not be re-read by ID." }
+if ([string]$release.tag_name -cne $ConfirmedVersion) {
+    throw "Published release tag '$($release.tag_name)' does not match confirmed version '$ConfirmedVersion'."
+}
+if ([string]$release.target_commitish -cne $releaseTargetSha) {
+    throw "Published release target '$($release.target_commitish)' does not match release target '$releaseTargetSha'."
+}
 [void](Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $releaseTargetSha -Resume -ExistingTag (Get-ReleaseTag $ConfirmedVersion) -ExistingRelease $release)
 Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $artifact.Name -ValidationArtifactSha256 $artifact.Sha256 | Out-Null
 Invoke-MutationGate 'vpm-dispatch'
