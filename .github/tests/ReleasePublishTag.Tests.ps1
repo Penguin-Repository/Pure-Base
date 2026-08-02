@@ -12,26 +12,77 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+BeforeAll {
+    Import-Module (Join-Path $PSScriptRoot '../scripts/PureBase.ReleasePublication.psm1') -Force
+}
+
 Describe 'Release publication tag preservation' {
-    BeforeAll {
-        $scriptPath = Join-Path $PSScriptRoot '../scripts/Invoke-PureBaseRelease.ps1'
-        $script = Get-Content -LiteralPath $scriptPath -Raw
+    It 'builds the publish PATCH body with the confirmed tag and exact target commit' {
+        $targetSha = 'a' * 40
+
+        $body = New-PureBaseReleasePublicationBody `
+            -Version '0.1.0-beta.4' `
+            -TargetCommitSha $targetSha `
+            -Prerelease $true
+
+        $body.Keys | Should -Be @('tag_name', 'target_commitish', 'draft', 'prerelease')
+        $body.tag_name | Should -Be '0.1.0-beta.4'
+        $body.target_commitish | Should -Be $targetSha
+        $body.draft | Should -BeFalse
+        $body.prerelease | Should -BeTrue
     }
 
-    It 'publishes the draft with the confirmed tag and exact target commit' {
-        $script | Should -Match 'tag_name\s*=\s*\$ConfirmedVersion'
-        $script | Should -Match 'target_commitish\s*=\s*\$releaseTargetSha'
+    It 'accepts a published release whose SHA differs only by case' {
+        $release = [pscustomobject]@{
+            id = 42
+            tag_name = '0.1.0-beta.4'
+            target_commitish = 'A' * 40
+        }
+
+        {
+            Assert-PureBasePublishedReleaseIdentity `
+                -Release $release `
+                -ExpectedReleaseId 42 `
+                -Version '0.1.0-beta.4' `
+                -TargetCommitSha ('a' * 40)
+        } | Should -Not -Throw
     }
 
-    It 'keeps the release ID for post-publish verification' {
-        $script | Should -Match '\$releaseId\s*=\s*\[long\]\$release\.id'
-        $script | Should -Match 'Get-ReleaseById\s+-ReleaseId\s+\$releaseId'
+    It 'rejects an unexpected release tag or release ID' {
+        $release = [pscustomobject]@{
+            id = 43
+            tag_name = 'untagged-f42a63fceb89b817fe6d'
+            target_commitish = 'a' * 40
+        }
+
+        {
+            Assert-PureBasePublishedReleaseIdentity `
+                -Release $release `
+                -ExpectedReleaseId 42 `
+                -Version '0.1.0-beta.4' `
+                -TargetCommitSha ('a' * 40)
+        } | Should -Throw '*invalid release identity*'
     }
 
-    It 'rejects an unexpected tag before VPM dispatch' {
-        $identityCheck = $script.IndexOf("Published release tag")
-        $dispatch = $script.IndexOf("Invoke-MutationGate 'vpm-dispatch'")
-        $identityCheck | Should -BeGreaterThan -1
-        $dispatch | Should -BeGreaterThan $identityCheck
+    It 'retries release lookup five times with exponential backoff' {
+        $attempts = 0
+        $delays = [Collections.Generic.List[int]]::new()
+        $lookup = {
+            $attempts++
+            if ($attempts -eq 5) { return [pscustomobject]@{ id = 42 } }
+            return $null
+        }.GetNewClosure()
+        $delay = {
+            param([int]$Milliseconds)
+            $delays.Add($Milliseconds) | Out-Null
+        }.GetNewClosure()
+
+        $result = Invoke-PureBaseReleaseLookupWithRetry `
+            -Lookup $lookup `
+            -Delay $delay
+
+        $result.id | Should -Be 42
+        $attempts | Should -Be 5
+        $delays.ToArray() | Should -Be @(250, 500, 1000, 2000)
     }
 }
