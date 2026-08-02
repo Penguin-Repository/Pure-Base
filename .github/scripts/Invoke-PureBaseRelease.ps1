@@ -110,10 +110,10 @@ function Get-ReleaseTag([string]$Version) {
     return [pscustomobject]@{ Name = $Version; Annotated = $true; PeeledCommitSha = $peeled.Output }
 }
 
-function Get-WorkflowRuns {
+function Get-WorkflowRuns([Parameter(Mandatory)][string]$HeadSha) {
     $allRuns = [Collections.Generic.List[object]]::new()
     for ($page = 1; ; $page++) {
-        $query = "head_sha=$([Uri]::EscapeDataString($ValidatedEventSha))&branch=$([Uri]::EscapeDataString($Branch))&event=workflow_dispatch&per_page=100&page=$page"
+        $query = "head_sha=$([Uri]::EscapeDataString($HeadSha))&branch=$([Uri]::EscapeDataString($Branch))&event=workflow_dispatch&per_page=100&page=$page"
         $response = Invoke-Api GET "$apiRoot/repos/$Repository/actions/workflows/release-validation.yml/runs?$query" $releaseToken
         $pageRuns = @($response.workflow_runs)
         foreach ($run in $pageRuns) { $allRuns.Add($run) }
@@ -176,7 +176,7 @@ function Expand-ValidatedArtifact([string]$ArchivePath) {
     return $payload
 }
 
-function Get-ValidatedArtifact([long]$RunId, [int]$RunAttempt, [string]$AssetName) {
+function Get-ValidatedArtifact([long]$RunId, [int]$RunAttempt, [string]$AssetName, [Parameter(Mandatory)][string]$HeadSha) {
     $artifactName = "pure-base-release-validation-$RunId-$RunAttempt"
     $validationArtifact = Resolve-PureBaseValidationArtifact -Artifacts (Get-ValidationArtifacts -RunId $RunId) -ExpectedName $artifactName -WorkflowRunId $RunId -WorkflowRunAttempt $RunAttempt
     if ($ValidatedPackageDirectory) {
@@ -196,7 +196,7 @@ function Get-ValidatedArtifact([long]$RunId, [int]$RunAttempt, [string]$AssetNam
     $manifestPath = Join-Path $payloadDirectory 'release-validation.json'
     try { $manifest = Get-Content -LiteralPath $manifestPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop }
     catch { throw "Validation artifact manifest is invalid: $($_.Exception.Message)" }
-    Assert-PureBaseValidationManifest -Manifest $manifest -Repository $Repository -HeadSha $ValidatedEventSha -HeadBranch $Branch -WorkflowRunId $RunId -WorkflowRunAttempt $RunAttempt -Version $ConfirmedVersion -AssetName $AssetName -Sha256 ([string]$manifest.sha256) | Out-Null
+    Assert-PureBaseValidationManifest -Manifest $manifest -Repository $Repository -HeadSha $HeadSha -HeadBranch $Branch -WorkflowRunId $RunId -WorkflowRunAttempt $RunAttempt -Version $ConfirmedVersion -AssetName $AssetName -Sha256 ([string]$manifest.sha256) | Out-Null
     return Assert-PureBaseValidatedArchive -ValidatedPackageDirectory $payloadDirectory -AssetName $AssetName -ExpectedSha256 ([string]$manifest.sha256) -Version $ConfirmedVersion -PackageName $packageName
 }
 
@@ -209,7 +209,7 @@ function Get-CanonicalDraftBody([string]$Body, [string]$Badge) {
 
 Write-State 'preflight'
 if ((Invoke-Git @('branch', '--show-current')).Output) { throw 'The release checkout must be detached at ValidatedEventSha.' }
-if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw 'The checked-out HEAD does not equal ValidatedEventSha.' }
+if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw "The checked-out HEAD does not equal controller SHA '$controllerSha' (the original ValidatedEventSha input)." }
 if ((Invoke-Git @('status', '--porcelain=v1')).Output) { throw 'Release checkout must be clean.' }
 
 $existingTag = Get-ReleaseTag $ConfirmedVersion
@@ -220,7 +220,6 @@ if ($Resume) {
     }
     $releaseTargetSha = [string]$existingTag.PeeledCommitSha
 }
-$ValidatedEventSha = $releaseTargetSha
 
 $packageJson = if ([string]::Equals($releaseTargetSha, $controllerSha, [StringComparison]::OrdinalIgnoreCase)) {
     Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw
@@ -234,27 +233,27 @@ Assert-PureBaseImmutableReleasesEnabled -ApiRoot $apiRoot -Repository $Repositor
 Invoke-Api GET "$apiRoot/repos/$VpmRepository" $dispatchToken | Out-Null
 
 $assetName = "$packageName-$ConfirmedVersion.zip"
-$validationRuns = @(Get-WorkflowRuns)
+$validationRuns = @(Get-WorkflowRuns -HeadSha $releaseTargetSha)
 if ($validationRuns.Count -eq 0) {
-    throw "No release validation workflow runs were found for release target SHA '$ValidatedEventSha' on branch '$Branch'."
+    throw "No release validation workflow runs were found for release target SHA '$releaseTargetSha' on branch '$Branch'."
 }
-$run = Select-PureBaseReleaseValidationRun -Runs $validationRuns -HeadSha $ValidatedEventSha -Branch $Branch -WorkflowPath '.github/workflows/release-validation.yml'
+$run = Select-PureBaseReleaseValidationRun -Runs $validationRuns -HeadSha $releaseTargetSha -Branch $Branch -WorkflowPath '.github/workflows/release-validation.yml'
 if ($null -eq $run.PSObject.Properties['id'] -or [long]$run.id -le 0) { throw 'Selected validation run has no valid ID.' }
-$artifact = Get-ValidatedArtifact -RunId ([long]$run.id) -RunAttempt ([int]$run.run_attempt) -AssetName $assetName
+$artifact = Get-ValidatedArtifact -RunId ([long]$run.id) -RunAttempt ([int]$run.run_attempt) -AssetName $assetName -HeadSha $releaseTargetSha
 $existingRelease = Get-Release $ConfirmedVersion
-$releaseMode = Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $ValidatedEventSha -Resume:$Resume -ExistingTag $existingTag -ExistingRelease $existingRelease
+$releaseMode = Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $releaseTargetSha -Resume:$Resume -ExistingTag $existingTag -ExistingRelease $existingRelease
 if ($Resume) {
-    [void](Resolve-PureBaseResumeTagAction -HeadSha $ValidatedEventSha -ExistingTagSha ([string]$existingTag.PeeledCommitSha))
+    [void](Resolve-PureBaseResumeTagAction -HeadSha $releaseTargetSha -ExistingTagSha ([string]$existingTag.PeeledCommitSha))
 }
-Write-State 'release-mode-resolved' @{ mode = $releaseMode.Mode; tagState = $releaseMode.TagState; releaseState = $releaseMode.ReleaseState; commitSha = $ValidatedEventSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
+Write-State 'release-mode-resolved' @{ mode = $releaseMode.Mode; tagState = $releaseMode.TagState; releaseState = $releaseMode.ReleaseState; commitSha = $releaseTargetSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
 Assert-RemoteReleaseBranchHead
-if ($PreflightOnly) { Write-State 'preflight-completed' @{ commitSha = $ValidatedEventSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; assetName = $artifact.Name; sha256 = $artifact.Sha256; mode = $releaseMode.Mode }; Write-Output 'Release preflight completed.'; return }
+if ($PreflightOnly) { Write-State 'preflight-completed' @{ commitSha = $releaseTargetSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; assetName = $artifact.Name; sha256 = $artifact.Sha256; mode = $releaseMode.Mode }; Write-Output 'Release preflight completed.'; return }
 
 if ($releaseMode.Mode -eq 'fresh') {
     Invoke-Git @('config', 'user.name', "$AppSlug[bot]") | Out-Null
     Invoke-Git @('config', 'user.email', "$AppSlug[bot]@users.noreply.github.com") | Out-Null
     Invoke-MutationGate 'tag-push'
-    Invoke-Git @('tag', '--annotate', $ConfirmedVersion, '--message', "Release $ConfirmedVersion", $ValidatedEventSha) | Out-Null
+    Invoke-Git @('tag', '--annotate', $ConfirmedVersion, '--message', "Release $ConfirmedVersion", $releaseTargetSha) | Out-Null
     Invoke-Git @('push', 'origin', "refs/tags/$ConfirmedVersion") -Authenticate | Out-Null
 }
 
@@ -262,7 +261,7 @@ $badge = New-PureBaseReleaseBody -Repository $Repository -Version $ConfirmedVers
 $release = $existingRelease
 if ($null -eq $release) {
     Invoke-MutationGate 'draft-create'
-    $createdRelease = Invoke-Api -Method POST -Uri "$apiRoot/repos/$Repository/releases" -Token $releaseToken -Body ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
+    $createdRelease = Invoke-Api -Method POST -Uri "$apiRoot/repos/$Repository/releases" -Token $releaseToken -Body ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $releaseTargetSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
     if ($null -eq $createdRelease -or $null -eq $createdRelease.PSObject.Properties['id'] -or [long]$createdRelease.id -le 0) {
         throw "Created draft release '$ConfirmedVersion' returned no valid release ID."
     }
@@ -270,7 +269,7 @@ if ($null -eq $release) {
     if ($null -eq $release) { throw "Created draft release '$ConfirmedVersion' could not be re-read by ID before asset processing." }
 }
 elseif ($releaseMode.ReleaseState -eq 'published') {
-    Write-State 'published-release-resume' @{ commitSha = $ValidatedEventSha; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
+    Write-State 'published-release-resume' @{ commitSha = $releaseTargetSha; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
 }
 elseif ([bool]$release.draft) {
     $body = Get-CanonicalDraftBody -Body ([string]$release.body) -Badge $badge
@@ -296,10 +295,10 @@ if ([bool]$release.draft) {
 }
 
 $release = Get-Release $ConfirmedVersion
-[void](Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $ValidatedEventSha -Resume -ExistingTag (Get-ReleaseTag $ConfirmedVersion) -ExistingRelease $release)
+[void](Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $releaseTargetSha -Resume -ExistingTag (Get-ReleaseTag $ConfirmedVersion) -ExistingRelease $release)
 Assert-PureBasePublishedResumeArtifact -Release $release -AssetName $artifact.Name -ValidationArtifactSha256 $artifact.Sha256 | Out-Null
 Invoke-MutationGate 'vpm-dispatch'
-$dispatchPayload = New-PureBaseDispatchPayload -PackageName $packageName -Repository $Repository -Version $ConfirmedVersion -CommitSha $ValidatedEventSha -PolicyCommitSha $ValidatedEventSha -AssetName $artifact.Name -Sha256 $artifact.Sha256 -ReleaseUrl ([string]$release.html_url)
+$dispatchPayload = New-PureBaseDispatchPayload -PackageName $packageName -Repository $Repository -Version $ConfirmedVersion -CommitSha $releaseTargetSha -PolicyCommitSha $controllerSha -AssetName $artifact.Name -Sha256 $artifact.Sha256 -ReleaseUrl ([string]$release.html_url)
 Invoke-Api POST "$apiRoot/repos/$VpmRepository/dispatches" $dispatchToken $dispatchPayload | Out-Null
-Write-State 'completed' @{ commitSha = $ValidatedEventSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; releaseUrl = [string]$release.html_url; vpmRepository = $VpmRepository; sha256 = $artifact.Sha256; mode = $releaseMode.Mode }
+Write-State 'completed' @{ commitSha = $releaseTargetSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; releaseUrl = [string]$release.html_url; vpmRepository = $VpmRepository; sha256 = $artifact.Sha256; mode = $releaseMode.Mode }
 Write-Output "Release completed: $($release.html_url)"
