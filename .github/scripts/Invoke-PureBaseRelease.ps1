@@ -90,7 +90,7 @@ function Get-ReleaseById([long]$ReleaseId, [int]$MaximumAttempts = 4) {
     if ($ReleaseId -le 0) { throw 'Release ID must be positive.' }
     if ($MaximumAttempts -le 0) { throw 'MaximumAttempts must be positive.' }
     for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
-        try { return Invoke-Api GET "$apiRoot/repos/$Repository/releases/$ReleaseId" $releaseToken }
+        try { return Invoke-Api -Method GET -Uri "$apiRoot/repos/$Repository/releases/$ReleaseId" -Token $releaseToken }
         catch {
             if ($_.Exception.Data['StatusCode'] -ne 404) { throw }
             if ($attempt -eq $MaximumAttempts) { return $null }
@@ -241,7 +241,7 @@ $badge = New-PureBaseReleaseBody -Repository $Repository -Version $ConfirmedVers
 $release = $existingRelease
 if ($null -eq $release) {
     Invoke-MutationGate 'draft-create'
-    $createdRelease = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
+    $createdRelease = Invoke-Api -Method POST -Uri "$apiRoot/repos/$Repository/releases" -Token $releaseToken -Body ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
     if ($null -eq $createdRelease -or $null -eq $createdRelease.PSObject.Properties['id'] -or [long]$createdRelease.id -le 0) {
         throw "Created draft release '$ConfirmedVersion' returned no valid release ID."
     }
