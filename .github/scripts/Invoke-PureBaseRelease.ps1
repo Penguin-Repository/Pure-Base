@@ -49,6 +49,7 @@ $statePath = Join-Path $ReleaseArtifactDirectory 'release-state.json'
 if (-not $releaseToken -or -not $dispatchToken) { throw 'Release and dispatch tokens are required.' }
 if ($Repository -notmatch '^[^/]+/[^/]+$' -or $VpmRepository -notmatch '^[^/]+/[^/]+$') { throw 'Repository values must use owner/name form.' }
 if ($ValidatedEventSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'ValidatedEventSha must be a full Git SHA.' }
+$controllerSha = $ValidatedEventSha
 
 function Write-State([string]$Phase, [hashtable]$Data = @{}) {
     $state = [ordered]@{ schemaVersion = 1; phase = $Phase; version = $ConfirmedVersion; timestampUtc = [DateTime]::UtcNow.ToString('o') }
@@ -135,8 +136,8 @@ function Get-ValidationArtifacts([long]$RunId) {
 function Assert-RemoteReleaseBranchHead {
     Invoke-Git @('fetch', '--no-tags', 'origin', "refs/heads/${Branch}:refs/remotes/origin/$Branch") -Authenticate | Out-Null
     $remoteSha = (Invoke-Git @('rev-parse', "refs/remotes/origin/$Branch")).Output
-    if (-not [string]::Equals($remoteSha, $ValidatedEventSha, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "The remote release branch '$Branch' advanced from the validated event SHA."
+    if (-not [string]::Equals($remoteSha, $controllerSha, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "The remote release branch '$Branch' advanced from the controller SHA."
     }
 }
 
@@ -208,18 +209,38 @@ function Get-CanonicalDraftBody([string]$Body, [string]$Badge) {
 
 Write-State 'preflight'
 if ((Invoke-Git @('branch', '--show-current')).Output) { throw 'The release checkout must be detached at ValidatedEventSha.' }
-if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $ValidatedEventSha) { throw 'The checked-out HEAD does not equal ValidatedEventSha.' }
+if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw 'The checked-out HEAD does not equal ValidatedEventSha.' }
 if ((Invoke-Git @('status', '--porcelain=v1')).Output) { throw 'Release checkout must be clean.' }
-$package = Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw | ConvertFrom-Json
+
+$existingTag = Get-ReleaseTag $ConfirmedVersion
+$releaseTargetSha = $controllerSha
+if ($Resume) {
+    if ($null -eq $existingTag -or -not [bool]$existingTag.Annotated -or [string]$existingTag.PeeledCommitSha -notmatch '^[0-9a-fA-F]{40}$') {
+        throw "Resume requires existing annotated tag '$ConfirmedVersion' to resolve to a commit."
+    }
+    $releaseTargetSha = [string]$existingTag.PeeledCommitSha
+}
+$ValidatedEventSha = $releaseTargetSha
+
+$packageJson = if ([string]::Equals($releaseTargetSha, $controllerSha, [StringComparison]::OrdinalIgnoreCase)) {
+    Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw
+}
+else {
+    (Invoke-Git @('show', "${releaseTargetSha}:package.json")).Output
+}
+$package = $packageJson | ConvertFrom-Json
 if ([string]$package.name -cne $packageName -or [string]$package.version -cne $ConfirmedVersion) { throw 'package.json does not match the confirmed release identity.' }
 Assert-PureBaseImmutableReleasesEnabled -ApiRoot $apiRoot -Repository $Repository -Token $releaseToken -ApiInvoker { param($Method, $Uri, $Token) Invoke-Api $Method $Uri $Token } | Out-Null
 Invoke-Api GET "$apiRoot/repos/$VpmRepository" $dispatchToken | Out-Null
 
 $assetName = "$packageName-$ConfirmedVersion.zip"
-$run = Select-PureBaseReleaseValidationRun -Runs (Get-WorkflowRuns) -HeadSha $ValidatedEventSha -Branch $Branch -WorkflowPath '.github/workflows/release-validation.yml'
+$validationRuns = @(Get-WorkflowRuns)
+if ($validationRuns.Count -eq 0) {
+    throw "No release validation workflow runs were found for release target SHA '$ValidatedEventSha' on branch '$Branch'."
+}
+$run = Select-PureBaseReleaseValidationRun -Runs $validationRuns -HeadSha $ValidatedEventSha -Branch $Branch -WorkflowPath '.github/workflows/release-validation.yml'
 if ($null -eq $run.PSObject.Properties['id'] -or [long]$run.id -le 0) { throw 'Selected validation run has no valid ID.' }
 $artifact = Get-ValidatedArtifact -RunId ([long]$run.id) -RunAttempt ([int]$run.run_attempt) -AssetName $assetName
-$existingTag = Get-ReleaseTag $ConfirmedVersion
 $existingRelease = Get-Release $ConfirmedVersion
 $releaseMode = Resolve-PureBaseReleaseMode -PackageVersion ([string]$package.version) -ConfirmedVersion $ConfirmedVersion -HeadSha $ValidatedEventSha -Resume:$Resume -ExistingTag $existingTag -ExistingRelease $existingRelease
 if ($Resume) {
