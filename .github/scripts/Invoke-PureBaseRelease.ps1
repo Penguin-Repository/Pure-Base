@@ -86,6 +86,20 @@ function Get-Release([string]$Version) {
     return $releaseCandidates[0]
 }
 
+function Get-ReleaseById([long]$ReleaseId, [int]$MaximumAttempts = 4) {
+    if ($ReleaseId -le 0) { throw 'Release ID must be positive.' }
+    if ($MaximumAttempts -le 0) { throw 'MaximumAttempts must be positive.' }
+    for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
+        try { return Invoke-Api -Method GET -Uri "$apiRoot/repos/$Repository/releases/$ReleaseId" -Token $releaseToken }
+        catch {
+            if ($_.Exception.Data['StatusCode'] -ne 404) { throw }
+            if ($attempt -eq $MaximumAttempts) { return $null }
+            Start-Sleep -Milliseconds (100 * $attempt)
+        }
+    }
+    return $null
+}
+
 function Get-ReleaseTag([string]$Version) {
     $tagType = Invoke-Git @('cat-file', '-t', "refs/tags/$Version") -AllowFailure
     if ($tagType.ExitCode -ne 0) { return $null }
@@ -227,9 +241,12 @@ $badge = New-PureBaseReleaseBody -Repository $Repository -Version $ConfirmedVers
 $release = $existingRelease
 if ($null -eq $release) {
     Invoke-MutationGate 'draft-create'
-    Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true }) | Out-Null
-    $release = Get-Release $ConfirmedVersion
-    if ($null -eq $release) { throw "Created draft release '$ConfirmedVersion' could not be re-read before asset processing." }
+    $createdRelease = Invoke-Api -Method POST -Uri "$apiRoot/repos/$Repository/releases" -Token $releaseToken -Body ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
+    if ($null -eq $createdRelease -or $null -eq $createdRelease.PSObject.Properties['id'] -or [long]$createdRelease.id -le 0) {
+        throw "Created draft release '$ConfirmedVersion' returned no valid release ID."
+    }
+    $release = Get-ReleaseById -ReleaseId ([long]$createdRelease.id)
+    if ($null -eq $release) { throw "Created draft release '$ConfirmedVersion' could not be re-read by ID before asset processing." }
 }
 elseif ($releaseMode.ReleaseState -eq 'published') {
     Write-State 'published-release-resume' @{ commitSha = $ValidatedEventSha; assetName = $artifact.Name; sha256 = $artifact.Sha256 }
@@ -243,13 +260,15 @@ elseif ([bool]$release.draft) {
 }
 
 if ([bool]$release.draft) {
+    $releaseId = [long]$release.id
     $assetAction = Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256
     if ($assetAction -eq 'upload') {
         Invoke-MutationGate 'asset-upload'
         $uploadUri = (([string]$release.upload_url) -replace '\{\?name,label\}$', '') + '?name=' + [Uri]::EscapeDataString($artifact.Name)
         Invoke-Api POST $uploadUri $releaseToken $null $artifact.Path | Out-Null
     }
-    $release = Get-Release $ConfirmedVersion
+    $release = Get-ReleaseById -ReleaseId $releaseId
+    if ($null -eq $release) { throw "Draft release '$ConfirmedVersion' could not be re-read by ID after asset processing." }
     [void](Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256)
     Invoke-MutationGate 'publish'
     Invoke-Api PATCH "$apiRoot/repos/$Repository/releases/$($release.id)" $releaseToken ([ordered]@{ draft = $false; prerelease = [bool]$releaseMode.PrereleaseKind }) | Out-Null
