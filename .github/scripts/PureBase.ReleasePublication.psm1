@@ -15,8 +15,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function New-PureBaseReleasePublicationBody {
+function ConvertTo-PureBaseReleasePublicationBody {
     [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
     param(
         [Parameter(Mandatory)][string]$Version,
         [Parameter(Mandatory)][string]$TargetCommitSha,
@@ -82,7 +83,7 @@ function Invoke-PureBaseReleaseLookupWithRetry {
 }
 
 Export-ModuleMember -Function @(
-    'New-PureBaseReleasePublicationBody',
+    'ConvertTo-PureBaseReleasePublicationBody',
     'Assert-PureBasePublishedReleaseIdentity',
     'Invoke-PureBaseReleaseLookupWithRetry'
 )
