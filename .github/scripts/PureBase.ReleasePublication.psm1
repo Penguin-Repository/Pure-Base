@@ -82,8 +82,12 @@ function Invoke-PureBaseReleaseLookupWithRetry {
     }
 }
 
-Export-ModuleMember -Function @(
-    'ConvertTo-PureBaseReleasePublicationBody',
-    'Assert-PureBasePublishedReleaseIdentity',
-    'Invoke-PureBaseReleaseLookupWithRetry'
-)
+Set-Alias -Name New-PureBaseReleasePublicationBody -Value ConvertTo-PureBaseReleasePublicationBody
+
+Export-ModuleMember `
+    -Function @(
+        'ConvertTo-PureBaseReleasePublicationBody',
+        'Assert-PureBasePublishedReleaseIdentity',
+        'Invoke-PureBaseReleaseLookupWithRetry'
+    ) `
+    -Alias 'New-PureBaseReleasePublicationBody'
