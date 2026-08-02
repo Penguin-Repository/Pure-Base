@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,126 +18,92 @@ limitations under the License.
 
 言語: [English](README.md)
 
-Pure Base は Shader-Core 向けに、Built-in Render Pipeline 用の最小限の base shader を4つ提供します。各 shader は optional module なしで独立して使用できます。
+Pure Base は、Shader-Core で使える4種類の基本シェーダーをまとめた Unity 向けパッケージです。
 
-> [!Important]
-> Pure Base は Shader-Core、NonToon、lilToon から独立しており、かつそれらとは無関係な非公式プロジェクトです。
+複雑な機能を最初から大量に備えるのではなく、必要な機能を Shader-Core の追加モジュールで組み合わせて使うための、軽くて分かりやすい土台を目指しています。
+
+> [!IMPORTANT]
+> Pure Base は、Shader-Core、NonToon、lilToon とは別に作られている非公式プロジェクトです。
 >
-> Pure Base と Penguin は金銭的支援を受け付けていません。受け付けるのは issue、pull request、code、patch のみです。
->
-> Pure Base の開発には Gen AI (LLM) が使用されています。
+> 開発には生成AIを使用しています。
 
-## 要件
+## できること
 
-- Built-in Render Pipeline のみです。URP はサポートされません。
-- パッケージは正確な依存関係 `jp.lilxyzw.shadercore` `0.1.9` を要求します。
-- Pure Base は将来の `0.1.x` release を自動的には許可しません。Shader-Core upstream は `0.x` release 間の互換性を宣言しておらず、importer、ProjectSettings、method-shape contract は変更に敏感です。
-- integration harness は Unity `2022.3.22f1` に固定され、test execution には D3D11 を強制します。
-- Material transparency と transparent blending はサポートされません。すべての product shader は固定の Cutout coverage を使用します。
+Pure Base には、用途の異なる4つのシェーダーが含まれています。
 
-## Release の準備と公開
-
-`package.json` が release identity と version の唯一の declaration です。manual の `Release`
-workflow に渡す `version` input は、checkout 済み package の exact version を確認するだけで、
-version の書き込みや commit は行いません。package の変更を準備して commit し、その exact
-commit SHA に対して hosted の `Release validation` workflow を実行した後、同じ branch と SHA
-から `Release` を実行します。validation は deterministic な Store-mode ZIP、lowercase の
-SHA-256 sidecar、schema-1 の `release-validation.json` provenance manifest を1つの artifact
-に生成します。`Release` は matching validation run のうち最新の run と attempt を選び、
-失効していない artifact と digest を検証して、download した ZIP だけを rebuild せずに公開します。
-
-最新の matching validation run が失効、失敗、または利用できない場合は、同じ SHA で
-validation を再実行してください。古い成功 run や package の rebuild には fallback しません。
-fresh release には既存の tag と GitHub Release があってはなりません。resume には同じ SHA を
-指す exact annotated tag と matching draft または published Release の両方が必要です。tag
-だけが残った failure は自動修復せず、operator が調査します。draft resume で許可されるのは
-badge の修復と、欠落した asset の upload または exact digest の asset の再利用だけです。
-published resume は release branch が同じ SHA を指している場合だけ許可され、immutable
-Release の body と asset は変更しません。legacy または missing badge も変更しません。任意の `preflight_only=true` は本番公開前に実行できる
-hosted の no-mutation check で、tag、Release、asset、VPM dispatch を作成しません。Release
-path は Unity、ZIP rebuild、`package.json` の書き込み、commit、release branch の push を
-行いません。package-owned validation の source of truth は `Packages/jp.penguin.purebase/Tests`
-です。
-
-release ZIP には `Tests/**` と test-only の `*.scmodule` files は含まれません。追跡対象の `.scmodule` files は test fixtures であり、package-owned の `Tests/**` fixture boundary 内でのみ許可されます。
-
-## Release と VPM の公開状態
-
-Release workflow は stable-only ではありません。prerelease は GitHub prerelease として publish され、stable version は stable として publish されます。VPM client での prerelease の表示は client の実装に依存するため、すべての VCC client が同じように prerelease を非表示または表示するとは限りません。
-
-`vpm-yanks.json` は VPM repository の desired-state policy です。version key が存在する version は **Yank**、key を削除した version は **Unyank** になります。reason value は public な運用情報であり、secret を渡すための channel ではありません。secret、credential、個人情報、その他の非公開情報を記載しないでください。
-
-literal `master` branch の `vpm-yanks.json` 変更で synchronization workflow が起動します。dispatch が stale になった場合や receiver outage の復旧後は、`master` から manual に再実行できます。workflow は current commit の policy を dispatch 前に検証し、固定された `sync-vpm-yanks` event だけを送信します。任意の source path や branch は受け付けません。manual replay では current policy commit が source of truth になります。
-
-initial Yank rollout には gate があります。VPM receiver の準備ができ、confirmed release version
-が VPM feed に登録されたことを確認するまで policy は空のままにしてください。両方を確認した
-後は、その release 済み version を、個別に承認された policy update として end-to-end の
-Yank/Unyank test のために追加できます。空の policy は no-op の desired state であり、target
-feed に release が存在する前に version を追加しないでください。feed と receiver の更新には
-eventual consistency があるため、stale または早すぎる dispatch は listing を変更せず fail
-closed します。反映後に `master` から current policy commit で retry してください。VPM
-receiver、VPM repository、既存の `update-vpm` payload contract はこの release pipeline の対象外
-であり、変更されません。ALCOM の prerelease と package feed の挙動は実装依存であり、他の
-VCC client については保証されません。
-
-## シェーダーパス
-
-| シェーダーパス | モデル |
+| シェーダー | 向いている用途 |
 | --- | --- |
-| `PureBase/Unlit` | lighting に依存しない base color output |
-| `PureBase/Toon` | ambient と lightmap をサポートする binary direct diffuse |
-| `PureBase/PBR` | Unity Standard の indirect GI と reflection probes を使用する continuous metallic BRDF |
-| `PureBase/Hybrid` | PBR specular と IBL path を使用する Toon-style binary direct diffuse |
+| `PureBase/Unlit` | 周囲の明るさに影響されない表示 |
+| `PureBase/Toon` | 明暗をはっきり分けたアニメ調の表示 |
+| `PureBase/PBR` | 金属感や粗さを使った標準的な質感表現 |
+| `PureBase/Hybrid` | アニメ調の明暗と物理ベースの反射を組み合わせた表示 |
 
-すべての shader は `RenderType=TransparentCutout` を使用し、`AlphaTest` queue を持ち、正確に次の4つの pass を公開します：`ForwardBase`、`ForwardAdd`、`ShadowCaster`、`Meta`。
+すべてのシェーダーは、追加モジュールなしでも単独で使用できます。
 
-## 公開プロパティ
+## 対応環境
 
-4つすべての shader は、次の共通 property を公開します：
+- Unity 2022.3
+- Built-in Render Pipeline
+- Shader-Core 0.1.9
 
-`_BaseTexture`, `_BaseColor`, `_SharedMask`, `_SharedGradients`, `_Cutoff`, `_Cull`
+URPと半透明のマテリアルには対応していません。透明部分は切り抜き方式で表示します。
 
-`PureBase/Toon` はさらに `_NormalMap` と `_NormalScale` を公開します。`PureBase/PBR` と `PureBase/Hybrid` は同じ追加 property に加えて、`_Metallic` と `_Roughness` を公開します。PBR と Hybrid の property declarations は byte-identical です。Roughness は `0.002` から `1` までに clamp されます。
+## 導入方法
 
-完全な pass と property の contract は [Pure Base shader contract](Docs/pure-base-shader-contract.md) に記載されています。
+VRChat Creator Companion、ALCOM、またはVPMに対応した管理ソフトから導入できます。
 
-## Shader-Core 連携
+### 1. 配布元を追加する
 
-共有される標準 phase ABI は次の順序です：
+次のボタンを開き、Penguin VPM Repository を追加してください。
 
-`morph`, `postvertex`, `base`, `light`, `customlight`, `modifylight`, `shade`, `reflection`, `add`, `postpixel`
+[Penguin VPM Repository を追加する](vcc://vpm/addRepo?url=https://raw.githubusercontent.com/Penguin-Repository/VPM-Repository/refs/heads/master/vpm.json)
 
-`Meta` は専用 pass であり、標準 phase sequence を実行しません。
+ボタンが動作しない場合は、管理ソフトの「リポジトリを追加」画面へ次のURLを貼り付けてください。
 
-- `ForwardBase` は通常の surface と lighting result を担います。
-- `ForwardAdd` は additional direct light のみを追加し、black fog semantics を使用します。
-- `ShadowCaster` と `Meta` は固定の Cutout coverage contract を維持します。
-- PBR と Hybrid の `ForwardBase` は Unity Standard の indirect GI と reflection-probe evaluation を担います。それらの `ForwardAdd` pass は indirect lighting を重複させません。
+```text
+https://raw.githubusercontent.com/Penguin-Repository/VPM-Repository/refs/heads/master/vpm.json
+```
 
-Optional visual features は separate Shader-Core modules に属します。Pure Base には rim lighting、MatCap、decals、detail textures、emission、dissolve、distance fade、parallax、hair または anisotropic specular、clear coat、glitter、platform-specific integrations は含まれません。
+Shader-Core の配布元をまだ追加していない場合は、次のURLも追加してください。
 
-## 検証レーン
+```text
+https://lilxyzw.github.io/vpm-repos/vpm.json
+```
 
-package-owned persistent validation lanes は `Tests/` の下で定義されています。
+### 2. プロジェクトへ追加する
 
-- `Tests/Run-PureBaseRegression.ps1 -Mode Daily` は read-only の Daily lane です。`PureBase.Tests.Daily` EditMode assembly のみを実行し、実行前後に project settings と追跡対象 package tree を保護します。
-- `Tests/Run-PureBaseRegression.ps1 -Mode Initialize` は、固定された Shader-Core test hosts 用の別個の write-capable setup lane です。Daily の一部ではありません。
-- Fixture baking と canonical baseline regeneration は、Daily とは別の明示的な write-capable operations です。Daily は `Tests/Baselines/birp-d3d11-2022.3.22f1.json` を読み取り、作成または置換することはありません。
-- `Tests/Release/Run-PureBaseReleaseValidation.ps1` は、使い捨ての外部 consumer directory 1つで release ZIP を build と validate します。その cold resets は consumer の `Library` だけを削除します。runner は残りの immutable consumer inputs を検証し、最後に `-KeepConsumer` が使用されていない限り consumer directory を削除します。
+1. 使用するUnityプロジェクトを管理ソフトで開きます。
+2. パッケージ一覧から `PureBase` を探します。
+3. 追加する版を選び、プロジェクトへ導入します。
+4. Shader-Core 0.1.9 が一緒に導入されることを確認します。
 
-## 検証
+現在は開発版のため、管理ソフトの設定によっては一覧に表示されない場合があります。その場合は、開発版やプレリリースを表示する設定を有効にしてください。
 
-final disposable-project matrix は `62/62` を Unity `2022.3.22f1` と D3D11 の下で pass しました。これは module-free imports、all ten standard external phase probes、PBR と Hybrid の finite/reflection/`ForwardAdd`/specular behavior、Unlit と Toon の regressions、Meta と shadow checks を含む固定 validation-scene bake、そして 56 Built-in Render Pipeline variants を対象とします。
+## 基本的な使い方
 
-validation result は dynamic lightmap を `NOT_DETERMINISTIC_IN_BATCH_EDITMODE` と記録しています。これは batch EditMode harness が deterministic な dynamic-lightmap binding path を提供しないことを意味します。verified runtime dynamic-lightmap rendering として読み取ってはなりません。
+1. Unityで新しいマテリアルを作成します。
+2. マテリアルのシェーダーから `PureBase` を選びます。
+3. 用途に合わせて `Unlit`、`Toon`、`PBR`、`Hybrid` のいずれかを選びます。
+4. 基本色やテクスチャなどを設定します。
+5. 必要に応じて Shader-Core の追加モジュールを組み合わせます。
 
-Release-boundary checks も pass しました：
+最初に迷った場合は、アニメ調なら `Toon`、一般的な質感なら `PBR` が分かりやすい選択です。
 
-- release ZIP は `Tests/**` と test-only の `*.scmodule` files を除外します。
-- 追跡対象の `.scmodule` files は `Tests/**` fixture boundary 内に限定されています。
-- package 内に `Assets/PureBase.Tests` はありません。
-- URP dependency はありません。
-- PBR と Hybrid の public property ABI は byte-identical です。
-- `_Emission`、`_Rim`、`_MatCap`、`_ClearCoat` は存在しません。
+## 注意点
 
-package-owned test lanes とその write boundaries は [`Tests/README.md`](Tests/README.md) に記載されています。
+- Pure Base 本体は、できるだけ小さく保つ方針です。
+- リムライト、MatCap、発光、ディゾルブなどの追加表現は、別の Shader-Core モジュールで補う想定です。
+- 正式版ではない版では、仕様や使い方が変更される可能性があります。
+- 不具合を報告する際は、使用したUnity、Pure Base、Shader-Coreの版を記載してください。
+
+## 詳しい資料
+
+一般的な利用では、このREADMEだけで導入と基本操作を始められます。
+
+実装仕様、公開手順、検証方法などの開発者向け情報は、[技術資料](Docs/technical-information.ja.md)にまとめています。
+
+## ライセンスと支援について
+
+Pure Base は Apache License 2.0 で公開されています。詳しくは [LICENSE](LICENSE) を確認してください。
+
+Pure Base と Penguin は金銭的な支援を受け付けていません。不具合報告、改善案、コードの修正などによる協力を歓迎します。
