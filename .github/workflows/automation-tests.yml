@@ -17,7 +17,7 @@ name: Automation tests
 on:
   push:
     branches:
-    - main
+      - main
   pull_request:
   workflow_dispatch:
 
