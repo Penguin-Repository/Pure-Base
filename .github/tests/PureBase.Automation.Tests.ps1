@@ -696,14 +696,14 @@ Describe 'Validated artifact fresh release orchestration' {
                         return [pscustomobject]@{ StatusCode = 302; Headers = @{ Location = 'https://objects.example.invalid/validation-artifact.zip' } }
                     }
                     if ($Method -eq 'GET' -and $Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42') {
-                if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
-                    $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
-                    return $canonicalRelease.Value
-                }
-                $exception = [InvalidOperationException]::new('Not Found')
-                $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
-                throw $exception
-            }
+                        if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
+                            $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
+                            return $canonicalRelease.Value
+                        }
+                        $exception = [InvalidOperationException]::new('Not Found')
+                        $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
+                        throw $exception
+                    }
                     if ($Uri -match '/releases/tags/') {
                         if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
                             $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
