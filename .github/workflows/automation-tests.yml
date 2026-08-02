@@ -35,13 +35,26 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
+          import re
 
           def replace_once(path: Path, old: str, new: str) -> None:
               text = path.read_text(encoding='utf-8')
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'Expected one match in {path}, found {count}: {old[:120]!r}')
+                  raise SystemExit(f'Expected one match in {path}, found {count}: {old[:140]!r}')
               path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='')
+
+          def sub_once(path: Path, pattern: str, replacement: str) -> None:
+              text = path.read_text(encoding='utf-8')
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE | re.DOTALL)
+              if count != 1:
+                  raise SystemExit(f'Expected one regex match in {path}, found {count}: {pattern[:140]!r}')
+              path.write_text(updated, encoding='utf-8', newline='')
+
+          # Construct Actions expressions at runtime so the workflow engine does not
+          # expand expressions that are intended to be written into repository files.
+          def expr(name: str) -> str:
+              return '$' + '{{ ' + name + ' }}'
 
           script = Path('.github/scripts/Invoke-PureBaseRelease.ps1')
           workflow = Path('.github/workflows/release.yml')
@@ -69,89 +82,80 @@ jobs:
               "$validationRuns = @(Get-WorkflowRuns)\nif ($validationRuns.Count -eq 0) { throw \"No release validation workflow runs were found for release target SHA '$ValidatedEventSha' on branch '$Branch'.\" }\n$run = Select-PureBaseReleaseValidationRun -Runs $validationRuns -HeadSha $ValidatedEventSha -Branch $Branch -WorkflowPath '.github/workflows/release-validation.yml'\n",
           )
 
+          workspace = expr('github.workspace')
           replace_once(
               workflow,
-              "  PACKAGE_ROOT: ${{ github.workspace }}\\PureBaseCi\\Packages\\jp.penguin.purebase\n",
-              "  CONTROLLER_ROOT: ${{ github.workspace }}\\PureBaseController\n  PACKAGE_ROOT: ${{ github.workspace }}\\PureBaseCi\\Packages\\jp.penguin.purebase\n",
+              f"  PACKAGE_ROOT: {workspace}\\PureBaseCi\\Packages\\jp.penguin.purebase\n",
+              f"  CONTROLLER_ROOT: {workspace}\\PureBaseController\n  PACKAGE_ROOT: {workspace}\\PureBaseCi\\Packages\\jp.penguin.purebase\n",
           )
-          old_checkout = '''      - name: Checkout exact dispatch SHA
+
+          github_sha = expr('github.sha')
+          input_version = expr('inputs.version')
+          input_resume = expr('inputs.resume')
+          release_token = expr('steps.release-app-token.outputs.token')
+          release_target_sha = expr('steps.release-target.outputs.release_sha')
+
+          new_checkout_block = f'''      - name: Checkout release controller
                 uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
                 with:
-                  ref: ${{ github.sha }}
-                  path: PureBaseCi/Packages/jp.penguin.purebase
-                  fetch-depth: 0
-                  fetch-tags: true
-                  token: ${{ steps.release-app-token.outputs.token }}
-                  persist-credentials: false
-          '''
-          new_checkout = '''      - name: Checkout release controller
-                uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-                with:
-                  ref: ${{ github.sha }}
+                  ref: {github_sha}
                   path: PureBaseController
                   fetch-depth: 0
                   fetch-tags: true
-                  token: ${{ steps.release-app-token.outputs.token }}
+                  token: {release_token}
                   persist-credentials: false
 
               - name: Resolve release target SHA
                 id: release-target
                 shell: pwsh
                 env:
-                  CONFIRMED_VERSION: ${{ inputs.version }}
-                  RESUME_RELEASE: ${{ inputs.resume }}
+                  CONFIRMED_VERSION: {input_version}
+                  RESUME_RELEASE: {input_resume}
                 run: |
                   $modulePath = Join-Path $env:CONTROLLER_ROOT '.github/scripts/PureBase.Automation.psm1'
                   Import-Module $modulePath -Force
                   $version = (ConvertTo-PureBaseSemVer -Value $env:CONFIRMED_VERSION).original
-                  $releaseSha = '${{ github.sha }}'
-                  if ($env:RESUME_RELEASE -eq 'true') {
+                  $releaseSha = '{github_sha}'
+                  if ($env:RESUME_RELEASE -eq 'true') {{
                     $tagRef = "refs/tags/$version"
-                    $releaseSha = (& git -C $env:CONTROLLER_ROOT rev-parse --verify "$tagRef^{commit}" | Out-String).Trim()
-                    if ($LASTEXITCODE -ne 0 -or $releaseSha -notmatch '^[0-9a-fA-F]{40}$') {
+                    $releaseSha = (& git -C $env:CONTROLLER_ROOT rev-parse --verify "$tagRef^{{commit}}" | Out-String).Trim()
+                    if ($LASTEXITCODE -ne 0 -or $releaseSha -notmatch '^[0-9a-fA-F]{{40}}$') {{
                       throw "Resume requires existing tag '$version' to resolve to a commit."
-                    }
-                  }
+                    }}
+                  }}
                   "release_sha=$($releaseSha.ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
               - name: Checkout exact release target SHA
                 uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
                 with:
-                  ref: ${{ steps.release-target.outputs.release_sha }}
+                  ref: {release_target_sha}
                   path: PureBaseCi/Packages/jp.penguin.purebase
                   fetch-depth: 0
                   fetch-tags: true
-                  token: ${{ steps.release-app-token.outputs.token }}
+                  token: {release_token}
                   persist-credentials: false
+
           '''
-          replace_once(workflow, old_checkout, new_checkout)
+          sub_once(
+              workflow,
+              r"^      - name: Checkout exact dispatch SHA\n.*?(?=^      - name: Promote validated artifact release\n)",
+              new_checkout_block,
+          )
+
           replace_once(
               workflow,
-              '''          & "$env:PACKAGE_ROOT/.github/scripts/Invoke-PureBaseRelease.ps1" `
+              f'''          & "$env:PACKAGE_ROOT/.github/scripts/Invoke-PureBaseRelease.ps1" `
                     -PackageRoot $env:PACKAGE_ROOT `
-                    -ValidatedEventSha '${{ github.sha }}' `
+                    -ValidatedEventSha '{github_sha}' `
           ''',
-              '''          & "$env:CONTROLLER_ROOT/.github/scripts/Invoke-PureBaseRelease.ps1" `
+              f'''          & "$env:CONTROLLER_ROOT/.github/scripts/Invoke-PureBaseRelease.ps1" `
                     -PackageRoot $env:PACKAGE_ROOT `
-                    -ValidatedEventSha '${{ steps.release-target.outputs.release_sha }}' `
-                    -ControllerSha '${{ github.sha }}' `
+                    -ValidatedEventSha '{release_target_sha}' `
+                    -ControllerSha '{github_sha}' `
           ''',
           )
 
-          old_checkout_test = '''    It 'checks out the exact dispatch SHA without persisting the promotion credential' {
-                  $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
-                  $checkouts = @([regex]::Matches($releaseJob, '(?ms)^      - name: [^\r\n]*Checkout[^\r\n]*\n.*?(?=^      - name:|\z)') | ForEach-Object Value)
-
-                  $checkouts.Count | Should -Be 1
-                  $checkouts[0] | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
-                  $checkouts[0] | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
-                  $checkouts[0] | Should -Match '(?m)^          fetch-depth: 0$'
-                  $checkouts[0] | Should -Match '(?m)^          fetch-tags: true$'
-                  $checkouts[0] | Should -Match '(?m)^          token: \$\{\{ steps\.release-app-token\.outputs\.token \}\}$'
-                  $checkouts[0] | Should -Match '(?m)^          persist-credentials: false$'
-              }
-          '''
-          new_checkout_test = '''    It 'separates the trusted controller checkout from the exact release target checkout' {
+          new_checkout_test = r'''    It 'separates the trusted controller checkout from the exact release target checkout' {
                   $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
                   $controllerCheckout = Get-NamedStepBlock -Job $releaseJob -Name 'Checkout release controller'
                   $targetResolver = Get-NamedStepBlock -Job $releaseJob -Name 'Resolve release target SHA'
@@ -175,8 +179,13 @@ jobs:
                   $targetCheckout | Should -Match '(?m)^          ref: \$\{\{ steps\.release-target\.outputs\.release_sha \}\}$'
                   $targetCheckout | Should -Match '(?m)^          path: PureBaseCi/Packages/jp\.penguin\.purebase$'
               }
+
           '''
-          replace_once(contracts, old_checkout_test, new_checkout_test)
+          sub_once(
+              contracts,
+              r"^    It 'checks out the exact dispatch SHA without persisting the promotion credential' \{.*?(?=^    It 'supports an optional no-mutation preflight and repeated release-branch tip checks' \{)",
+              new_checkout_test,
+          )
           replace_once(
               contracts,
               "        $releaseInvocation | Should -Match '(?m)^            -ValidatedEventSha ''\\$\\{\\{ github\\.sha \\}\\}'' `$'\n",
@@ -213,25 +222,25 @@ jobs:
                       $previousReleaseToken = $env:PUREBASE_RELEASE_TOKEN
           ''',
           )
-          old_runs = '''                        return [pscustomobject]@{
-                                          workflow_runs = @([pscustomobject]@{
-                                              id = 11; path = '.github/workflows/release-validation.yml'; head_sha = $eventSha; head_branch = 'master'
-                                              event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success'
-                                          })
-                                  }
-          '''
-          new_runs = '''                        $workflowRuns = if ($ValidationRunsUnavailable) {
-                                      @()
-                                  }
-                                  else {
-                                      @([pscustomobject]@{
-                                              id = 11; path = '.github/workflows/release-validation.yml'; head_sha = $eventSha; head_branch = 'master'
-                                              event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success'
-                                          })
-                                  }
-                                  return [pscustomobject]@{ workflow_runs = $workflowRuns }
-          '''
-          replace_once(tests, old_runs, new_runs)
+          sub_once(
+              tests,
+              r"^                    if \(\$Uri -match '/actions/workflows/release-validation\\\.yml/runs'\) \{.*?(?=^                    if \(\$Uri -match '/actions/runs/11/artifacts'\) \{)",
+              '''                    if ($Uri -match '/actions/workflows/release-validation\\.yml/runs') {
+                          $operationLog.Add([pscustomobject]@{ Kind = 'validation-run'; Boundary = ''; ApiCall = $apiCall }) | Out-Null
+                          $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
+                          $workflowRuns = if ($ValidationRunsUnavailable) {
+                              @()
+                          }
+                          else {
+                              @([pscustomobject]@{
+                                      id = 11; path = '.github/workflows/release-validation.yml'; head_sha = $eventSha; head_branch = 'master'
+                                      event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success'
+                                  })
+                          }
+                          return [pscustomobject]@{ workflow_runs = $workflowRuns }
+                      }
+          ''',
+          )
           replace_once(
               tests,
               "                        PackageRoot = $packageRoot; ValidatedEventSha = $eventSha\n",
@@ -242,6 +251,7 @@ jobs:
               "                    Failure = $failure; ApiCalls = $apiCalls.ToArray(); RemoteRoot = $remoteRoot; InitialBranchSha = $initialBranchSha\n",
               "                    Failure = $failure; ApiCalls = $apiCalls.ToArray(); RemoteRoot = $remoteRoot; InitialBranchSha = $initialBranchSha; ControllerSha = $controllerSha\n",
           )
+
           insertion = '''
               It 'resumes a validated tag target while the trusted controller branch is newer' {
                   $fixture = New-ValidatedArtifactReleaseFixture -ReleaseState 'draft-resume' -DraftAssetState 'matching' -ControllerAhead
