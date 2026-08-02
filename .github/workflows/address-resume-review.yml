@@ -1,0 +1,222 @@
+name: Address resume review findings
+
+on:
+  push:
+    branches:
+      - agent/fix-resume-release-target
+
+permissions:
+  contents: write
+
+jobs:
+  address:
+    if: github.actor != 'github-actions[bot]'
+    environment: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
+      - name: Checkout review branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: agent/fix-resume-release-target
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Apply review fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one match in {path}, found {count}: {old!r}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8', newline='')
+
+          script = Path('.github/scripts/Invoke-PureBaseRelease.ps1')
+          workflow = Path('.github/workflows/release.yml')
+          documentation = Path('.github/CI.md')
+
+          replace_once(
+              script,
+              "if ((Invoke-Git @('branch', '--show-current')).Output) { throw 'The release checkout must be detached at ValidatedEventSha.' }",
+              "if ((Invoke-Git @('branch', '--show-current')).Output) { throw \"The release checkout must be detached at controller SHA '$controllerSha'.\" }",
+          )
+          replace_once(
+              script,
+              "if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw 'The checked-out HEAD does not equal ValidatedEventSha.' }",
+              "if ((Invoke-Git @('rev-parse', 'HEAD')).Output -cne $controllerSha) { throw \"The checked-out HEAD does not equal controller SHA '$controllerSha'.\" }",
+          )
+          replace_once(
+              script,
+              '-PolicyCommitSha $ValidatedEventSha',
+              '-PolicyCommitSha $controllerSha',
+          )
+
+          replace_once(
+              workflow,
+              '        description: Confirm exact version from the checked-out package.json',
+              '        description: Confirm version; resume uses the existing annotated tag, otherwise match checked-out package.json',
+          )
+          replace_once(
+              workflow,
+              '        description: Resume only for an exact annotated tag and matching draft or published Release at the same SHA',
+              '        description: Resume an existing annotated tag and matching draft or published Release, even after the release branch advances',
+          )
+
+          replace_once(
+              documentation,
+              '''`package.json` is the sole release identity and version declaration. The `version` input to the
+          manual `Release` workflow is confirmation only: it must exactly match the checked-out package
+          version, and the workflow never writes or commits a package version. A release-preparation commit
+          therefore follows this hosted sequence:
+          ''',
+              '''`package.json` is the sole release identity and version declaration. For a fresh publication,
+          the manual `Release` workflow's `version` input must exactly match the checked-out package version.
+          For `resume=true`, the input instead identifies an existing annotated tag; the release script reads
+          `package.json` and selects the validation artifact from that tagged release-target SHA. The workflow
+          still runs from the current configured release-branch tip, whose controller SHA supplies the trusted
+          script, branch-race gate, and VPM policy state. The workflow never writes or commits a package
+          version. A release-preparation commit therefore follows this hosted sequence:
+          ''',
+          )
+          replace_once(
+              documentation,
+              '''3. Manually run `Release` from the same release-branch SHA and confirm the same package version.
+            It selects the latest matching `release-validation.yml` `workflow_dispatch` run by run number and
+            attempt, downloads that run's unexpired artifact, and revalidates its provenance, ZIP, manifest,
+            and digest. The downloaded ZIP is the only publication payload; Release never rebuilds it.
+          ''',
+              '''3. For a fresh publication, manually run `Release` from the same release-branch SHA and confirm
+            the same package version. To resume an existing tag after the branch advances, run `Release` from
+            the current configured release-branch tip, enter the tagged version, and set `resume=true`; do not
+            dispatch the obsolete tagged SHA. Release selects the latest matching `release-validation.yml`
+            run for the release-target SHA, downloads its unexpired artifact, and revalidates its provenance,
+            ZIP, manifest, and digest. The downloaded ZIP is the only publication payload; Release never
+            rebuilds it.
+          ''',
+          )
+          replace_once(
+              documentation,
+              '''The workflow has strict fresh and resume states. A fresh release requires no tag and no GitHub
+          Release for the confirmed version. It may create only an annotated tag at the validated SHA; it
+          does not write the package, create a commit, or push the release branch. A resume requires both an
+          exact annotated tag and a matching draft or published Release at the same SHA. A tag-only failure
+          is not automatically repaired and requires operator investigation. Draft resume is limited to
+          repairing the generated badge body and uploading or reusing one exact-digest missing asset;
+          mismatched or duplicate assets fail closed. Published resume is allowed only while the configured
+          release branch still points to the same SHA. It verifies the immutable Release and asset digest and
+          does not mutate the published Release body or assets, including a legacy or missing badge.
+          ''',
+              '''The workflow has strict fresh and resume states. A fresh release requires no tag and no GitHub
+          Release for the confirmed version. It may create only an annotated tag at the validated SHA; it
+          does not write the package, create a commit, or push the release branch. A resume requires both an
+          exact annotated tag and a matching draft or published Release at the tagged release-target SHA. A
+          tag-only failure is not automatically repaired and requires operator investigation. The configured
+          release branch may have advanced, but its current controller SHA must remain unchanged throughout
+          the run. The tagged SHA remains the package, validation, Release, and VPM `commitSha`; the controller
+          SHA supplies `policyCommitSha` so the receiver evaluates current `vpm-yanks.json` state. Draft resume
+          is limited to repairing the generated badge body and uploading or reusing one exact-digest missing
+          asset; mismatched or duplicate assets fail closed. Published resume verifies the immutable Release
+          and asset digest and does not mutate the published Release body or assets, including a legacy or
+          missing badge.
+          ''',
+          )
+          replace_once(
+              documentation,
+              '''Before the first production publication, operators may run `Release` with `preflight_only=true`
+          for the same branch, SHA, and version. This hosted no-mutation check exercises token permissions,
+          exact checkout, latest-run/artifact verification, release-state resolution, and the remote branch
+          tip gate, then records evidence without creating a tag, Release, asset, or dispatch. The production
+          ''',
+              '''Before the first production publication, operators may run `Release` with `preflight_only=true`.
+          Fresh preflight uses the same branch, SHA, and version as validation. Resume preflight runs from the
+          current configured release-branch tip while resolving the release target from the existing tag.
+          This hosted no-mutation check exercises token permissions, controller checkout, target validation
+          artifact verification, release-state resolution, and the remote branch tip gate, then records
+          evidence without creating a tag, Release, asset, or dispatch. The production
+          ''',
+          )
+
+          test_path = Path('.github/tests/ResumeReleaseReview.Tests.ps1')
+          test_path.write_text(r'''# Copyright 2026 Penguin
+          #
+          # Licensed under the Apache License, Version 2.0 (the "License");
+          # you may not use this file except in compliance with the License.
+          # You may obtain a copy of the License at
+          #
+          #     http://www.apache.org/licenses/LICENSE-2.0
+          #
+          # Unless required by applicable law or agreed to in writing, software
+          # distributed under the License is distributed on an "AS IS" BASIS,
+          # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+          # See the License for the specific language governing permissions and
+          # limitations under the License.
+
+          Describe 'Historical release resume review contracts' {
+              BeforeAll {
+                  $repositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+                  $releaseScript = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/Invoke-PureBaseRelease.ps1') -Raw
+                  $releaseWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release.yml') -Raw
+                  $ciDocumentation = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/CI.md') -Raw
+              }
+
+              It 'uses controller terminology in controller checkout diagnostics' {
+                  $releaseScript | Should -Match "detached at controller SHA '\$controllerSha'"
+                  $releaseScript | Should -Match "does not equal controller SHA '\$controllerSha'"
+                  $releaseScript | Should -Not -Match 'checked-out HEAD does not equal ValidatedEventSha'
+              }
+
+              It 'keeps the historical target commit separate from current VPM policy' {
+                  $releaseScript | Should -Match '-CommitSha \$ValidatedEventSha -PolicyCommitSha \$controllerSha'
+                  $releaseScript | Should -Not -Match '-PolicyCommitSha \$ValidatedEventSha'
+              }
+
+              It 'documents fresh and historical resume version selection' {
+                  $releaseWorkflow | Should -Match 'resume uses the existing annotated tag'
+                  $releaseWorkflow | Should -Match 'even after the release branch advances'
+                  $ciDocumentation | Should -Match 'tagged release-target SHA'
+                  $ciDocumentation | Should -Match 'controller SHA supplies `policyCommitSha`'
+                  $ciDocumentation | Should -Match 'do not\s+dispatch the obsolete tagged SHA'
+              }
+          }
+          ''', encoding='utf-8', newline='')
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -RequiredVersion 5.9.0 -Scope CurrentUser -Force
+
+      - name: Run automation tests
+        shell: pwsh
+        run: |
+          $configuration = New-PesterConfiguration
+          $configuration.Run.Path = '.github/tests'
+          $configuration.Run.Exit = $true
+          $configuration.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $configuration
+
+      - name: Run actionlint
+        shell: bash
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+
+      - name: Commit review fixes
+        shell: bash
+        run: |
+          git rm -- .github/workflows/address-resume-review.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- .github/scripts/Invoke-PureBaseRelease.ps1 .github/workflows/release.yml .github/CI.md .github/tests/ResumeReleaseReview.Tests.ps1
+          git commit -m "Address resume review findings"
+          git push origin HEAD:agent/fix-resume-release-target
