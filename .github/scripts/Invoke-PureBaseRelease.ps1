@@ -294,7 +294,6 @@ if ([bool]$release.draft) {
     $release = Invoke-Api -Method PATCH -Uri "$apiRoot/repos/$Repository/releases/$releaseId" -Token $releaseToken -Body ([ordered]@{
             tag_name         = $ConfirmedVersion
             target_commitish = $releaseTargetSha
-            name             = [string]$release.name
             draft            = $false
             prerelease       = [bool]$releaseMode.PrereleaseKind
         })
