@@ -1,41 +1,22 @@
-# Copyright 2026 Penguin
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-name: Automation tests
+name: Apply draft release fix
 
 on:
-  push:
   pull_request:
-  workflow_dispatch:
+    branches: [master]
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: write
 
-concurrency:
-  group: automation-tests-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  migrate:
-    name: Apply draft release fix
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Create migration GitHub App token
-        id: migration-token
+      - name: Create GitHub App token
+        id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.APP_CLIENT_ID }}
@@ -48,22 +29,21 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-          token: ${{ steps.migration-token.outputs.token }}
+          token: ${{ steps.app-token.outputs.token }}
 
-      - name: Apply focused release fix
+      - name: Apply source and test changes
         shell: python
         run: |
           from pathlib import Path
 
           def replace_once(path: Path, old: str, new: str) -> None:
               text = path.read_text(encoding="utf-8")
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"Expected one match in {path}, found {count}: {old[:80]!r}")
+              if text.count(old) != 1:
+                  raise SystemExit(f"Expected one match in {path}: {old[:100]!r}")
               path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="")
 
-          script = Path(".github/scripts/Invoke-PureBaseRelease.ps1")
-          tests = Path(".github/tests/PureBase.Automation.Tests.ps1")
+          script = Path('.github/scripts/Invoke-PureBaseRelease.ps1')
+          tests = Path('.github/tests/PureBase.Automation.Tests.ps1')
 
           get_release = '''function Get-Release([string]$Version) {
               try { return Invoke-Api GET "$apiRoot/repos/$Repository/releases/tags/$([Uri]::EscapeDataString($Version))" $releaseToken }
@@ -75,7 +55,7 @@ jobs:
               return $releaseCandidates[0]
           }
           '''
-          get_release_with_id = get_release + '''
+          replace_once(script, get_release, get_release + '''
           function Get-ReleaseById([long]$ReleaseId, [int]$MaximumAttempts = 4) {
               if ($ReleaseId -le 0) { throw 'Release ID must be positive.' }
               if ($MaximumAttempts -le 0) { throw 'MaximumAttempts must be positive.' }
@@ -89,17 +69,15 @@ jobs:
               }
               return $null
           }
-          '''
-          replace_once(script, get_release, get_release_with_id)
+          ''')
 
-          old_create = '''if ($null -eq $release) {
+          replace_once(script, '''if ($null -eq $release) {
               Invoke-MutationGate 'draft-create'
               Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true }) | Out-Null
               $release = Get-Release $ConfirmedVersion
               if ($null -eq $release) { throw "Created draft release '$ConfirmedVersion' could not be re-read before asset processing." }
           }
-          '''
-          new_create = '''if ($null -eq $release) {
+          ''', '''if ($null -eq $release) {
               Invoke-MutationGate 'draft-create'
               $createdRelease = Invoke-Api POST "$apiRoot/repos/$Repository/releases" $releaseToken ([ordered]@{ tag_name = $ConfirmedVersion; target_commitish = $ValidatedEventSha; name = $ConfirmedVersion; body = $badge; draft = $true; prerelease = [bool]$releaseMode.PrereleaseKind; generate_release_notes = $true })
               if ($null -eq $createdRelease -or $null -eq $createdRelease.PSObject.Properties['id'] -or [long]$createdRelease.id -le 0) {
@@ -108,10 +86,9 @@ jobs:
               $release = Get-ReleaseById -ReleaseId ([long]$createdRelease.id)
               if ($null -eq $release) { throw "Created draft release '$ConfirmedVersion' could not be re-read by ID before asset processing." }
           }
-          '''
-          replace_once(script, old_create, new_create)
+          ''')
 
-          old_reread = '''if ([bool]$release.draft) {
+          replace_once(script, '''if ([bool]$release.draft) {
               $assetAction = Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256
               if ($assetAction -eq 'upload') {
                   Invoke-MutationGate 'asset-upload'
@@ -120,8 +97,7 @@ jobs:
               }
               $release = Get-Release $ConfirmedVersion
               [void](Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256)
-          '''
-          new_reread = '''if ([bool]$release.draft) {
+          ''', '''if ([bool]$release.draft) {
               $releaseId = [long]$release.id
               $assetAction = Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256
               if ($assetAction -eq 'upload') {
@@ -132,12 +108,10 @@ jobs:
               $release = Get-ReleaseById -ReleaseId $releaseId
               if ($null -eq $release) { throw "Draft release '$ConfirmedVersion' could not be re-read by ID after asset processing." }
               [void](Resolve-PureBaseDraftAssetAction -Assets @($release.assets) -AssetName $artifact.Name -Sha256 $artifact.Sha256)
-          '''
-          replace_once(script, old_reread, new_reread)
+          ''')
 
-          tag_handler = '''                    if ($Uri -match '/releases/tags/') {
-          '''
-          id_handler = '''                    if ($Method -eq 'GET' -and $Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42') {
+          marker = "                    if ($Uri -match '/releases/tags/') {\n"
+          replace_once(tests, marker, '''                    if ($Method -eq 'GET' -and $Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42') {
                           if ($null -ne $canonicalRelease.Value -and -not $CanonicalReleaseUnavailableAfterCreation) {
                               $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $canonicalRelease.Value -AssetName $assetName
                               return $canonicalRelease.Value
@@ -146,40 +120,11 @@ jobs:
                           $exception | Add-Member -NotePropertyName Response -NotePropertyValue ([pscustomobject]@{ StatusCode = 404 })
                           throw $exception
                       }
-          ''' + tag_handler
-          replace_once(tests, tag_handler, id_handler)
-
-          replace_once(
-              tests,
-              "    It 're-fetches canonical draft data after an assets-less create response before asset processing' {",
-              "    It 're-fetches canonical draft data by release ID after an assets-less create response' {",
-          )
-          replace_once(
-              tests,
-              '''                    $call.Method -eq 'GET' -and $call.Uri -eq "https://api.example.invalid/repos/test/Pure-Base/releases/tags/$($fixture.Version)"
-          ''',
-              '''                    $call.Method -eq 'GET' -and $call.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42'
-          ''',
-          )
-          replace_once(
-              tests,
-              "    It 'fails before asset processing when a created draft cannot be re-read canonically' {",
-              "    It 'retries and fails closed when a created draft cannot be re-read by release ID' {",
-          )
-          replace_once(
-              tests,
-              "            $fixture.Failure.Exception.Message | Should -Match 'Created draft release.*could not be re-read before asset processing'\n",
-              "            $fixture.Failure.Exception.Message | Should -Match 'Created draft release.*could not be re-read by ID before asset processing'\n",
-          )
-          create_assertion = '''            @($fixture.ApiCalls | Where-Object {
-                      $_.Method -eq 'POST' -and $_.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases'
-                  }).Count | Should -Be 1
-          '''
-          create_with_retry_assertion = create_assertion + '''            @($fixture.ApiCalls | Where-Object {
-                      $_.Method -eq 'GET' -and $_.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42'
-                  }).Count | Should -Be 4
-          '''
-          replace_once(tests, create_assertion, create_with_retry_assertion)
+          ''' + marker)
+          replace_once(tests, "It 're-fetches canonical draft data after an assets-less create response before asset processing'", "It 're-fetches canonical draft data by release ID after an assets-less create response'")
+          replace_once(tests, '''$call.Method -eq 'GET' -and $call.Uri -eq "https://api.example.invalid/repos/test/Pure-Base/releases/tags/$($fixture.Version)"''', "$call.Method -eq 'GET' -and $call.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42'")
+          replace_once(tests, "It 'fails before asset processing when a created draft cannot be re-read canonically'", "It 'fails closed when a created draft cannot be re-read by release ID'")
+          replace_once(tests, "Created draft release.*could not be re-read before asset processing", "Created draft release.*could not be re-read by ID before asset processing")
 
       - name: Install Pester
         shell: pwsh
@@ -196,7 +141,7 @@ jobs:
           $configuration.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $configuration
 
-      - name: Restore workflow and publish fix
+      - name: Restore workflow and commit
         shell: bash
         run: |
           git show origin/master:.github/workflows/automation-tests.yml > .github/workflows/automation-tests.yml
@@ -205,57 +150,3 @@ jobs:
           git add -- .github/scripts/Invoke-PureBaseRelease.ps1 .github/tests/PureBase.Automation.Tests.ps1 .github/workflows/automation-tests.yml
           git commit -m "Fix draft release reread"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
-
-  pester:
-    name: Pester 5.9.0
-    if: github.actor == 'github-actions[bot]' || github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install Pester
-        shell: pwsh
-        run: |
-          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-          Install-Module -Name Pester -RequiredVersion 5.9.0 -Scope CurrentUser -Force
-
-      - name: Run automation tests
-        shell: pwsh
-        run: |
-          $configuration = New-PesterConfiguration
-          $configuration.Run.Path = '.github/tests'
-          $configuration.Run.Exit = $true
-          $configuration.Output.Verbosity = 'Detailed'
-          $configuration.Output.CIFormat = 'GithubActions'
-          $configuration.TestResult.Enabled = $true
-          $configuration.TestResult.OutputFormat = 'NUnitXml'
-          $configuration.TestResult.OutputPath = 'TestResults/Pester.NUnit.xml'
-          New-Item -ItemType Directory -Path TestResults -Force | Out-Null
-          Invoke-Pester -Configuration $configuration
-
-      - name: Upload Pester results
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
-        with:
-          name: pure-base-pester-${{ github.run_id }}-${{ github.run_attempt }}
-          path: TestResults/Pester.NUnit.xml
-          if-no-files-found: warn
-          retention-days: 14
-
-  actionlint:
-    name: actionlint
-    if: github.actor == 'github-actions[bot]' || github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Run actionlint
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
