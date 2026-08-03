@@ -30,8 +30,11 @@ env:
   GIT_CONFIG_VALUE_0: "false"
   GIT_CONFIG_KEY_1: core.eol
   GIT_CONFIG_VALUE_1: lf
+  SOURCE_PROJECT_ROOT: ${{ github.workspace }}\PureBaseSource
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseSource\Packages\jp.penguin.purebase
   CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
-  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+  UNITY_PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+  UNITY_SHADER_CORE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.lilxyzw.shadercore
 
 jobs:
   unity-editor-cache:
@@ -91,7 +94,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          path: PureBaseCi/Packages/jp.penguin.purebase
+          path: PureBaseSource\Packages\jp.penguin.purebase
           fetch-depth: 0
           persist-credentials: false
 
@@ -102,7 +105,7 @@ jobs:
           try {
             $initialHead = (& git rev-parse HEAD).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
-            $initialCleanTree = (& git status --porcelain | Out-String).Trim()
+            $initialCleanTree = (& git status --porcelain --untracked-files=all | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
             $initialLocalBranch = (& git branch --show-current | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
@@ -132,7 +135,7 @@ jobs:
         shell: pwsh
         run: |
           & "$env:PACKAGE_ROOT/.github/scripts/Install-VerifiedShaderCoreRelease.ps1" `
-            -ProjectRoot $env:CI_PROJECT_ROOT `
+            -ProjectRoot $env:SOURCE_PROJECT_ROOT `
             -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip' `
             -ExpectedSha256 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
 
@@ -195,7 +198,19 @@ jobs:
       - name: Prepare Unity project shell
         shell: pwsh
         run: |
-          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+          $sourceShaderCoreRoot = Join-Path $env:SOURCE_PROJECT_ROOT 'Packages/jp.lilxyzw.shadercore'
+          New-Item -ItemType Directory -Path (Split-Path -Parent $env:UNITY_PACKAGE_ROOT) -Force | Out-Null
+          $null = & robocopy $env:PACKAGE_ROOT $env:UNITY_PACKAGE_ROOT /MIR /XD .git /NFL /NDL /NJH /NJS /NP
+          $packageCopyExitCode = $LASTEXITCODE
+          if ($packageCopyExitCode -ge 8) {
+            throw "Failed to stage the disposable Pure Base package copy; robocopy exited with code $packageCopyExitCode."
+          }
+          $null = & robocopy $sourceShaderCoreRoot $env:UNITY_SHADER_CORE_ROOT /MIR /NFL /NDL /NJH /NJS /NP
+          $shaderCoreCopyExitCode = $LASTEXITCODE
+          if ($shaderCoreCopyExitCode -ge 8) {
+            throw "Failed to stage the disposable Shader-Core package copy; robocopy exited with code $shaderCoreCopyExitCode."
+          }
+          & "$env:UNITY_PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT
 
       - name: Run release validation
@@ -253,12 +268,17 @@ jobs:
           try {
             $finalHead = (& git rev-parse HEAD).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
-            $finalCleanTree = (& git status --porcelain | Out-String).Trim()
+            $finalCleanTree = (& git status --porcelain --untracked-files=all | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
             $finalLocalBranch = (& git branch --show-current | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
             $finalLocalRefs = (& git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git for-each-ref failed.' }
+            if (-not [string]::IsNullOrEmpty($finalCleanTree)) {
+              Write-Host 'Repository working tree changes:'
+              Write-Host $finalCleanTree
+              & git diff --no-ext-diff --text | Out-Host
+            }
           }
           finally {
             Pop-Location
