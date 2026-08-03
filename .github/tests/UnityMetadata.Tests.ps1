@@ -19,11 +19,39 @@ Describe 'Unity documentation metadata' {
     BeforeAll {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $docsRoot = Join-Path $repositoryRoot 'Docs'
+
+        function Get-DocumentationMetadataFiles {
+            $metadataFiles = [Collections.Generic.List[IO.FileInfo]]::new()
+            $docsMetadataPath = $docsRoot + '.meta'
+            if (Test-Path -LiteralPath $docsMetadataPath -PathType Leaf) {
+                $metadataFiles.Add((Get-Item -LiteralPath $docsMetadataPath))
+            }
+            foreach ($metadataFile in Get-ChildItem -LiteralPath $docsRoot -Filter '*.meta' -File -Recurse) {
+                $metadataFiles.Add($metadataFile)
+            }
+            return $metadataFiles.ToArray()
+        }
+
+        function Get-UnityMetadataGuid {
+            param([Parameter(Mandatory = $true)][string]$Path)
+
+            $guidMatches = @(
+                Select-String -LiteralPath $Path -Pattern '^guid: ([0-9a-fA-F]{32})$'
+            )
+            if ($guidMatches.Count -ne 1) {
+                return ''
+            }
+            return $guidMatches[0].Matches[0].Groups[1].Value.ToLowerInvariant()
+        }
     }
 
     It 'tracks a meta file for every documentation asset and directory' {
+        $documentationAssets = @(
+            Get-Item -LiteralPath $docsRoot
+            Get-ChildItem -LiteralPath $docsRoot -Recurse -Force
+        )
         $missingMetadata = @(
-            Get-ChildItem -LiteralPath $docsRoot -Recurse -Force |
+            $documentationAssets |
             Where-Object { -not $_.Name.EndsWith('.meta', [StringComparison]::Ordinal) } |
             Where-Object { -not (Test-Path -LiteralPath ($_.FullName + '.meta') -PathType Leaf) } |
             ForEach-Object { $_.FullName.Substring($repositoryRoot.Length + 1).Replace('\', '/') }
@@ -34,14 +62,11 @@ Describe 'Unity documentation metadata' {
 
     It 'uses unique 32-character hexadecimal GUIDs for documentation metadata' {
         $guidEntries = @(
-            Get-ChildItem -LiteralPath $docsRoot -Filter '*.meta' -File -Recurse |
+            Get-DocumentationMetadataFiles |
             ForEach-Object {
-                $guidLine = Get-Content -LiteralPath $_.FullName |
-                    Where-Object { $_ -match '^guid: ([0-9a-f]{32})$' } |
-                    Select-Object -First 1
                 [pscustomobject]@{
                     Path = $_.FullName.Substring($repositoryRoot.Length + 1).Replace('\', '/')
-                    Guid = if ($null -eq $guidLine) { '' } else { [regex]::Match($guidLine, '^guid: ([0-9a-f]{32})$').Groups[1].Value }
+                    Guid = Get-UnityMetadataGuid -Path $_.FullName
                 }
             }
         )
