@@ -222,5 +222,5 @@ Write-Output "Shader-Core package version: $($shaderCoreJson.version)"
 Write-Output "VRChat-project QualitySettings snapshot: $qualitySettingsSource"
 Write-Output "VRChat SDK packages installed in generated CI project: none"
 
-# Clear an accepted native-command status left by the caller after successful project preparation.
-$global:LASTEXITCODE = 0
+# Normalize only accepted Robocopy success statuses left by the caller.
+if ($LASTEXITCODE -lt 8) { $global:LASTEXITCODE = 0 }
