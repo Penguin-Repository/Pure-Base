@@ -40,8 +40,8 @@ Describe 'Release validation Unity import isolation' {
         $workflow | Should -Match ([regex]::Escape('& "$env:UNITY_PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1"'))
     }
 
-    It 'normalizes accepted native copy exit codes after successful project setup' {
-        $projectSetup.TrimEnd() | Should -Match '(?m)^\$global:LASTEXITCODE = 0$'
+    It 'normalizes only accepted native copy exit codes as the final operation' {
+        $projectSetup.TrimEnd() | Should -Match '(?s)if \(\$LASTEXITCODE -lt 8\) \{ \$global:LASTEXITCODE = 0 \}\z'
     }
 
     It 'builds and audits the release from the unchanged source checkout' {
