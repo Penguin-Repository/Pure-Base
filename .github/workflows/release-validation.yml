@@ -31,7 +31,8 @@ env:
   GIT_CONFIG_KEY_1: core.eol
   GIT_CONFIG_VALUE_1: lf
   CI_PROJECT_ROOT: ${{ github.workspace }}\PureBaseCi
-  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
+  PACKAGE_ROOT: ${{ github.workspace }}\PureBaseSource
+  UNITY_PACKAGE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.penguin.purebase
 
 jobs:
   unity-editor-cache:
@@ -91,7 +92,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          path: PureBaseCi/Packages/jp.penguin.purebase
+          path: PureBaseSource
           fetch-depth: 0
           persist-credentials: false
 
@@ -195,7 +196,13 @@ jobs:
       - name: Prepare Unity project shell
         shell: pwsh
         run: |
-          & "$env:PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
+          New-Item -ItemType Directory -Path (Split-Path -Parent $env:UNITY_PACKAGE_ROOT) -Force | Out-Null
+          $null = & robocopy $env:PACKAGE_ROOT $env:UNITY_PACKAGE_ROOT /MIR /XD .git /NFL /NDL /NJH /NJS /NP
+          $copyExitCode = $LASTEXITCODE
+          if ($copyExitCode -ge 8) {
+            throw "Failed to stage the disposable Unity package copy; robocopy exited with code $copyExitCode."
+          }
+          & "$env:UNITY_PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT
 
       - name: Run release validation
@@ -253,12 +260,17 @@ jobs:
           try {
             $finalHead = (& git rev-parse HEAD).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git rev-parse HEAD failed.' }
-            $finalCleanTree = (& git status --porcelain | Out-String).Trim()
+            $finalCleanTree = (& git status --porcelain --untracked-files=all | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git status --porcelain failed.' }
             $finalLocalBranch = (& git branch --show-current | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git branch --show-current failed.' }
             $finalLocalRefs = (& git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'git for-each-ref failed.' }
+            if (-not [string]::IsNullOrEmpty($finalCleanTree)) {
+              Write-Host 'Repository working tree changes:'
+              Write-Host $finalCleanTree
+              & git diff --no-ext-diff --text | Out-Host
+            }
           }
           finally {
             Pop-Location
