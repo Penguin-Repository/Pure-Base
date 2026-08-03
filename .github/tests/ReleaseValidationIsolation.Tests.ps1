@@ -19,6 +19,7 @@ Describe 'Release validation Unity import isolation' {
     BeforeAll {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $workflow = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release-validation.yml') -Raw) -replace "`r`n", "`n"
+        $projectSetup = (Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/scripts/New-PureBaseCiProject.ps1') -Raw) -replace "`r`n", "`n"
     }
 
     It 'keeps the audited checkout in the release runner compatible package layout' {
@@ -37,6 +38,10 @@ Describe 'Release validation Unity import isolation' {
         $workflow | Should -Match ([regex]::Escape('$null = & robocopy $env:PACKAGE_ROOT $env:UNITY_PACKAGE_ROOT /MIR /XD .git'))
         $workflow | Should -Match ([regex]::Escape('$null = & robocopy $sourceShaderCoreRoot $env:UNITY_SHADER_CORE_ROOT /MIR'))
         $workflow | Should -Match ([regex]::Escape('& "$env:UNITY_PACKAGE_ROOT/.github/scripts/New-PureBaseCiProject.ps1"'))
+    }
+
+    It 'normalizes accepted native copy exit codes after successful project setup' {
+        $projectSetup.TrimEnd() | Should -Match '(?m)^\$global:LASTEXITCODE = 0$'
     }
 
     It 'builds and audits the release from the unchanged source checkout' {
