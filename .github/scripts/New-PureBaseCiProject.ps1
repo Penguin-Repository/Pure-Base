@@ -167,7 +167,7 @@ LightmapSettings:
     m_PVRDenoiserTypeAO: 1
     m_PVRFilterTypeDirect: 0
     m_PVRFilterTypeIndirect: 0
-    m_PVRFilterTypeAO: 1
+    m_PVRFilterTypeAO: 0
     m_PVREnvironmentMIS: 1
     m_PVRCulling: 1
     m_PVRFilteringGaussRadiusDirect: 1
@@ -221,3 +221,6 @@ Write-Output "Pure-Base package version: $($packageJson.version)"
 Write-Output "Shader-Core package version: $($shaderCoreJson.version)"
 Write-Output "VRChat-project QualitySettings snapshot: $qualitySettingsSource"
 Write-Output "VRChat SDK packages installed in generated CI project: none"
+
+# Normalize only an accepted native-command status when the caller has one.
+if ((Test-Path Variable:LASTEXITCODE) -and $LASTEXITCODE -lt 8) { $global:LASTEXITCODE = 0 }
