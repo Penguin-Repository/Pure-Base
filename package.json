@@ -1,7 +1,7 @@
 {
   "name": "jp.penguin.purebase",
   "displayName": "PureBase",
-  "version": "0.1.0-beta.8",
+  "version": "0.1.0-beta.9",
   "author": {
     "name": "Penguin"
   },
@@ -10,12 +10,11 @@
   "vpmDependencies": {
     "jp.lilxyzw.shadercore": "0.1.9"
   },
-  "licensesUrl": "https://github.com/Penguin-Repository/Pure-Base/blob/master/LICENSE",
   "license": "Apache-2.0",
   "keywords": [
     "Shader"
   ],
-  "url": "https://github.com/Penguin-Repository/Pure-Base/releases/download/0.1.0-beta.8/jp.penguin.purebase-0.1.0-beta.8.zip",
+  "url": "https://github.com/Penguin-Repository/Pure-Base/releases/download/0.1.0-beta.9/jp.penguin.purebase-0.1.0-beta.9.zip",
   "legacyFolders": {
     "Assets\\PureBase": ""
   }
