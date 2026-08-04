@@ -34,9 +34,7 @@ on:
 
 permissions:
   actions: read
-  attestations: write
   contents: read
-  id-token: write
 
 concurrency:
   group: pure-base-release
@@ -85,6 +83,11 @@ jobs:
   release:
     name: Publish immutable release
     needs: authorize
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
     environment: release
     concurrency:
       group: pure-base-release-publishing
