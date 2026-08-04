@@ -41,6 +41,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  AUTHORIZED_RELEASE_ACTOR_ID: "50603637"
   GIT_CONFIG_COUNT: 2
   GIT_CONFIG_KEY_0: core.autocrlf
   GIT_CONFIG_VALUE_0: "false"
@@ -51,8 +52,42 @@ env:
   VPM_REPOSITORY: ${{ vars.VPM_REPOSITORY }}
 
 jobs:
+  authorize:
+    name: Verify release initiator
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require Penguin release dispatch
+        shell: pwsh
+        env:
+          ACTOR_LOGIN: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if ($env:EVENT_NAME -cne 'workflow_dispatch') {
+            throw "Release requires workflow_dispatch; received '$env:EVENT_NAME'."
+          }
+          if ($env:ACTOR_ID -cne $env:AUTHORIZED_RELEASE_ACTOR_ID) {
+            throw "GitHub actor '$env:ACTOR_LOGIN' (ID $env:ACTOR_ID) is not authorized to publish Pure Base releases."
+          }
+          if ($env:RUN_ATTEMPT -cne '1') {
+            throw 'Release workflow re-runs are not authorized. Start a new workflow_dispatch and use resume=true when recovering a partial release.'
+          }
+          if ($env:ACTOR_LOGIN -cne $env:TRIGGERING_ACTOR_LOGIN) {
+            throw "The triggering actor '$env:TRIGGERING_ACTOR_LOGIN' does not match the original actor '$env:ACTOR_LOGIN'."
+          }
+
   release:
     name: Publish immutable release
+    needs: authorize
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
     environment: release
     concurrency:
       group: pure-base-release-publishing
@@ -60,6 +95,28 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 480
     steps:
+      - name: Revalidate release initiator
+        shell: pwsh
+        env:
+          ACTOR_LOGIN: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if ($env:EVENT_NAME -cne 'workflow_dispatch') {
+            throw "Release requires workflow_dispatch; received '$env:EVENT_NAME'."
+          }
+          if ($env:ACTOR_ID -cne $env:AUTHORIZED_RELEASE_ACTOR_ID) {
+            throw "GitHub actor '$env:ACTOR_LOGIN' (ID $env:ACTOR_ID) is not authorized to publish Pure Base releases."
+          }
+          if ($env:RUN_ATTEMPT -cne '1') {
+            throw 'Release workflow re-runs are not authorized. Start a new workflow_dispatch and use resume=true when recovering a partial release.'
+          }
+          if ($env:ACTOR_LOGIN -cne $env:TRIGGERING_ACTOR_LOGIN) {
+            throw "The triggering actor '$env:TRIGGERING_ACTOR_LOGIN' does not match the original actor '$env:ACTOR_LOGIN'."
+          }
+
       - name: Initialize artifact roots
         shell: pwsh
         run: |
@@ -142,6 +199,88 @@ jobs:
             -AppSlug $env:APP_SLUG `
             -Resume:$resume `
             -PreflightOnly:$preflightOnly
+
+      - name: Create release authorization predicate
+        if: inputs.preflight_only == false
+        id: release-authorization
+        shell: pwsh
+        env:
+          ACTOR_LOGIN: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_OWNER_ID: ${{ github.repository_owner_id }}
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_REF_NAME: ${{ github.ref_name }}
+          DISPATCH_REF_TYPE: ${{ github.ref_type }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          CONFIRMED_VERSION: ${{ inputs.version }}
+          RESUME_RELEASE: ${{ inputs.resume }}
+        run: |
+          $resume = $env:RESUME_RELEASE -eq 'true'
+          $predicateJson = & "$env:PACKAGE_ROOT/.github/scripts/Get-ReleaseAuthorizationPredicate.ps1" `
+            -ReleaseArtifactRoot $env:RELEASE_ARTIFACT_ROOT `
+            -ActorLogin $env:ACTOR_LOGIN `
+            -ActorId $env:ACTOR_ID `
+            -TriggeringActorLogin $env:TRIGGERING_ACTOR_LOGIN `
+            -EventName $env:EVENT_NAME `
+            -RunId ([long]$env:RUN_ID) `
+            -RunNumber ([long]$env:RUN_NUMBER) `
+            -RunAttempt ([int]$env:RUN_ATTEMPT) `
+            -Repository $env:REPOSITORY `
+            -RepositoryId $env:REPOSITORY_ID `
+            -RepositoryOwner $env:REPOSITORY_OWNER `
+            -RepositoryOwnerId $env:REPOSITORY_OWNER_ID `
+            -DispatchRef $env:DISPATCH_REF `
+            -DispatchRefName $env:DISPATCH_REF_NAME `
+            -DispatchRefType $env:DISPATCH_REF_TYPE `
+            -WorkflowName $env:WORKFLOW_NAME `
+            -WorkflowRef $env:WORKFLOW_REF `
+            -WorkflowSha $env:WORKFLOW_SHA `
+            -ConfirmedVersion $env:CONFIRMED_VERSION `
+            -Resume:$resume | Out-String
+
+          $predicatePath = Join-Path $env:RELEASE_ARTIFACT_ROOT 'release-authorization.json'
+          [IO.File]::WriteAllText(
+            $predicatePath,
+            $predicateJson.TrimEnd() + "`n",
+            [Text.UTF8Encoding]::new($false)
+          )
+          $assetName = "jp.penguin.purebase-$env:CONFIRMED_VERSION.zip"
+          $subjectPath = Join-Path $env:RELEASE_ARTIFACT_ROOT "validation-artifact\validated-package\$assetName"
+          "predicate_path=$predicatePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "subject_path=$subjectPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Attest release authorization
+        if: inputs.preflight_only == false
+        id: release-attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
+        with:
+          subject-path: ${{ steps.release-authorization.outputs.subject_path }}
+          predicate-type: https://github.com/Penguin-Repository/Pure-Base/attestations/release-authorization/v1
+          predicate-path: ${{ steps.release-authorization.outputs.predicate_path }}
+
+      - name: Preserve release attestation bundle
+        if: inputs.preflight_only == false
+        shell: pwsh
+        env:
+          ATTESTATION_BUNDLE_PATH: ${{ steps.release-attestation.outputs.bundle-path }}
+        run: |
+          if (-not (Test-Path -LiteralPath $env:ATTESTATION_BUNDLE_PATH -PathType Leaf)) {
+            throw 'Release authorization attestation bundle is missing.'
+          }
+          Copy-Item `
+            -LiteralPath $env:ATTESTATION_BUNDLE_PATH `
+            -Destination (Join-Path $env:RELEASE_ARTIFACT_ROOT 'release-authorization.attestation.json') `
+            -Force
 
       - name: Upload release evidence
         if: always()
