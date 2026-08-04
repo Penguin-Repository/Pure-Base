@@ -38,6 +38,22 @@ function Assert-Harness {
     }
 }
 
+$preStagedPureBaseMetaPaths = @(
+    '_LocalPackages/jp.penguin.purebase/CHANGELOG.meta',
+    '_LocalPackages/jp.penguin.purebase/Editor.meta',
+    '_LocalPackages/jp.penguin.purebase/LICENSE.meta',
+    '_LocalPackages/jp.penguin.purebase/NOTICE.meta',
+    '_LocalPackages/jp.penguin.purebase/README.md.meta',
+    '_LocalPackages/jp.penguin.purebase/Shaders.meta',
+    '_LocalPackages/jp.penguin.purebase/package.json.meta'
+)
+$expectedFirstBootstrapAddedPaths = @(Get-ExpectedFirstBootstrapAddedPaths)
+$firstBootstrapGeneratedMetaProfile = Get-FirstBootstrapGeneratedMetaProfile
+foreach ($path in $preStagedPureBaseMetaPaths) {
+    Assert-Harness -Condition ($expectedFirstBootstrapAddedPaths -notcontains $path) -Message "Pre-staged PureBase meta remains classified as a first-bootstrap addition: '$path'."
+    Assert-Harness -Condition (-not $firstBootstrapGeneratedMetaProfile.Contains($path)) -Message "Pre-staged PureBase meta remains classified as Unity-generated: '$path'."
+}
+
 function Assert-HarnessSemanticRejection {
     param(
         [Parameter(Mandatory = $true)]$SuccessfulCase,

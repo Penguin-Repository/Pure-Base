@@ -14,9 +14,17 @@
   ],
   "allowedExactPaths": [
     "package.json",
+    "package.json.meta",
     "LICENSE",
+    "LICENSE.meta",
     "NOTICE",
-    "README.md"
+    "NOTICE.meta",
+    "README.md",
+    "README.md.meta",
+    "CHANGELOG",
+    "CHANGELOG.meta",
+    "Editor.meta",
+    "Shaders.meta"
   ],
   "allowedPathPrefixes": [
     "Editor/",
