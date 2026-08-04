@@ -18,6 +18,37 @@ Describe 'Release authorization workflow contract' {
         $workflow = (
             Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/release.yml') -Raw
         ) -replace "`r`n", "`n"
+        $predicateScriptPath = Join-Path $repositoryRoot '.github/scripts/Get-ReleaseAuthorizationPredicate.ps1'
+        $predicateScript = (Get-Content -LiteralPath $predicateScriptPath -Raw) -replace "`r`n", "`n"
+
+        function Invoke-PredicateScript {
+            param(
+                [Parameter(Mandatory)][string]$ArtifactRoot,
+                [Parameter()][switch]$Resume
+            )
+
+            & $predicateScriptPath `
+                -ReleaseArtifactRoot $ArtifactRoot `
+                -ActorLogin 'PenguinDOOM' `
+                -ActorId '50603637' `
+                -TriggeringActorLogin 'PenguinDOOM' `
+                -EventName 'workflow_dispatch' `
+                -RunId 123456 `
+                -RunNumber 42 `
+                -RunAttempt 1 `
+                -Repository 'Penguin-Repository/Pure-Base' `
+                -RepositoryId '1298547445' `
+                -RepositoryOwner 'Penguin-Repository' `
+                -RepositoryOwnerId '311554875' `
+                -DispatchRef 'refs/heads/master' `
+                -DispatchRefName 'master' `
+                -DispatchRefType 'branch' `
+                -WorkflowName 'Release' `
+                -WorkflowRef 'Penguin-Repository/Pure-Base/.github/workflows/release.yml@refs/heads/master' `
+                -WorkflowSha ('a' * 40) `
+                -ConfirmedVersion '0.1.0' `
+                -Resume:$Resume
+        }
     }
 
     It 'authorizes only the stable Penguin GitHub account ID before deployment' {
@@ -31,20 +62,74 @@ Describe 'Release authorization workflow contract' {
         $workflow | Should -Match '(?ms)^  release:\n.*?^    environment: release$'
     }
 
+    It 'revalidates the initiator as the first release job step' {
+        $releaseJob = [regex]::Match($workflow, '(?ms)^  release:\n.*?(?=^  [A-Za-z0-9_-]+:\n|\z)').Value
+        $releaseJob | Should -Match '(?ms)^    steps:\n      - name: Revalidate release initiator\n.*?RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}'
+        $releaseJob | Should -Match '\$env:RUN_ATTEMPT -cne ''1'''
+        $releaseJob.IndexOf('- name: Revalidate release initiator') | Should -BeLessThan $releaseJob.IndexOf('- name: Initialize artifact roots')
+    }
+
     It 'grants attestation permissions only to the release job' {
         $workflow | Should -Match '(?m)^permissions:\n  actions: read\n  contents: read$'
         $workflow | Should -Match '(?ms)^  release:\n.*?^    permissions:\n      actions: read\n      attestations: write\n      contents: read\n      id-token: write$'
         $workflow | Should -Not -Match '(?m)^  contents: write$'
     }
 
-    It 'binds the completed release artifact to the initiating workflow context' {
-        $workflow | Should -Match '\[string\]\$state\.phase -cne ''completed'''
-        $workflow | Should -Match 'Get-FileHash -LiteralPath \$subjectPath -Algorithm SHA256'
-        $workflow | Should -Match 'id = \$env:ACTOR_ID'
-        $workflow | Should -Match 'commitSha = \[string\]\$state\.commitSha'
-        $workflow | Should -Match 'sha = \$env:WORKFLOW_SHA'
-        $workflow | Should -Match 'runAttempt = \[int\]\$env:RUN_ATTEMPT'
-        $workflow | Should -Match "environment = 'release'"
+    It 'extracts predicate construction into a repository-owned script' {
+        $predicateScriptPath | Should -Exist
+        $workflow | Should -Match ([regex]::Escape('& "$env:PACKAGE_ROOT/.github/scripts/Get-ReleaseAuthorizationPredicate.ps1"'))
+        $workflow | Should -Not -Match '\$predicate = \[ordered\]@\{'
+        $predicateScript | Should -Match '(?m)^\[CmdletBinding\(\)\]$'
+        $predicateScript | Should -Match '(?m)^\s*\[Parameter\(Mandatory\)\]\[string\]\$ReleaseArtifactRoot,$'
+        $predicateScript | Should -Match 'Get-FileHash -LiteralPath \$subjectPath -Algorithm SHA256'
+        $predicateScript | Should -Match 'commitSha = \[string\]\$state\.commitSha'
+        $predicateScript | Should -Match 'sha = \$WorkflowSha'
+        $predicateScript | Should -Match 'runAttempt = \$RunAttempt'
+    }
+
+    It 'rejects malformed release state with an explicit parse error' {
+        $artifactRoot = Join-Path $TestDrive 'invalid-state'
+        New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+        [IO.File]::WriteAllText(
+            (Join-Path $artifactRoot 'release-state.json'),
+            '{not-json',
+            [Text.UTF8Encoding]::new($false)
+        )
+
+        { Invoke-PredicateScript -ArtifactRoot $artifactRoot } |
+            Should -Throw -ExpectedMessage 'release-state.json is invalid:*'
+    }
+
+    It 'binds a completed release artifact to the initiating workflow context' {
+        $artifactRoot = Join-Path $TestDrive 'completed-state'
+        $payloadRoot = Join-Path $artifactRoot 'validation-artifact/validated-package'
+        New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
+        $assetPath = Join-Path $payloadRoot 'jp.penguin.purebase-0.1.0.zip'
+        [IO.File]::WriteAllBytes($assetPath, [byte[]](1, 2, 3, 4))
+        $sha256 = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $state = [ordered]@{
+            phase = 'completed'
+            commitSha = 'b' * 40
+            releaseUrl = 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.1.0'
+            vpmRepository = 'Penguin-Repository/Pure-Base-Repository'
+            sha256 = $sha256
+        }
+        [IO.File]::WriteAllText(
+            (Join-Path $artifactRoot 'release-state.json'),
+            ($state | ConvertTo-Json) + "`n",
+            [Text.UTF8Encoding]::new($false)
+        )
+
+        $predicate = Invoke-PredicateScript -ArtifactRoot $artifactRoot -Resume | ConvertFrom-Json
+        $predicate.schemaVersion | Should -Be 1
+        $predicate.authorization.actor.id | Should -Be '50603637'
+        $predicate.release.commitSha | Should -Be ('b' * 40)
+        $predicate.release.artifact.sha256 | Should -Be $sha256
+        $predicate.workflow.sha | Should -Be ('a' * 40)
+        $predicate.workflow.runAttempt | Should -Be 1
+        $predicate.workflow.environment | Should -Be 'release'
+        $predicate.request.resume | Should -BeTrue
+        $predicate.request.preflightOnly | Should -BeFalse
     }
 
     It 'uses a pinned custom attestation and preserves its evidence bundle' {
