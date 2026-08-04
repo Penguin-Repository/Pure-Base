@@ -556,8 +556,7 @@ function Write-ConsumerImmutableManifestBootstrapDelta {
 function Get-ExpectedFirstBootstrapAddedPaths {
     return @(
         'Assets/ReleaseConsumer/Fixtures.meta', 'Assets/ReleaseModules.meta', 'Assets/Resources.meta', 'Assets/Resources/BillingMode.json', 'Assets/Resources/BillingMode.json.meta', 'Packages/packages-lock.json',
-        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',
-        
+        'ProjectSettings/AudioManager.asset', 'ProjectSettings/ClusterInputManager.asset', 'ProjectSettings/DynamicsManager.asset', 'ProjectSettings/EditorBuildSettings.asset', 'ProjectSettings/EditorSettings.asset', 'ProjectSettings/GraphicsSettings.asset', 'ProjectSettings/InputManager.asset', 'ProjectSettings/MemorySettings.asset', 'ProjectSettings/NavMeshAreas.asset', 'ProjectSettings/Physics2DSettings.asset', 'ProjectSettings/PresetManager.asset', 'ProjectSettings/ProjectSettings.asset', 'ProjectSettings/SceneTemplateSettings.json', 'ProjectSettings/TagManager.asset', 'ProjectSettings/TimeManager.asset', 'ProjectSettings/UnityConnectSettings.asset', 'ProjectSettings/VFXManager.asset', 'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset'
     )
 }
 

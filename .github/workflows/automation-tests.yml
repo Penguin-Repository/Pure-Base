@@ -22,42 +22,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: automation-tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  finalize-release-review-fix:
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/include-release-package-metadata'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: Remove dangling array comma
-        shell: python
-        run: |
-          from pathlib import Path
-          path = Path('Tests/Release/Run-PureBaseReleaseValidation.ps1')
-          source = path.read_text(encoding='utf-8')
-          old = "'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset',\n        \n    )"
-          new = "'ProjectSettings/VersionControlSettings.asset', 'ProjectSettings/jp.lilxyzw.shadercore.asset'\n    )"
-          if source.count(old) != 1:
-              raise SystemExit('Expected dangling-comma sequence was not found exactly once.')
-          path.write_text(source.replace(old, new), encoding='utf-8', newline='\n')
-      - name: Restore workflow and commit
-        shell: bash
-        run: |
-          git show origin/master:.github/workflows/automation-tests.yml > .github/workflows/automation-tests.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add Tests/Release/Run-PureBaseReleaseValidation.ps1 .github/workflows/automation-tests.yml
-          git commit -m 'Fix release bootstrap metadata array syntax'
-          git push origin HEAD:agent/include-release-package-metadata
-
   pester:
     name: Pester 5.9.0
     runs-on: ubuntu-latest
