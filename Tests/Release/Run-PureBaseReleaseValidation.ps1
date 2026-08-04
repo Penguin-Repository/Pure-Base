@@ -577,6 +577,7 @@ function Get-FirstBootstrapGeneratedMetaProfile {
 }
 
 
+
 function Get-FirstBootstrapPackageProfile {
     $manifestDependencies = [ordered]@{}
     foreach ($entry in @'
