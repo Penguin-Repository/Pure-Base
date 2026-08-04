@@ -31,16 +31,14 @@ Describe 'Release authorization workflow contract' {
         $workflow | Should -Match '(?ms)^  release:\n.*?^    environment: release$'
     }
 
-    It 'grants only the additional permissions required for Sigstore attestation' {
-        $workflow | Should -Match '(?m)^  actions: read$'
-        $workflow | Should -Match '(?m)^  attestations: write$'
-        $workflow | Should -Match '(?m)^  contents: read$'
-        $workflow | Should -Match '(?m)^  id-token: write$'
+    It 'grants attestation permissions only to the release job' {
+        $workflow | Should -Match '(?m)^permissions:\n  actions: read\n  contents: read$'
+        $workflow | Should -Match '(?ms)^  release:\n.*?^    permissions:\n      actions: read\n      attestations: write\n      contents: read\n      id-token: write$'
         $workflow | Should -Not -Match '(?m)^  contents: write$'
     }
 
     It 'binds the completed release artifact to the initiating workflow context' {
-        $workflow | Should -Match "\[string\]\$state\.phase -cne 'completed'"
+        $workflow | Should -Match '\[string\]\$state\.phase -cne ''completed'''
         $workflow | Should -Match 'Get-FileHash -LiteralPath \$subjectPath -Algorithm SHA256'
         $workflow | Should -Match 'id = \$env:ACTOR_ID'
         $workflow | Should -Match 'commitSha = \[string\]\$state\.commitSha'
