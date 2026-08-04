@@ -95,6 +95,28 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 480
     steps:
+      - name: Revalidate release initiator
+        shell: pwsh
+        env:
+          ACTOR_LOGIN: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if ($env:EVENT_NAME -cne 'workflow_dispatch') {
+            throw "Release requires workflow_dispatch; received '$env:EVENT_NAME'."
+          }
+          if ($env:ACTOR_ID -cne $env:AUTHORIZED_RELEASE_ACTOR_ID) {
+            throw "GitHub actor '$env:ACTOR_LOGIN' (ID $env:ACTOR_ID) is not authorized to publish Pure Base releases."
+          }
+          if ($env:RUN_ATTEMPT -cne '1') {
+            throw 'Release workflow re-runs are not authorized. Start a new workflow_dispatch and use resume=true when recovering a partial release.'
+          }
+          if ($env:ACTOR_LOGIN -cne $env:TRIGGERING_ACTOR_LOGIN) {
+            throw "The triggering actor '$env:TRIGGERING_ACTOR_LOGIN' does not match the original actor '$env:ACTOR_LOGIN'."
+          }
+
       - name: Initialize artifact roots
         shell: pwsh
         run: |
@@ -203,76 +225,37 @@ jobs:
           CONFIRMED_VERSION: ${{ inputs.version }}
           RESUME_RELEASE: ${{ inputs.resume }}
         run: |
-          $statePath = Join-Path $env:RELEASE_ARTIFACT_ROOT 'release-state.json'
-          if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
-            throw 'Release completion state is missing.'
-          }
-          $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-          if ([string]$state.phase -cne 'completed') {
-            throw "Release state is '$($state.phase)' instead of 'completed'."
-          }
-
-          $assetName = "jp.penguin.purebase-$env:CONFIRMED_VERSION.zip"
-          $subjectPath = Join-Path $env:RELEASE_ARTIFACT_ROOT "validation-artifact\validated-package\$assetName"
-          if (-not (Test-Path -LiteralPath $subjectPath -PathType Leaf)) {
-            throw "Validated release artifact '$subjectPath' is missing."
-          }
-          $actualSha256 = (Get-FileHash -LiteralPath $subjectPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expectedSha256 = ([string]$state.sha256).ToLowerInvariant()
-          if ($actualSha256 -cne $expectedSha256) {
-            throw "Validated release artifact SHA-256 '$actualSha256' does not match release state '$expectedSha256'."
-          }
-
-          $predicate = [ordered]@{
-            schemaVersion = 1
-            authorization = [ordered]@{
-              method = 'github-actions-workflow-dispatch'
-              actor = [ordered]@{
-                login = $env:ACTOR_LOGIN
-                id = $env:ACTOR_ID
-              }
-              triggeringActor = $env:TRIGGERING_ACTOR_LOGIN
-              eventName = $env:EVENT_NAME
-            }
-            release = [ordered]@{
-              repository = $env:REPOSITORY
-              repositoryId = $env:REPOSITORY_ID
-              repositoryOwner = $env:REPOSITORY_OWNER
-              repositoryOwnerId = $env:REPOSITORY_OWNER_ID
-              version = $env:CONFIRMED_VERSION
-              commitSha = [string]$state.commitSha
-              releaseUrl = [string]$state.releaseUrl
-              vpmRepository = [string]$state.vpmRepository
-              artifact = [ordered]@{
-                name = $assetName
-                sha256 = $actualSha256
-              }
-            }
-            workflow = [ordered]@{
-              name = $env:WORKFLOW_NAME
-              ref = $env:WORKFLOW_REF
-              sha = $env:WORKFLOW_SHA
-              runId = [long]$env:RUN_ID
-              runNumber = [long]$env:RUN_NUMBER
-              runAttempt = [int]$env:RUN_ATTEMPT
-              environment = 'release'
-            }
-            request = [ordered]@{
-              ref = $env:DISPATCH_REF
-              refName = $env:DISPATCH_REF_NAME
-              refType = $env:DISPATCH_REF_TYPE
-              resume = $env:RESUME_RELEASE -eq 'true'
-              preflightOnly = $false
-            }
-            recordedAtUtc = [DateTime]::UtcNow.ToString('o')
-          }
+          $resume = $env:RESUME_RELEASE -eq 'true'
+          $predicateJson = & "$env:PACKAGE_ROOT/.github/scripts/Get-ReleaseAuthorizationPredicate.ps1" `
+            -ReleaseArtifactRoot $env:RELEASE_ARTIFACT_ROOT `
+            -ActorLogin $env:ACTOR_LOGIN `
+            -ActorId $env:ACTOR_ID `
+            -TriggeringActorLogin $env:TRIGGERING_ACTOR_LOGIN `
+            -EventName $env:EVENT_NAME `
+            -RunId ([long]$env:RUN_ID) `
+            -RunNumber ([long]$env:RUN_NUMBER) `
+            -RunAttempt ([int]$env:RUN_ATTEMPT) `
+            -Repository $env:REPOSITORY `
+            -RepositoryId $env:REPOSITORY_ID `
+            -RepositoryOwner $env:REPOSITORY_OWNER `
+            -RepositoryOwnerId $env:REPOSITORY_OWNER_ID `
+            -DispatchRef $env:DISPATCH_REF `
+            -DispatchRefName $env:DISPATCH_REF_NAME `
+            -DispatchRefType $env:DISPATCH_REF_TYPE `
+            -WorkflowName $env:WORKFLOW_NAME `
+            -WorkflowRef $env:WORKFLOW_REF `
+            -WorkflowSha $env:WORKFLOW_SHA `
+            -ConfirmedVersion $env:CONFIRMED_VERSION `
+            -Resume:$resume | Out-String
 
           $predicatePath = Join-Path $env:RELEASE_ARTIFACT_ROOT 'release-authorization.json'
           [IO.File]::WriteAllText(
             $predicatePath,
-            ($predicate | ConvertTo-Json -Depth 8) + "`n",
+            $predicateJson.TrimEnd() + "`n",
             [Text.UTF8Encoding]::new($false)
           )
+          $assetName = "jp.penguin.purebase-$env:CONFIRMED_VERSION.zip"
+          $subjectPath = Join-Path $env:RELEASE_ARTIFACT_ROOT "validation-artifact\validated-package\$assetName"
           "predicate_path=$predicatePath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "subject_path=$subjectPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
