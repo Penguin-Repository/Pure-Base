@@ -345,5 +345,5 @@ jobs:
           username: "Pure Base CI"
           content: >-
             ${{ steps.workflow_status.outputs.status == 'Success'
-                && '@here Release completed successfully. And now available on GitHub and VPM.'
+                && '@here Release completed successfully, and now available on GitHub and VPM.'
                 || '' }}
