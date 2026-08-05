@@ -89,15 +89,15 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     __SC_PHASE_add__
 
     sd.col.rgb += sd.add + sd.postadd;
-
-    __SC_PHASE_postpixel__
-
     sd.col.a = 1;
     #if defined(UNITY_PASS_FORWARDADD)
     UNITY_APPLY_FOG_COLOR(input.fogCoord, sd.col, fixed4(0, 0, 0, 0));
     #else
     UNITY_APPLY_FOG(input.fogCoord, sd.col);
     #endif
+
+    __SC_PHASE_postpixel__
+
     return sd.col;
 }
 

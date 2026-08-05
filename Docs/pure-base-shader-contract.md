@@ -48,10 +48,10 @@ Every product shader has the fixed tags `RenderType=TransparentCutout` and `Queu
 | --- | --- |
 | `ForwardBase` | Builds the normal surface and lighting result. PBR and Hybrid own Unity Standard indirect GI and reflection-probe evaluation here. |
 | `ForwardAdd` | Additional direct-light contribution only, with black fog semantics. PBR and Hybrid must not duplicate indirect GI or reflection-probe lighting here. |
-| `ShadowCaster` | Retains fixed Cutout coverage for shadow casting. |
-| `Meta` | Retains fixed Cutout coverage for Meta/lightmap workflows. This is a dedicated pass and does not execute the standard phase ABI. |
+| `ShadowCaster` | Applies Cutout coverage after the Shader-Core `base` phase, so module changes to `sd.albedoAlpha.a` affect casting. |
+| `Meta` | Uses the host base-texture Cutout coverage for Meta/lightmap workflows. This dedicated pass does not execute the standard phase ABI. |
 
-The fixed Cutout contract is not transparent blending support. The `ForwardAdd` additive blend state represents an additional direct-light pass, not a transparent material mode.
+The Cutout contract is not transparent blending support. The `ForwardAdd` additive blend state represents an additional direct-light pass, not a transparent material mode.
 
 ## Public Property ABI
 
@@ -85,7 +85,9 @@ The standard insertion points are shared by the product hosts in this order:
 
 `morph` -> `postvertex` -> `base` -> `light` -> `customlight` -> `modifylight` -> `shade` -> `reflection` -> `add` -> `postpixel`
 
-External modules may target these standard phases. `Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, and `ShadowCaster` and `Meta` preserve Cutout coverage.
+External modules may target these standard phases. The `base` phase runs before Cutout coverage is finalized, and its `sd.albedoAlpha` result is saturated before the alpha test. The host finalizes output alpha and applies fog before `postpixel`; no host color mutation occurs after `postpixel` before returning the fragment result.
+
+`Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, `ShadowCaster` honors base-phase Cutout changes, and `Meta` retains host-owned Cutout coverage.
 
 ## Model Semantics
 
