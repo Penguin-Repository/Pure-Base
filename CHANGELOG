@@ -2,4 +2,18 @@
 Ver. 0.1.0
 https://github.com/Penguin-Repository/Pure-Base/releases#release-0.1.0
 https://github.com/Penguin-Repository/Pure-Base/milestone/1?closed=1
-- First release of PureBase.
+
+- First stable release of PureBase.
+- Added four Shader-Core-compatible base shaders for the Built-in Render Pipeline:
+  - `PureBase/Unlit`
+  - `PureBase/Toon`
+  - `PureBase/PBR`
+  - `PureBase/Hybrid`
+- Added common material controls for base texture and color, Cutout threshold, culling, and normal mapping.
+- Added metallic and roughness controls for the PBR and Hybrid shaders.
+- Added Shader-Core phase integration with the documented phase variables and ordering, including module-adjusted Cutout behavior and final `postpixel` processing.
+- Preserved HDR RGB output from Shader-Core base-phase modules while clamping Cutout alpha only.
+- Added support for Unity 2022.3 and Shader-Core 0.1.9 through the VPM package `jp.penguin.purebase`.
+- Added English and Japanese user guides and technical documentation.
+- Added reproducible release ZIP generation, exact-commit Unity validation, SHA-256 release evidence, and release authorization attestation.
+- Included Unity metadata, license notices, package metadata, README, and this changelog in the distributed package.
