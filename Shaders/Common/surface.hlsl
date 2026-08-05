@@ -23,6 +23,7 @@
 void SCInitializeSurface(inout SCShadingData sd, out half coverage, SCVertexData vertex)
 {
     sd.albedoAlpha = SCSample(_BaseTexture, sampler_BaseTexture, vertex.uv[0].xy * _BaseTexture_ST.xy + _BaseTexture_ST.zw) * _BaseColor;
+    sd.col = half4(0, 0, 0, 0);
     sd.mask = SCSample(_SharedMask, sampler_BaseTexture, vertex.uv[0].xy * _BaseTexture_ST.xy + _BaseTexture_ST.zw);
     sd.uv = vertex.uv[0].xy * _BaseTexture_ST.xy + _BaseTexture_ST.zw;
     sd.T = vertex.T;

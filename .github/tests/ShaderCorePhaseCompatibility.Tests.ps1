@@ -24,14 +24,20 @@ Describe 'Shader-Core phase compatibility' {
         $fragmentHost = Get-Content -LiteralPath $fragmentHostPath -Raw
     }
 
-    It 'derives Cutout coverage from the base-phase result' {
+    It 'fully initializes shading data before model callbacks and derives Cutout coverage from base' {
+        $initialColorIndex = $surface.IndexOf('sd.col = half4(0, 0, 0, 0);', [StringComparison]::Ordinal)
+        $modelNormalIndex = $surface.IndexOf('SCModelInitializeTangentNormal(sd);', [StringComparison]::Ordinal)
         $baseIndex = $surface.IndexOf('__SC_PHASE_base__', [StringComparison]::Ordinal)
         $saturateIndex = $surface.IndexOf('sd.albedoAlpha = saturate(sd.albedoAlpha);', [StringComparison]::Ordinal)
+        $finalColorIndex = $surface.IndexOf('sd.col = sd.albedoAlpha;', [StringComparison]::Ordinal)
         $coverageIndex = $surface.IndexOf('coverage = sd.albedoAlpha.a;', [StringComparison]::Ordinal)
 
-        ($baseIndex -ge 0) | Should -BeTrue
+        ($initialColorIndex -ge 0) | Should -BeTrue
+        ($modelNormalIndex -gt $initialColorIndex) | Should -BeTrue
+        ($baseIndex -gt $modelNormalIndex) | Should -BeTrue
         ($saturateIndex -gt $baseIndex) | Should -BeTrue
-        ($coverageIndex -gt $saturateIndex) | Should -BeTrue
+        ($finalColorIndex -gt $saturateIndex) | Should -BeTrue
+        ($coverageIndex -gt $finalColorIndex) | Should -BeTrue
     }
 
     It 'keeps postpixel as the final color mutation hook' {
