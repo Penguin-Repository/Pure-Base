@@ -20,24 +20,24 @@
 #define PUREBASE_BIRP_HOST_INCLUDED
 
 /// <summary>Accumulates a BIRP light after the Shader-Core per-light phase.</summary>
-void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData shadingData, inout SCCustomData customData, SCVertexData vertex, SCLightData light)
+void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, SCLightData light)
 {
     light.direction = SCModelSelectMainLightDirection(vertex, light.direction);
-    customData.mainLightDirection = light.direction;
+    cd.mainLightDirection = light.direction;
     if (SCModelUsesIsolatedMainLightColor())
-    light.color = customData.mainLightColor * customData.mainLightAttenuation;
+    light.color = cd.mainLightColor * cd.mainLightAttenuation;
 
     __SC_PHASE_light__
 
     lightSum.direction += light.direction * dot(light.color, half3(0.333333, 0.333333, 0.333333));
-    lightSum.color += light.color * SCModelEvaluateDirectFactor(shadingData, light);
+    lightSum.color += light.color * SCModelEvaluateDirectFactor(sd, light);
 }
 
 /// <summary>Publishes the aggregate light direction and applies the selected model's ambient SH response.</summary>
-void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 environment, inout SCShadingData shadingData, inout SCCustomData customData, SCVertexData vertex, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
+void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 env, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
-    shadingData.L = dot(lightSum.direction, lightSum.direction) == 0 ? half3(0, 0, 0) : normalize(lightSum.direction);
-    environment += SCModelEvaluateAmbient(shadingData, shAr, shAg, shAb, shBr, shBg, shBb, shC);
+    sd.L = dot(lightSum.direction, lightSum.direction) == 0 ? half3(0, 0, 0) : normalize(lightSum.direction);
+    env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);
 }
 
 #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp_lighting.hlsl"
@@ -52,34 +52,34 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     SCPositionAndDirection head = SCGetHeadData();
     SCPositionAndDirection headBone = SCGetHeadBoneData();
     SCVertexData vertex = FromPixelInput(input, camera, head, headBone, SCTangentScale(), isFront);
-    SCCustomData customData = (SCCustomData)0;
-    SCShadingData shadingData;
+    SCCustomData cd = (SCCustomData)0;
+    SCShadingData sd;
     half coverage;
-    SCInitializeSurface(shadingData, coverage, vertex);
+    SCInitializeSurface(sd, coverage, vertex);
     SCClipCutoutCoverage(coverage);
-    SCBuildWorldTangentBasis(shadingData, vertex);
+    SCBuildWorldTangentBasis(sd, vertex);
 
     SCLightData lightSum = (SCLightData)0;
-    half3 environment = half3(0, 0, 0);
+    half3 env = half3(0, 0, 0);
     UNITY_LIGHT_ATTENUATION(mainLightAttenuation, input, vertex.position);
-    customData.mainLightColor = _LightColor0.rgb;
-    customData.mainLightAttenuation = saturate(mainLightAttenuation);
-    customData.mainLightDirection = half3(0, 0, 0);
-    SCCalculateAllLights(lightSum, environment, shadingData, customData, vertex, input, SCModelSelectVertexLighting(SCVertexLighting(vertex.position)));
-    environment = SCModelSelectEnvironmentLighting(environment);
+    cd.mainLightColor = _LightColor0.rgb;
+    cd.mainLightAttenuation = saturate(mainLightAttenuation);
+    cd.mainLightDirection = half3(0, 0, 0);
+    SCCalculateAllLights(lightSum, env, sd, cd, vertex, input, SCModelSelectVertexLighting(SCVertexLighting(vertex.position)));
+    env = SCModelSelectEnvironmentLighting(env);
 
     #if defined(UNITY_PASS_FORWARDADD)
-    shadingData.lightColor = lightSum.color;
+    sd.lightColor = lightSum.color;
     #else
-    shadingData.lightColor = lightSum.color + environment;
+    sd.lightColor = lightSum.color + env;
     #endif
 
     __SC_PHASE_modifylight__
 
     #if defined(UNITY_PASS_FORWARDADD)
-    shadingData.col = SCModelAddSurfaceColor(shadingData, customData, vertex);
+    sd.col = SCModelAddSurfaceColor(sd, cd, vertex);
     #else
-    shadingData.col = SCModelBaseSurfaceColor(shadingData, customData, vertex);
+    sd.col = SCModelBaseSurfaceColor(sd, cd, vertex);
     #endif
 
     __SC_PHASE_shade__
@@ -88,17 +88,17 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 
     __SC_PHASE_add__
 
-    shadingData.col.rgb += shadingData.add + shadingData.postadd;
+    sd.col.rgb += sd.add + sd.postadd;
 
     __SC_PHASE_postpixel__
 
-    shadingData.col.a = 1;
+    sd.col.a = 1;
     #if defined(UNITY_PASS_FORWARDADD)
-    UNITY_APPLY_FOG_COLOR(input.fogCoord, shadingData.col, fixed4(0, 0, 0, 0));
+    UNITY_APPLY_FOG_COLOR(input.fogCoord, sd.col, fixed4(0, 0, 0, 0));
     #else
-    UNITY_APPLY_FOG(input.fogCoord, shadingData.col);
+    UNITY_APPLY_FOG(input.fogCoord, sd.col);
     #endif
-    return shadingData.col;
+    return sd.col;
 }
 
 #endif
