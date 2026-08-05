@@ -120,7 +120,7 @@ Pure Base と Penguin は金銭的な支援を受け付けていません。不�
 
 ---
 
-Enjoy your unity!
+Enjoy your Unity!
 
 <!--
 
