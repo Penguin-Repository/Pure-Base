@@ -45,9 +45,9 @@ void SCPixelClip(v2f input, bool isFront, float bitangentDirection)
     SCPositionAndDirection head = SCGetHeadData();
     SCPositionAndDirection headBone = SCGetHeadBoneData();
     SCVertexData vertex = FromPixelInput(input, camera, head, headBone, bitangentDirection, isFront);
-    SCShadingData shadingData;
+    SCShadingData sd;
     half coverage;
-    SCInitializeSurface(shadingData, coverage, vertex);
+    SCInitializeSurface(sd, coverage, vertex);
     SCClipCutoutCoverage(coverage);
 }
 
