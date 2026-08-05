@@ -18,6 +18,16 @@ limitations under the License.
 
 Language: [日本語](README.ja.md)
 
+![GitHub Total Downloads](https://img.shields.io/github/downloads/Penguin-Repository/Pure-Base/total?label=GitHub%20Release%20downloads)
+![Downloads latest](https://img.shields.io/github/downloads/Penguin-Repository/Pure-Base/latest/total)
+
+[![Automation tests](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/automation-tests.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/automation-tests.yml)
+[![CodeQL](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/codeql.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/codeql.yml)
+[![Daily](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/daily.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/daily.yml)
+
+[![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
+[![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
+
 Pure Base is a Unity package that provides four base shaders for Shader-Core.
 
 Instead of including a large collection of optional effects, it provides a small and understandable foundation that can be extended with Shader-Core modules when needed.

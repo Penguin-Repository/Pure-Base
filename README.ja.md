@@ -18,6 +18,16 @@ limitations under the License.
 
 言語: [English](README.md)
 
+![GitHub Total Downloads](https://img.shields.io/github/downloads/Penguin-Repository/Pure-Base/total?label=GitHub%20Release%20downloads)
+![Downloads latest](https://img.shields.io/github/downloads/Penguin-Repository/Pure-Base/latest/total)
+
+[![Automation tests](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/automation-tests.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/automation-tests.yml)
+[![CodeQL](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/codeql.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/codeql.yml)
+[![Daily](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/daily.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/daily.yml)
+
+[![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
+[![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
+
 Pure Base は、Shader-Core で使える4種類の基本シェーダーをまとめた Unity 向けパッケージです。
 
 複雑な機能を最初から大量に備えるのではなく、必要な機能を Shader-Core の追加モジュールで組み合わせて使うための、軽くて分かりやすい土台を目指しています。
