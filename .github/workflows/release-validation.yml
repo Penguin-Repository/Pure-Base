@@ -309,6 +309,8 @@ jobs:
     permissions: {}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
     steps:
       - name: Resolve workflow status
         id: workflow_status
@@ -329,9 +331,11 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Report workflow status to Discord
+        if: ${{ env.DISCORD_WEBHOOK != '' }}
+        continue-on-error: true
         uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1.16.0
         with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          webhook: ${{ env.DISCORD_WEBHOOK }}
           status: ${{ steps.workflow_status.outputs.status }}
           title: "Release Validation"
           description: >-
