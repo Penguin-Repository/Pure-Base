@@ -301,6 +301,8 @@ jobs:
     permissions: {}
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
     steps:
       - name: Resolve workflow status
         id: workflow_status
@@ -321,14 +323,19 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Report workflow status to Discord
+        if: ${{ env.DISCORD_WEBHOOK != '' }}
+        continue-on-error: true
         uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1.16.0
         with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          webhook: ${{ env.DISCORD_WEBHOOK }}
           status: ${{ steps.workflow_status.outputs.status }}
           title: "Release"
           description: |
             Build and deploy to GitHub Releases and VPM repository
-            ${{  steps.workflow_status.outputs.status == 'Success'
+            ${{ steps.workflow_status.outputs.status == 'Success'
+                && inputs.preflight_only == true
+                && 'Release preflight completed successfully. No release was published.'
+                || steps.workflow_status.outputs.status == 'Success'
                 && 'Release completed successfully.'
                 || steps.workflow_status.outputs.status == 'Failure'
                 && 'Release failed. Check the logs for details.'
@@ -336,14 +343,17 @@ jobs:
                 && 'Release was cancelled.'
                 || '' }}
             ${{ steps.workflow_status.outputs.status == 'Success'
+                && inputs.preflight_only == false
                 && 'The release is now available on GitHub and VPM.'
                 || '' }}
             ${{ steps.workflow_status.outputs.status == 'Success'
-                && '${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.version }}'
+                && inputs.preflight_only == false
+                && format('{0}/{1}/releases/tag/{2}', github.server_url, github.repository, inputs.version)
                 || '' }}
           url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           username: "Pure Base CI"
           content: >-
             ${{ steps.workflow_status.outputs.status == 'Success'
-                && '@here Release completed successfully, and now available on GitHub and VPM.'
+                && inputs.preflight_only == false
+                && '@here Release completed successfully and is now available on GitHub and VPM.'
                 || '' }}
