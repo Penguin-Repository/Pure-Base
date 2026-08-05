@@ -19,9 +19,9 @@ Describe 'Shader-Core phase compatibility' {
     BeforeAll {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $surfacePath = Join-Path $repositoryRoot 'Shaders/Common/surface.hlsl'
-        $hostPath = Join-Path $repositoryRoot 'Shaders/Common/birp_host.hlsl'
+        $fragmentHostPath = Join-Path $repositoryRoot 'Shaders/Common/birp_host.hlsl'
         $surface = Get-Content -LiteralPath $surfacePath -Raw
-        $host = Get-Content -LiteralPath $hostPath -Raw
+        $fragmentHost = Get-Content -LiteralPath $fragmentHostPath -Raw
     }
 
     It 'derives Cutout coverage from the base-phase result' {
@@ -35,12 +35,13 @@ Describe 'Shader-Core phase compatibility' {
     }
 
     It 'keeps postpixel as the final color mutation hook' {
-        $postpixelIndex = $host.IndexOf('__SC_PHASE_postpixel__', [StringComparison]::Ordinal)
-        $returnIndex = $host.IndexOf('return sd.col;', $postpixelIndex, [StringComparison]::Ordinal)
-        $tail = $host.Substring($postpixelIndex, $returnIndex - $postpixelIndex)
+        $postpixelIndex = $fragmentHost.IndexOf('__SC_PHASE_postpixel__', [StringComparison]::Ordinal)
+        $returnIndex = $fragmentHost.IndexOf('return sd.col;', $postpixelIndex, [StringComparison]::Ordinal)
 
         $postpixelIndex | Should -BeGreaterThanOrEqual 0
         $returnIndex | Should -BeGreaterThan $postpixelIndex
+
+        $tail = $fragmentHost.Substring($postpixelIndex, $returnIndex - $postpixelIndex)
         $tail | Should -Not -Match 'sd\.col\s*='
         $tail | Should -Not -Match 'sd\.col\.[rgba]{1,4}\s*='
         $tail | Should -Not -Match 'UNITY_APPLY_FOG'
