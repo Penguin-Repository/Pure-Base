@@ -17,4 +17,4 @@
 // Defines the Toon shade-phase runtime color signal.
 #define PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_SHADE 1
 
-shadingData.col.rgb += half3(0.25, 0.125, 0.0625);
+sd.col.rgb += half3(0.25, 0.125, 0.0625);

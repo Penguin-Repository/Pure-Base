@@ -17,4 +17,4 @@
 // Defines the Toon modifylight-phase runtime color signal.
 #define PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_MODIFYLIGHT 1
 
-shadingData.lightColor += half3(0, 0, 0.25);
+sd.lightColor += half3(0, 0, 0.25);

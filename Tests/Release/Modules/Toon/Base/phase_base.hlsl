@@ -17,4 +17,4 @@
 // Defines the Toon base-phase runtime color signal.
 #define PUREBASE_TOON_PRODUCT_PHASE_SENTINEL_BASE 1
 
-shadingData.albedoAlpha.rgb += half3(0.25, 0, 0);
+sd.albedoAlpha.rgb += half3(0.25, 0, 0);
