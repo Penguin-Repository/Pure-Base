@@ -51,11 +51,11 @@ Describe 'Shader-Core phase compatibility' {
         $surface | Should -Not -Match 'sd\.albedoAlpha\s*=\s*saturate\s*\(\s*sd\.albedoAlpha\s*\)\s*;?'
     }
 
-    It 'uses Shader-Core 0.1.9 phase bindings in release module fixtures' {
+    It 'uses current Shader-Core phase bindings in release module fixtures' {
         ($releaseModuleSources.Count -gt 0) | Should -BeTrue
         foreach ($moduleSource in $releaseModuleSources) {
-            $moduleSource.Source | Should -Not -Match '\bshadingData\.' -Because $moduleSource.Path
-            $moduleSource.Source | Should -Not -Match '\bcustomData\.' -Because $moduleSource.Path
+            $moduleSource.Source | Should -Not -Match '\bshadingData\s*\.' -Because $moduleSource.Path
+            $moduleSource.Source | Should -Not -Match '\bcustomData\s*\.' -Because $moduleSource.Path
         }
     }
 
