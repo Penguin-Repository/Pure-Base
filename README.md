@@ -115,3 +115,7 @@ Implementation details, release operations, compatibility contracts, and validat
 Pure Base is released under the Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 Pure Base and Penguin do not accept financial support. Bug reports, suggestions, pull requests, code, and patches are welcome.
+
+---
+
+Enjoy your unity!
