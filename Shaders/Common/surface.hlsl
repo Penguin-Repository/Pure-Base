@@ -43,7 +43,7 @@ void SCInitializeSurface(inout SCShadingData sd, out half coverage, SCVertexData
 
     __SC_PHASE_base__
 
-    sd.albedoAlpha = saturate(sd.albedoAlpha);
+    sd.albedoAlpha.a = saturate(sd.albedoAlpha.a);
     sd.col = sd.albedoAlpha;
     coverage = sd.albedoAlpha.a;
 }

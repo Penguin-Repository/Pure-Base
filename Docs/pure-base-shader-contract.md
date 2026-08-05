@@ -85,7 +85,7 @@ The standard insertion points are shared by the product hosts in this order:
 
 `morph` -> `postvertex` -> `base` -> `light` -> `customlight` -> `modifylight` -> `shade` -> `reflection` -> `add` -> `postpixel`
 
-External modules may target these standard phases. The `base` phase runs before Cutout coverage is finalized, and its `sd.albedoAlpha` result is saturated before the alpha test. The host finalizes output alpha and applies fog before `postpixel`; no host color mutation occurs after `postpixel` before returning the fragment result.
+External modules may target these standard phases. The `base` phase runs before Cutout coverage is finalized. The host saturates only `sd.albedoAlpha.a` before the alpha test; `sd.albedoAlpha.rgb` remains unclamped so HDR base color and module color adjustments are preserved. The host finalizes output alpha and applies fog before `postpixel`; no host color mutation occurs after `postpixel` before returning the fragment result.
 
 `Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, `ShadowCaster` honors base-phase Cutout changes, and `Meta` retains host-owned Cutout coverage.
 
