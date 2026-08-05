@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Defines deterministic Shader-Core surface initialization and immutable Cutout coverage.
+// Defines deterministic Shader-Core surface initialization and module-compatible Cutout coverage.
 
 #ifndef PUREBASE_SURFACE_INCLUDED
 #define PUREBASE_SURFACE_INCLUDED
@@ -23,7 +23,6 @@
 void SCInitializeSurface(inout SCShadingData sd, out half coverage, SCVertexData vertex)
 {
     sd.albedoAlpha = SCSample(_BaseTexture, sampler_BaseTexture, vertex.uv[0].xy * _BaseTexture_ST.xy + _BaseTexture_ST.zw) * _BaseColor;
-    coverage = sd.albedoAlpha.a;
     sd.col = half4(0, 0, 0, 0);
     sd.mask = SCSample(_SharedMask, sampler_BaseTexture, vertex.uv[0].xy * _BaseTexture_ST.xy + _BaseTexture_ST.zw);
     sd.uv = vertex.uv[0].xy * _BaseTexture_ST.xy + _BaseTexture_ST.zw;
@@ -43,6 +42,10 @@ void SCInitializeSurface(inout SCShadingData sd, out half coverage, SCVertexData
     SCModelInitializeTangentNormal(sd);
 
     __SC_PHASE_base__
+
+    sd.albedoAlpha = saturate(sd.albedoAlpha);
+    sd.col = sd.albedoAlpha;
+    coverage = sd.albedoAlpha.a;
 }
 
 /// <summary>Converts base-phase tangent-space normals into a valid world-space tangent basis.</summary>
@@ -54,7 +57,7 @@ void SCBuildWorldTangentBasis(inout SCShadingData sd, SCVertexData vertex)
     sd.B = normalize(cross(sd.N_detail, sd.T) * vertex.crossDirection * SCTangentScale());
 }
 
-/// <summary>Discards pixels below the fixed Cutout coverage threshold.</summary>
+/// <summary>Discards pixels below the module-adjusted Cutout coverage threshold.</summary>
 void SCClipCutoutCoverage(half coverage)
 {
     clip(coverage - _Cutoff);
