@@ -38,7 +38,7 @@ Describe 'Shader-Core phase compatibility' {
         ($alphaSaturateIndex -gt $baseIndex) | Should -BeTrue
         ($finalColorIndex -gt $alphaSaturateIndex) | Should -BeTrue
         ($coverageIndex -gt $finalColorIndex) | Should -BeTrue
-        $surface | Should -Not -Match 'sd\.albedoAlpha\s*=\s*saturate\(sd\.albedoAlpha\)'
+        $surface | Should -Not -Match 'sd\.albedoAlpha\s*=\s*saturate\s*\(\s*sd\.albedoAlpha\s*\)\s*;?'
     }
 
     It 'keeps postpixel as the final color mutation hook' {
