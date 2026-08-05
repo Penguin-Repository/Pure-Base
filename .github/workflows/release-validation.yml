@@ -299,3 +299,37 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+  notify:
+    name: Notify Discord
+    if: ${{ always() }}
+    needs:
+      - unity-editor-cache
+      - validate
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve workflow status
+        id: workflow_status
+        shell: bash
+        env:
+          CACHE_RESULT: ${{ needs.unity-editor-cache.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+        run: |
+          if [[ "$CACHE_RESULT" == "failure" || "$VALIDATE_RESULT" == "failure" ]]; then
+            status=Failure
+          elif [[ "$CACHE_RESULT" == "cancelled" || "$VALIDATE_RESULT" == "cancelled" ]]; then
+            status=Cancelled
+          elif [[ "$CACHE_RESULT" == "skipped" || "$VALIDATE_RESULT" == "skipped" ]]; then
+            status=Failure
+          else
+            status=Success
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Report workflow status to Discord
+        uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: ${{ steps.workflow_status.outputs.status }}
