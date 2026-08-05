@@ -29,17 +29,17 @@ Describe 'Shader-Core phase compatibility' {
         $saturateIndex = $surface.IndexOf('sd.albedoAlpha = saturate(sd.albedoAlpha);', [StringComparison]::Ordinal)
         $coverageIndex = $surface.IndexOf('coverage = sd.albedoAlpha.a;', [StringComparison]::Ordinal)
 
-        $baseIndex | Should -BeGreaterThanOrEqual 0
-        $saturateIndex | Should -BeGreaterThan $baseIndex
-        $coverageIndex | Should -BeGreaterThan $saturateIndex
+        ($baseIndex -ge 0) | Should -BeTrue
+        ($saturateIndex -gt $baseIndex) | Should -BeTrue
+        ($coverageIndex -gt $saturateIndex) | Should -BeTrue
     }
 
     It 'keeps postpixel as the final color mutation hook' {
         $postpixelIndex = $fragmentHost.IndexOf('__SC_PHASE_postpixel__', [StringComparison]::Ordinal)
-        $returnIndex = $fragmentHost.IndexOf('return sd.col;', $postpixelIndex, [StringComparison]::Ordinal)
+        ($postpixelIndex -ge 0) | Should -BeTrue
 
-        $postpixelIndex | Should -BeGreaterThanOrEqual 0
-        $returnIndex | Should -BeGreaterThan $postpixelIndex
+        $returnIndex = $fragmentHost.IndexOf('return sd.col;', $postpixelIndex, [StringComparison]::Ordinal)
+        ($returnIndex -gt $postpixelIndex) | Should -BeTrue
 
         $tail = $fragmentHost.Substring($postpixelIndex, $returnIndex - $postpixelIndex)
         $tail | Should -Not -Match 'sd\.col\s*='
