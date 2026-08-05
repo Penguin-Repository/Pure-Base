@@ -130,6 +130,42 @@ Enjoy your Unity!
 
 言語: [English](README.md)
 
+## 数字とバッジを見ろ！ プロジェクトは今日も走っている！！
+
+![GitHub Total Downloads](https://img.shields.io/github/downloads/Penguin-Repository/Pure-Base/total?label=GitHub%20Release%20downloads)
+![Downloads latest](https://img.shields.io/github/downloads/Penguin-Repository/Pure-Base/latest/total)
+
+ダウンロード数はただの数字か！？
+
+違う！！
+
+一回のダウンロードの向こうには、一つのUnityプロジェクトがある！
+一つのマテリアルがある！
+そして「試してみよう」と踏み出した誰かの一歩がある！！
+
+[![Automation tests](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/automation-tests.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/automation-tests.yml)
+[![CodeQL](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/codeql.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/codeql.yml)
+[![Daily](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/daily.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/daily.yml)
+
+[![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
+[![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
+
+Automation tests！
+CodeQL！
+Daily！
+Release validation！
+Release！
+
+五本のバッジは飾りじゃない！！
+
+作る！ 試す！ 調べる！ 毎日確かめる！ 公開前にも確かめる！ そして届ける！！
+
+緑なら前へ進め！
+赤なら目を逸らすな！
+
+失敗したチェックは敵じゃない。
+**壊れたまま世に出る未来を、先に止めてくれた味方だ！！**
+
 おい！ そこのマテリアル！
 
 まだ自分の可能性を「機能が足りない」の一言で閉じ込めていないか！？
@@ -446,6 +482,19 @@ Pure Base は土台だ。
 お前の表現は、まだ完成していない。
 
 だから面白いんだ！！！
+
+---
+
+Enjoy your Unity？
+
+違う！ ただ楽しむだけで終わるな！！
+
+**Enjoy your Unity！！！**
+
+作って楽しめ！
+失敗して学べ！
+直して笑え！
+そしてもう一度、再生ボタンを押せ！！
 
 🔥🔥🔥 封印README・完 🔥🔥🔥
 
