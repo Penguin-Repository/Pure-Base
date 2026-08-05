@@ -24,20 +24,21 @@ Describe 'Shader-Core phase compatibility' {
         $fragmentHost = Get-Content -LiteralPath $fragmentHostPath -Raw
     }
 
-    It 'fully initializes shading data before model callbacks and derives Cutout coverage from base' {
+    It 'fully initializes shading data and derives Cutout coverage from base without clamping HDR RGB' {
         $initialColorIndex = $surface.IndexOf('sd.col = half4(0, 0, 0, 0);', [StringComparison]::Ordinal)
         $modelNormalIndex = $surface.IndexOf('SCModelInitializeTangentNormal(sd);', [StringComparison]::Ordinal)
         $baseIndex = $surface.IndexOf('__SC_PHASE_base__', [StringComparison]::Ordinal)
-        $saturateIndex = $surface.IndexOf('sd.albedoAlpha = saturate(sd.albedoAlpha);', [StringComparison]::Ordinal)
+        $alphaSaturateIndex = $surface.IndexOf('sd.albedoAlpha.a = saturate(sd.albedoAlpha.a);', [StringComparison]::Ordinal)
         $finalColorIndex = $surface.IndexOf('sd.col = sd.albedoAlpha;', [StringComparison]::Ordinal)
         $coverageIndex = $surface.IndexOf('coverage = sd.albedoAlpha.a;', [StringComparison]::Ordinal)
 
         ($initialColorIndex -ge 0) | Should -BeTrue
         ($modelNormalIndex -gt $initialColorIndex) | Should -BeTrue
         ($baseIndex -gt $modelNormalIndex) | Should -BeTrue
-        ($saturateIndex -gt $baseIndex) | Should -BeTrue
-        ($finalColorIndex -gt $saturateIndex) | Should -BeTrue
+        ($alphaSaturateIndex -gt $baseIndex) | Should -BeTrue
+        ($finalColorIndex -gt $alphaSaturateIndex) | Should -BeTrue
         ($coverageIndex -gt $finalColorIndex) | Should -BeTrue
+        $surface | Should -Not -Match 'sd\.albedoAlpha\s*=\s*saturate\(sd\.albedoAlpha\)'
     }
 
     It 'keeps postpixel as the final color mutation hook' {
