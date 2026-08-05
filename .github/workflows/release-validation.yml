@@ -333,3 +333,13 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           status: ${{ steps.workflow_status.outputs.status }}
+          title: "Release Validation"
+          description: >-
+            ${{ steps.workflow_status.outputs.status == 'Success'
+                && 'The release is approaching'
+                || steps.workflow_status.outputs.status == 'Failure'
+                && 'Release validation failed'
+                || steps.workflow_status.outputs.status == 'Cancelled'
+                && 'Release validation was cancelled' }}
+          url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          username: "Pure Base CI"

@@ -325,3 +325,25 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           status: ${{ steps.workflow_status.outputs.status }}
+          title: "Release"
+          description: |
+            Build and deploy to GitHub Releases and VPM repository
+            ${{  steps.workflow_status.outputs.status == 'Success'
+                && 'Release completed successfully.'
+                || steps.workflow_status.outputs.status == 'Failure'
+                && 'Release failed. Check the logs for details.'
+                || steps.workflow_status.outputs.status == 'Cancelled'
+                && 'Release was cancelled.'
+                || '' }}
+            ${{ steps.workflow_status.outputs.status == 'Success'
+                && 'The release is now available on GitHub and VPM.'
+                || '' }}
+            ${{ steps.workflow_status.outputs.status == 'Success'
+                && '${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.version }}'
+                || '' }}
+          url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          username: "Pure Base CI"
+          content: >-
+            ${{ steps.workflow_status.outputs.status == 'Success'
+                && '@here Release completed successfully. And now available on GitHub and VPM.'
+                || '' }}
