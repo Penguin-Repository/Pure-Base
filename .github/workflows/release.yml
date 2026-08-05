@@ -291,3 +291,37 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
           compression-level: 0
+
+  notify:
+    name: Notify Discord
+    if: ${{ always() }}
+    needs:
+      - authorize
+      - release
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve workflow status
+        id: workflow_status
+        shell: bash
+        env:
+          AUTHORIZE_RESULT: ${{ needs.authorize.result }}
+          RELEASE_RESULT: ${{ needs.release.result }}
+        run: |
+          if [[ "$AUTHORIZE_RESULT" == "failure" || "$RELEASE_RESULT" == "failure" ]]; then
+            status=Failure
+          elif [[ "$AUTHORIZE_RESULT" == "cancelled" || "$RELEASE_RESULT" == "cancelled" ]]; then
+            status=Cancelled
+          elif [[ "$AUTHORIZE_RESULT" == "skipped" || "$RELEASE_RESULT" == "skipped" ]]; then
+            status=Failure
+          else
+            status=Success
+          fi
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Report workflow status to Discord
+        uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1.16.0
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: ${{ steps.workflow_status.outputs.status }}
