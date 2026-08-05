@@ -18,5 +18,5 @@
 #define PUREBASE_UNLIT_FORWARD_ADD_FOG_SENTINEL 1
 
 #if defined(UNITY_PASS_FORWARDADD)
-shadingData.add += half3(0.25, 0.125, 0.0625);
+sd.add += half3(0.25, 0.125, 0.0625);
 #endif

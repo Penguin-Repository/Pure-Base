@@ -20,8 +20,18 @@ Describe 'Shader-Core phase compatibility' {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
         $surfacePath = Join-Path $repositoryRoot 'Shaders/Common/surface.hlsl'
         $fragmentHostPath = Join-Path $repositoryRoot 'Shaders/Common/birp_host.hlsl'
+        $releaseModuleRoot = Join-Path $repositoryRoot 'Tests/Release/Modules'
         $surface = Get-Content -LiteralPath $surfacePath -Raw
         $fragmentHost = Get-Content -LiteralPath $fragmentHostPath -Raw
+        $releaseModuleSources = @(
+            Get-ChildItem -LiteralPath $releaseModuleRoot -Recurse -File -Filter '*.hlsl' |
+                ForEach-Object {
+                    [pscustomobject]@{
+                        Path = $_.FullName
+                        Source = Get-Content -LiteralPath $_.FullName -Raw
+                    }
+                }
+        )
     }
 
     It 'fully initializes shading data and derives Cutout coverage from base without clamping HDR RGB' {
@@ -39,6 +49,14 @@ Describe 'Shader-Core phase compatibility' {
         ($finalColorIndex -gt $alphaSaturateIndex) | Should -BeTrue
         ($coverageIndex -gt $finalColorIndex) | Should -BeTrue
         $surface | Should -Not -Match 'sd\.albedoAlpha\s*=\s*saturate\s*\(\s*sd\.albedoAlpha\s*\)\s*;?'
+    }
+
+    It 'uses Shader-Core 0.1.9 phase bindings in release module fixtures' {
+        ($releaseModuleSources.Count -gt 0) | Should -BeTrue
+        foreach ($moduleSource in $releaseModuleSources) {
+            $moduleSource.Source | Should -Not -Match '\bshadingData\.' -Because $moduleSource.Path
+            $moduleSource.Source | Should -Not -Match '\bcustomData\.' -Because $moduleSource.Path
+        }
     }
 
     It 'keeps postpixel as the final color mutation hook' {
