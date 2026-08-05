@@ -29,7 +29,7 @@ Pure Base is a minimal Shader-Core host. It is not intended to become a feature-
 - The package requires exactly `jp.lilxyzw.shadercore` `0.1.9`.
 - Future `0.1.x` Shader-Core releases are not accepted automatically. Shader-Core does not declare compatibility across `0.x` releases, and importer, project-setting, and method-shape contracts may change.
 - The integration harness forces D3D11 during test execution.
-- Transparent blending is not supported. Every product shader uses fixed Cutout coverage.
+- Transparent blending is not supported. Product shaders use Cutout render states; Forward and ShadowCaster coverage follows the module-adjusted `sd.albedoAlpha.a` after `base`, while Meta retains host-owned base-texture coverage.
 
 ## Stable shader paths
 
@@ -71,7 +71,8 @@ The shared standard phase ABI is executed in this order:
 
 - `ForwardBase` owns the normal surface and lighting result.
 - `ForwardAdd` contributes additional direct light only and uses black fog semantics.
-- `ShadowCaster` and `Meta` preserve the fixed Cutout coverage contract.
+- `ForwardBase`, `ForwardAdd`, and `ShadowCaster` derive Cutout coverage from the module-adjusted `sd.albedoAlpha.a` after `base`. `Meta` retains host-owned base-texture coverage.
+- `postpixel` is the final color mutation point. Modules may change the returned alpha there, but the product pass blend and color-mask states remain fixed and do not provide transparent blending.
 - PBR and Hybrid evaluate Unity Standard indirect GI and reflection probes in `ForwardBase`. Their `ForwardAdd` passes do not duplicate indirect lighting.
 
 Optional visual features belong in separate Shader-Core modules. Pure Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
