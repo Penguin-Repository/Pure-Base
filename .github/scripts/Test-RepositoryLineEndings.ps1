@@ -1,5 +1,3 @@
-# This script validates tracked text files for LF-only line endings in both the Git index and working tree.
-#
 # Copyright 2026 Penguin
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# This script validates tracked text files for LF-only line endings in both the Git index and working tree.
 
 [CmdletBinding()]
 param(
@@ -68,9 +68,17 @@ function Invoke-RepositoryGitBytes {
         }
         $process.WaitForExit()
         [void]($stdoutTask.GetAwaiter().GetResult())
-        [void]($stderrTask.GetAwaiter().GetResult())
+        $stderr = $stderrTask.GetAwaiter().GetResult()
         if ($process.ExitCode -ne 0) {
-            throw 'A Git command failed.'
+            $stderrSummary = $stderr.Trim()
+            if ($stderrSummary.Length -gt 4096) {
+                $stderrSummary = $stderrSummary.Substring(0, 4096) + '...'
+            }
+            $diagnostic = "Git command failed (args: $($Arguments -join ' '); exit code: $($process.ExitCode)"
+            if (-not [string]::IsNullOrEmpty($stderrSummary)) {
+                $diagnostic += "; stderr: $stderrSummary"
+            }
+            throw "$diagnostic)."
         }
         return ,$stdout.ToArray()
     }
@@ -105,7 +113,7 @@ function Split-RepositoryNulRecords {
 function ConvertTo-RepositoryDisplayPath {
     param([Parameter(Mandatory)][string]$Path)
 
-    return $Path.Replace("`r", '\\r').Replace("`n", '\\n').Replace("`t", '\\t')
+    return $Path.Replace("`r", '\r').Replace("`n", '\n').Replace("`t", '\t')
 }
 
 function Add-RepositoryViolation {
@@ -177,6 +185,46 @@ function Read-RepositoryIndexBlobs {
     return $blobs
 }
 
+function Get-RepositoryAttributes {
+    param(
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][Collections.Generic.Dictionary[string, object]]$StageByPath,
+        [Parameter(Mandatory)][byte[]]$PathInput,
+        [Parameter(Mandatory)][bool]$UseCachedAttributes
+    )
+
+    $arguments = @('check-attr')
+    if ($UseCachedAttributes) {
+        $arguments += '--cached'
+    }
+    $arguments += @('-z', 'binary', 'text', '--stdin')
+    $attributeRecords = Split-RepositoryNulRecords (Invoke-RepositoryGitBytes -Root $Root -Arguments $arguments -StandardInputBytes $PathInput)
+    if (($attributeRecords.Count % 3) -ne 0) {
+        throw 'Git attribute output is malformed.'
+    }
+
+    $attributesByPath = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::Ordinal)
+    for ($index = 0; $index -lt $attributeRecords.Count; $index += 3) {
+        $path = ConvertFrom-RepositoryUtf8 $attributeRecords[$index]
+        $attribute = ConvertFrom-RepositoryUtf8 $attributeRecords[$index + 1]
+        $value = ConvertFrom-RepositoryUtf8 $attributeRecords[$index + 2]
+        if (-not $StageByPath.ContainsKey($path) -or ($attribute -ne 'binary' -and $attribute -ne 'text')) {
+            throw 'Git attribute output does not match tracked paths.'
+        }
+        if (-not $attributesByPath.ContainsKey($path)) {
+            $attributesByPath.Add($path, [ordered]@{})
+        }
+        if ($attributesByPath[$path].Contains($attribute)) {
+            throw 'Git attribute output contains duplicate attributes.'
+        }
+        $attributesByPath[$path][$attribute] = $value
+    }
+    if ($attributesByPath.Count -ne $StageByPath.Count -or @($attributesByPath.Values | Where-Object { $_.Count -ne 2 }).Count -ne 0) {
+        throw 'Git attribute output is incomplete.'
+    }
+    return $attributesByPath
+}
+
 try {
     $root = [IO.Path]::GetFullPath($RepositoryRoot)
     if (-not (Test-Path -LiteralPath $root -PathType Container)) {
@@ -228,47 +276,31 @@ try {
         $pathInput.Write($pathBytes, 0, $pathBytes.Length)
         $pathInput.WriteByte(0)
     }
-    $attributeRecords = Split-RepositoryNulRecords (Invoke-RepositoryGitBytes -Root $root -Arguments @('check-attr', '-z', 'binary', 'text', '--stdin') -StandardInputBytes $pathInput.ToArray())
-    if (($attributeRecords.Count % 3) -ne 0) {
-        throw 'Git attribute output is malformed.'
-    }
-    $attributesByPath = [Collections.Generic.Dictionary[string, object]]::new([StringComparer]::Ordinal)
-    for ($index = 0; $index -lt $attributeRecords.Count; $index += 3) {
-        $path = ConvertFrom-RepositoryUtf8 $attributeRecords[$index]
-        $attribute = ConvertFrom-RepositoryUtf8 $attributeRecords[$index + 1]
-        $value = ConvertFrom-RepositoryUtf8 $attributeRecords[$index + 2]
-        if (-not $stageByPath.ContainsKey($path) -or ($attribute -ne 'binary' -and $attribute -ne 'text')) {
-            throw 'Git attribute output does not match tracked paths.'
-        }
-        if (-not $attributesByPath.ContainsKey($path)) {
-            $attributesByPath.Add($path, [ordered]@{})
-        }
-        if ($attributesByPath[$path].Contains($attribute)) {
-            throw 'Git attribute output contains duplicate attributes.'
-        }
-        $attributesByPath[$path][$attribute] = $value
-    }
-    if ($attributesByPath.Count -ne $stageByPath.Count -or @($attributesByPath.Values | Where-Object { $_.Count -ne 2 }).Count -ne 0) {
-        throw 'Git attribute output is incomplete.'
-    }
+    $pathInputBytes = $pathInput.ToArray()
+    $indexAttributesByPath = Get-RepositoryAttributes -Root $root -StageByPath $stageByPath -PathInput $pathInputBytes -UseCachedAttributes $true
+    $workingTreeAttributesByPath = Get-RepositoryAttributes -Root $root -StageByPath $stageByPath -PathInput $pathInputBytes -UseCachedAttributes $false
 
-    $eligiblePaths = @($stageByPath.Keys | Where-Object { $attributesByPath[$_]['binary'] -ne 'set' -and $attributesByPath[$_]['text'] -ne 'unset' })
-    $objectIds = @($eligiblePaths | ForEach-Object { $stageByPath[$_].ObjectId } | Sort-Object -Unique)
+    $indexEligiblePaths = @($stageByPath.Keys | Where-Object { $indexAttributesByPath[$_]['binary'] -ne 'set' -and $indexAttributesByPath[$_]['text'] -ne 'unset' })
+    $workingTreeEligiblePaths = @($stageByPath.Keys | Where-Object { $workingTreeAttributesByPath[$_]['binary'] -ne 'set' -and $workingTreeAttributesByPath[$_]['text'] -ne 'unset' })
+    $objectIds = @($indexEligiblePaths | ForEach-Object { $stageByPath[$_].ObjectId } | Sort-Object -Unique)
     $indexBlobs = Read-RepositoryIndexBlobs -Root $root -ObjectIds $objectIds
     $violations = [Collections.Generic.List[object]]::new()
-    foreach ($path in $eligiblePaths | Sort-Object) {
+    foreach ($path in $indexEligiblePaths | Sort-Object) {
         $eol = $eolByPath[$path]
         if ($eol -match '(^| )i/(crlf|mixed)( |$)') {
             Add-RepositoryViolation -Violations $violations -Path $path -Reason 'index EOL status reports CRLF or mixed endings'
         }
-        if ($eol -match '(^| )w/(crlf|mixed)( |$)') {
-            Add-RepositoryViolation -Violations $violations -Path $path -Reason 'working-tree EOL status reports CRLF or mixed endings'
-        }
         if (Test-RepositoryCrByte $indexBlobs[$stageByPath[$path].ObjectId]) {
             Add-RepositoryViolation -Violations $violations -Path $path -Reason 'index bytes contain CR (0x0D)'
         }
+    }
+    foreach ($path in $workingTreeEligiblePaths | Sort-Object) {
+        $eol = $eolByPath[$path]
+        if ($eol -match '(^| )w/(crlf|mixed)( |$)') {
+            Add-RepositoryViolation -Violations $violations -Path $path -Reason 'working-tree EOL status reports CRLF or mixed endings'
+        }
         $workingPath = [IO.Path]::GetFullPath((Join-Path $root $path))
-        if (-not $workingPath.StartsWith($root.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal) -or -not (Test-Path -LiteralPath $workingPath -PathType Leaf)) {
+        if (-not $workingPath.StartsWith($root.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar, $pathComparison) -or -not (Test-Path -LiteralPath $workingPath -PathType Leaf)) {
             Add-RepositoryViolation -Violations $violations -Path $path -Reason 'working-tree file is missing or outside the repository root'
             continue
         }
