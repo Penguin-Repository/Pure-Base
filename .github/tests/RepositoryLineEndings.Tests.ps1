@@ -1,5 +1,3 @@
-# This test file verifies the repository line-ending checker against isolated Git fixtures.
-#
 # Copyright 2026 Penguin
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This test file verifies the repository line-ending checker against isolated Git fixtures.
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -22,7 +22,13 @@ BeforeAll {
     $checkerPath = Join-Path $repositoryRoot '.github/scripts/Test-RepositoryLineEndings.ps1'
 
     function New-LineEndingRepository {
+        [CmdletBinding(SupportsShouldProcess)]
+        param()
+
         $root = Join-Path $TestDrive ('line-endings-' + [guid]::NewGuid().ToString('N'))
+        if (-not $PSCmdlet.ShouldProcess($root, 'Create line-ending Git fixture repository')) {
+            return
+        }
         New-Item -ItemType Directory -Path $root -Force | Out-Null
         & git -C $root init --quiet
         if ($LASTEXITCODE -ne 0) { throw 'git init failed for test fixture.' }
@@ -60,12 +66,17 @@ BeforeAll {
     }
 
     function Set-LineEndingFixtureIndexBytes {
+        [CmdletBinding(SupportsShouldProcess)]
         param(
             [Parameter(Mandatory)][string]$Root,
             [Parameter(Mandatory)][string]$RelativePath,
             [Parameter(Mandatory)][byte[]]$Bytes
         )
 
+        $path = Join-Path $Root $RelativePath
+        if (-not $PSCmdlet.ShouldProcess($path, 'Set Git index fixture bytes')) {
+            return
+        }
         Write-LineEndingFixtureBytes -Root $Root -RelativePath $RelativePath -Bytes $Bytes
         $objectId = (& git -C $Root hash-object -w --no-filters -- (Join-Path $Root $RelativePath)).Trim()
         if ($LASTEXITCODE -ne 0 -or $objectId -notmatch '^[0-9a-f]{40,64}$') {
@@ -95,7 +106,9 @@ BeforeAll {
             $stdoutTask = $process.StandardOutput.ReadToEndAsync()
             $stderrTask = $process.StandardError.ReadToEndAsync()
             $process.WaitForExit()
-            $output = @($stdoutTask.GetAwaiter().GetResult(), $stderrTask.GetAwaiter().GetResult() | Where-Object { -not [string]::IsNullOrEmpty($_) })
+            $stdout = $stdoutTask.GetAwaiter().GetResult()
+            $stderr = $stderrTask.GetAwaiter().GetResult()
+            $output = [string[]]@(@($stdout, $stderr) | Where-Object { -not [string]::IsNullOrEmpty($_) })
             return [pscustomobject]@{
                 ExitCode = $process.ExitCode
                 Output = $output
@@ -172,6 +185,42 @@ Describe 'Repository line-ending checker' {
         }
     }
 
+    It 'rejects index CR bytes using cached text attributes when live attributes mark all files binary' {
+        $root = New-LineEndingRepository
+        $relativePath = 'text.txt'
+        Set-LineEndingFixtureIndexBytes -Root $root -RelativePath $relativePath -Bytes (Get-LineEndingFixtureBytes -Kind 'CR')
+        Write-LineEndingFixtureBytes -Root $root -RelativePath $relativePath -Bytes ([Text.Encoding]::UTF8.GetBytes("alpha`nbeta`n"))
+        [IO.File]::WriteAllBytes((Join-Path $root '.gitattributes'), [Text.Encoding]::UTF8.GetBytes("* binary`n"))
+
+        $result = Invoke-LineEndingChecker -Root $root
+        $output = $result.Output -join "`n"
+
+        $result.ExitCode | Should -Be 1
+        $output | Should -Match ([regex]::Escape($relativePath))
+        $output | Should -Match 'index bytes contain CR'
+        $output | Should -Not -Match 'working-tree bytes contain CR'
+    }
+
+    It 'rejects working-tree CR bytes using live text attributes when cached attributes mark all files binary' {
+        $root = New-LineEndingRepository
+        $relativePath = 'text.txt'
+        $sentinelPath = 'cached-text.txt'
+        [IO.File]::WriteAllBytes((Join-Path $root '.gitattributes'), [Text.Encoding]::UTF8.GetBytes("* binary`n$sentinelPath -binary text`n"))
+        Write-LineEndingFixtureBytes -Root $root -RelativePath $sentinelPath -Bytes ([Text.Encoding]::UTF8.GetBytes("valid`n"))
+        & git -C $root add -- .gitattributes $sentinelPath
+        if ($LASTEXITCODE -ne 0) { throw 'git add failed for cached binary attribute fixture.' }
+        [IO.File]::WriteAllBytes((Join-Path $root '.gitattributes'), [Text.Encoding]::UTF8.GetBytes("* text eol=lf`n"))
+        Write-LineEndingFixtureBytes -Root $root -RelativePath $relativePath -Bytes (Get-LineEndingFixtureBytes -Kind 'CR')
+
+        $result = Invoke-LineEndingChecker -Root $root
+        $output = $result.Output -join "`n"
+
+        $result.ExitCode | Should -Be 1
+        $output | Should -Match ([regex]::Escape($relativePath))
+        $output | Should -Match 'working-tree bytes contain CR'
+        $output | Should -Not -Match 'index bytes contain CR'
+    }
+
     It 'skips explicitly binary files while enforcing an adjacent meta file' {
         $root = New-LineEndingRepository
         [IO.File]::AppendAllText((Join-Path $root '.gitattributes'), "*.exr binary`n*.png binary`nTests/Fixtures/Scenes/PureBaseValidation/LightingData.asset binary`n", [Text.Encoding]::UTF8)
@@ -219,9 +268,13 @@ Describe 'Repository line-ending checker' {
         Remove-Item -LiteralPath (Join-Path $root '.git/HEAD') -Force
 
         $result = Invoke-LineEndingChecker -Root $root
+        $output = $result.Output -join "`n"
 
         $result.ExitCode | Should -Be 1
-        ($result.Output -join "`n") | Should -Match '^repository:'
+        $output | Should -Match '^repository:'
+        $output | Should -Match 'rev-parse --is-inside-work-tree'
+        $output | Should -Match 'exit code: [1-9][0-9]*'
+        $output | Should -Match 'stderr:\s*\S'
     }
 
     It 'fails closed when Git stage output contains a non-regular entry' {
