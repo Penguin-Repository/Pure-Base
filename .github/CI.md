@@ -224,5 +224,33 @@ dispatch URLs and hashes, fork and draft PR rejection, immutable-release preflig
 VPM yank policy reader and sender workflow contracts, and the generated Unity project version,
 QualitySettings snapshot, VRChat SDK exclusion, test framework, and Shader-Core pin.
 
+### リポジトリの改行検査
+
+`.gitattributes` が改行ポリシーの正本です。追跡対象のテキストは LF とし、明示的に
+`binary` または `-text` と分類されたパスは検査対象から除外します。チェッカーは既存の
+Automation の Pester 自動検出（`.github/tests`）に含まれるため、この検査のための新しい
+workflow や job はありません。
+
+`.github/scripts/Test-RepositoryLineEndings.ps1` は index blob と working tree のバイト列を
+それぞれ独立して検査し、CRLF、混在した改行、単独の CR (`0x0D`) を検出します。失敗時は
+パスと理由だけを出力して終了コード 1 を返し、ファイル内容は出力しません。Git の異常や
+入力不備も失敗として扱う fail-closed の読み取り専用チェッカーです。
+
+パッケージルートで実行するローカル確認:
+
+```powershell
+$packageRoot = (Get-Location).Path
+pwsh -File .github/scripts/Test-RepositoryLineEndings.ps1 -RepositoryRoot $packageRoot
+```
+
+Pester の対象を絞った確認（Pester が利用可能な PowerShell で、パッケージルートから実行）:
+
+```powershell
+Invoke-Pester -Path .github/tests/RepositoryLineEndings.Tests.ps1
+```
+
+違反が報告された場合は、報告された追跡対象テキストのパスだけを LF に修正してください。
+ignored または生成物を正規化せず、バイナリとして扱うべきかは `.gitattributes` を確認します。
+
 `CodeQL` runs on GitHub-hosted Linux runners for C# and GitHub Actions. HLSL and PowerShell are not
 CodeQL languages and remain covered by the Unity, release validation, and Pester automation tests.
