@@ -1,0 +1,10 @@
+{
+  "name": "PureBase Release Fixture Rendering Mode PostPixel Alpha Probe",
+  "uniqueID": "jp.penguin.purebase.release.renderingmode.postpixel-alpha",
+  "phases": [
+    {
+      "phase": "postpixel",
+      "path": "phase_postpixel.hlsl"
+    }
+  ]
+}
