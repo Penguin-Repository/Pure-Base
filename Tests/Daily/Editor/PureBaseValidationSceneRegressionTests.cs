@@ -2897,18 +2897,16 @@ namespace PureBase.Tests.Daily
             /// <param name="fixturePaths">The fixture paths this scope may load, close, or remove.</param>
             public ControlledFixtureSceneScope(params string[] fixturePaths)
             {
-                SceneSetup[] originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
+                originalActiveScene = SceneManager.GetActiveScene();
+                originalActiveScenePath = originalActiveScene.path;
                 fixtureStates = new FixtureSceneState[fixturePaths.Length];
                 for (int fixtureIndex = 0; fixtureIndex < fixturePaths.Length; fixtureIndex++)
                 {
                     fixtureStates[fixtureIndex] = FixtureSceneState.Capture(
                         fixturePaths[fixtureIndex],
-                        originalSceneSetup
+                        originalActiveScene
                     );
                 }
-
-                originalActiveScene = SceneManager.GetActiveScene();
-                originalActiveScenePath = originalActiveScene.path;
             }
 
             /// <summary>Gets a valid, loaded controlled fixture scene.</summary>
@@ -3023,11 +3021,11 @@ namespace PureBase.Tests.Daily
                 /// <summary>Gets the controlled fixture path.</summary>
                 public string Path { get; }
 
-                /// <summary>Captures whether a controlled fixture is absent, loaded, or registered as unloaded.</summary>
+                /// <summary>Captures a controlled fixture's registration and live active-scene state.</summary>
                 /// <param name="path">The controlled fixture path.</param>
-                /// <param name="sceneSetup">The scene setup captured before this scope changes fixtures.</param>
+                /// <param name="activeScene">The live active scene captured before this scope changes fixtures.</param>
                 /// <returns>The captured fixture state.</returns>
-                public static FixtureSceneState Capture(string path, SceneSetup[] sceneSetup)
+                public static FixtureSceneState Capture(string path, Scene activeScene)
                 {
                     Scene scene = SceneManager.GetSceneByPath(path);
                     FixtureScenePresence presence = !scene.IsValid()
@@ -3035,18 +3033,7 @@ namespace PureBase.Tests.Daily
                         : scene.isLoaded
                             ? FixtureScenePresence.Loaded
                             : FixtureScenePresence.Unloaded;
-                    bool isActive = false;
-                    if (sceneSetup != null)
-                    {
-                        foreach (SceneSetup setup in sceneSetup)
-                        {
-                            if (string.Equals(setup.path, path, StringComparison.Ordinal))
-                            {
-                                isActive = setup.isActive;
-                                break;
-                            }
-                        }
-                    }
+                    bool isActive = scene.IsValid() && scene.Equals(activeScene);
 
                     return new FixtureSceneState(path, presence, isActive);
                 }

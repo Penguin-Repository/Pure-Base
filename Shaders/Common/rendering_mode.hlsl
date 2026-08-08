@@ -22,19 +22,19 @@
 /// <summary>Applies the Cutout coverage threshold only when neither opaque nor transparent mode is selected.</summary>
 void PureBaseApplyRenderingModeClip(half coverage)
 {
-	#if !defined(PUREBASE_RENDERING_OPAQUE) && !defined(PUREBASE_RENDERING_TRANSPARENT)
-	clip(coverage - _Cutoff);
-	#endif
+    #if !defined(PUREBASE_RENDERING_OPAQUE) && !defined(PUREBASE_RENDERING_TRANSPARENT)
+    clip(coverage - _Cutoff);
+    #endif
 }
 
 /// <summary>Writes coverage alpha for Transparent and opaque alpha for Opaque and Cutout output.</summary>
 void PureBaseApplyRenderingModeOutputAlpha(inout half4 color, half coverage)
 {
-	#if defined(PUREBASE_RENDERING_TRANSPARENT)
-	color.a = coverage;
-	#else
-	color.a = 1;
-	#endif
+    #if defined(PUREBASE_RENDERING_TRANSPARENT)
+    color.a = coverage;
+    #else
+    color.a = 1;
+    #endif
 }
 
 #endif

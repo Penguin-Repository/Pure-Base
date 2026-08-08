@@ -45,6 +45,10 @@ namespace PureBase.Tests.Daily
         private const string LegacyFixturePath =
             "Packages/jp.penguin.purebase/Tests/Fixtures/Materials/PureBaseLegacyCutout.mat";
 
+        /// <summary>Identifies the deterministic non-Pure-Base shader fixture used for unsupported-ownership and atomicity coverage.</summary>
+        private const string UnsupportedRenderingModeFixturePath =
+            "Packages/jp.penguin.purebase/Tests/Fixtures/RenderingMode/PureBaseUnsupportedRenderingMode.shader";
+
         /// <summary>Matches the required Shader-Core property declaration without relying on reflection metadata.</summary>
         private const string RenderingModePropertySourcePattern =
             @"SC_uint\s*\(\s*_RenderingMode\s*,\s*1(?:\.0+)?\s*,\s*\[\s*PureBaseRenderingMode\s*\]\s*,\s*""[^""\r\n]*""\s*,\s*""[^""\r\n]*""\s*\)";
@@ -840,23 +844,14 @@ namespace PureBase.Tests.Daily
         /// <returns>An imported, supported non-Pure-Base shader.</returns>
         private static Shader RequireSupportedNonProductShaderWithPropertyType(ShaderUtil.ShaderPropertyType propertyType)
         {
-            string[] guids = AssetDatabase.FindAssets("t:Shader");
-            Array.Sort(guids, StringComparer.Ordinal);
-            foreach (string guid in guids)
+            Shader shader = RequireUnsupportedRenderingModeShader();
+            for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
             {
-                Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(AssetDatabase.GUIDToAssetPath(guid));
-                if (shader == null || shader.name.StartsWith("PureBase/", StringComparison.Ordinal))
-                    continue;
-                if (ShaderUtil.ShaderHasError(shader) || !shader.isSupported)
-                    continue;
-                for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
-                {
-                    if (ShaderUtil.GetPropertyType(shader, index) == propertyType)
-                        return shader;
-                }
+                if (ShaderUtil.GetPropertyType(shader, index) == propertyType)
+                    return shader;
             }
 
-            Assert.Fail($"No supported non-Pure-Base shader exposing '{propertyType}' was imported for atomicity coverage.");
+            Assert.Fail($"The deterministic non-Pure-Base fixture shader did not expose '{propertyType}' for atomicity coverage.");
             return null;
         }
 
@@ -905,18 +900,14 @@ namespace PureBase.Tests.Daily
         /// <returns>A non-Pure-Base shader with <c>_RenderingMode</c>.</returns>
         private static Shader RequireUnsupportedRenderingModeShader()
         {
-            foreach (string guid in AssetDatabase.FindAssets("t:Shader", new[] { "Packages/jp.lilxyzw.nontoon" }))
-            {
-                Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(AssetDatabase.GUIDToAssetPath(guid));
-                if (shader == null || shader.name.StartsWith("PureBase/", StringComparison.Ordinal))
-                    continue;
-                if (ShaderUtil.ShaderHasError(shader) || shader.FindPropertyIndex("_RenderingMode") < 0)
-                    continue;
-                return shader;
-            }
-
-            Assert.Fail("No supported non-Pure-Base shader exposing _RenderingMode was imported for unsupported-ownership validation.");
-            return null;
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(UnsupportedRenderingModeFixturePath);
+            Assert.That(shader, Is.Not.Null, $"The unsupported-ownership fixture shader was not imported at '{UnsupportedRenderingModeFixturePath}'.");
+            Assert.That(shader.name, Is.EqualTo("PureBaseTests/Unsupported Rendering Mode"), "The unsupported-ownership fixture shader name changed.");
+            Assert.That(shader.name, Does.Not.StartWith("PureBase/"), "The unsupported-ownership fixture shader must not be owned by Pure-Base.");
+            Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, "The unsupported-ownership fixture shader has import errors.");
+            Assert.That(shader.isSupported, Is.True, "The unsupported-ownership fixture shader is unsupported.");
+            Assert.That(shader.FindPropertyIndex("_RenderingMode"), Is.GreaterThanOrEqualTo(0), "The unsupported-ownership fixture shader must expose _RenderingMode.");
+            return shader;
         }
 
         /// <summary>Returns the product shader's ordered visible property names.</summary>
