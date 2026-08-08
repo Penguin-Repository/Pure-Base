@@ -28,7 +28,7 @@ limitations under the License.
 [![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
 [![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
 
-Pure Base `0.2.0` は、Shader-Core で使える4種類の基本シェーダーをまとめた Unity 向けパッケージです。
+Pure Base `0.2.0-beta.1` は、Shader-Core で使える4種類の基本シェーダーをまとめた Unity 向けパッケージです。
 
 複雑な機能を最初から大量に備えるのではなく、必要な機能を Shader-Core の追加モジュールで組み合わせて使うための、軽くて分かりやすい土台を目指しています。
 
@@ -87,7 +87,7 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 3. 追加する版を選び、プロジェクトへ導入します。
 4. Shader-Core 0.1.9 が一緒に導入されることを確認します。
 
-このREADMEが対象とするパッケージ版は `0.2.0` です。
+このREADMEが対象とするパッケージ版は `0.2.0-beta.1` です。
 
 ## 基本的な使い方
 
@@ -380,7 +380,7 @@ Pure Base は隠れているんじゃない。
 
 - Pure Base 本体は、できるだけ小さく保つ方針です。
 - リムライト、MatCap、発光、ディゾルブなどの追加表現は、別の Shader-Core モジュールで補う想定です。
-- 0.2.0 の描画モード契約は、仕様と使い方を確認してから使ってください。
+- 0.2.0-beta.1 の描画モード契約は、仕様と使い方を確認してから使ってください。
 - 不具合を報告する際は、使用したUnity、Pure Base、Shader-Coreの版を記載してください。
 
 なぜ小さく保つ！？

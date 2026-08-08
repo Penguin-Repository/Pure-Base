@@ -28,7 +28,7 @@ Language: [日本語](README.ja.md)
 [![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
 [![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
 
-Pure Base `0.2.0` is a Unity package that provides four base shaders for Shader-Core.
+Pure Base `0.2.0-beta.1` is a Unity package that provides four base shaders for Shader-Core.
 
 Instead of including a large collection of optional effects, it provides a small and understandable foundation that can be extended with Shader-Core modules when needed.
 
@@ -85,7 +85,7 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 3. Select the version you want and add it to the project.
 4. Confirm that Shader-Core 0.1.9 is installed with it.
 
-The package version described here is `0.2.0`.
+The package version described here is `0.2.0-beta.1`.
 
 ## Basic use
 

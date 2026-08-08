@@ -95,7 +95,7 @@ Optional visual features belong in separate Shader-Core modules. Pure Base does 
 
 `package.json` is the sole release identity and version declaration.
 
-The current package release is `0.2.0`.
+The current package release is `0.2.0-beta.1`.
 
 The `version` input of the manual `Release` workflow verifies the exact version already present in the checked-out package. It does not write or commit a version.
 
