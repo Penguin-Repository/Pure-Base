@@ -18,3 +18,4 @@
 #define PUREBASE_ALL_PRODUCT_PHASE_SENTINEL_POSTPIXEL 1
 
 sd.col.rgb += half3(0, 0, 0);
+sd.col.a = half(0.25);

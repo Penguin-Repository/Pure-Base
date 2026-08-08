@@ -93,6 +93,18 @@ The canonical numeric baseline is:
 
 Daily reads this baseline. Daily never creates or replaces it.
 
+## Rendering-mode coverage
+
+The rendering-mode contract covered by the package validation inputs is:
+
+| Mode | Covered behavior |
+| --- | --- |
+| Opaque | Uncut and unblended rendering, queue `2000`, `One Zero`, and `ZWrite 1`; lighting contributions enabled. |
+| Cutout | Coverage clipping, the default keyword-free state, queue override `-1` resolving to `AlphaTest 2450`, and lighting contributions enabled. |
+| Transparent | Alpha blending with base `SrcAlpha OneMinusSrcAlpha` and additional-light `SrcAlpha One`, queue `3000`, `ZWrite 0`, and disabled `ShadowCaster`/`Meta`. |
+
+The coverage checks also verify that the final alpha from `postpixel` controls the `ForwardBase` and `ForwardAdd` source alpha. All source shaders retain four pass declarations. Editor migration is explicit: Inspector opening or refresh does not migrate or dirty legacy materials, while mode changes and `Assets/PureBase/Resync Rendering Mode` synchronize derived state.
+
 ## Observation, apply, and regeneration
 
 Observation, reviewed apply, and regeneration are explicit write-capable operations separate from the normal Daily lane.

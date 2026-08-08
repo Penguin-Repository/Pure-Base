@@ -25,7 +25,7 @@ This document defines the stable public contract of the Pure-Base shader package
 - Integration test graphics API: D3D11, forced by the harness.
 - Shader-Core dependency: exactly `jp.lilxyzw.shadercore` `0.1.9`.
 - Pure-Base does not automatically allow future `0.1.x` releases. Shader-Core upstream has not declared compatibility across `0.x` releases, and importer, ProjectSettings, and method-shape contracts are sensitive.
-- Transparent material blending and URP are outside the supported contract.
+- Opaque, Cutout, and Transparent rendering modes are supported. URP is outside the supported contract.
 
 ## Stable Shader Paths
 
@@ -42,16 +42,32 @@ Each shader is independently usable without an optional module.
 
 ## Material and Pass Contract
 
-Every product shader has the fixed tags `RenderType=TransparentCutout` and `Queue=AlphaTest`. Each exposes exactly four passes:
+Every product shader source retains exactly four passes:
 
 | Pass | Ownership and restrictions |
 | --- | --- |
 | `ForwardBase` | Builds the normal surface and lighting result. PBR and Hybrid own Unity Standard indirect GI and reflection-probe evaluation here. |
 | `ForwardAdd` | Additional direct-light contribution only, with black fog semantics. PBR and Hybrid must not duplicate indirect GI or reflection-probe lighting here. |
-| `ShadowCaster` | Applies Cutout coverage after the Shader-Core `base` phase, so module changes to `sd.albedoAlpha.a` affect casting. |
-| `Meta` | Uses the host base-texture Cutout coverage for Meta/lightmap workflows. This dedicated pass does not execute the standard phase ABI. |
+| `ShadowCaster` | When enabled for Cutout, applies coverage after the Shader-Core `base` phase, so module changes to `sd.albedoAlpha.a` affect casting. |
+| `Meta` | Uses the host base-texture Cutout coverage for Meta/lightmap workflows when enabled. This dedicated pass does not execute the standard phase ABI. |
 
-The Cutout contract is not transparent blending support. The `ForwardAdd` additive blend state represents an additional direct-light pass, not a transparent material mode.
+The effective tags, queue, blend state, depth writing, and pass enablement are selected by the rendering-mode ABI below. The `ForwardAdd` additive blend state in Opaque and Cutout is an additional direct-light pass, not transparent blending.
+
+## Rendering-mode ABI
+
+`_RenderingMode` is a ShaderLab `Integer` backed by `SC_uint` with these values:
+
+| Value | Mode | Contract |
+| ---: | --- | --- |
+| `0` | Opaque | Uses `RenderType=Opaque`, queue `2000`, blend `One Zero`, and `ZWrite 1`. Opaque rendering is uncut and unblended; lighting contributions remain enabled. |
+| `1` | Cutout (default) | Clears the material queue override to `-1`, resolving `RenderType=TransparentCutout` and the `AlphaTest` queue at `2450`. It uses no mode keyword, clips coverage, and keeps lighting contributions enabled. |
+| `2` | Transparent | Uses `RenderType=Transparent`, queue `3000`, base blend `SrcAlpha OneMinusSrcAlpha`, additional-light blend `SrcAlpha One`, and `ZWrite 0`. `ShadowCaster` and `Meta` are disabled. |
+
+Cutout is the keyword-free state. Opaque and Transparent use only local rendering-mode keywords. All source shaders retain their four pass declarations even when Transparent disables `ShadowCaster` and `Meta`.
+
+Coverage behavior is part of the public contract: Opaque is uncut and unblended, Cutout clips coverage, and Transparent alpha-blends without writing depth. The final alpha produced by `postpixel` controls the `ForwardBase` and `ForwardAdd` source alpha.
+
+The explicit editor action is `PureBaseMaterialRenderingMode.Apply(Material)`. The selected-material menu is `Assets/PureBase/Resync Rendering Mode`. Opening or refreshing the Inspector does not migrate or dirty a legacy material. Runtime switching is not guaranteed. An explicit mode change or Resync resets the standard queue and synchronizes derived state; a user custom queue remains until the next explicit mode edit or Resync.
 
 ## Public Property ABI
 
@@ -65,6 +81,7 @@ All four shaders expose exactly these common properties:
 | `_SharedGradients` | All shaders |
 | `_Cutoff` | All shaders |
 | `_Cull` | All shaders |
+| `_RenderingMode` | All shaders |
 
 The model-specific properties are:
 
@@ -85,9 +102,9 @@ The standard insertion points are shared by the product hosts in this order:
 
 `morph` -> `postvertex` -> `base` -> `light` -> `customlight` -> `modifylight` -> `shade` -> `reflection` -> `add` -> `postpixel`
 
-External modules may target these standard phases. The `base` phase runs before Cutout coverage is finalized. The host saturates only `sd.albedoAlpha.a` before the alpha test; `sd.albedoAlpha.rgb` remains unclamped so HDR base color and module color adjustments are preserved. The host finalizes output alpha and applies fog before `postpixel`; no host color mutation occurs after `postpixel` before returning the fragment result.
+External modules may target these standard phases. The `base` phase runs before Cutout coverage is finalized. The host saturates only `sd.albedoAlpha.a` before the alpha test; `sd.albedoAlpha.rgb` remains unclamped so HDR base color and module color adjustments are preserved. The host finalizes output alpha and applies fog before `postpixel`; no host color mutation occurs after `postpixel` before returning the fragment result. The final alpha from `postpixel` is the source alpha for both `ForwardBase` and `ForwardAdd`.
 
-`Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, `ShadowCaster` honors base-phase Cutout changes, and `Meta` retains host-owned Cutout coverage.
+`Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, `ShadowCaster` honors base-phase Cutout changes when enabled, and `Meta` retains host-owned Cutout coverage when enabled.
 
 ## Model Semantics
 

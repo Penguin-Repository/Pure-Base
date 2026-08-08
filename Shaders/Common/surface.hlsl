@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
-// Defines deterministic Shader-Core surface initialization and module-compatible Cutout coverage.
+// Defines deterministic Shader-Core surface initialization and module-compatible rendering-mode coverage.
 
 #ifndef PUREBASE_SURFACE_INCLUDED
 #define PUREBASE_SURFACE_INCLUDED
+
+#include "Packages/jp.penguin.purebase/Shaders/Common/rendering_mode.hlsl"
 
 /// <summary>Initializes every shared shading field and executes the sole base phase insertion point.</summary>
 void SCInitializeSurface(inout SCShadingData sd, out half coverage, SCVertexData vertex)
@@ -57,10 +59,10 @@ void SCBuildWorldTangentBasis(inout SCShadingData sd, SCVertexData vertex)
     sd.B = normalize(cross(sd.N_detail, sd.T) * vertex.crossDirection * SCTangentScale());
 }
 
-/// <summary>Discards pixels below the module-adjusted Cutout coverage threshold.</summary>
+/// <summary>Applies the selected rendering mode to module-adjusted surface coverage.</summary>
 void SCClipCutoutCoverage(half coverage)
 {
-    clip(coverage - _Cutoff);
+    PureBaseApplyRenderingModeClip(coverage);
 }
 
 #endif

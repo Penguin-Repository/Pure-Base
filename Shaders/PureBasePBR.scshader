@@ -20,11 +20,17 @@ Shader "PureBase/PBR"
     Properties
     {
         __SC_SHADERLAB_properties__
+        [HideInInspector] _SrcBlend ("", Float) = 1
+        [HideInInspector] _DstBlend ("", Float) = 0
+        [HideInInspector] _ZWrite ("", Float) = 1
+        [HideInInspector] _AddSrcBlend ("", Float) = 1
+        [HideInInspector] _AddDstBlend ("", Float) = 1
         [HideInInspector] _PureBaseShaderLabSentinel ("", Float) = 0
     }
 
     HLSLINCLUDE
     __SC_SHADERKEYWORDS__
+    #pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT
     ENDHLSL
 
     SubShader
@@ -36,8 +42,9 @@ Shader "PureBase/PBR"
             Name "ForwardBase"
             Tags { "LightMode" = "ForwardBase" }
             Cull [_Cull]
-            ZWrite On
+            ZWrite [_ZWrite]
             ZTest LEqual
+            Blend [_SrcBlend] [_DstBlend]
 
             HLSLPROGRAM
             #pragma target 5.0
@@ -57,7 +64,7 @@ Shader "PureBase/PBR"
             Cull [_Cull]
             ZWrite Off
             ZTest LEqual
-            Blend One One
+            Blend [_AddSrcBlend] [_AddDstBlend]
             ColorMask RGB
 
             HLSLPROGRAM
@@ -106,6 +113,7 @@ Shader "PureBase/PBR"
             #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp.hlsl"
             #include "Common/pbr_brdf.hlsl"
             __SC_BIRP_properties__
+            #include "Common/rendering_mode.hlsl"
 
             /// <summary>Defines the bind-pose vertex and lightmap UV inputs for Unity's Meta pass.</summary>
             struct PureBasePBRMetaAppData
@@ -157,11 +165,11 @@ Shader "PureBase/PBR"
                 return output;
             }
 
-            /// <summary>Returns metallic BRDF Meta data using the fixed Cutout coverage contract.</summary>
+            /// <summary>Returns metallic BRDF Meta data using the selected rendering-mode coverage contract.</summary>
             float4 PureBasePBRMetaFragment(PureBasePBRMetaVaryings input) : SV_Target
             {
                 half4 albedoAlpha = SCSample(_BaseTexture, sampler_BaseTexture, input.uv) * _BaseColor;
-                clip(albedoAlpha.a - _Cutoff);
+                PureBaseApplyRenderingModeClip(albedoAlpha.a);
                 PureBasePbrBrdfData brdf = PureBasePbrCreateBrdf(albedoAlpha.rgb, _Metallic, _Roughness);
                 UnityMetaInput output;
                 UNITY_INITIALIZE_OUTPUT(UnityMetaInput, output);
