@@ -103,45 +103,9 @@ namespace PureBase.Editor
         /// <summary>Defines every derived state value for one rendering mode.</summary>
         private static readonly ModeState[] ModeStates =
         {
-            new ModeState
-            {
-                SourceBlend = (int)BlendMode.One,
-                DestinationBlend = (int)BlendMode.Zero,
-                DepthWrite = 1,
-                AdditiveSourceBlend = (int)BlendMode.One,
-                AdditiveDestinationBlend = (int)BlendMode.One,
-                RenderType = "Opaque",
-                RawRenderQueue = 2000,
-                EnableOpaqueKeyword = true,
-                EnableTransparentKeyword = false,
-                EnableContributionPasses = true,
-            },
-            new ModeState
-            {
-                SourceBlend = (int)BlendMode.One,
-                DestinationBlend = (int)BlendMode.Zero,
-                DepthWrite = 1,
-                AdditiveSourceBlend = (int)BlendMode.One,
-                AdditiveDestinationBlend = (int)BlendMode.One,
-                RenderType = string.Empty,
-                RawRenderQueue = -1,
-                EnableOpaqueKeyword = false,
-                EnableTransparentKeyword = false,
-                EnableContributionPasses = true,
-            },
-            new ModeState
-            {
-                SourceBlend = (int)BlendMode.SrcAlpha,
-                DestinationBlend = (int)BlendMode.OneMinusSrcAlpha,
-                DepthWrite = 0,
-                AdditiveSourceBlend = (int)BlendMode.SrcAlpha,
-                AdditiveDestinationBlend = (int)BlendMode.One,
-                RenderType = "Transparent",
-                RawRenderQueue = 3000,
-                EnableOpaqueKeyword = false,
-                EnableTransparentKeyword = true,
-                EnableContributionPasses = false,
-            },
+            ModeState.CreateOpaque(),
+            ModeState.CreateCutout(),
+            ModeState.CreateTransparent(),
         };
 
         /// <summary>Applies the derived state for the material's current rendering-mode value.</summary>
@@ -365,80 +329,213 @@ namespace PureBase.Editor
         }
 
         /// <summary>Defines all derived rendering values for one supported mode.</summary>
-        private struct ModeState
+        private readonly struct ModeState
         {
+            /// <summary>Creates the derived state for opaque rendering.</summary>
+            /// <returns>The immutable opaque rendering state.</returns>
+            public static ModeState CreateOpaque()
+            {
+                return new ModeState(
+                    (int)BlendMode.One,
+                    (int)BlendMode.Zero,
+                    1,
+                    (int)BlendMode.One,
+                    (int)BlendMode.One,
+                    "Opaque",
+                    2000,
+                    new ModeStateFlags(true, false, true)
+                );
+            }
+
+            /// <summary>Creates the derived state for cutout rendering.</summary>
+            /// <returns>The immutable cutout rendering state.</returns>
+            public static ModeState CreateCutout()
+            {
+                return new ModeState(
+                    (int)BlendMode.One,
+                    (int)BlendMode.Zero,
+                    1,
+                    (int)BlendMode.One,
+                    (int)BlendMode.One,
+                    string.Empty,
+                    -1,
+                    new ModeStateFlags(false, false, true)
+                );
+            }
+
+            /// <summary>Creates the derived state for transparent rendering.</summary>
+            /// <returns>The immutable transparent rendering state.</returns>
+            public static ModeState CreateTransparent()
+            {
+                return new ModeState(
+                    (int)BlendMode.SrcAlpha,
+                    (int)BlendMode.OneMinusSrcAlpha,
+                    0,
+                    (int)BlendMode.SrcAlpha,
+                    (int)BlendMode.One,
+                    "Transparent",
+                    3000,
+                    new ModeStateFlags(false, true, false)
+                );
+            }
+
+            /// <summary>Initializes the immutable derived rendering state.</summary>
+            /// <param name="sourceBlend">The base-pass source blend factor.</param>
+            /// <param name="destinationBlend">The base-pass destination blend factor.</param>
+            /// <param name="depthWrite">The depth-write state.</param>
+            /// <param name="additiveSourceBlend">The additive-pass source blend factor.</param>
+            /// <param name="additiveDestinationBlend">The additive-pass destination blend factor.</param>
+            /// <param name="renderType">The RenderType override tag.</param>
+            /// <param name="rawRenderQueue">The raw material queue override.</param>
+            /// <param name="flags">The keyword and contribution-pass state.</param>
+            private ModeState(
+                int sourceBlend,
+                int destinationBlend,
+                int depthWrite,
+                int additiveSourceBlend,
+                int additiveDestinationBlend,
+                string renderType,
+                int rawRenderQueue,
+                ModeStateFlags flags)
+            {
+                SourceBlend = sourceBlend;
+                DestinationBlend = destinationBlend;
+                DepthWrite = depthWrite;
+                AdditiveSourceBlend = additiveSourceBlend;
+                AdditiveDestinationBlend = additiveDestinationBlend;
+                RenderType = renderType;
+                RawRenderQueue = rawRenderQueue;
+                EnableOpaqueKeyword = flags.EnableOpaqueKeyword;
+                EnableTransparentKeyword = flags.EnableTransparentKeyword;
+                EnableContributionPasses = flags.EnableContributionPasses;
+            }
+
             /// <summary>Gets the base-pass source blend factor.</summary>
-            public int SourceBlend { get; private set; }
+            public int SourceBlend { get; }
 
             /// <summary>Gets the base-pass destination blend factor.</summary>
-            public int DestinationBlend { get; private set; }
+            public int DestinationBlend { get; }
 
             /// <summary>Gets the depth-write state.</summary>
-            public int DepthWrite { get; private set; }
+            public int DepthWrite { get; }
 
             /// <summary>Gets the additive-pass source blend factor.</summary>
-            public int AdditiveSourceBlend { get; private set; }
+            public int AdditiveSourceBlend { get; }
 
             /// <summary>Gets the additive-pass destination blend factor.</summary>
-            public int AdditiveDestinationBlend { get; private set; }
+            public int AdditiveDestinationBlend { get; }
 
             /// <summary>Gets the RenderType override tag.</summary>
-            public string RenderType { get; private set; }
+            public string RenderType { get; }
 
             /// <summary>Gets the raw material queue override.</summary>
-            public int RawRenderQueue { get; private set; }
+            public int RawRenderQueue { get; }
 
             /// <summary>Gets whether the Opaque keyword is enabled.</summary>
-            public bool EnableOpaqueKeyword { get; private set; }
+            public bool EnableOpaqueKeyword { get; }
 
             /// <summary>Gets whether the Transparent keyword is enabled.</summary>
-            public bool EnableTransparentKeyword { get; private set; }
+            public bool EnableTransparentKeyword { get; }
 
             /// <summary>Gets whether ShadowCaster and Meta are enabled.</summary>
-            public bool EnableContributionPasses { get; private set; }
+            public bool EnableContributionPasses { get; }
+        }
+
+        /// <summary>Groups the boolean rendering-mode flags for immutable state construction.</summary>
+        private readonly struct ModeStateFlags
+        {
+            /// <summary>Initializes the immutable rendering-mode flags.</summary>
+            /// <param name="enableOpaqueKeyword">Whether the Opaque keyword is enabled.</param>
+            /// <param name="enableTransparentKeyword">Whether the Transparent keyword is enabled.</param>
+            /// <param name="enableContributionPasses">Whether ShadowCaster and Meta are enabled.</param>
+            public ModeStateFlags(bool enableOpaqueKeyword, bool enableTransparentKeyword, bool enableContributionPasses)
+            {
+                EnableOpaqueKeyword = enableOpaqueKeyword;
+                EnableTransparentKeyword = enableTransparentKeyword;
+                EnableContributionPasses = enableContributionPasses;
+            }
+
+            /// <summary>Gets whether the Opaque keyword is enabled.</summary>
+            public bool EnableOpaqueKeyword { get; }
+
+            /// <summary>Gets whether the Transparent keyword is enabled.</summary>
+            public bool EnableTransparentKeyword { get; }
+
+            /// <summary>Gets whether ShadowCaster and Meta are enabled.</summary>
+            public bool EnableContributionPasses { get; }
         }
 
         /// <summary>Captures every field that the normalizer may modify for rollback.</summary>
-        private struct MaterialStateSnapshot
+        private readonly struct MaterialStateSnapshot
         {
+            /// <summary>Initializes the immutable rollback snapshot.</summary>
+            /// <param name="sourceBlend">The prior base-pass source blend factor.</param>
+            /// <param name="destinationBlend">The prior base-pass destination blend factor.</param>
+            /// <param name="depthWrite">The prior depth-write state.</param>
+            /// <param name="additiveSourceBlend">The prior additive-pass source blend factor.</param>
+            /// <param name="additiveDestinationBlend">The prior additive-pass destination blend factor.</param>
+            /// <param name="metadata">The raw tag, queue, pass, keyword, and dirty-state metadata.</param>
+            private MaterialStateSnapshot(
+                float sourceBlend,
+                float destinationBlend,
+                float depthWrite,
+                float additiveSourceBlend,
+                float additiveDestinationBlend,
+                MaterialStateSnapshotMetadata metadata)
+            {
+                SourceBlend = sourceBlend;
+                DestinationBlend = destinationBlend;
+                DepthWrite = depthWrite;
+                AdditiveSourceBlend = additiveSourceBlend;
+                AdditiveDestinationBlend = additiveDestinationBlend;
+                HasRenderTypeOverride = metadata.HasRenderTypeOverride;
+                RenderTypeOverride = metadata.RenderTypeOverride;
+                RawRenderQueue = metadata.RawRenderQueue;
+                OpaqueKeywordEnabled = metadata.OpaqueKeywordEnabled;
+                TransparentKeywordEnabled = metadata.TransparentKeywordEnabled;
+                ShadowCasterEnabled = metadata.ShadowCasterEnabled;
+                MetaEnabled = metadata.MetaEnabled;
+                WasDirty = metadata.WasDirty;
+            }
+
             /// <summary>Gets the prior base-pass source blend factor.</summary>
-            private float SourceBlend { get; set; }
+            private float SourceBlend { get; }
 
             /// <summary>Gets the prior base-pass destination blend factor.</summary>
-            private float DestinationBlend { get; set; }
+            private float DestinationBlend { get; }
 
             /// <summary>Gets the prior depth-write state.</summary>
-            private float DepthWrite { get; set; }
+            private float DepthWrite { get; }
 
             /// <summary>Gets the prior additive-pass source blend factor.</summary>
-            private float AdditiveSourceBlend { get; set; }
+            private float AdditiveSourceBlend { get; }
 
             /// <summary>Gets the prior additive-pass destination blend factor.</summary>
-            private float AdditiveDestinationBlend { get; set; }
+            private float AdditiveDestinationBlend { get; }
 
             /// <summary>Gets whether a prior RenderType override existed in the raw tag map.</summary>
-            private bool HasRenderTypeOverride { get; set; }
+            private bool HasRenderTypeOverride { get; }
 
             /// <summary>Gets the prior raw RenderType override value.</summary>
-            private string RenderTypeOverride { get; set; }
+            private string RenderTypeOverride { get; }
 
             /// <summary>Gets the prior raw material queue override.</summary>
-            private int RawRenderQueue { get; set; }
+            private int RawRenderQueue { get; }
 
             /// <summary>Gets whether the Opaque keyword was enabled.</summary>
-            private bool OpaqueKeywordEnabled { get; set; }
+            private bool OpaqueKeywordEnabled { get; }
 
             /// <summary>Gets whether the Transparent keyword was enabled.</summary>
-            private bool TransparentKeywordEnabled { get; set; }
+            private bool TransparentKeywordEnabled { get; }
 
             /// <summary>Gets whether ShadowCaster was enabled.</summary>
-            private bool ShadowCasterEnabled { get; set; }
+            private bool ShadowCasterEnabled { get; }
 
             /// <summary>Gets whether Meta was enabled.</summary>
-            private bool MetaEnabled { get; set; }
+            private bool MetaEnabled { get; }
 
             /// <summary>Gets whether the material was dirty before normalization.</summary>
-            private bool WasDirty { get; set; }
+            private bool WasDirty { get; }
 
             /// <summary>Captures the normalizer-owned state from one material.</summary>
             /// <param name="material">The material to capture.</param>
@@ -446,22 +543,23 @@ namespace PureBase.Editor
             public static MaterialStateSnapshot Capture(Material material)
             {
                 bool hasRenderTypeOverride = TryGetRawRenderTypeOverride(material, out string renderTypeOverride);
-                return new MaterialStateSnapshot
-                {
-                    SourceBlend = material.GetFloat(SourceBlendPropertyName),
-                    DestinationBlend = material.GetFloat(DestinationBlendPropertyName),
-                    DepthWrite = material.GetFloat(DepthWritePropertyName),
-                    AdditiveSourceBlend = material.GetFloat(AdditiveSourceBlendPropertyName),
-                    AdditiveDestinationBlend = material.GetFloat(AdditiveDestinationBlendPropertyName),
-                    HasRenderTypeOverride = hasRenderTypeOverride,
-                    RenderTypeOverride = renderTypeOverride,
-                    RawRenderQueue = GetRawRenderQueue(material),
-                    OpaqueKeywordEnabled = material.IsKeywordEnabled(OpaqueKeyword),
-                    TransparentKeywordEnabled = material.IsKeywordEnabled(TransparentKeyword),
-                    ShadowCasterEnabled = material.GetShaderPassEnabled(ShadowCasterPassName),
-                    MetaEnabled = material.GetShaderPassEnabled(MetaPassName),
-                    WasDirty = EditorUtility.IsDirty(material),
-                };
+                return new MaterialStateSnapshot(
+                    material.GetFloat(SourceBlendPropertyName),
+                    material.GetFloat(DestinationBlendPropertyName),
+                    material.GetFloat(DepthWritePropertyName),
+                    material.GetFloat(AdditiveSourceBlendPropertyName),
+                    material.GetFloat(AdditiveDestinationBlendPropertyName),
+                    new MaterialStateSnapshotMetadata(
+                        hasRenderTypeOverride,
+                        renderTypeOverride,
+                        GetRawRenderQueue(material),
+                        material.IsKeywordEnabled(OpaqueKeyword),
+                        material.IsKeywordEnabled(TransparentKeyword),
+                        material.GetShaderPassEnabled(ShadowCasterPassName),
+                        material.GetShaderPassEnabled(MetaPassName),
+                        EditorUtility.IsDirty(material)
+                    )
+                );
             }
 
             /// <summary>Restores the normalizer-owned state to one material.</summary>
@@ -482,6 +580,63 @@ namespace PureBase.Editor
                 if (!WasDirty)
                     EditorUtility.ClearDirty(material);
             }
+        }
+
+        /// <summary>Groups the remaining rollback values for immutable snapshot construction.</summary>
+        private readonly struct MaterialStateSnapshotMetadata
+        {
+            /// <summary>Initializes the immutable rollback metadata.</summary>
+            /// <param name="hasRenderTypeOverride">Whether a prior RenderType override existed in the raw tag map.</param>
+            /// <param name="renderTypeOverride">The prior raw RenderType override value.</param>
+            /// <param name="rawRenderQueue">The prior raw material queue override.</param>
+            /// <param name="opaqueKeywordEnabled">Whether the Opaque keyword was enabled.</param>
+            /// <param name="transparentKeywordEnabled">Whether the Transparent keyword was enabled.</param>
+            /// <param name="shadowCasterEnabled">Whether ShadowCaster was enabled.</param>
+            /// <param name="metaEnabled">Whether Meta was enabled.</param>
+            /// <param name="wasDirty">Whether the material was dirty before normalization.</param>
+            public MaterialStateSnapshotMetadata(
+                bool hasRenderTypeOverride,
+                string renderTypeOverride,
+                int rawRenderQueue,
+                bool opaqueKeywordEnabled,
+                bool transparentKeywordEnabled,
+                bool shadowCasterEnabled,
+                bool metaEnabled,
+                bool wasDirty)
+            {
+                HasRenderTypeOverride = hasRenderTypeOverride;
+                RenderTypeOverride = renderTypeOverride;
+                RawRenderQueue = rawRenderQueue;
+                OpaqueKeywordEnabled = opaqueKeywordEnabled;
+                TransparentKeywordEnabled = transparentKeywordEnabled;
+                ShadowCasterEnabled = shadowCasterEnabled;
+                MetaEnabled = metaEnabled;
+                WasDirty = wasDirty;
+            }
+
+            /// <summary>Gets whether a prior RenderType override existed in the raw tag map.</summary>
+            public bool HasRenderTypeOverride { get; }
+
+            /// <summary>Gets the prior raw RenderType override value.</summary>
+            public string RenderTypeOverride { get; }
+
+            /// <summary>Gets the prior raw material queue override.</summary>
+            public int RawRenderQueue { get; }
+
+            /// <summary>Gets whether the Opaque keyword was enabled.</summary>
+            public bool OpaqueKeywordEnabled { get; }
+
+            /// <summary>Gets whether the Transparent keyword was enabled.</summary>
+            public bool TransparentKeywordEnabled { get; }
+
+            /// <summary>Gets whether ShadowCaster was enabled.</summary>
+            public bool ShadowCasterEnabled { get; }
+
+            /// <summary>Gets whether Meta was enabled.</summary>
+            public bool MetaEnabled { get; }
+
+            /// <summary>Gets whether the material was dirty before normalization.</summary>
+            public bool WasDirty { get; }
         }
 
         /// <summary>Reads the raw RenderType override presence and value without resolving shader fallback tags.</summary>
