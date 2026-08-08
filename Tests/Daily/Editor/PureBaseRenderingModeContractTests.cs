@@ -49,6 +49,10 @@ namespace PureBase.Tests.Daily
         private const string RenderingModePropertySourcePattern =
             @"SC_uint\s*\(\s*_RenderingMode\s*,\s*1(?:\.0+)?\s*,\s*\[\s*PureBaseRenderingMode\s*\]\s*,\s*""[^""\r\n]*""\s*,\s*""[^""\r\n]*""\s*\)";
 
+        /// <summary>Matches the required Cutoff declaration with its Pure-Base drawer and stable range bounds.</summary>
+        private const string CutoffPropertySourcePattern =
+            @"SC_float\s*\(\s*_Cutoff\s*,\s*0\.5(?:0+)?\s*,\s*\[\s*PureBaseCutoff\s*\]\s*\[\s*SCRange\s*\(\s*-0\.001\s*,\s*1\.001\s*\)\s*\]\s*,\s*""Cutoff""\s*,\s*""""\s*\)";
+
         /// <summary>Lists the public product shaders and their complete visible property ABI.</summary>
         private static readonly ProductContract[] Products =
         {
@@ -202,6 +206,19 @@ namespace PureBase.Tests.Daily
                     Regex.IsMatch(File.ReadAllText(product.propertySourcePath), RenderingModePropertySourcePattern),
                     Is.True,
                     $"Product property source '{product.propertySourcePath}' must declare _RenderingMode as SC_uint with default 1 and the PureBaseRenderingMode drawer."
+                );
+
+                int cutoffIndex = shader.FindPropertyIndex("_Cutoff");
+                Assert.That(cutoffIndex, Is.GreaterThanOrEqualTo(0), $"Product shader '{product.shaderName}' must expose _Cutoff.");
+                CollectionAssert.Contains(
+                    shader.GetPropertyAttributes(cutoffIndex),
+                    "PureBaseCutoff",
+                    $"Product shader '{product.shaderName}' must use the Pure-Base Cutoff drawer."
+                );
+                Assert.That(
+                    Regex.IsMatch(File.ReadAllText(product.propertySourcePath), CutoffPropertySourcePattern),
+                    Is.True,
+                    $"Product property source '{product.propertySourcePath}' must declare _Cutoff with the PureBaseCutoff drawer and SCRange(-0.001,1.001)."
                 );
 
                 var material = CreateMaterial(shader);
@@ -494,6 +511,58 @@ namespace PureBase.Tests.Daily
                 opaqueBaseline.AssertEqual(opaque, "Opaque target after read-only mixed refresh");
                 transparentBaseline.AssertEqual(transparent, "Transparent target after read-only mixed refresh");
             }
+        }
+
+        /// <summary>Requires the Cutoff drawer to register and report read-only visibility from supported Cutout selections only.</summary>
+        [Test]
+        public void CutoffDrawerIsRegisteredAndVisibilityModelIsReadOnly()
+        {
+            Type attributeActionsType = FindLoadedType("jp.lilxyzw.shadercore.AttributeActions");
+            Assert.That(attributeActionsType, Is.Not.Null, "Shader-Core AttributeActions was not loaded.");
+            MethodInfo containsKey = attributeActionsType.GetMethod(
+                "ContainsKey",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(string) },
+                null
+            );
+            Assert.That(containsKey, Is.Not.Null);
+            Assert.That((bool)containsKey.Invoke(null, new object[] { "PureBaseCutoff" }), Is.True);
+
+            Type cutoffElementType = FindLoadedType("PureBase.Editor.PureBaseCutoffElement");
+            Assert.That(cutoffElementType, Is.Not.Null, "The dedicated Cutoff Inspector drawer must be loaded.");
+            MethodInfo getSelectionDisplayState = cutoffElementType.GetMethod(
+                "GetSelectionDisplayState",
+                BindingFlags.Static | BindingFlags.NonPublic,
+                null,
+                new[] { typeof(UnityEngine.Object[]) },
+                null
+            );
+            Assert.That(getSelectionDisplayState, Is.Not.Null, "The Cutoff drawer must expose its read-only selection display model.");
+            PropertyInfo isVisible = getSelectionDisplayState.ReturnType.GetProperty("IsVisible", BindingFlags.Public | BindingFlags.Instance);
+            Assert.That(isVisible, Is.Not.Null, "The Cutoff selection display model must expose visibility.");
+
+            var opaque = CreateMaterial(RequireProductShader("PureBase/Unlit"));
+            var transparent = CreateMaterial(RequireProductShader("PureBase/Toon"));
+            var cutout = CreateMaterial(RequireProductShader("PureBase/PBR"));
+            var unsupported = CreateMaterial(RequireUnsupportedRenderingModeShader());
+            opaque.SetInteger("_RenderingMode", Modes[0].value);
+            transparent.SetInteger("_RenderingMode", Modes[2].value);
+            cutout.SetInteger("_RenderingMode", Modes[1].value);
+            MaterialState opaqueBaseline = MaterialState.Capture(opaque);
+            MaterialState transparentBaseline = MaterialState.Capture(transparent);
+            MaterialState cutoutBaseline = MaterialState.Capture(cutout);
+            MaterialState unsupportedBaseline = MaterialState.Capture(unsupported);
+
+            Func<UnityEngine.Object[], bool> getVisibility = targets =>
+                (bool)isVisible.GetValue(getSelectionDisplayState.Invoke(null, new object[] { targets }));
+            Assert.That(getVisibility(new UnityEngine.Object[] { opaque, transparent }), Is.False, "All Opaque and Transparent supported targets must hide Cutoff.");
+            Assert.That(getVisibility(new UnityEngine.Object[] { opaque, transparent, unsupported }), Is.False, "Unsupported targets must not make Cutoff visible.");
+            Assert.That(getVisibility(new UnityEngine.Object[] { opaque, transparent, cutout, unsupported }), Is.True, "Any supported Cutout target must make Cutoff visible.");
+            opaqueBaseline.AssertEqual(opaque, "Opaque target after Cutoff display-state read");
+            transparentBaseline.AssertEqual(transparent, "Transparent target after Cutoff display-state read");
+            cutoutBaseline.AssertEqual(cutout, "Cutout target after Cutoff display-state read");
+            unsupportedBaseline.AssertEqual(unsupported, "Unsupported target after Cutoff display-state read");
         }
 
         /// <summary>Requires the drawer's one-action multi-target boundary to validate, normalize, undo, redo, and refresh without incidental mutation.</summary>
