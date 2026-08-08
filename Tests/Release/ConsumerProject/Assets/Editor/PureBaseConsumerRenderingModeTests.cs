@@ -71,6 +71,34 @@ namespace PureBase.Release.Consumer.Tests
         public void PostPixelAlphaConsumerInvocationSelectsTheTransparentToonProbeContract()
         {
             ConsumerValidationContract contract = ConsumerValidationSupport.LoadContract();
+            ConsumerProductContract product = AssertPostPixelAlphaProductContract(contract);
+            Shader shader = ConsumerValidationSupport.ImportProductShader(
+                product,
+                contract.runLabel
+            );
+            CollectionAssert.AreEqual(SourcePassNames, ConsumerValidationSupport.GetPassNames(shader));
+            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(product, contract.runLabel);
+            PureBaseConsumerModuleFreeImportTests.AssertGlobalFragments(
+                contract,
+                product,
+                generatedSource
+            );
+            PureBaseConsumerModuleFreeImportTests.AssertPassContracts(
+                contract,
+                product,
+                generatedSource,
+                false
+            );
+            AssertTransparentToonAlphaProbeContract(contract, product, generatedSource);
+        }
+
+        /// <summary>Validates and returns the sole Toon product selected for the postpixel alpha probe invocation.</summary>
+        /// <param name="contract">The loaded consumer validation contract.</param>
+        /// <returns>The selected Toon product contract.</returns>
+        private static ConsumerProductContract AssertPostPixelAlphaProductContract(
+            ConsumerValidationContract contract
+        )
+        {
             Assert.That(contract.runKind, Is.EqualTo("product-phase"));
             Assert.That(contract.hasSelectedModule, Is.True);
             Assert.That(contract.selectedModule, Is.Not.Null);
@@ -78,34 +106,30 @@ namespace PureBase.Release.Consumer.Tests
             Assert.That(contract.selectedModule.moduleUniqueId, Is.EqualTo(PostPixelAlphaProbeId));
             Assert.That(contract.products, Is.Not.Null.And.Length.EqualTo(1));
             Assert.That(contract.products[0].shaderName, Is.EqualTo("PureBase/Toon"));
-            Shader shader = ConsumerValidationSupport.ImportProductShader(
-                contract.products[0],
-                contract.runLabel
-            );
-            CollectionAssert.AreEqual(SourcePassNames, ConsumerValidationSupport.GetPassNames(shader));
-            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(contract.products[0], contract.runLabel);
-            PureBaseConsumerModuleFreeImportTests.AssertGlobalFragments(
-                contract,
-                contract.products[0],
-                generatedSource
-            );
-            PureBaseConsumerModuleFreeImportTests.AssertPassContracts(
-                contract,
-                contract.products[0],
-                generatedSource,
-                false
-            );
+            return contract.products[0];
+        }
+
+        /// <summary>Checks that the generated Toon ForwardBase fragment applies the alpha probe after rendering-mode output alpha handling and before return.</summary>
+        /// <param name="contract">The loaded consumer validation contract.</param>
+        /// <param name="product">The selected Toon product contract.</param>
+        /// <param name="generatedSource">The generated Toon shader source.</param>
+        private static void AssertTransparentToonAlphaProbeContract(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            string generatedSource
+        )
+        {
             string forwardBaseSource = ConsumerValidationSupport.GetPassSource(
                 generatedSource,
                 "ForwardBase",
                 "ForwardAdd",
                 contract.runLabel,
-                contract.products[0].shaderName
+                product.shaderName
             );
             string fragmentBody = GetFragmentBody(
                 forwardBaseSource,
                 contract.runLabel,
-                contract.products[0].shaderName
+                product.shaderName
             );
             Match modeAlphaOperation = Regex.Match(
                 fragmentBody,
@@ -278,69 +302,78 @@ namespace PureBase.Release.Consumer.Tests
         private static void AssertModeState(Material material, string shaderName, int mode)
         {
             Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(mode), shaderName + " rendering mode.");
-            int sourceBlend;
-            int destinationBlend;
-            int depthWrite;
-            int additiveSourceBlend;
-            int additiveDestinationBlend;
-            string renderType;
-            int renderQueue;
-            bool opaqueKeyword;
-            bool transparentKeyword;
-            bool contributionPasses;
+            var expectedState = GetExpectedModeState(mode);
+            AssertDerivedModeState(material, expectedState);
+        }
+
+        /// <summary>Returns the complete derived render-state, keyword, and contribution-pass expectations for one supported rendering mode.</summary>
+        /// <param name="mode">The public rendering-mode value.</param>
+        /// <returns>The expected state for the requested mode.</returns>
+        private static (
+            int sourceBlend,
+            int destinationBlend,
+            int depthWrite,
+            int additiveSourceBlend,
+            int additiveDestinationBlend,
+            string renderType,
+            int renderQueue,
+            bool opaqueKeyword,
+            bool transparentKeyword,
+            bool contributionPasses
+        ) GetExpectedModeState(int mode)
+        {
             switch (mode)
             {
                 case 0:
-                    sourceBlend = (int)BlendMode.One;
-                    destinationBlend = (int)BlendMode.Zero;
-                    depthWrite = 1;
-                    additiveSourceBlend = (int)BlendMode.One;
-                    additiveDestinationBlend = (int)BlendMode.One;
-                    renderType = "Opaque";
-                    renderQueue = 2000;
-                    opaqueKeyword = true;
-                    transparentKeyword = false;
-                    contributionPasses = true;
-                    break;
+                    return (
+                        (int)BlendMode.One, (int)BlendMode.Zero, 1, (int)BlendMode.One,
+                        (int)BlendMode.One, "Opaque", 2000, true, false, true
+                    );
                 case 1:
-                    sourceBlend = (int)BlendMode.One;
-                    destinationBlend = (int)BlendMode.Zero;
-                    depthWrite = 1;
-                    additiveSourceBlend = (int)BlendMode.One;
-                    additiveDestinationBlend = (int)BlendMode.One;
-                    renderType = "TransparentCutout";
-                    renderQueue = (int)RenderQueue.AlphaTest;
-                    opaqueKeyword = false;
-                    transparentKeyword = false;
-                    contributionPasses = true;
-                    break;
+                    return (
+                        (int)BlendMode.One, (int)BlendMode.Zero, 1, (int)BlendMode.One,
+                        (int)BlendMode.One, "TransparentCutout", (int)RenderQueue.AlphaTest, false, false, true
+                    );
                 case 2:
-                    sourceBlend = (int)BlendMode.SrcAlpha;
-                    destinationBlend = (int)BlendMode.OneMinusSrcAlpha;
-                    depthWrite = 0;
-                    additiveSourceBlend = (int)BlendMode.SrcAlpha;
-                    additiveDestinationBlend = (int)BlendMode.One;
-                    renderType = "Transparent";
-                    renderQueue = 3000;
-                    opaqueKeyword = false;
-                    transparentKeyword = true;
-                    contributionPasses = false;
-                    break;
+                    return (
+                        (int)BlendMode.SrcAlpha, (int)BlendMode.OneMinusSrcAlpha, 0,
+                        (int)BlendMode.SrcAlpha, (int)BlendMode.One, "Transparent", 3000, false, true, false
+                    );
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode));
             }
+        }
 
-            Assert.That(material.GetFloat("_SrcBlend"), Is.EqualTo((float)sourceBlend));
-            Assert.That(material.GetFloat("_DstBlend"), Is.EqualTo((float)destinationBlend));
-            Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo((float)depthWrite));
-            Assert.That(material.GetFloat("_AddSrcBlend"), Is.EqualTo((float)additiveSourceBlend));
-            Assert.That(material.GetFloat("_AddDstBlend"), Is.EqualTo((float)additiveDestinationBlend));
-            Assert.That(material.GetTag("RenderType", false), Is.EqualTo(renderType));
-            Assert.That(material.renderQueue, Is.EqualTo(renderQueue));
-            Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[0]), Is.EqualTo(opaqueKeyword));
-            Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[1]), Is.EqualTo(transparentKeyword));
-            Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.EqualTo(contributionPasses));
-            Assert.That(material.GetShaderPassEnabled("Meta"), Is.EqualTo(contributionPasses));
+        /// <summary>Compares a normalized material's derived state to one supported rendering-mode expectation.</summary>
+        /// <param name="material">The normalized transient material.</param>
+        /// <param name="expectedState">The expected derived state.</param>
+        private static void AssertDerivedModeState(
+            Material material,
+            (
+                int sourceBlend,
+                int destinationBlend,
+                int depthWrite,
+                int additiveSourceBlend,
+                int additiveDestinationBlend,
+                string renderType,
+                int renderQueue,
+                bool opaqueKeyword,
+                bool transparentKeyword,
+                bool contributionPasses
+            ) expectedState
+        )
+        {
+            Assert.That(material.GetFloat("_SrcBlend"), Is.EqualTo((float)expectedState.sourceBlend));
+            Assert.That(material.GetFloat("_DstBlend"), Is.EqualTo((float)expectedState.destinationBlend));
+            Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo((float)expectedState.depthWrite));
+            Assert.That(material.GetFloat("_AddSrcBlend"), Is.EqualTo((float)expectedState.additiveSourceBlend));
+            Assert.That(material.GetFloat("_AddDstBlend"), Is.EqualTo((float)expectedState.additiveDestinationBlend));
+            Assert.That(material.GetTag("RenderType", false), Is.EqualTo(expectedState.renderType));
+            Assert.That(material.renderQueue, Is.EqualTo(expectedState.renderQueue));
+            Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[0]), Is.EqualTo(expectedState.opaqueKeyword));
+            Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[1]), Is.EqualTo(expectedState.transparentKeyword));
+            Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.EqualTo(expectedState.contributionPasses));
+            Assert.That(material.GetShaderPassEnabled("Meta"), Is.EqualTo(expectedState.contributionPasses));
         }
 
         /// <summary>Requires invalid public mode values to leave all derived state from the prior valid mode unchanged.</summary>
