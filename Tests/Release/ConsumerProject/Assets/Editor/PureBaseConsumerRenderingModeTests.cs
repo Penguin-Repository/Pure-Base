@@ -111,9 +111,18 @@ namespace PureBase.Release.Consumer.Tests
                 fragmentBody,
                 @"\bPureBaseApplyRenderingModeOutputAlpha\s*\("
             );
-            int alphaProbe = fragmentBody.IndexOf("sd.col.a = half(0.25)", StringComparison.Ordinal);
+            Match alphaProbeMatch = Regex.Match(
+                fragmentBody,
+                @"\bsd\.col\.a\s*=\s*half\s*\(\s*0\.25\s*\)\s*;"
+            );
+            Assert.That(
+                alphaProbeMatch.Success,
+                Is.True,
+                "The ForwardBase fragment must contain the transparent toon alpha probe contract."
+            );
+            int alphaProbe = alphaProbeMatch.Index;
             Match returnStatement = Regex.Match(
-                fragmentBody.Substring(Math.Max(alphaProbe, 0)),
+                fragmentBody.Substring(alphaProbe),
                 @"\breturn\b"
             );
             Assert.That(modeAlphaOperation.Success, Is.True);
