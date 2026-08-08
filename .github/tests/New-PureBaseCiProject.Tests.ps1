@@ -34,7 +34,11 @@ Describe 'Pure-Base CI Unity project generation' {
         $pureBaseRoot = Join-Path $projectRoot 'Packages/jp.penguin.purebase'
         $shaderCoreRoot = Join-Path $projectRoot 'Packages/jp.lilxyzw.shadercore'
         $consumerSettings = Join-Path $pureBaseRoot 'Tests/Release/ConsumerProject/ProjectSettings'
-        New-Item -ItemType Directory -Path $pureBaseRoot,$shaderCoreRoot,$consumerSettings -Force | Out-Null
+        $ownerLightingDataDirectory = Join-Path $pureBaseRoot 'Tests/Fixtures/Scenes/PureBaseValidation'
+        $ownerLightingDataAssetPath = Join-Path $ownerLightingDataDirectory 'OwnerLightingData.asset'
+        $ownerLightingDataMetaPath = "$ownerLightingDataAssetPath.meta"
+        $ownerLightingDataGuid = [guid]::NewGuid().ToString('N')
+        New-Item -ItemType Directory -Path $pureBaseRoot,$shaderCoreRoot,$consumerSettings,$ownerLightingDataDirectory -Force | Out-Null
         [IO.File]::WriteAllText(
             (Join-Path $pureBaseRoot 'package.json'),
             '{"name":"jp.penguin.purebase","version":"0.1.0"}',
@@ -75,6 +79,16 @@ QualitySettings:
             $qualitySettingsFixture + "`n",
             [Text.UTF8Encoding]::new($false)
         )
+        [IO.File]::WriteAllText(
+            $ownerLightingDataAssetPath,
+            "Owner LightingData test fixture`n",
+            [Text.UTF8Encoding]::new($false)
+        )
+        [IO.File]::WriteAllText(
+            $ownerLightingDataMetaPath,
+            "fileFormatVersion: 2`nguid: $ownerLightingDataGuid`n",
+            [Text.UTF8Encoding]::new($false)
+        )
     }
 
     It 'keeps the tracked VRChat-project QualitySettings source fixture under the reviewed contract' {
@@ -109,6 +123,14 @@ QualitySettings:
         $ownerScene = Get-Content -LiteralPath $ownerScenePath -Raw
         Assert-CiProjectHarness -Condition ($ownerScene -match 'SceneRoots:') -Message 'Generated owner scene is not a serialized Unity scene.'
         Assert-CiProjectHarness -Condition ($ownerScene -match 'm_Roots: \[\]') -Message 'Generated owner scene must remain empty.'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $ownerLightingDataAssetPath -PathType Leaf) -Message 'Temporary package fixture is missing the owner LightingData asset.'
+        Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $ownerLightingDataMetaPath -PathType Leaf) -Message 'Temporary package fixture is missing the owner LightingData metadata.'
+        $ownerLightingDataMeta = Get-Content -LiteralPath $ownerLightingDataMetaPath -Raw
+        $ownerLightingDataGuidMatch = [regex]::Match($ownerLightingDataMeta, '(?m)^guid:\s*([0-9a-f]{32})\s*$')
+        Assert-CiProjectHarness -Condition $ownerLightingDataGuidMatch.Success -Message 'Temporary owner LightingData metadata must contain a GUID.'
+        $ownerSceneLightingDataGuidMatch = [regex]::Match($ownerScene, '(?m)^\s*m_LightingDataAsset: \{fileID: 112000000, guid: ([0-9a-f]{32}), type: 2\}\s*$')
+        Assert-CiProjectHarness -Condition $ownerSceneLightingDataGuidMatch.Success -Message 'Generated owner scene must reference a LightingData asset.'
+        Assert-CiProjectHarness -Condition ($ownerSceneLightingDataGuidMatch.Groups[1].Value -eq $ownerLightingDataGuidMatch.Groups[1].Value) -Message 'Generated owner scene LightingData GUID must match the owner fixture metadata GUID.'
 
         $qualitySettingsPath = Join-Path $projectRoot 'ProjectSettings/QualitySettings.asset'
         Assert-CiProjectHarness -Condition (Test-Path -LiteralPath $qualitySettingsPath -PathType Leaf) -Message 'Generated CI project is missing the reviewed VRChat-project QualitySettings snapshot.'
@@ -132,5 +154,27 @@ QualitySettings:
         try { & $projectBuilder -ProjectRoot $projectRoot }
         catch { $failure = $_ }
         Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*exactly 0.1.9*') -Message 'The CI project builder accepted an unexpected Shader-Core version.'
+    }
+
+    It 'rejects a missing owner LightingData fixture' {
+        Remove-Item -LiteralPath $ownerLightingDataAssetPath -Force
+
+        $failure = $null
+        try { & $projectBuilder -ProjectRoot $projectRoot }
+        catch { $failure = $_ }
+        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*Owner LightingData fixture is missing*') -Message 'The CI project builder accepted a missing owner LightingData fixture.'
+    }
+
+    It 'rejects malformed owner LightingData metadata GUIDs' {
+        [IO.File]::WriteAllText(
+            $ownerLightingDataMetaPath,
+            "fileFormatVersion: 2`nguid: malformed`n",
+            [Text.UTF8Encoding]::new($false)
+        )
+
+        $failure = $null
+        try { & $projectBuilder -ProjectRoot $projectRoot }
+        catch { $failure = $_ }
+        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*malformed GUID*') -Message 'The CI project builder accepted malformed owner LightingData metadata.'
     }
 }

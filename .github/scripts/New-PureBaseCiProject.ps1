@@ -41,6 +41,28 @@ if ([string]$shaderCoreJson.name -ne 'jp.lilxyzw.shadercore' -or [string]$shader
   throw "The CI workspace requires jp.lilxyzw.shadercore exactly 0.1.9."
 }
 
+$ownerLightingDataRelativePath = 'Tests/Fixtures/Scenes/PureBaseValidation/OwnerLightingData.asset'
+$ownerLightingDataAssetPath = Join-Path $packageRoot $ownerLightingDataRelativePath
+if (-not (Test-Path -LiteralPath $ownerLightingDataAssetPath -PathType Leaf)) {
+  throw "Owner LightingData fixture is missing: '$ownerLightingDataRelativePath'."
+}
+
+$ownerLightingDataMetaRelativePath = "$ownerLightingDataRelativePath.meta"
+$ownerLightingDataMetaPath = Join-Path $packageRoot $ownerLightingDataMetaRelativePath
+if (-not (Test-Path -LiteralPath $ownerLightingDataMetaPath -PathType Leaf)) {
+  throw "Owner LightingData metadata is missing: '$ownerLightingDataMetaRelativePath'."
+}
+
+$ownerLightingDataGuidLines = @([regex]::Matches((Get-Content -LiteralPath $ownerLightingDataMetaPath -Raw), '(?m)^guid:\s*(\S+)\s*$'))
+if ($ownerLightingDataGuidLines.Count -ne 1) {
+  throw "Owner LightingData metadata must contain exactly one GUID: '$ownerLightingDataMetaRelativePath'."
+}
+
+$ownerLightingDataGuid = $ownerLightingDataGuidLines[0].Groups[1].Value
+if ($ownerLightingDataGuid -notmatch '^[0-9a-fA-F]{32}$') {
+  throw "Owner LightingData metadata contains a malformed GUID: '$ownerLightingDataMetaRelativePath'."
+}
+
 $assetsRoot = Join-Path $projectRootFullPath 'Assets'
 $projectSettingsRoot = Join-Path $projectRootFullPath 'ProjectSettings'
 $packagesRoot = Join-Path $projectRootFullPath 'Packages'
@@ -79,7 +101,7 @@ $manifestText = ($manifest | ConvertTo-Json -Depth 4) + "`n"
   [System.Text.UTF8Encoding]::new($false)
 )
 
-$ownerSceneText = @'
+$ownerSceneText = @"
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!29 &1
@@ -179,7 +201,7 @@ LightmapSettings:
     m_ExportTrainingData: 0
     m_TrainingDataDestination: TrainingData
     m_LightProbeSampleCountMultiplier: 4
-  m_LightingDataAsset: {fileID: 0}
+  m_LightingDataAsset: {fileID: 112000000, guid: $ownerLightingDataGuid, type: 2}
   m_LightingSettings: {fileID: 0}
 --- !u!196 &4
 NavMeshSettings:
@@ -209,7 +231,7 @@ NavMeshSettings:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots: []
-'@
+"@
 [System.IO.File]::WriteAllText(
   (Join-Path $assetsRoot 'Pure-Base.unity'),
   $ownerSceneText.Replace("`r`n", "`n") + "`n",

@@ -1099,7 +1099,7 @@ namespace PureBase.Tests.Daily
                 Assert.That(
                     ownerAndCanonicalGlobalLightmapCount,
                     Is.EqualTo(baseline.staticLightmapCount * 2),
-                    "The shared LightingData fixture must expose the additive global-count discriminator."
+                    "The owner-specific LightingData fixture must expose the additive global-count discriminator."
                 );
                 Assert.That(
                     ownerAndCanonicalStaticLightmapCount,
