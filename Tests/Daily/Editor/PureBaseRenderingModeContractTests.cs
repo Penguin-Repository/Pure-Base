@@ -36,7 +36,7 @@ namespace PureBase.Tests.Daily
         private readonly List<Material> transientMaterials = new List<Material>();
 
         /// <summary>Tracks transient texture sentinels used to make invalid-input atomicity snapshots discriminating.</summary>
-        private readonly List<Texture2D> transientTextures = new List<Texture2D>();
+        private readonly List<Texture> transientTextures = new List<Texture>();
 
         /// <summary>Identifies the package-local root used only by persistence tests.</summary>
         private const string TemporaryAssetRoot = "Assets/PureBaseRenderingModeTests";
@@ -132,6 +132,8 @@ namespace PureBase.Tests.Daily
                 (int)BlendMode.One,
                 (int)BlendMode.One,
                 "Opaque",
+                true,
+                "Opaque",
                 2000,
                 2000,
                 new[] { "PUREBASE_RENDERING_OPAQUE" },
@@ -146,6 +148,8 @@ namespace PureBase.Tests.Daily
                 (int)BlendMode.One,
                 (int)BlendMode.One,
                 string.Empty,
+                false,
+                "TransparentCutout",
                 -1,
                 (int)RenderQueue.AlphaTest,
                 Array.Empty<string>(),
@@ -159,6 +163,8 @@ namespace PureBase.Tests.Daily
                 0,
                 (int)BlendMode.SrcAlpha,
                 (int)BlendMode.One,
+                "Transparent",
+                true,
                 "Transparent",
                 3000,
                 3000,
@@ -182,6 +188,11 @@ namespace PureBase.Tests.Daily
 
                 int modeIndex = shader.FindPropertyIndex("_RenderingMode");
                 Assert.That(modeIndex, Is.GreaterThanOrEqualTo(0), $"Product shader '{product.shaderName}' must expose _RenderingMode.");
+                Assert.That(
+                    shader.GetPropertyType(modeIndex),
+                    Is.EqualTo(ShaderPropertyType.Int),
+                    $"Product shader '{product.shaderName}' must expose _RenderingMode as an Integer property."
+                );
                 CollectionAssert.Contains(
                     shader.GetPropertyAttributes(modeIndex),
                     "PureBaseRenderingMode",
@@ -195,7 +206,7 @@ namespace PureBase.Tests.Daily
 
                 var material = CreateMaterial(shader);
                 {
-                    Assert.That(material.GetFloat("_RenderingMode"), Is.EqualTo(1.0f));
+                    Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(1));
                     AssertHiddenState(material, Modes[1]);
                     Assert.That(material.renderQueue, Is.EqualTo((int)RenderQueue.AlphaTest));
                     Assert.That(material.GetTag("RenderType", false), Is.EqualTo("TransparentCutout"));
@@ -206,16 +217,7 @@ namespace PureBase.Tests.Daily
 
                 CollectionAssert.AreEqual(PassNames, GetPassNames(shader));
                 string source = LoadGeneratedSource(product.shaderName);
-                foreach (string keyword in RenderingModeKeywords)
-                {
-                    StringAssert.Contains(keyword, source, $"Product shader '{product.shaderName}' must declare local keyword '{keyword}'.");
-                }
-
-                Assert.That(
-                    CountOccurrences(source, "PUREBASE_RENDERING_"),
-                    Is.EqualTo(2),
-                    $"Product shader '{product.shaderName}' may declare only the Opaque and Transparent rendering-mode keywords."
-                );
+                AssertRenderingModeKeywordDeclarations(source, product.shaderName);
             }
         }
 
@@ -227,10 +229,12 @@ namespace PureBase.Tests.Daily
             var material = CreateMaterial(shader);
             {
                 Assert.That(shader.FindPropertyIndex("_RenderingMode"), Is.GreaterThanOrEqualTo(0));
-                Assert.That(EditorUtility.IsDirty(material), Is.False, "Creating a material must not dirty it.");
+                EditorUtility.ClearDirty(material);
+                Assert.That(EditorUtility.IsDirty(material), Is.False, "The Inspector-bind test must establish a clean baseline.");
+                MaterialState baseline = MaterialState.Capture(material);
                 MaterialEditor.GetMaterialProperties(new UnityEngine.Object[] { material });
-                Assert.That(EditorUtility.IsDirty(material), Is.False, "Binding a material to the Inspector must be read-only.");
-                Assert.That(material.GetFloat("_RenderingMode"), Is.EqualTo(1.0f));
+                baseline.AssertEqual(material, "Inspector bind");
+                Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(1));
                 AssertHiddenState(material, Modes[1]);
                 Assert.That(material.renderQueue, Is.EqualTo((int)RenderQueue.AlphaTest));
                 Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.True);
@@ -274,10 +278,10 @@ namespace PureBase.Tests.Daily
                 {
                     foreach (ModeContract mode in Modes)
                     {
-                        material.SetFloat("_RenderingMode", mode.value);
+                        material.SetInteger("_RenderingMode", mode.value);
                         InvokeApply(apply, material);
-                        Assert.That(material.GetFloat("_RenderingMode"), Is.EqualTo(mode.value), $"{product.shaderName} {mode.name} mode value.");
-                        Assert.That(material.GetTag("RenderType", false), Is.EqualTo(mode.renderTypeOverride));
+                        Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(mode.value), $"{product.shaderName} {mode.name} mode value.");
+                        AssertRenderTypeState(material, mode);
                         Assert.That(GetRawRenderQueue(material), Is.EqualTo(mode.rawQueue));
                         Assert.That(material.renderQueue, Is.EqualTo(mode.resolvedQueue));
                         AssertHiddenState(material, mode);
@@ -322,6 +326,7 @@ namespace PureBase.Tests.Daily
         public void InvalidNormalizerInputsAreAtomicForSingleAndMultipleTargets()
         {
             MethodInfo apply = RequireApplyMethod();
+            MethodInfo applyAll = RequireApplyAllMethod();
             Assert.Throws<ArgumentNullException>(() => InvokeApply(apply, null));
             var seededPropertyTypes = new HashSet<ShaderUtil.ShaderPropertyType>();
             var capturedPropertyTypes = new HashSet<ShaderUtil.ShaderPropertyType>();
@@ -358,15 +363,23 @@ namespace PureBase.Tests.Daily
             {
                 SeedAtomicityState(first, seededPropertyTypes);
                 SeedAtomicityState(second, seededPropertyTypes);
-                foreach (float invalidMode in new[] { -1.0f, 0.5f, 3.0f })
+                EditorUtility.ClearDirty(second);
+                foreach (int invalidMode in new[] { -1, 3 })
                 {
-                    first.SetFloat("_RenderingMode", invalidMode);
+                    first.SetInteger("_RenderingMode", invalidMode);
+                    EditorUtility.ClearDirty(first);
                     MaterialState firstBefore = MaterialState.Capture(first, capturedPropertyTypes);
                     MaterialState secondBefore = MaterialState.Capture(second, capturedPropertyTypes);
                     firstBefore.AssertCapturesShaderProperty("_PureBaseShaderLabSentinel");
-                    Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApply(apply, first));
+                    ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApply(apply, first));
+                    AssertInvalidRenderingModeException(exception, first, invalidMode, "single-target invalid mode");
                     firstBefore.AssertEqual(first, $"invalid mode {invalidMode}", assertedPropertyTypes);
                     secondBefore.AssertEqual(second, $"unrelated target after invalid mode {invalidMode}", assertedPropertyTypes);
+
+                    exception = Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApplyAll(applyAll, new[] { first, second }));
+                    AssertInvalidRenderingModeException(exception, first, invalidMode, "batch invalid mode");
+                    firstBefore.AssertEqual(first, $"batch invalid mode {invalidMode}", assertedPropertyTypes);
+                    secondBefore.AssertEqual(second, $"unrelated target after batch invalid mode {invalidMode}", assertedPropertyTypes);
                 }
             }
 
@@ -381,6 +394,43 @@ namespace PureBase.Tests.Daily
             AssertCompleteAtomicityPropertyTypeCoverage(seededPropertyTypes, "seed");
             AssertCompleteAtomicityPropertyTypeCoverage(capturedPropertyTypes, "capture");
             AssertCompleteAtomicityPropertyTypeCoverage(assertedPropertyTypes, "assertion");
+        }
+
+        /// <summary>Requires a late batch failure to restore every already-mutated material exactly, including raw RenderType override presence.</summary>
+        [Test]
+        public void AtomicBatchRollbackRestoresRawRenderTypeOverridesAfterLateFailure()
+        {
+            MethodInfo applyAll = RequireApplyAllMethod();
+            var first = CreateMaterial(RequireProductShader("PureBase/Unlit"));
+            var second = CreateMaterial(RequireProductShader("PureBase/Toon"));
+            var failing = CreateMaterial(RequireProductShader("PureBase/PBR"));
+            SeedAtomicityState(first);
+            SeedAtomicityState(second);
+            SeedAtomicityState(failing);
+            first.SetInteger("_RenderingMode", 0);
+            second.SetInteger("_RenderingMode", 2);
+            failing.SetInteger("_RenderingMode", 1);
+            first.SetOverrideTag("RenderType", string.Empty);
+            second.SetOverrideTag("RenderType", "LegacyTransparent");
+            foreach (int invalidMode in new[] { -1, 3 })
+            {
+                failing.SetInteger("_RenderingMode", 1);
+                EditorUtility.ClearDirty(first);
+                EditorUtility.ClearDirty(second);
+                EditorUtility.ClearDirty(failing);
+                MaterialState firstBefore = MaterialState.Capture(first);
+                MaterialState secondBefore = MaterialState.Capture(second);
+                var materials = new LateInvalidatingMaterialList(new[] { first, second, failing }, 2, invalidMode);
+
+                ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApplyAll(applyAll, materials));
+                AssertInvalidRenderingModeException(exception, failing, invalidMode, "late batch invalid mode");
+                Assert.That(materials.ObservedPriorMutations, Is.True, "The late invalidation must occur after prior materials are normalized.");
+                firstBefore.AssertEqual(first, "first material after late batch rollback");
+                secondBefore.AssertEqual(second, "second material after late batch rollback");
+                Assert.That(AssetDatabase.GetAssetPath(first), Is.Empty, "The rollback fixture must remain transient.");
+                Assert.That(AssetDatabase.GetAssetPath(second), Is.Empty, "The rollback fixture must remain transient.");
+                Assert.That(AssetDatabase.GetAssetPath(failing), Is.Empty, "The failure fixture must remain transient.");
+            }
         }
 
         /// <summary>Requires the registered Shader-Core drawer to preserve mixed values without mutating a clean normalized selection.</summary>
@@ -411,8 +461,8 @@ namespace PureBase.Tests.Daily
                 MethodInfo apply = RequireApplyMethod();
                 MethodInfo refreshSelection = RequireDrawerSelectionRefreshMethod();
                 MethodInfo getSelectionDisplayState = RequireDrawerSelectionDisplayStateMethod();
-                opaque.SetFloat("_RenderingMode", 0.0f);
-                transparent.SetFloat("_RenderingMode", 2.0f);
+                opaque.SetInteger("_RenderingMode", 0);
+                transparent.SetInteger("_RenderingMode", 2);
                 EditorUtility.ClearDirty(opaque);
                 EditorUtility.ClearDirty(transparent);
                 Assert.That(EditorUtility.IsDirty(opaque), Is.False, "The Opaque resync target must be clean before explicit normalization.");
@@ -459,8 +509,8 @@ namespace PureBase.Tests.Daily
             int initialUndoGroup = Undo.GetCurrentGroup();
             try
             {
-                first.SetFloat("_RenderingMode", 0.0f);
-                second.SetFloat("_RenderingMode", 1.0f);
+                first.SetInteger("_RenderingMode", 0);
+                second.SetInteger("_RenderingMode", 1);
                 InvokeApply(apply, first);
                 InvokeApply(apply, second);
                 MaterialState firstBefore = MaterialState.Capture(first);
@@ -526,7 +576,7 @@ namespace PureBase.Tests.Daily
                 AssetDatabase.CreateFolder("Assets", "PureBaseRenderingModeTests");
                 var material = CreateMaterial(RequireProductShader("PureBase/Toon"));
                 AssetDatabase.CreateAsset(material, materialPath);
-                material.SetFloat("_RenderingMode", 2.0f);
+                material.SetInteger("_RenderingMode", 2);
                 InvokeApply(RequireApplyMethod(), material);
                 Assert.That(EditorUtility.IsDirty(material), Is.True, "Explicit normalization must dirty the temporary material before the path-scoped save.");
                 SaveOnlyOwnedAssetAndReimport(material, materialPath);
@@ -612,7 +662,7 @@ namespace PureBase.Tests.Daily
             }
 
             transientMaterials.Clear();
-            foreach (Texture2D texture in transientTextures)
+            foreach (Texture texture in transientTextures)
             {
                 if (texture != null)
                     UnityEngine.Object.DestroyImmediate(texture);
@@ -626,10 +676,6 @@ namespace PureBase.Tests.Daily
         /// <param name="observedPropertyTypes">The optional set that records seeded shader property types.</param>
         private void SeedAtomicityState(Material material, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null)
         {
-            var textureSentinel = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
-            transientTextures.Add(textureSentinel);
-            textureSentinel.SetPixel(0, 0, new Color(0.17f, 0.43f, 0.71f, 1.0f));
-            textureSentinel.Apply(false, false);
             Shader shader = material.shader;
             for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
             {
@@ -643,7 +689,7 @@ namespace PureBase.Tests.Daily
                         material.SetFloat(propertyName, 0.137f + (index * 0.019f));
                         break;
                     case ShaderUtil.ShaderPropertyType.Int:
-                        material.SetInt(propertyName, 17 + index);
+                        material.SetInteger(propertyName, 17 + index);
                         break;
                     case ShaderUtil.ShaderPropertyType.Color:
                         material.SetColor(propertyName, new Color(0.13f + (index * 0.01f), 0.27f, 0.41f, 0.59f));
@@ -652,7 +698,7 @@ namespace PureBase.Tests.Daily
                         material.SetVector(propertyName, new Vector4(0.11f, 0.23f, 0.37f, 0.53f + (index * 0.01f)));
                         break;
                     case ShaderUtil.ShaderPropertyType.TexEnv:
-                        material.SetTexture(propertyName, textureSentinel);
+                        material.SetTexture(propertyName, CreateTextureSentinel(shader, index));
                         material.SetTextureScale(propertyName, new Vector2(0.71f, 0.83f));
                         material.SetTextureOffset(propertyName, new Vector2(0.17f, 0.29f));
                         break;
@@ -661,6 +707,43 @@ namespace PureBase.Tests.Daily
                         break;
                 }
             }
+        }
+
+        /// <summary>Creates and tracks a transient texture matching one shader property's declared texture dimension.</summary>
+        /// <param name="shader">The shader declaring the texture property.</param>
+        /// <param name="propertyIndex">The declared shader-property index.</param>
+        /// <returns>A compatible transient texture sentinel.</returns>
+        private Texture CreateTextureSentinel(Shader shader, int propertyIndex)
+        {
+            TextureDimension dimension = shader.GetPropertyTextureDimension(propertyIndex);
+            Texture texture;
+            switch (dimension)
+            {
+                case TextureDimension.Tex2D:
+                    var texture2D = new Texture2D(2, 2, TextureFormat.RGBA32, false, true);
+                    texture2D.SetPixel(0, 0, new Color(0.17f, 0.43f, 0.71f, 1.0f));
+                    texture2D.Apply(false, false);
+                    texture = texture2D;
+                    break;
+                case TextureDimension.Tex2DArray:
+                    texture = new Texture2DArray(2, 2, 1, TextureFormat.RGBA32, false, true);
+                    break;
+                case TextureDimension.Tex3D:
+                    texture = new Texture3D(2, 2, 2, TextureFormat.RGBA32, false);
+                    break;
+                case TextureDimension.Cube:
+                    texture = new Cubemap(2, TextureFormat.RGBA32, false);
+                    break;
+                case TextureDimension.CubeArray:
+                    texture = new CubemapArray(2, 1, TextureFormat.RGBA32, false);
+                    break;
+                default:
+                    Assert.Fail($"Shader property '{shader.GetPropertyName(propertyIndex)}' has unsupported texture dimension '{dimension}'.");
+                    return null;
+            }
+
+            transientTextures.Add(texture);
+            return texture;
         }
 
         /// <summary>Creates transient non-Pure-Base materials that fill any property-type coverage gap in all atomicity paths.</summary>
@@ -835,6 +918,23 @@ namespace PureBase.Tests.Daily
             return method;
         }
 
+        /// <summary>Returns the internal validated batch boundary used to verify rollback after an apply-time failure.</summary>
+        /// <returns>The static <c>ApplyAll(IReadOnlyList&lt;Material&gt;)</c> method.</returns>
+        private static MethodInfo RequireApplyAllMethod()
+        {
+            Type type = FindLoadedType("PureBase.Editor.PureBaseMaterialRenderingMode");
+            Assert.That(type, Is.Not.Null, "PureBaseMaterialRenderingMode must be loaded from PureBase.Editor.");
+            MethodInfo method = type.GetMethod(
+                "ApplyAll",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new[] { typeof(IReadOnlyList<Material>) },
+                null
+            );
+            Assert.That(method, Is.Not.Null, "PureBaseMaterialRenderingMode must retain the validated batch boundary.");
+            return method;
+        }
+
         /// <summary>Returns the drawer operation that applies one selected mode to every validated target in one user action.</summary>
         /// <returns>The static <c>ApplySelection(Material[], int)</c> drawer operation.</returns>
         private static MethodInfo RequireDrawerSelectionApplyMethod()
@@ -887,6 +987,28 @@ namespace PureBase.Tests.Daily
         private static void InvokeApply(MethodInfo method, Material material)
         {
             InvokeReflectedMethod(method, new object[] { material });
+        }
+
+        /// <summary>Invokes the validated batch boundary while preserving its original exception type.</summary>
+        /// <param name="method">The reflected batch normalizer method.</param>
+        /// <param name="materials">The material list passed to the batch normalizer.</param>
+        private static void InvokeApplyAll(MethodInfo method, IReadOnlyList<Material> materials)
+        {
+            InvokeReflectedMethod(method, new object[] { materials });
+        }
+
+        /// <summary>Asserts that one rejected rendering-mode value preserves its established exception contract.</summary>
+        /// <param name="exception">The exception thrown for the rejected value.</param>
+        /// <param name="material">The rejected material identified by the exception.</param>
+        /// <param name="value">The rejected rendering-mode value.</param>
+        /// <param name="context">The operation context used in assertion diagnostics.</param>
+        private static void AssertInvalidRenderingModeException(ArgumentOutOfRangeException exception, Material material, int value, string context)
+        {
+            Assert.That(exception, Is.Not.Null, context + " must throw an ArgumentOutOfRangeException.");
+            Assert.That(exception.ParamName, Is.EqualTo("_RenderingMode"), context + " exception parameter.");
+            Assert.That(exception.ActualValue, Is.EqualTo(value), context + " exception value.");
+            StringAssert.Contains(material.name, exception.Message, context + " exception material identity.");
+            StringAssert.Contains("0, 1, or 2", exception.Message, context + " exception supported values.");
         }
 
         /// <summary>Invokes the drawer's one-action multi-target operation while preserving its original exception type.</summary>
@@ -1013,8 +1135,8 @@ namespace PureBase.Tests.Daily
         /// <param name="mode">The expected state-table row.</param>
         private static void AssertModeState(Material material, ModeContract mode)
         {
-            Assert.That(material.GetFloat("_RenderingMode"), Is.EqualTo(mode.value));
-            Assert.That(material.GetTag("RenderType", false), Is.EqualTo(mode.renderTypeOverride));
+            Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(mode.value));
+            AssertRenderTypeState(material, mode);
             Assert.That(GetRawRenderQueue(material), Is.EqualTo(mode.rawQueue));
             Assert.That(material.renderQueue, Is.EqualTo(mode.resolvedQueue));
             AssertHiddenState(material, mode);
@@ -1028,7 +1150,8 @@ namespace PureBase.Tests.Daily
         private static void AssertLegacyState(MaterialState state)
         {
             Assert.That(state.rawQueue, Is.EqualTo(2467));
-            Assert.That(state.renderType, Is.EqualTo("LegacyCutout"));
+            Assert.That(state.hasRenderTypeOverride, Is.True);
+            Assert.That(state.renderTypeOverride, Is.EqualTo("LegacyCutout"));
             CollectionAssert.AreEquivalent(new[] { "PUREBASE_LEGACY_UNRELATED" }, state.keywords);
             Assert.That(state.shadowCasterEnabled, Is.True);
             Assert.That(state.metaEnabled, Is.False);
@@ -1046,21 +1169,60 @@ namespace PureBase.Tests.Daily
             return queue.intValue;
         }
 
-        /// <summary>Counts non-overlapping occurrences of one marker in source text.</summary>
-        /// <param name="text">The source text to inspect.</param>
-        /// <param name="value">The marker to count.</param>
-        /// <returns>The number of non-overlapping occurrences.</returns>
-        private static int CountOccurrences(string text, string value)
+        /// <summary>Asserts the serialized RenderType override separately from Unity's resolved shader tag.</summary>
+        /// <param name="material">The material whose RenderType state is inspected.</param>
+        /// <param name="mode">The expected rendering-mode state.</param>
+        private static void AssertRenderTypeState(Material material, ModeContract mode)
         {
-            int count = 0;
-            int index = 0;
-            while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+            bool hasOverride = TryGetSerializedRenderTypeOverride(material, out string renderTypeOverride);
+            Assert.That(hasOverride, Is.EqualTo(mode.hasRenderTypeOverride), mode.name + " RenderType override presence.");
+            if (hasOverride)
+                Assert.That(renderTypeOverride, Is.EqualTo(mode.renderTypeOverride), mode.name + " RenderType override.");
+            Assert.That(material.GetTag("RenderType", false), Is.EqualTo(mode.resolvedRenderType), mode.name + " resolved RenderType tag.");
+        }
+
+        /// <summary>Reads the raw RenderType override from Unity's serialized material tag map.</summary>
+        /// <param name="material">The material whose serialized tag map is inspected.</param>
+        /// <param name="renderTypeOverride">Receives the override value when it exists.</param>
+        /// <returns>Whether the material serializes an explicit RenderType override.</returns>
+        private static bool TryGetSerializedRenderTypeOverride(Material material, out string renderTypeOverride)
+        {
+            string serializedMaterial = EditorJsonUtility.ToJson(material);
+            Match tagMap = Regex.Match(serializedMaterial, @"""stringTagMap""\s*:\s*\{(?<entries>[^}]*)\}");
+            Assert.That(tagMap.Success, Is.True, "Material serialization has no stringTagMap object.");
+            Match renderType = Regex.Match(tagMap.Groups["entries"].Value, @"""RenderType""\s*:\s*""(?<value>[^""]*)""");
+            renderTypeOverride = renderType.Success ? renderType.Groups["value"].Value : null;
+            return renderType.Success;
+        }
+
+        /// <summary>Asserts the local rendering-mode feature ABI in each required generated shader pass.</summary>
+        /// <param name="source">The generated shader source.</param>
+        /// <param name="shaderName">The product shader name used in diagnostics.</param>
+        private static void AssertRenderingModeKeywordDeclarations(string source, string shaderName)
+        {
+            var declaredKeywords = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match declaration in Regex.Matches(source, @"^\s*#pragma\s+shader_feature_local\s+([^\r\n]+)", RegexOptions.Multiline))
             {
-                count++;
-                index += value.Length;
+                foreach (Match keyword in Regex.Matches(declaration.Groups[1].Value, @"\bPUREBASE_RENDERING_[A-Z0-9_]+\b"))
+                    declaredKeywords.Add(keyword.Value);
             }
 
-            return count;
+            CollectionAssert.AreEquivalent(
+                RenderingModeKeywords,
+                declaredKeywords,
+                $"Product shader '{shaderName}' must declare exactly the Opaque and Transparent rendering-mode local keywords."
+            );
+            foreach (string passName in PassNames)
+            {
+                Assert.That(
+                    Regex.IsMatch(
+                        source,
+                        "HLSLINCLUDE[\\s\\S]*?#pragma\\s+shader_feature_local\\s+(?:_\\s+)?PUREBASE_RENDERING_OPAQUE\\s+PUREBASE_RENDERING_TRANSPARENT[\\s\\S]*?ENDHLSL[\\s\\S]*?Name\\s+\\\"" + Regex.Escape(passName) + "\\\""
+                    ),
+                    Is.True,
+                    $"Product shader '{shaderName}' pass '{passName}' must inherit the rendering-mode local shader feature from the shared HLSLINCLUDE block."
+                );
+            }
         }
 
         /// <summary>Stores the public shader identity and visible property ABI for one product.</summary>
@@ -1090,7 +1252,7 @@ namespace PureBase.Tests.Daily
         private sealed class ModeContract
         {
             /// <summary>Initializes one immutable state-table row.</summary>
-            public ModeContract(int value, string name, int srcBlend, int dstBlend, int zWrite, int addSrcBlend, int addDstBlend, string renderTypeOverride, int rawQueue, int resolvedQueue, string[] enabledKeywords, bool enableContributionPasses)
+            public ModeContract(int value, string name, int srcBlend, int dstBlend, int zWrite, int addSrcBlend, int addDstBlend, string renderTypeOverride, bool hasRenderTypeOverride, string resolvedRenderType, int rawQueue, int resolvedQueue, string[] enabledKeywords, bool enableContributionPasses)
             {
                 this.value = value;
                 this.name = name;
@@ -1100,6 +1262,8 @@ namespace PureBase.Tests.Daily
                 this.addSrcBlend = addSrcBlend;
                 this.addDstBlend = addDstBlend;
                 this.renderTypeOverride = renderTypeOverride;
+                this.hasRenderTypeOverride = hasRenderTypeOverride;
+                this.resolvedRenderType = resolvedRenderType;
                 this.rawQueue = rawQueue;
                 this.resolvedQueue = resolvedQueue;
                 this.enabledKeywords = enabledKeywords;
@@ -1130,6 +1294,12 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the material RenderType override.</summary>
             public readonly string renderTypeOverride;
 
+            /// <summary>Stores whether the material serializes an explicit RenderType override.</summary>
+            public readonly bool hasRenderTypeOverride;
+
+            /// <summary>Stores the shader-resolved RenderType tag.</summary>
+            public readonly string resolvedRenderType;
+
             /// <summary>Stores the raw material render queue.</summary>
             public readonly int rawQueue;
 
@@ -1154,7 +1324,8 @@ namespace PureBase.Tests.Daily
             {
                 var state = new MaterialState
                 {
-                    renderType = material.GetTag("RenderType", false),
+                    hasRenderTypeOverride = TryGetSerializedRenderTypeOverride(material, out string renderTypeOverride),
+                    renderTypeOverride = renderTypeOverride,
                     resolvedRenderType = material.GetTag("RenderType", true),
                     rawQueue = GetRawRenderQueue(material),
                     resolvedQueue = material.renderQueue,
@@ -1176,7 +1347,7 @@ namespace PureBase.Tests.Daily
                             state.floats[propertyName] = material.GetFloat(propertyName);
                             break;
                         case ShaderUtil.ShaderPropertyType.Int:
-                            state.integers[propertyName] = material.GetInt(propertyName);
+                            state.integers[propertyName] = material.GetInteger(propertyName);
                             break;
                         case ShaderUtil.ShaderPropertyType.Color:
                             state.colors[propertyName] = material.GetColor(propertyName);
@@ -1198,8 +1369,6 @@ namespace PureBase.Tests.Daily
                         state.floats[propertyName] = material.GetFloat(propertyName);
                 }
 
-                if (material.HasProperty("_RenderingMode"))
-                    state.floats["_RenderingMode"] = material.GetFloat("_RenderingMode");
                 foreach (string passName in PassNames)
                     state.passes[passName] = material.GetShaderPassEnabled(passName);
                 return state;
@@ -1212,7 +1381,10 @@ namespace PureBase.Tests.Daily
             public void AssertEqual(Material material, string context, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null)
             {
                 ObserveAtomicityPropertyTypes(material, observedPropertyTypes);
-                Assert.That(material.GetTag("RenderType", false), Is.EqualTo(renderType), context + " RenderType override.");
+                bool actualHasRenderTypeOverride = TryGetSerializedRenderTypeOverride(material, out string actualRenderTypeOverride);
+                Assert.That(actualHasRenderTypeOverride, Is.EqualTo(hasRenderTypeOverride), context + " RenderType override presence.");
+                if (actualHasRenderTypeOverride)
+                    Assert.That(actualRenderTypeOverride, Is.EqualTo(renderTypeOverride), context + " RenderType override.");
                 Assert.That(material.GetTag("RenderType", true), Is.EqualTo(resolvedRenderType), context + " resolved RenderType tag.");
                 Assert.That(GetRawRenderQueue(material), Is.EqualTo(rawQueue), context + " raw render queue.");
                 Assert.That(material.renderQueue, Is.EqualTo(resolvedQueue), context + " resolved render queue.");
@@ -1223,7 +1395,10 @@ namespace PureBase.Tests.Daily
                 foreach (KeyValuePair<string, float> pair in floats)
                     Assert.That(material.GetFloat(pair.Key), Is.EqualTo(pair.Value), context + " property " + pair.Key + ".");
                 foreach (KeyValuePair<string, int> pair in integers)
-                    Assert.That(material.GetInt(pair.Key), Is.EqualTo(pair.Value), context + " int property " + pair.Key + ".");
+                {
+                    int actual = material.GetInteger(pair.Key);
+                    Assert.That(actual, Is.EqualTo(pair.Value), context + " int property " + pair.Key + ".");
+                }
                 foreach (KeyValuePair<string, Color> pair in colors)
                     Assert.That(material.GetColor(pair.Key), Is.EqualTo(pair.Value), context + " color property " + pair.Key + ".");
                 foreach (KeyValuePair<string, Vector4> pair in vectors)
@@ -1249,8 +1424,11 @@ namespace PureBase.Tests.Daily
                 );
             }
 
-            /// <summary>Stores the captured RenderType override.</summary>
-            public string renderType;
+            /// <summary>Stores whether the snapshot captured an explicit RenderType override.</summary>
+            public bool hasRenderTypeOverride;
+
+            /// <summary>Stores the captured serialized RenderType override.</summary>
+            public string renderTypeOverride;
 
             /// <summary>Stores the captured shader-resolved RenderType tag.</summary>
             public string resolvedRenderType;
@@ -1290,6 +1468,71 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Stores captured enabled-state values for every rendering-mode-relevant pass.</summary>
             public readonly Dictionary<string, bool> passes = new Dictionary<string, bool>(StringComparer.Ordinal);
+        }
+
+        /// <summary>Returns valid materials during validation and snapshots, then makes one later target invalid during application.</summary>
+        private sealed class LateInvalidatingMaterialList : IReadOnlyList<Material>
+        {
+            /// <summary>Initializes a deterministic material list that invalidates one target on its third indexed read.</summary>
+            /// <param name="materials">The ordered batch materials.</param>
+            /// <param name="invalidMaterialIndex">The later material index to invalidate.</param>
+            /// <param name="invalidRenderingMode">The unsupported mode assigned immediately before its application.</param>
+            public LateInvalidatingMaterialList(Material[] materials, int invalidMaterialIndex, int invalidRenderingMode)
+            {
+                this.materials = materials;
+                this.invalidMaterialIndex = invalidMaterialIndex;
+                this.invalidRenderingMode = invalidRenderingMode;
+            }
+
+            /// <summary>Gets the number of materials in the batch.</summary>
+            public int Count => materials.Length;
+
+            /// <summary>Returns the batch materials in their deterministic order.</summary>
+            /// <returns>An enumerator for the batch materials.</returns>
+            public IEnumerator<Material> GetEnumerator()
+            {
+                return ((IEnumerable<Material>)materials).GetEnumerator();
+            }
+
+            /// <summary>Returns the batch materials through the non-generic enumeration contract.</summary>
+            /// <returns>An enumerator for the batch materials.</returns>
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+            {
+                return materials.GetEnumerator();
+            }
+
+            /// <summary>Gets a material and invalidates the designated later target immediately before application.</summary>
+            /// <param name="index">The requested batch index.</param>
+            /// <returns>The requested material.</returns>
+            public Material this[int index]
+            {
+                get
+                {
+                    if (index == invalidMaterialIndex && ++invalidMaterialReadCount == 3)
+                    {
+                        ObservedPriorMutations = materials[0].GetTag("RenderType", false) == "Opaque"
+                            && materials[1].GetTag("RenderType", false) == "Transparent";
+                        materials[index].SetInteger("_RenderingMode", invalidRenderingMode);
+                    }
+
+                    return materials[index];
+                }
+            }
+
+            /// <summary>Gets whether the list observed normalized prior targets before it invalidated the later target.</summary>
+            public bool ObservedPriorMutations { get; private set; }
+
+            /// <summary>Stores the ordered batch materials.</summary>
+            private readonly Material[] materials;
+
+            /// <summary>Stores the later material index invalidated during application.</summary>
+            private readonly int invalidMaterialIndex;
+
+            /// <summary>Stores the unsupported rendering-mode value used to force application failure.</summary>
+            private readonly int invalidRenderingMode;
+
+            /// <summary>Counts accesses to the material that becomes invalid.</summary>
+            private int invalidMaterialReadCount;
         }
 
         /// <summary>Stores one texture property and its material-local UV transform for atomicity assertions.</summary>

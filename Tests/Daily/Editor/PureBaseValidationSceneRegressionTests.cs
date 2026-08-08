@@ -1034,6 +1034,101 @@ namespace PureBase.Tests.Daily
             AssertCanonicalSceneSnapshotRestoration(false, true);
         }
 
+        /// <summary>Ensures canonical static-lightmap observations ignore the additive persisted owner scene.</summary>
+        [Test]
+        public void CanonicalStaticLightmapCountIgnoresLoadedPersistedOwnerScene()
+        {
+            SceneSetup[] originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
+            SceneRegressionBaseline baseline = LoadBaseline();
+            Scene ownerScene = default;
+            Scene validationScene = default;
+            try
+            {
+                ownerScene = SceneManager.GetSceneByPath(TestOwnerScenePath);
+                if (!ownerScene.isLoaded)
+                {
+                    ownerScene = EditorSceneManager.OpenScene(
+                        TestOwnerScenePath,
+                        OpenSceneMode.Additive
+                    );
+                }
+                validationScene = SceneManager.GetSceneByPath(ScenePath);
+                if (!validationScene.isLoaded)
+                {
+                    validationScene = EditorSceneManager.OpenScene(
+                        ScenePath,
+                        OpenSceneMode.Additive
+                    );
+                }
+                Assert.That(
+                    SceneManager.SetActiveScene(validationScene),
+                    Is.True,
+                    "The canonical fixture could not become active before the canonical-only observation."
+                );
+                Assert.That(
+                    ownerScene.isDirty,
+                    Is.False,
+                    "The controlled lightmap-count test cannot discard a dirty persisted owner scene."
+                );
+                Assert.That(
+                    EditorSceneManager.CloseScene(ownerScene, true),
+                    Is.True,
+                    "The persisted owner scene could not be closed before the canonical-only observation."
+                );
+
+                int canonicalOnlyGlobalLightmapCount = LightmapSettings.lightmaps.Length;
+                int canonicalOnlyStaticLightmapCount = CountAssignedStaticLightmaps(
+                    GetStaticRenderers(validationScene)
+                );
+                TestContext.Progress.WriteLine(
+                    "canonical-only scenes="
+                        + DescribeLoadedScenePaths()
+                        + ", globalLightmaps="
+                        + canonicalOnlyGlobalLightmapCount
+                        + ", canonicalStaticLightmaps="
+                        + canonicalOnlyStaticLightmapCount
+                );
+                Assert.That(
+                    canonicalOnlyGlobalLightmapCount,
+                    Is.EqualTo(baseline.staticLightmapCount),
+                    "The canonical-only fixture must expose the reviewed global lightmap count."
+                );
+                Assert.That(
+                    canonicalOnlyStaticLightmapCount,
+                    Is.EqualTo(baseline.staticLightmapCount)
+                );
+
+                ownerScene = EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
+                int ownerAndCanonicalGlobalLightmapCount = LightmapSettings.lightmaps.Length;
+                int ownerAndCanonicalStaticLightmapCount = CountAssignedStaticLightmaps(
+                    GetStaticRenderers(validationScene)
+                );
+                TestContext.Progress.WriteLine(
+                    "persisted-owner-plus-canonical scenes="
+                        + DescribeLoadedScenePaths()
+                        + ", globalLightmaps="
+                        + ownerAndCanonicalGlobalLightmapCount
+                        + ", canonicalStaticLightmaps="
+                        + ownerAndCanonicalStaticLightmapCount
+                );
+                Assert.That(
+                    ownerAndCanonicalGlobalLightmapCount,
+                    Is.EqualTo(baseline.staticLightmapCount * 2),
+                    "The shared LightingData fixture must expose the additive global-count discriminator."
+                );
+                Assert.That(
+                    ownerAndCanonicalStaticLightmapCount,
+                    Is.EqualTo(baseline.staticLightmapCount),
+                    "The canonical static-lightmap count must ignore additive owner-scene entries."
+                );
+            }
+            finally
+            {
+                if (originalSceneSetup != null && originalSceneSetup.Length > 0)
+                    EditorSceneManager.RestoreSceneManagerSetup(originalSceneSetup);
+            }
+        }
+
         /// <summary>Validates the committed scene and reviewed baseline while restoring all editor state.</summary>
         [Test]
         public void CanonicalSceneMatchesCommittedBirpBaseline()
@@ -1221,17 +1316,8 @@ namespace PureBase.Tests.Daily
             ValidateFixture(scene);
             var observation = new SceneRegressionObservation();
             List<MeshRenderer> staticRenderers = GetStaticRenderers(scene);
-            observation.staticLightmapCount =
-                LightmapSettings.lightmaps == null ? 0 : LightmapSettings.lightmaps.Length;
+            observation.staticLightmapCount = CountAssignedStaticLightmaps(staticRenderers);
             observation.staticRendererAssignmentCount = staticRenderers.Count;
-            foreach (MeshRenderer renderer in staticRenderers)
-            {
-                Assert.That(
-                    renderer.lightmapIndex,
-                    Is.GreaterThanOrEqualTo(0),
-                    $"Static renderer '{renderer.name}' is not assigned to a committed lightmap."
-                );
-            }
 
             CaptureSceneReadback(scene, observation);
             observation.metaAlbedo = CaptureMetaAlbedo(GetProductMaterials(scene));
@@ -1444,6 +1530,61 @@ namespace PureBase.Tests.Daily
                 "The canonical validation scene has no static renderers."
             );
             return renderers;
+        }
+
+        /// <summary>Counts the unique valid static-lightmap assignments used by canonical scene renderers.</summary>
+        /// <param name="staticRenderers">The enabled static renderers from the canonical validation scene.</param>
+        /// <returns>The number of committed static lightmaps referenced by the canonical scene.</returns>
+        private static int CountAssignedStaticLightmaps(
+            IReadOnlyList<MeshRenderer> staticRenderers
+        )
+        {
+            LightmapData[] lightmaps = LightmapSettings.lightmaps;
+            Assert.That(lightmaps, Is.Not.Null, "The current lightmap settings are unavailable.");
+
+            var assignedIndices = new HashSet<int>();
+            foreach (MeshRenderer renderer in staticRenderers)
+            {
+                int lightmapIndex = renderer.lightmapIndex;
+                Assert.That(
+                    lightmapIndex,
+                    Is.GreaterThanOrEqualTo(0),
+                    $"Static renderer '{renderer.name}' is not assigned to a committed lightmap."
+                );
+                Assert.That(
+                    lightmapIndex,
+                    Is.LessThan(lightmaps.Length),
+                    $"Static renderer '{renderer.name}' references a lightmap outside the current settings."
+                );
+                Assert.That(
+                    lightmaps[lightmapIndex],
+                    Is.Not.Null,
+                    $"Static renderer '{renderer.name}' references an unavailable lightmap."
+                );
+                Assert.That(
+                    lightmaps[lightmapIndex].lightmapColor,
+                    Is.Not.Null,
+                    $"Static renderer '{renderer.name}' references a lightmap without color data."
+                );
+                assignedIndices.Add(lightmapIndex);
+            }
+
+            return assignedIndices.Count;
+        }
+
+        /// <summary>Formats the currently loaded scene paths for controlled test diagnostics.</summary>
+        /// <returns>The loaded scene paths in scene-manager order.</returns>
+        private static string DescribeLoadedScenePaths()
+        {
+            var paths = new List<string>();
+            for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
+            {
+                Scene scene = SceneManager.GetSceneAt(sceneIndex);
+                if (scene.isLoaded)
+                    paths.Add(string.IsNullOrEmpty(scene.path) ? "<untitled>" : scene.path);
+            }
+
+            return string.Join(", ", paths);
         }
 
         /// <summary>Renders the scene through a temporary camera without changing the persisted camera target.</summary>

@@ -95,9 +95,9 @@ namespace PureBase.Release.Consumer.Tests
                     Assert.That(material.HasProperty("_RenderingMode"), Is.True, shaderName + " must expose _RenderingMode.");
                     foreach (int mode in new[] { 0, 1, 2 })
                     {
-                        material.SetFloat("_RenderingMode", mode);
+                        material.SetInteger("_RenderingMode", mode);
                         apply.Invoke(null, new object[] { material });
-                        Assert.That(material.GetFloat("_RenderingMode"), Is.EqualTo((float)mode), shaderName + " normalized mode value.");
+                        Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(mode), shaderName + " normalized mode value.");
                     }
                 }
                 finally

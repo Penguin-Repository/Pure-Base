@@ -53,6 +53,12 @@ namespace PureBase.Tests.Daily
         /// <summary>Defines the small readback dimension used by transient numeric observations.</summary>
         private const int RenderSize = 64;
 
+        /// <summary>Defines the largest per-channel readback difference treated as directional-shadow noise.</summary>
+        private const float ShadowPixelNoiseThreshold = 0.002f;
+
+        /// <summary>Defines the minimum changed-pixel count required for a meaningful directional-shadow silhouette.</summary>
+        private const int MinimumShadowSilhouettePixelCount = 32;
+
         /// <summary>Requires the shared mode-alpha helper to run after add and before fog, postpixel, and return.</summary>
         [Test]
         public void BirpHostPreservesModeAlphaFogPostPixelAndForwardAddSourceOrder()
@@ -195,49 +201,85 @@ namespace PureBase.Tests.Daily
         public void OpaqueCutoutAndTransparentModesHaveObservedShadowCasterAndMetaContributions()
         {
             Shader shader = RequireProductShader("PureBase/Unlit");
-            var opaque = CreateConfiguredMaterial(shader, 0, new Color(0.8f, 0.2f, 0.1f, 1.0f));
-            var cutout = CreateConfiguredMaterial(shader, 1, new Color(0.8f, 0.2f, 0.1f, 1.0f));
+            Color contributingBaseColor = new Color(0.8f, 0.2f, 0.1f, 1.0f);
+            var opaque = CreateConfiguredMaterial(shader, 0, contributingBaseColor);
+            var cutout = CreateConfiguredMaterial(shader, 1, contributingBaseColor);
+            var cutoutBelow = CreateConfiguredMaterial(shader, 1, new Color(0.8f, 0.2f, 0.1f, 0.25f));
             var transparent = CreateConfiguredMaterial(shader, 2, new Color(0.8f, 0.2f, 0.1f, 0.25f));
             {
+                Assert.That(opaque.GetShaderPassEnabled("ShadowCaster"), Is.True, "Opaque ShadowCaster must be enabled before its silhouette is observed.");
+                Assert.That(cutout.GetShaderPassEnabled("ShadowCaster"), Is.True, "Cutout ShadowCaster must be enabled before its silhouette is observed.");
+                Assert.That(cutoutBelow.GetShaderPassEnabled("ShadowCaster"), Is.True, "Cutout below-cutoff ShadowCaster must remain enabled so clip behavior is observed at runtime.");
+                Assert.That(transparent.GetShaderPassEnabled("ShadowCaster"), Is.False, "Transparent ShadowCaster must be disabled before its missing silhouette is observed.");
                 ShadowReadback opaqueShadow = RenderShadowReadback(opaque);
                 ShadowReadback cutoutShadow = RenderShadowReadback(cutout);
+                ShadowReadback cutoutBelowShadow = RenderShadowReadback(cutoutBelow);
                 ShadowReadback transparentShadow = RenderShadowReadback(transparent);
-                AssertFinite(opaqueShadow.luminanceDelta, "Opaque ShadowCaster readback");
-                AssertFinite(cutoutShadow.luminanceDelta, "Cutout ShadowCaster readback");
-                AssertFinite(transparentShadow.luminanceDelta, "Transparent ShadowCaster readback");
-                Assert.That(opaqueShadow.luminanceDelta, Is.GreaterThan(0.02f), "Opaque ShadowCaster must darken the receiver in the actual BIRP readback.");
-                Assert.That(cutoutShadow.luminanceDelta, Is.GreaterThan(0.02f), "Cutout ShadowCaster must darken the receiver in the actual BIRP readback.");
+                AssertFinite(opaqueShadow.maxAbsoluteRgbDelta, "Opaque ShadowCaster maximum RGB delta");
+                AssertFinite(cutoutShadow.maxAbsoluteRgbDelta, "Cutout ShadowCaster maximum RGB delta");
+                AssertFinite(cutoutBelowShadow.maxAbsoluteRgbDelta, "Cutout below-cutoff ShadowCaster maximum RGB delta");
+                AssertFinite(transparentShadow.maxAbsoluteRgbDelta, "Transparent ShadowCaster maximum RGB delta");
+                Assert.That(opaqueShadow.maxAbsoluteRgbDelta, Is.GreaterThan(ShadowPixelNoiseThreshold), opaqueShadow.Describe("Opaque"));
+                Assert.That(opaqueShadow.changedPixelCount, Is.GreaterThan(MinimumShadowSilhouettePixelCount), opaqueShadow.Describe("Opaque"));
+                Assert.That(cutoutShadow.maxAbsoluteRgbDelta, Is.GreaterThan(ShadowPixelNoiseThreshold), cutoutShadow.Describe("Cutout"));
+                Assert.That(cutoutShadow.changedPixelCount, Is.GreaterThan(MinimumShadowSilhouettePixelCount), cutoutShadow.Describe("Cutout"));
                 Assert.That(
-                    cutoutShadow.luminanceDelta,
-                    Is.GreaterThan(opaqueShadow.luminanceDelta * 0.25f),
-                    "Cutout ShadowCaster must retain an effective silhouette relative to Opaque."
+                    cutoutShadow.maxAbsoluteRgbDelta,
+                    Is.GreaterThan(opaqueShadow.maxAbsoluteRgbDelta * 0.25f),
+                    cutoutShadow.Describe("Cutout") + " must retain a visible silhouette relative to Opaque."
                 );
                 Assert.That(
-                    Mathf.Abs(transparentShadow.luminanceDelta),
-                    Is.LessThan(opaqueShadow.luminanceDelta * 0.25f),
-                    "Transparent mode must not contribute an effective ShadowCaster silhouette."
+                    cutoutShadow.changedPixelCount,
+                    Is.GreaterThan(opaqueShadow.changedPixelCount * 0.25f),
+                    cutoutShadow.Describe("Cutout") + " must retain sufficient changed pixels relative to Opaque."
+                );
+                Assert.That(cutoutBelowShadow.maxAbsoluteRgbDelta, Is.LessThanOrEqualTo(ShadowPixelNoiseThreshold), cutoutBelowShadow.Describe("Cutout below cutoff"));
+                Assert.That(cutoutBelowShadow.changedPixelCount, Is.LessThanOrEqualTo(MinimumShadowSilhouettePixelCount), cutoutBelowShadow.Describe("Cutout below cutoff"));
+                Assert.That(transparentShadow.maxAbsoluteRgbDelta, Is.LessThanOrEqualTo(ShadowPixelNoiseThreshold), transparentShadow.Describe("Transparent"));
+                Assert.That(transparentShadow.changedPixelCount, Is.LessThanOrEqualTo(MinimumShadowSilhouettePixelCount), transparentShadow.Describe("Transparent"));
+                float minimumContributingShadowDelta = Mathf.Min(opaqueShadow.maxAbsoluteRgbDelta, cutoutShadow.maxAbsoluteRgbDelta);
+                int minimumContributingShadowPixels = Mathf.Min(opaqueShadow.changedPixelCount, cutoutShadow.changedPixelCount);
+                Assert.That(
+                    transparentShadow.maxAbsoluteRgbDelta,
+                    Is.LessThan(minimumContributingShadowDelta * 0.25f),
+                    transparentShadow.Describe("Transparent") + " must remain below the Opaque and Cutout contribution boundary."
+                );
+                Assert.That(
+                    transparentShadow.changedPixelCount,
+                    Is.LessThan(minimumContributingShadowPixels * 0.25f),
+                    transparentShadow.Describe("Transparent") + " must remain below the Opaque and Cutout changed-pixel contribution boundary."
                 );
 
                 Color opaqueMeta = RenderMetaCenterPixel(opaque);
+                Color expectedContributingMeta = contributingBaseColor.linear;
                 AssertFinite(opaqueMeta, "Opaque Meta readback");
-                Assert.That(opaqueMeta.r, Is.EqualTo(0.8f).Within(0.08f));
-                Assert.That(opaqueMeta.g, Is.EqualTo(0.2f).Within(0.08f));
-                Assert.That(opaqueMeta.b, Is.EqualTo(0.1f).Within(0.08f));
-                Assert.That(RgbMagnitude(opaqueMeta), Is.GreaterThan(0.2f), "Opaque Meta pass must contribute non-clear albedo data.");
+                Assert.That(opaqueMeta.r, Is.EqualTo(expectedContributingMeta.r).Within(0.08f));
+                Assert.That(opaqueMeta.g, Is.EqualTo(expectedContributingMeta.g).Within(0.08f));
+                Assert.That(opaqueMeta.b, Is.EqualTo(expectedContributingMeta.b).Within(0.08f));
+                float opaqueMetaMagnitude = RgbMagnitude(opaqueMeta);
+                Assert.That(opaqueMetaMagnitude, Is.GreaterThan(0.2f), "Opaque Meta pass must contribute non-clear albedo data.");
 
                 Color cutoutMeta = RenderMetaCenterPixel(cutout);
                 AssertFinite(cutoutMeta, "Cutout Meta readback");
-                Assert.That(cutoutMeta.r, Is.EqualTo(0.8f).Within(0.08f));
-                Assert.That(cutoutMeta.g, Is.EqualTo(0.2f).Within(0.08f));
-                Assert.That(cutoutMeta.b, Is.EqualTo(0.1f).Within(0.08f));
-                Assert.That(RgbMagnitude(cutoutMeta), Is.GreaterThan(0.2f), "Cutout Meta pass must contribute non-clear albedo data.");
+                Assert.That(cutoutMeta.r, Is.EqualTo(expectedContributingMeta.r).Within(0.08f));
+                Assert.That(cutoutMeta.g, Is.EqualTo(expectedContributingMeta.g).Within(0.08f));
+                Assert.That(cutoutMeta.b, Is.EqualTo(expectedContributingMeta.b).Within(0.08f));
+                float cutoutMetaMagnitude = RgbMagnitude(cutoutMeta);
+                Assert.That(cutoutMetaMagnitude, Is.GreaterThan(0.2f), "Cutout Meta pass must contribute non-clear albedo data.");
 
                 Color transparentMeta = RenderMetaCenterPixel(transparent);
                 AssertFinite(transparentMeta, "Transparent Meta readback");
+                float transparentMetaMagnitude = RgbMagnitude(transparentMeta);
                 Assert.That(
-                    RgbMagnitude(transparentMeta),
+                    transparentMetaMagnitude,
                     Is.LessThan(0.02f),
                     "Transparent Meta must not contribute effective albedo data in the actual BIRP readback."
+                );
+                float minimumContributingMetaMagnitude = Mathf.Min(opaqueMetaMagnitude, cutoutMetaMagnitude);
+                Assert.That(
+                    transparentMetaMagnitude,
+                    Is.LessThan(minimumContributingMetaMagnitude * 0.25f),
+                    "Transparent Meta must remain below the Opaque and Cutout contribution boundary."
                 );
             }
         }
@@ -350,7 +392,7 @@ namespace PureBase.Tests.Daily
         /// <param name="mode">The requested mode value.</param>
         private static void ConfigureMode(Material material, int mode)
         {
-            material.SetFloat("_RenderingMode", mode);
+            material.SetInteger("_RenderingMode", mode);
             Type type = FindLoadedType("PureBase.Editor.PureBaseMaterialRenderingMode");
             Assert.That(type, Is.Not.Null, "PureBaseMaterialRenderingMode is required for rendering observations.");
             var apply = type.GetMethod("Apply", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static, null, new[] { typeof(Material) }, null);
@@ -364,13 +406,18 @@ namespace PureBase.Tests.Daily
         /// <returns>The center readback pixel.</returns>
         private static Color RenderCenterPixel(Material material, Color background)
         {
-            var cameraObject = new GameObject("PureBaseRenderingModeCamera");
-            var quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            var renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
-            var texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+            GameObject cameraObject = null;
+            GameObject quadObject = null;
+            RenderTexture renderTexture = null;
+            Texture2D texture = null;
+            Camera camera = null;
             try
             {
-                Camera camera = cameraObject.AddComponent<Camera>();
+                cameraObject = new GameObject("PureBaseRenderingModeCamera");
+                quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
+                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                camera = cameraObject.AddComponent<Camera>();
                 camera.orthographic = true;
                 camera.orthographicSize = 0.5f;
                 camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
@@ -395,10 +442,19 @@ namespace PureBase.Tests.Daily
             }
             finally
             {
-                UnityEngine.Object.DestroyImmediate(texture);
-                UnityEngine.Object.DestroyImmediate(renderTexture);
-                UnityEngine.Object.DestroyImmediate(quadObject);
-                UnityEngine.Object.DestroyImmediate(cameraObject);
+                if (camera != null)
+                    camera.targetTexture = null;
+                if (texture != null)
+                    UnityEngine.Object.DestroyImmediate(texture);
+                if (renderTexture != null)
+                {
+                    renderTexture.Release();
+                    UnityEngine.Object.DestroyImmediate(renderTexture);
+                }
+                if (quadObject != null)
+                    UnityEngine.Object.DestroyImmediate(quadObject);
+                if (cameraObject != null)
+                    UnityEngine.Object.DestroyImmediate(cameraObject);
             }
         }
 
@@ -436,10 +492,16 @@ namespace PureBase.Tests.Daily
             }
             finally
             {
+                Camera camera = cameraObject != null ? cameraObject.GetComponent<Camera>() : null;
+                if (camera != null)
+                    camera.targetTexture = null;
                 if (texture != null)
                     UnityEngine.Object.DestroyImmediate(texture);
                 if (renderTexture != null)
+                {
+                    renderTexture.Release();
                     UnityEngine.Object.DestroyImmediate(renderTexture);
+                }
                 if (rearObject != null)
                     UnityEngine.Object.DestroyImmediate(rearObject);
                 if (frontObject != null)
@@ -493,10 +555,15 @@ namespace PureBase.Tests.Daily
                     camera.RemoveCommandBuffer(CameraEvent.BeforeImageEffects, commandBuffer);
                 if (commandBuffer != null)
                     commandBuffer.Release();
+                if (camera != null)
+                    camera.targetTexture = null;
                 if (texture != null)
                     UnityEngine.Object.DestroyImmediate(texture);
                 if (renderTexture != null)
+                {
+                    renderTexture.Release();
                     UnityEngine.Object.DestroyImmediate(renderTexture);
+                }
                 if (quadObject != null)
                     UnityEngine.Object.DestroyImmediate(quadObject);
                 if (cameraObject != null)
@@ -504,7 +571,7 @@ namespace PureBase.Tests.Daily
             }
         }
 
-        /// <summary>Renders an isolated directional-light fixture with and without shadows and returns the measured receiver luminance delta.</summary>
+        /// <summary>Renders an isolated directional-light fixture with and without shadows and returns the measured receiver silhouette.</summary>
         /// <param name="material">The configured material assigned to the shadow caster.</param>
         /// <returns>The controlled actual ShadowCaster readback.</returns>
         private static ShadowReadback RenderShadowReadback(Material material)
@@ -520,7 +587,7 @@ namespace PureBase.Tests.Daily
             Texture2D texture = null;
             try
             {
-                scene = SceneManager.CreateScene("PureBaseRenderingModeShadowReadback" + Guid.NewGuid().ToString("N"));
+                scene = EditorSceneManager.NewPreviewScene();
                 cameraObject = new GameObject("PureBaseRenderingModeShadowCamera");
                 lightObject = new GameObject("PureBaseRenderingModeShadowLight");
                 receiver = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -557,23 +624,32 @@ namespace PureBase.Tests.Daily
                 receiver.transform.localScale = Vector3.one * 0.8f;
                 receiver.GetComponent<MeshRenderer>().sharedMaterial = receiverMaterial;
                 caster.transform.position = new Vector3(0.0f, 1.0f, 0.0f);
-                caster.GetComponent<MeshRenderer>().sharedMaterial = material;
-                caster.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.On;
+                MeshRenderer casterRenderer = caster.GetComponent<MeshRenderer>();
+                casterRenderer.sharedMaterial = material;
+                casterRenderer.shadowCastingMode = material.GetShaderPassEnabled("ShadowCaster")
+                    ? ShadowCastingMode.ShadowsOnly
+                    : ShadowCastingMode.Off;
                 renderTexture.Create();
                 light.shadows = LightShadows.None;
                 camera.Render();
-                float withoutShadows = MeanLuminance(ReadPixels(renderTexture, texture));
+                Color[] withoutShadows = ReadPixels(renderTexture, texture);
                 light.shadows = LightShadows.Hard;
                 camera.Render();
-                float withShadows = MeanLuminance(ReadPixels(renderTexture, texture));
-                return new ShadowReadback(withoutShadows - withShadows);
+                Color[] withShadows = ReadPixels(renderTexture, texture);
+                return AnalyzeShadowReadback(withoutShadows, withShadows);
             }
             finally
             {
+                Camera camera = cameraObject != null ? cameraObject.GetComponent<Camera>() : null;
+                if (camera != null)
+                    camera.targetTexture = null;
                 if (texture != null)
                     UnityEngine.Object.DestroyImmediate(texture);
                 if (renderTexture != null)
+                {
+                    renderTexture.Release();
                     UnityEngine.Object.DestroyImmediate(renderTexture);
+                }
                 if (receiverMaterial != null)
                     UnityEngine.Object.DestroyImmediate(receiverMaterial);
                 if (caster != null)
@@ -585,7 +661,7 @@ namespace PureBase.Tests.Daily
                 if (cameraObject != null)
                     UnityEngine.Object.DestroyImmediate(cameraObject);
                 if (scene.IsValid() && scene.isLoaded)
-                    EditorSceneManager.CloseScene(scene, true);
+                    EditorSceneManager.ClosePreviewScene(scene);
             }
         }
 
@@ -628,7 +704,8 @@ namespace PureBase.Tests.Daily
                 Shader.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
                 commandBuffer.SetRenderTarget(renderTexture);
                 commandBuffer.ClearRenderTarget(true, true, Color.clear);
-                commandBuffer.DrawMesh(quadObject.GetComponent<MeshFilter>().sharedMesh, Matrix4x4.identity, material, 0, pass);
+                if (material.GetShaderPassEnabled("Meta"))
+                    commandBuffer.DrawMesh(quadObject.GetComponent<MeshFilter>().sharedMesh, Matrix4x4.identity, material, 0, pass);
                 camera.AddCommandBuffer(CameraEvent.BeforeImageEffects, commandBuffer);
                 camera.Render();
                 return ReadCenterPixel(renderTexture, texture);
@@ -640,15 +717,20 @@ namespace PureBase.Tests.Daily
                 Shader.SetGlobalVector("unity_LightmapST", originalLightmapSt);
                 Shader.SetGlobalFloat("unity_OneOverOutputBoost", originalOutputBoost);
                 Shader.SetGlobalFloat("unity_MaxOutputValue", originalMaxOutput);
-                Camera camera = cameraObject.GetComponent<Camera>();
+                Camera camera = cameraObject != null ? cameraObject.GetComponent<Camera>() : null;
                 if (camera != null && commandBuffer != null)
                     camera.RemoveCommandBuffer(CameraEvent.BeforeImageEffects, commandBuffer);
                 if (commandBuffer != null)
                     commandBuffer.Release();
+                if (camera != null)
+                    camera.targetTexture = null;
                 if (texture != null)
                     UnityEngine.Object.DestroyImmediate(texture);
                 if (renderTexture != null)
+                {
+                    renderTexture.Release();
                     UnityEngine.Object.DestroyImmediate(renderTexture);
+                }
                 if (quadObject != null)
                     UnityEngine.Object.DestroyImmediate(quadObject);
                 if (cameraObject != null)
@@ -686,15 +768,29 @@ namespace PureBase.Tests.Daily
             }
         }
 
-        /// <summary>Returns the mean linear luminance across a complete readback.</summary>
-        /// <param name="pixels">The readback pixels.</param>
-        /// <returns>The finite or non-finite mean luminance for caller assertion.</returns>
-        private static float MeanLuminance(Color[] pixels)
+        /// <summary>Measures the maximum RGB delta and changed-pixel count caused by directional shadows.</summary>
+        /// <param name="withoutShadows">The unshadowed readback pixels.</param>
+        /// <param name="withShadows">The shadowed readback pixels.</param>
+        /// <returns>The measured directional-shadow silhouette.</returns>
+        private static ShadowReadback AnalyzeShadowReadback(Color[] withoutShadows, Color[] withShadows)
         {
-            float total = 0.0f;
-            foreach (Color pixel in pixels)
-                total += (pixel.r * 0.2126f) + (pixel.g * 0.7152f) + (pixel.b * 0.0722f);
-            return total / pixels.Length;
+            Assert.That(withShadows.Length, Is.EqualTo(withoutShadows.Length), "Directional-shadow readbacks must have matching dimensions.");
+            var changedPixelCount = 0;
+            var maxAbsoluteRgbDelta = 0.0f;
+            for (int index = 0; index < withoutShadows.Length; index++)
+            {
+                Color delta = withoutShadows[index] - withShadows[index];
+                float maximumAbsoluteDelta = Mathf.Max(
+                    Mathf.Abs(delta.r),
+                    Mathf.Max(Mathf.Abs(delta.g), Mathf.Abs(delta.b))
+                );
+                if (maximumAbsoluteDelta > ShadowPixelNoiseThreshold)
+                    changedPixelCount++;
+                if (maximumAbsoluteDelta > maxAbsoluteRgbDelta)
+                    maxAbsoluteRgbDelta = maximumAbsoluteDelta;
+            }
+
+            return new ShadowReadback(maxAbsoluteRgbDelta, changedPixelCount);
         }
 
         /// <summary>Renders Transparent Toon with a controlled one- or two-directional-light setup and a nonzero-alpha destination.</summary>
@@ -705,14 +801,19 @@ namespace PureBase.Tests.Daily
         {
             const int RenderingLayer = 31;
             int cullingMask = 1 << RenderingLayer;
-            var cameraObject = new GameObject("PureBaseRenderingModeToonCamera");
-            var quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            var renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
-            var texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+            GameObject cameraObject = null;
+            GameObject quadObject = null;
+            RenderTexture renderTexture = null;
+            Texture2D texture = null;
             var lightObjects = new System.Collections.Generic.List<GameObject>();
+            Camera camera = null;
             try
             {
-                Camera camera = cameraObject.AddComponent<Camera>();
+                cameraObject = new GameObject("PureBaseRenderingModeToonCamera");
+                quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
+                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                camera = cameraObject.AddComponent<Camera>();
                 camera.orthographic = true;
                 camera.orthographicSize = 0.5f;
                 camera.cullingMask = cullingMask;
@@ -754,10 +855,19 @@ namespace PureBase.Tests.Daily
             {
                 foreach (GameObject lightObject in lightObjects)
                     UnityEngine.Object.DestroyImmediate(lightObject);
-                UnityEngine.Object.DestroyImmediate(texture);
-                UnityEngine.Object.DestroyImmediate(renderTexture);
-                UnityEngine.Object.DestroyImmediate(quadObject);
-                UnityEngine.Object.DestroyImmediate(cameraObject);
+                if (camera != null)
+                    camera.targetTexture = null;
+                if (texture != null)
+                    UnityEngine.Object.DestroyImmediate(texture);
+                if (renderTexture != null)
+                {
+                    renderTexture.Release();
+                    UnityEngine.Object.DestroyImmediate(renderTexture);
+                }
+                if (quadObject != null)
+                    UnityEngine.Object.DestroyImmediate(quadObject);
+                if (cameraObject != null)
+                    UnityEngine.Object.DestroyImmediate(cameraObject);
             }
         }
 
@@ -855,18 +965,29 @@ namespace PureBase.Tests.Daily
             return index;
         }
 
-        /// <summary>Stores the measured receiver luminance delta caused by one actual ShadowCaster render.</summary>
+        /// <summary>Stores the measured silhouette caused by one actual ShadowCaster render.</summary>
         private sealed class ShadowReadback
         {
             /// <summary>Initializes one immutable ShadowCaster measurement.</summary>
-            /// <param name="luminanceDelta">The mean receiver luminance decrease when shadows are enabled.</param>
-            public ShadowReadback(float luminanceDelta)
+            /// <param name="maxAbsoluteRgbDelta">The largest RGB difference between unshadowed and shadowed receiver pixels.</param>
+            /// <param name="changedPixelCount">The number of receiver pixels changed beyond the noise threshold.</param>
+            public ShadowReadback(float maxAbsoluteRgbDelta, int changedPixelCount)
             {
-                this.luminanceDelta = luminanceDelta;
+                this.maxAbsoluteRgbDelta = maxAbsoluteRgbDelta;
+                this.changedPixelCount = changedPixelCount;
             }
 
-            /// <summary>Stores the mean receiver luminance decrease when shadows are enabled.</summary>
-            public readonly float luminanceDelta;
+            /// <summary>Stores the largest RGB difference between unshadowed and shadowed receiver pixels.</summary>
+            public readonly float maxAbsoluteRgbDelta;
+
+            /// <summary>Stores the number of receiver pixels changed beyond the noise threshold.</summary>
+            public readonly int changedPixelCount;
+
+            /// <summary>Formats the shadow measurement for assertion diagnostics.</summary>
+            /// <param name="label">The mode label associated with this measurement.</param>
+            /// <returns>The formatted measurement.</returns>
+            public string Describe(string label) =>
+                label + ": maxAbsoluteRgbDelta=" + maxAbsoluteRgbDelta + ", changedPixels=" + changedPixelCount;
         }
     }
 }
