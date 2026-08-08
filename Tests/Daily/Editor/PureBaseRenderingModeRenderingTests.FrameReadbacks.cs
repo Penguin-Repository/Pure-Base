@@ -117,7 +117,7 @@ namespace PureBase.Tests.Daily
 		}
 
 		/// <summary>Owns the temporary preview-scene resources for one ShadowCaster readback.</summary>
-		private sealed class ShadowReadbackFixture
+		private sealed class ShadowReadbackFixture : System.IDisposable
 		{
 			private const int FixtureLayer = 31;
 			private Scene scene;
@@ -128,6 +128,11 @@ namespace PureBase.Tests.Daily
 			private Material receiverMaterial;
 			private RenderTexture renderTexture;
 			private Texture2D texture;
+
+			/// <summary>Initializes an allocation-free ShadowCaster readback fixture.</summary>
+			public ShadowReadbackFixture()
+			{
+			}
 
 			/// <summary>Allocates and configures the ShadowCaster readback fixture.</summary>
 			/// <param name="material">The material assigned to the caster.</param>
