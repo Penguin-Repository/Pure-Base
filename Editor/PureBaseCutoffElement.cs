@@ -44,9 +44,9 @@ namespace PureBase.Editor
         /// <summary>Adds the existing Shader-Core range drawer with mode-controlled visibility.</summary>
         /// <param name="editor">The active Shader-Core material editor.</param>
         /// <param name="property">The Cutoff material property.</param>
-        /// <param name="arguments">Unused drawer arguments.</param>
+        /// <param name="_">Unused drawer arguments.</param>
         /// <param name="container">The property container that owns the drawer UI.</param>
-        private static void Draw(SCMaterialEditor editor, SCMaterialProperty property, string arguments, VisualElement container)
+        private static void Draw(SCMaterialEditor editor, SCMaterialProperty property, string _, VisualElement container)
         {
             var rangeContainer = new VisualElement();
             container.Add(rangeContainer);

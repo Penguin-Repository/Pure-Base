@@ -95,11 +95,11 @@ namespace PureBase.Editor
         }
 
         /// <summary>Adds the rendering-mode popup to one Shader-Core property container.</summary>
-        /// <param name="editor">The active Shader-Core material editor.</param>
+        /// <param name="_">The unused Shader-Core material editor.</param>
         /// <param name="property">The rendering-mode material property.</param>
         /// <param name="arguments">Unused drawer arguments.</param>
         /// <param name="container">The property container that owns the drawer UI.</param>
-        private static void Draw(SCMaterialEditor editor, SCMaterialProperty property, string arguments, VisualElement container)
+        private static void Draw(SCMaterialEditor _, SCMaterialProperty property, string arguments, VisualElement container)
         {
             var element = new PureBaseRenderingModeElement(property);
             container.Add(element.Root);
