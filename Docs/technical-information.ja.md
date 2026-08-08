@@ -29,7 +29,7 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 - `jp.lilxyzw.shadercore` `0.1.9` が必要です。
 - 将来の Shader-Core `0.1.x` を自動では許可しません。Shader-Core は `0.x` 間の互換性を保証しておらず、読み込み処理、プロジェクト設定、関数の形が変わる可能性があります。
 - 検証では D3D11 を使用します。
-- 半透明の描画には対応していません。製品シェーダーは Cutout の描画状態を使用し、Forward と ShadowCaster の切り抜き判定は `base` 後のモジュール調整済み `sd.albedoAlpha.a` に従います。Meta はホスト管理のベーステクスチャの被覆を維持します。
+- Opaque、Cutout、Transparent の描画モードに対応しています。初期状態は Cutout です。URP には対応していません。
 
 ## シェーダー名
 
@@ -46,16 +46,30 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 ## 描画処理と公開項目
 
-すべてのシェーダーは `RenderType=TransparentCutout`、`AlphaTest` キュー、次の4つの描画処理を使用します。
+すべてのシェーダーのソースには、次の4つの描画処理が残ります。実際の描画状態は描画モードで決まり、Transparent では `ShadowCaster` と `Meta` が無効になります。
 
 - `ForwardBase`
 - `ForwardAdd`
 - `ShadowCaster`
 - `Meta`
 
+### 描画モード ABI
+
+`_RenderingMode` は `SC_uint` を基にした ShaderLab の `Integer` です。値は `Opaque=0`、`Cutout=1`（初期値）、`Transparent=2` です。
+
+| モード | 実際の描画状態 |
+| --- | --- |
+| Opaque | `RenderType=Opaque`、キュー `2000`、ブレンド `One Zero`、`ZWrite 1`。切り抜きとブレンドを行わず、ライティングの寄与を有効にします。 |
+| Cutout | 保存されているキューの上書きを `-1` に戻し、`RenderType=TransparentCutout` と `AlphaTest` キュー `2450` に解決します。モードキーワードを使わず、被覆を切り抜き、ライティングの寄与を有効にします。 |
+| Transparent | `RenderType=Transparent`、キュー `3000`、ベースのブレンド `SrcAlpha OneMinusSrcAlpha`、追加ライトのブレンド `SrcAlpha One`、`ZWrite 0`。`ShadowCaster` と `Meta` は無効になります。 |
+
+キーワードを使わない状態が Cutout です。Opaque と Transparent ではローカルな描画モードキーワードだけを使用します。`postpixel` が最後に出力するアルファは、`ForwardBase` と `ForwardAdd` のソースアルファを決めます。
+
+エディターから明示的に適用する操作は `PureBaseMaterialRenderingMode.Apply(Material)` です。選択中のマテリアルには `Assets/PureBase/Resync Rendering Mode` を使えます。Inspector を開いたり更新したりするだけでは、旧形式のマテリアルを移行したり変更済みにしたりしません。実行時の切り替えは保証しません。モード変更または Resync を明示的に行うと標準キューをリセットして派生状態を同期します。ユーザーが設定したカスタムキューは、次にモードを明示的に編集または Resync するまで維持されます。
+
 共通して公開する項目は次のとおりです。
 
-`_BaseTexture`, `_BaseColor`, `_SharedMask`, `_SharedGradients`, `_Cutoff`, `_Cull`
+`_RenderingMode`（`SC_uint` を基にした ShaderLab の `Integer`、`Opaque=0`、`Cutout=1`（初期値）、`Transparent=2`）, `_BaseTexture`, `_BaseColor`, `_SharedMask`, `_SharedGradients`, `_Cutoff`, `_Cull`
 
 `PureBase/Toon` は、追加で `_NormalMap` と `_NormalScale` を公開します。
 
@@ -71,8 +85,8 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 - `ForwardBase` は通常の表面とライティング結果を担当します。
 - `ForwardAdd` は追加ライトの直接光だけを加算します。
-- `ForwardBase`、`ForwardAdd`、`ShadowCaster` は、`base` 後のモジュール調整済み `sd.albedoAlpha.a` から切り抜き範囲を決定します。`Meta` はホスト管理のベーステクスチャの被覆を維持します。
-- `postpixel` は色を変更できる最後の差し込み位置です。モジュールは返却されるアルファを変更できますが、製品パスのブレンド状態とカラーマスクは固定されており、半透明描画にはなりません。
+- Cutout では、`ForwardBase`、`ForwardAdd`、有効な `ShadowCaster` が `base` 後のモジュール調整済み `sd.albedoAlpha.a` から被覆を決定します。Opaque は切り抜きを行わず、Transparent は深度を書き込まずにアルファブレンドし、`ShadowCaster` と `Meta` を無効にします。
+- `postpixel` は色を変更できる最後の差し込み位置です。モジュールが変更した最後のアルファは、両フォワードパスでソースアルファとして使われます。製品パスのカラーマスクは固定されています。
 - PBR と Hybrid は、Unity 標準の間接光と反射プローブを `ForwardBase` で計算します。`ForwardAdd` では間接光を重複して計算しません。
 
 リムライト、MatCap、デカール、細部用テクスチャ、発光、ディゾルブ、距離によるフェード、視差表現、髪向け反射、クリアコート、グリッター、特定環境専用の連携などは、別の Shader-Core モジュールで追加する想定です。Pure Base 本体には含めません。
@@ -80,6 +94,8 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 ## 公開の準備と実行
 
 `package.json` が、公開名と版番号を決める唯一の情報源です。
+
+現在のパッケージ版は `0.2.0` です。
 
 手動の `Release` ワークフローへ渡す `version` は、すでにパッケージへ記載されている版番号と一致するかを確認するためだけに使われます。版番号の書き換えやコミットは行いません。
 

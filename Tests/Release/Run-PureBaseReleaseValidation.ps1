@@ -1637,25 +1637,33 @@ function New-ProductContract {
         $passName = $ProductPasses[$passIndex]
         $nextPassName = if ($passIndex + 1 -lt $ProductPasses.Count) { $ProductPasses[$passIndex + 1] } else { '' }
         $selectedSentinelCount = if ($null -eq $PassSentinelCounts) { 0 } else { [int]$PassSentinelCounts[$passName] }
+        $requiredFragments = switch ($passName) {
+            'ForwardBase' { @('ZWrite [_ZWrite]', 'Blend [_SrcBlend] [_DstBlend]') }
+            'ForwardAdd' { @('ZWrite Off', 'Blend [_AddSrcBlend] [_AddDstBlend]', 'ColorMask RGB') }
+            default { @() }
+        }
         if ($selectedSentinelCount -lt 0) {
             throw "Product pass sentinel count for '$ShaderName' pass '$passName' cannot be negative."
         }
         if ($selectedSentinelCount -gt 0 -and [string]::IsNullOrEmpty($Sentinel)) {
             throw "Product pass sentinel count for '$ShaderName' pass '$passName' requires a sentinel."
         }
+        if ($selectedSentinelCount -gt 0) {
+            $requiredFragments += $Sentinel
+        }
         $passContracts += [ordered]@{
             passName              = $passName
             nextPassName          = $nextPassName
-            requiredFragments     = if ($selectedSentinelCount -gt 0) { @($Sentinel) } else { @() }
+            requiredFragments     = $requiredFragments
             forbiddenFragments    = @()
             selectedSentinelCount = $selectedSentinelCount
         }
     }
     $expectedVisiblePropertyNames = switch ($ShaderName) {
-        'PureBase/Unlit' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_Cutoff', '_Cull') }
-        'PureBase/Toon' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale') }
-        'PureBase/PBR' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
-        'PureBase/Hybrid' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
+        'PureBase/Unlit' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') }
+        'PureBase/Toon' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale') }
+        'PureBase/PBR' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
+        'PureBase/Hybrid' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
         default { throw "Unsupported PureBase product '$ShaderName'." }
     }
     return [ordered]@{
@@ -1663,7 +1671,7 @@ function New-ProductContract {
         shaderAssetPath              = Get-ProductShaderAssetPath -ShaderName $ShaderName
         expectedPassNames            = $ProductPasses
         expectedVisiblePropertyNames = $expectedVisiblePropertyNames
-        requiredSourceFragments      = @()
+        requiredSourceFragments      = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
         forbiddenSourceFragments     = @()
         passContracts                = $passContracts
     }
@@ -1756,6 +1764,7 @@ function New-InitialValidationMatrix {
 
     $matrix = New-Object System.Collections.Generic.List[object]
     $matrix.Add([ordered]@{ label = 'module-free-clean-import'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts'; selections = @{}; skipColdLibraryReset = $false })
+    $matrix.Add([ordered]@{ label = 'rendering-mode-contract'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRenderingModeTests.ColdImportedPublicNormalizerMatchesTheFourByThreeStateTable'; selections = @{}; skipColdLibraryReset = $false })
     if (-not $ModuleFreeOnly) {
         $matrix.Add([ordered]@{ label = 'module-free-toon-runtime-observation'; contract = New-ModuleFreeToonRuntimeObservationContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{}; requiresColdLibraryReset = $true; skipColdLibraryReset = $false })
     }
@@ -2492,10 +2501,10 @@ function Remove-ConsumerProject {
 
 $packageRoot = Get-PackageGitRoot
 if ($ModuleFreeOnly -and $CompareWarmAndColdStandardMorph) {
-    throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.'
+    throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the five-row standard-morph comparison: module-free import, rendering-mode contract, module-free Toon runtime observation, warm, and cold.'
 }
 if ($ToonBaseOnly -and $CompareWarmAndColdStandardMorph) {
-    throw '-ToonBaseOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.'
+    throw '-ToonBaseOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the five-row standard-morph comparison: module-free import, rendering-mode contract, module-free Toon runtime observation, warm, and cold.'
 }
 if ($ToonBaseOnly -and $ModuleFreeOnly) {
     throw '-ToonBaseOnly cannot be combined with -ModuleFreeOnly because it requires the Toon base product-phase row.'
@@ -2602,6 +2611,9 @@ try {
             }
             $matrix.Add([ordered]@{ label = 'unlit-forward-add-fog'; contract = New-FogContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerUnlitForwardAddFogTests.SelectedForwardAddSignalAttenuatesTowardBlackWithControlledFog'; selections = @{ 'PureBase/Unlit' = @('jp.penguin.purebase.release.fixture.unlit.forwardaddfog') }; skipColdLibraryReset = $false })
             $matrix.Add([ordered]@{ label = 'module-order'; contract = New-ModuleOrderContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleOrderTests.ConfiguredModuleOrderAppearsOnlyInExpectedProductPasses'; selections = @{ 'PureBase/Unlit' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta'); 'PureBase/Toon' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta'); 'PureBase/PBR' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta'); 'PureBase/Hybrid' = @('jp.penguin.purebase.release.fixture.module-order.alpha', 'jp.penguin.purebase.release.fixture.module-order.zeta') }; skipColdLibraryReset = $false })
+            $postPixelAlphaModule = [ordered]@{ label = 'rendering-mode-postpixel-alpha'; phase = 'postpixel'; uniqueId = 'jp.penguin.purebase.release.renderingmode.postpixel-alpha'; propertyName = ''; sentinel = '' }
+            $postPixelAlphaPassCounts = [ordered]@{ ForwardBase = 0; ForwardAdd = 0; ShadowCaster = 0; Meta = 0 }
+            $matrix.Add([ordered]@{ label = $postPixelAlphaModule.label; contract = New-PhaseContract -Module $postPixelAlphaModule -SelectedProducts @('PureBase/Toon') -PassSentinelCounts $postPixelAlphaPassCounts; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRenderingModeTests.PostPixelAlphaConsumerInvocationSelectsTheTransparentToonProbeContract'; selections = @{ 'PureBase/Toon' = @($postPixelAlphaModule.uniqueId) }; skipColdLibraryReset = $false })
             $matrix.Add([ordered]@{ label = 'progressive-cpu-bake'; contract = New-BakeContract -ConsumerRoot $consumerRoot; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerBakeEvidenceTests.ConfiguredValidationSceneBakesAndExportsEvidence'; selections = @{}; skipColdLibraryReset = $false })
         }
     }
@@ -2624,10 +2636,10 @@ try {
         $outcomes += [ordered]@{ label = $entry.label; runDirectoryLabel = $entry.contract.runLabel; nunit = Invoke-ConsumerTest -UnityEditor $unityEditor -ConsumerRoot $consumerRoot -RunRoot $runRoot -ZipPath $zipPath -ShaderCoreManifestPath $shaderCoreManifestPath -Contract $entry.contract -TestFilter $entry.filter -Selections $entry.selections -RequireColdLibraryReset:$requireColdLibraryReset -SkipColdLibraryReset:$entry.skipColdLibraryReset -AllowObservationEvidence:$allowObservationEvidence }
     }
     if ($CompareWarmAndColdStandardMorph) {
-        $expectedComparisonLabels = @('module-free-clean-import', 'module-free-toon-runtime-observation', 'standard-morph-warm-library-duplicate-evidence', 'standard-morph-cold-library-legacy-counts')
+        $expectedComparisonLabels = @('module-free-clean-import', 'rendering-mode-contract', 'module-free-toon-runtime-observation', 'standard-morph-warm-library-duplicate-evidence', 'standard-morph-cold-library-legacy-counts')
         $actualComparisonLabels = @($matrix | ForEach-Object { [string]$_.label })
-        if ($matrix.Count -ne 4 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract -or [string]::Join('|', $actualComparisonLabels) -ne [string]::Join('|', $expectedComparisonLabels)) {
-            throw 'Standard-morph comparison must execute exactly module-free import, module-free Toon runtime observation, warm, and cold rows.'
+        if ($matrix.Count -ne 5 -or $null -eq $comparisonWarmContract -or $null -eq $comparisonColdContract -or [string]::Join('|', $actualComparisonLabels) -ne [string]::Join('|', $expectedComparisonLabels)) {
+            throw 'Standard-morph comparison must execute exactly module-free import, rendering-mode contract, module-free Toon runtime observation, warm, and cold rows.'
         }
         $comparisonVerdict = Invoke-StandardMorphComparisonVerdict -RunRoot $runRoot -WarmContract $comparisonWarmContract -ColdContract $comparisonColdContract
     }

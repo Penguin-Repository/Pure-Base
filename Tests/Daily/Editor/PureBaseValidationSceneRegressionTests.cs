@@ -1038,33 +1038,18 @@ namespace PureBase.Tests.Daily
         [Test]
         public void CanonicalStaticLightmapCountIgnoresLoadedPersistedOwnerScene()
         {
-            SceneSetup[] originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
             SceneRegressionBaseline baseline = LoadBaseline();
             Scene ownerScene = default;
             Scene validationScene = default;
+            var fixtureScope = new ControlledFixtureSceneScope(
+                TestOwnerScenePath,
+                ScenePath
+            );
             try
             {
-                ownerScene = SceneManager.GetSceneByPath(TestOwnerScenePath);
-                if (!ownerScene.isLoaded)
-                {
-                    ownerScene = EditorSceneManager.OpenScene(
-                        TestOwnerScenePath,
-                        OpenSceneMode.Additive
-                    );
-                }
-                validationScene = SceneManager.GetSceneByPath(ScenePath);
-                if (!validationScene.isLoaded)
-                {
-                    validationScene = EditorSceneManager.OpenScene(
-                        ScenePath,
-                        OpenSceneMode.Additive
-                    );
-                }
-                Assert.That(
-                    SceneManager.SetActiveScene(validationScene),
-                    Is.True,
-                    "The canonical fixture could not become active before the canonical-only observation."
-                );
+                ownerScene = fixtureScope.GetLoadedFixture(TestOwnerScenePath);
+                validationScene = fixtureScope.GetLoadedFixture(ScenePath);
+                fixtureScope.SetActiveFixture(validationScene);
                 Assert.That(
                     ownerScene.isDirty,
                     Is.False,
@@ -1124,8 +1109,7 @@ namespace PureBase.Tests.Daily
             }
             finally
             {
-                if (originalSceneSetup != null && originalSceneSetup.Length > 0)
-                    EditorSceneManager.RestoreSceneManagerSetup(originalSceneSetup);
+                fixtureScope.Dispose();
             }
         }
 
@@ -2900,6 +2884,303 @@ namespace PureBase.Tests.Daily
             }
 
             return EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
+        }
+
+        /// <summary>Loads controlled fixtures defensively and restores only their original scene-manager entries.</summary>
+        private sealed class ControlledFixtureSceneScope : IDisposable
+        {
+            private readonly FixtureSceneState[] fixtureStates;
+            private readonly Scene originalActiveScene;
+            private readonly string originalActiveScenePath;
+
+            /// <summary>Captures the controlled fixture entries and the original active scene.</summary>
+            /// <param name="fixturePaths">The fixture paths this scope may load, close, or remove.</param>
+            public ControlledFixtureSceneScope(params string[] fixturePaths)
+            {
+                SceneSetup[] originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
+                fixtureStates = new FixtureSceneState[fixturePaths.Length];
+                for (int fixtureIndex = 0; fixtureIndex < fixturePaths.Length; fixtureIndex++)
+                {
+                    fixtureStates[fixtureIndex] = FixtureSceneState.Capture(
+                        fixturePaths[fixtureIndex],
+                        originalSceneSetup
+                    );
+                }
+
+                originalActiveScene = SceneManager.GetActiveScene();
+                originalActiveScenePath = originalActiveScene.path;
+            }
+
+            /// <summary>Gets a valid, loaded controlled fixture scene.</summary>
+            /// <param name="fixturePath">The controlled fixture path to load.</param>
+            /// <returns>The current loaded scene instance for the fixture path.</returns>
+            public Scene GetLoadedFixture(string fixturePath)
+            {
+                foreach (FixtureSceneState fixtureState in fixtureStates)
+                {
+                    if (string.Equals(fixtureState.Path, fixturePath, StringComparison.Ordinal))
+                        return fixtureState.GetOrOpenLoadedScene();
+                }
+
+                throw new ArgumentOutOfRangeException(
+                    nameof(fixturePath),
+                    fixturePath,
+                    "The fixture path is outside this controlled scene scope."
+                );
+            }
+
+            /// <summary>Makes a validated fixture active unless it already owns the active-scene context.</summary>
+            /// <param name="fixtureScene">The valid loaded fixture scene to activate.</param>
+            public void SetActiveFixture(Scene fixtureScene)
+            {
+                Assert.That(fixtureScene.IsValid(), Is.True, "The controlled fixture scene was invalid.");
+                Assert.That(fixtureScene.isLoaded, Is.True, "The controlled fixture scene was not loaded.");
+                if (SceneManager.GetActiveScene().Equals(fixtureScene))
+                    return;
+                Assert.That(
+                    SceneManager.SetActiveScene(fixtureScene),
+                    Is.True,
+                    "The canonical fixture could not become active before the canonical-only observation."
+                );
+            }
+
+            /// <summary>Restores the controlled fixture entries and the original active scene without rebuilding user scenes.</summary>
+            public void Dispose()
+            {
+                foreach (FixtureSceneState fixtureState in fixtureStates)
+                    fixtureState.Restore();
+
+                Scene restoredActiveScene = string.IsNullOrEmpty(originalActiveScenePath)
+                    ? originalActiveScene
+                    : SceneManager.GetSceneByPath(originalActiveScenePath);
+                if (
+                    restoredActiveScene.IsValid()
+                    && restoredActiveScene.isLoaded
+                    && !SceneManager.GetActiveScene().Equals(restoredActiveScene)
+                )
+                {
+                    Assert.That(
+                        SceneManager.SetActiveScene(restoredActiveScene),
+                        Is.True,
+                        "The original active scene could not be restored after the controlled fixture observation."
+                    );
+                }
+
+                foreach (FixtureSceneState fixtureState in fixtureStates)
+                    fixtureState.AssertRestored();
+            }
+
+            /// <summary>Ensures Unity has another loaded scene active before a controlled fixture is closed.</summary>
+            /// <param name="fixturePath">The fixture path about to be closed.</param>
+            public static void SetActiveSceneOtherThan(string fixturePath)
+            {
+                Scene activeScene = SceneManager.GetActiveScene();
+                if (
+                    activeScene.IsValid()
+                    && activeScene.isLoaded
+                    && !string.Equals(activeScene.path, fixturePath, StringComparison.Ordinal)
+                )
+                    return;
+
+                for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
+                {
+                    Scene candidateScene = SceneManager.GetSceneAt(sceneIndex);
+                    if (
+                        !candidateScene.isLoaded
+                        || string.Equals(candidateScene.path, fixturePath, StringComparison.Ordinal)
+                    )
+                        continue;
+                    Assert.That(
+                        SceneManager.SetActiveScene(candidateScene),
+                        Is.True,
+                        $"No non-fixture scene could become active before closing '{fixturePath}'."
+                    );
+                    return;
+                }
+
+                throw new AssertionException(
+                    $"Cannot close controlled fixture '{fixturePath}' because it is the only loaded scene."
+                );
+            }
+
+            /// <summary>Stores one controlled fixture's original scene-manager state.</summary>
+            private sealed class FixtureSceneState
+            {
+                private readonly bool wasActive;
+                private readonly FixtureScenePresence originalPresence;
+
+                private FixtureSceneState(
+                    string path,
+                    FixtureScenePresence originalPresence,
+                    bool wasActive
+                )
+                {
+                    Path = path;
+                    this.originalPresence = originalPresence;
+                    this.wasActive = wasActive;
+                }
+
+                /// <summary>Gets the controlled fixture path.</summary>
+                public string Path { get; }
+
+                /// <summary>Captures whether a controlled fixture is absent, loaded, or registered as unloaded.</summary>
+                /// <param name="path">The controlled fixture path.</param>
+                /// <param name="sceneSetup">The scene setup captured before this scope changes fixtures.</param>
+                /// <returns>The captured fixture state.</returns>
+                public static FixtureSceneState Capture(string path, SceneSetup[] sceneSetup)
+                {
+                    Scene scene = SceneManager.GetSceneByPath(path);
+                    FixtureScenePresence presence = !scene.IsValid()
+                        ? FixtureScenePresence.Absent
+                        : scene.isLoaded
+                            ? FixtureScenePresence.Loaded
+                            : FixtureScenePresence.Unloaded;
+                    bool isActive = false;
+                    if (sceneSetup != null)
+                    {
+                        foreach (SceneSetup setup in sceneSetup)
+                        {
+                            if (string.Equals(setup.path, path, StringComparison.Ordinal))
+                            {
+                                isActive = setup.isActive;
+                                break;
+                            }
+                        }
+                    }
+
+                    return new FixtureSceneState(path, presence, isActive);
+                }
+
+                /// <summary>Loads this fixture, removing and reopening only an existing unloaded entry when necessary.</summary>
+                /// <returns>The valid loaded fixture scene.</returns>
+                public Scene GetOrOpenLoadedScene()
+                {
+                    Scene scene = SceneManager.GetSceneByPath(Path);
+                    if (scene.IsValid() && scene.isLoaded)
+                        return scene;
+                    if (scene.IsValid())
+                    {
+                        Assert.That(
+                            EditorSceneManager.CloseScene(scene, true),
+                            Is.True,
+                            $"The existing unloaded fixture entry '{Path}' could not be removed before reopening."
+                        );
+                    }
+
+                    EditorSceneManager.OpenScene(Path, OpenSceneMode.Additive);
+                    scene = SceneManager.GetSceneByPath(Path);
+                    Assert.That(scene.IsValid(), Is.True, $"Fixture '{Path}' was invalid after reopening.");
+                    Assert.That(scene.isLoaded, Is.True, $"Fixture '{Path}' was not loaded after reopening.");
+                    return scene;
+                }
+
+                /// <summary>Restores this controlled fixture to its captured scene-manager entry state.</summary>
+                public void Restore()
+                {
+                    switch (originalPresence)
+                    {
+                        case FixtureScenePresence.Loaded:
+                            GetOrOpenLoadedScene();
+                            break;
+                        case FixtureScenePresence.Unloaded:
+                            RestoreUnloadedEntry();
+                            break;
+                        case FixtureScenePresence.Absent:
+                            RemoveFixtureEntry();
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+                }
+
+                /// <summary>Verifies the fixture entry and captured active setup state after restoration.</summary>
+                public void AssertRestored()
+                {
+                    Scene scene = SceneManager.GetSceneByPath(Path);
+                    switch (originalPresence)
+                    {
+                        case FixtureScenePresence.Loaded:
+                            Assert.That(scene.IsValid(), Is.True, $"Fixture '{Path}' was removed during restoration.");
+                            Assert.That(scene.isLoaded, Is.True, $"Fixture '{Path}' was not restored as loaded.");
+                            break;
+                        case FixtureScenePresence.Unloaded:
+                            Assert.That(scene.IsValid(), Is.True, $"Fixture '{Path}' was removed instead of restored as unloaded.");
+                            Assert.That(scene.isLoaded, Is.False, $"Fixture '{Path}' was not restored as unloaded.");
+                            break;
+                        case FixtureScenePresence.Absent:
+                            Assert.That(scene.IsValid(), Is.False, $"Fixture '{Path}' was left registered after restoration.");
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
+
+                    if (wasActive)
+                    {
+                        Assert.That(
+                            SceneManager.GetActiveScene().path,
+                            Is.EqualTo(Path),
+                            $"Fixture '{Path}' was originally active but was not restored as active."
+                        );
+                    }
+                }
+
+                /// <summary>Closes a currently loaded fixture while retaining its existing unloaded entry.</summary>
+                private void RestoreUnloadedEntry()
+                {
+                    Scene scene = SceneManager.GetSceneByPath(Path);
+                    if (!scene.IsValid())
+                        scene = GetOrOpenLoadedScene();
+                    if (!scene.isLoaded)
+                        return;
+                    SetActiveSceneOtherThan(Path);
+                    Assert.That(
+                        scene.isDirty,
+                        Is.False,
+                        $"The controlled fixture '{Path}' became dirty and cannot be closed without discarding changes."
+                    );
+                    Assert.That(
+                        EditorSceneManager.CloseScene(scene, false),
+                        Is.True,
+                        $"Fixture '{Path}' could not be restored as an unloaded entry."
+                    );
+                }
+
+                /// <summary>Removes a fixture that was not registered before this scope.</summary>
+                private void RemoveFixtureEntry()
+                {
+                    Scene scene = SceneManager.GetSceneByPath(Path);
+                    if (!scene.IsValid())
+                        return;
+                    if (scene.isLoaded)
+                    {
+                        SetActiveSceneOtherThan(Path);
+                        Assert.That(
+                            scene.isDirty,
+                            Is.False,
+                            $"The controlled fixture '{Path}' became dirty and cannot be removed without discarding changes."
+                        );
+                    }
+
+                    Assert.That(
+                        EditorSceneManager.CloseScene(scene, true),
+                        Is.True,
+                        $"Fixture '{Path}' could not be removed after the controlled observation."
+                    );
+                }
+            }
+
+            /// <summary>Defines the captured registration state of a controlled fixture.</summary>
+            private enum FixtureScenePresence
+            {
+                /// <summary>The fixture was not registered in the scene manager.</summary>
+                Absent,
+
+                /// <summary>The fixture was loaded.</summary>
+                Loaded,
+
+                /// <summary>The fixture was registered but unloaded.</summary>
+                Unloaded,
+            }
         }
 
         /// <summary>Changes the active scene's lighting state so snapshot restoration must reapply its captured values.</summary>

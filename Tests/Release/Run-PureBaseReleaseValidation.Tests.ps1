@@ -706,7 +706,7 @@ try {
         $conflictFailure = $_
     }
     Assert-Harness -Condition ($null -ne $conflictFailure) -Message 'Incompatible runner switches unexpectedly passed.'
-    Assert-Harness -Condition ($conflictFailure.Exception.Message -eq '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the four-row standard-morph comparison: module-free import, module-free Toon runtime observation, warm, and cold.') -Message 'Incompatible runner switches did not report the deterministic conflict error before Unity validation.'
+    Assert-Harness -Condition ($conflictFailure.Exception.Message -eq '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the five-row standard-morph comparison: module-free import, rendering-mode contract, module-free Toon runtime observation, warm, and cold.') -Message 'Incompatible runner switches did not report the deterministic conflict error before Unity validation.'
     Assert-Harness -Condition (-not (Test-Path -LiteralPath $conflictArtifactDirectory)) -Message 'Incompatible runner switches created an artifact directory before failing.'
 
     $toonBaseConflictArtifactDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseToonBaseConflict-' + [guid]::NewGuid().ToString('N'))
@@ -732,11 +732,14 @@ try {
     Assert-Harness -Condition ($bakeOnlyMatrix.Count -eq 1 -and $bakeOnlyMatrix[0].label -eq 'progressive-cpu-bake') -Message 'Bake-only matrix selection did not return exactly the progressive-cpu-bake row.'
 
     $initialMatrix = New-InitialValidationMatrix
-    Assert-Harness -Condition ($initialMatrix.Count -eq 2 -and $initialMatrix[0].label -eq 'module-free-clean-import' -and $initialMatrix[1].label -eq 'module-free-toon-runtime-observation') -Message 'The module-free Toon runtime observation row did not follow the unchanged module-free clean-import row.'
+    Assert-Harness -Condition ($initialMatrix.Count -eq 3 -and [string]::Join('|', @($initialMatrix | ForEach-Object { [string]$_.label })) -eq 'module-free-clean-import|rendering-mode-contract|module-free-toon-runtime-observation') -Message 'The initial validation matrix must order module-free import, rendering-mode contract, and module-free Toon runtime observation rows.'
     $moduleFreeEntry = $initialMatrix[0]
     Assert-Harness -Condition ($moduleFreeEntry.contract.runLabel -eq 'module-free-clean-import' -and $moduleFreeEntry.contract.runKind -eq 'module-free' -and -not $moduleFreeEntry.contract.hasSelectedModule -and $null -eq $moduleFreeEntry.contract.selectedModule -and @($moduleFreeEntry.contract.runtimeSamples).Count -eq 0) -Message 'The existing module-free clean-import contract changed while adding the Toon runtime observation.'
     Assert-Harness -Condition ($moduleFreeEntry.filter -eq 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts' -and @($moduleFreeEntry.selections.Keys).Count -eq 0 -and -not $moduleFreeEntry.skipColdLibraryReset) -Message 'The existing module-free clean-import matrix row changed while adding the Toon runtime observation.'
-    $moduleFreeToonRuntimeEntry = $initialMatrix[1]
+    $renderingModeEntry = $initialMatrix[1]
+    Assert-Harness -Condition ($renderingModeEntry.contract.runLabel -eq 'module-free-clean-import' -and $renderingModeEntry.contract.runKind -eq 'module-free' -and -not $renderingModeEntry.contract.hasSelectedModule -and $null -eq $renderingModeEntry.contract.selectedModule -and @($renderingModeEntry.contract.runtimeSamples).Count -eq 0) -Message 'The rendering-mode contract must retain the module-free import contract.'
+    Assert-Harness -Condition ($renderingModeEntry.filter -eq 'PureBase.Release.Consumer.Tests.PureBaseConsumerRenderingModeTests.ColdImportedPublicNormalizerMatchesTheFourByThreeStateTable' -and @($renderingModeEntry.selections.Keys).Count -eq 0 -and -not $renderingModeEntry.skipColdLibraryReset) -Message 'The rendering-mode contract row did not use the deterministic cold module-free test configuration.'
+    $moduleFreeToonRuntimeEntry = $initialMatrix[2]
     $moduleFreeToonRuntimeContract = $moduleFreeToonRuntimeEntry.contract
     $moduleFreeToonRuntimeSample = $moduleFreeToonRuntimeContract.runtimeSamples[0]
     Assert-Harness -Condition ($moduleFreeToonRuntimeEntry.filter -eq 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks' -and @($moduleFreeToonRuntimeEntry.selections.Keys).Count -eq 0 -and -not $moduleFreeToonRuntimeEntry.skipColdLibraryReset) -Message 'The module-free Toon runtime observation row did not use the deterministic cold runtime test configuration.'
@@ -747,11 +750,11 @@ try {
     }
     Assert-Harness -Condition ($moduleFreeToonRuntimeSample.red.minimum -eq 0.0 -and $moduleFreeToonRuntimeSample.red.maximum -eq 1000.0 -and $moduleFreeToonRuntimeSample.green.minimum -eq 0.0 -and $moduleFreeToonRuntimeSample.green.maximum -eq 1000.0 -and $moduleFreeToonRuntimeSample.blue.minimum -eq 0.0 -and $moduleFreeToonRuntimeSample.blue.maximum -eq 1000.0 -and $moduleFreeToonRuntimeSample.alpha.minimum -eq 0.99 -and $moduleFreeToonRuntimeSample.alpha.maximum -eq 1.01) -Message 'The module-free Toon runtime observation ranges changed from their finite structural baseline.'
     $moduleFreeOnlyInitialMatrix = New-InitialValidationMatrix -ModuleFreeOnly
-    Assert-Harness -Condition ($moduleFreeOnlyInitialMatrix.Count -eq 1 -and $moduleFreeOnlyInitialMatrix[0].label -eq 'module-free-clean-import') -Message 'Module-free-only validation no longer selects exactly the unchanged module-free clean-import row.'
+    Assert-Harness -Condition ($moduleFreeOnlyInitialMatrix.Count -eq 2 -and [string]::Join('|', @($moduleFreeOnlyInitialMatrix | ForEach-Object { [string]$_.label })) -eq 'module-free-clean-import|rendering-mode-contract') -Message 'Module-free-only validation must select module-free import and rendering-mode contract rows in order.'
     $comparisonMatrix = New-InitialValidationMatrix
     $comparisonContracts = Add-StandardMorphComparisonMatrixRows -Matrix $comparisonMatrix
     $comparisonLabels = @($comparisonMatrix | ForEach-Object { [string]$_.label })
-    Assert-Harness -Condition ($comparisonMatrix.Count -eq 4 -and [string]::Join('|', $comparisonLabels) -eq 'module-free-clean-import|module-free-toon-runtime-observation|standard-morph-warm-library-duplicate-evidence|standard-morph-cold-library-legacy-counts' -and $comparisonContracts.warmContract.runLabel -eq $comparisonLabels[2] -and $comparisonContracts.coldContract.runLabel -eq $comparisonLabels[3]) -Message 'Standard-morph comparison matrix must retain the module-free import and Toon runtime observation rows before the warm and cold rows.'
+    Assert-Harness -Condition ($comparisonMatrix.Count -eq 5 -and [string]::Join('|', $comparisonLabels) -eq 'module-free-clean-import|rendering-mode-contract|module-free-toon-runtime-observation|standard-morph-warm-library-duplicate-evidence|standard-morph-cold-library-legacy-counts' -and $comparisonContracts.warmContract.runLabel -eq $comparisonLabels[3] -and $comparisonContracts.coldContract.runLabel -eq $comparisonLabels[4]) -Message 'Standard-morph comparison matrix must retain module-free import, rendering-mode contract, and Toon runtime observation rows before the warm and cold rows.'
     Assert-Harness -Condition ($moduleFreeToonRuntimeEntry.requiresColdLibraryReset) -Message 'The module-free Toon runtime observation row did not explicitly require a cold Library reset.'
     $moduleFreeToonRuntimeCase = Invoke-HarnessCase -Label $moduleFreeToonRuntimeEntry.label -Contract $moduleFreeToonRuntimeContract -Selections $moduleFreeToonRuntimeEntry.selections -RequireColdLibraryReset:$moduleFreeToonRuntimeEntry.requiresColdLibraryReset -SkipColdLibraryReset:$moduleFreeToonRuntimeEntry.skipColdLibraryReset -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row', 'row') -TestFilter $moduleFreeToonRuntimeEntry.filter
     Assert-Harness -Condition ($null -eq $moduleFreeToonRuntimeCase.failure) -Message 'Module-free Toon runtime observation harness case unexpectedly failed.'
@@ -878,7 +881,7 @@ try {
     $expectedFirstBootstrapAddedCount = @(Get-ExpectedFirstBootstrapAddedPaths).Count
     $expectedFirstBootstrapChangedCount = @(Get-ExpectedFirstBootstrapChangedPaths).Count
     $expectedFirstBootstrapAcceptedCount = $expectedFirstBootstrapAddedCount + $expectedFirstBootstrapChangedCount
-    Assert-Harness -Condition ($expectedFirstBootstrapAddedCount -eq 31 -and $expectedFirstBootstrapChangedCount -eq 2 -and $expectedFirstBootstrapAcceptedCount -eq 33) -Message 'First-bootstrap expected transition counts do not match the hosted consumer contract.'
+    Assert-Harness -Condition ($expectedFirstBootstrapAddedCount -eq 25 -and $expectedFirstBootstrapChangedCount -eq 2 -and $expectedFirstBootstrapAcceptedCount -eq 27) -Message 'First-bootstrap expected transition counts do not match the hosted consumer contract.'
 
     foreach ($successfulLabel in @('module-free-clean-import', 'progressive-cpu-bake')) {
         $case = Invoke-HarnessCase -Label $successfulLabel -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'row')
