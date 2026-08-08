@@ -343,7 +343,7 @@ namespace PureBase.Tests.Daily
 			private readonly float outputBoost;
 			private readonly float maxOutput;
 
-			private MetaGlobalState(Vector4 vertexControl, Vector4 fragmentControl, Vector4 lightmapSt, float outputBoost, float maxOutput)
+			public MetaGlobalState(Vector4 vertexControl, Vector4 fragmentControl, Vector4 lightmapSt, float outputBoost, float maxOutput)
 			{
 				this.vertexControl = vertexControl;
 				this.fragmentControl = fragmentControl;
