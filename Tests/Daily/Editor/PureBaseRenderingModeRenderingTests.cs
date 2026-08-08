@@ -48,7 +48,7 @@ namespace PureBase.Tests.Daily
         private const string TransparentRenderingModeKeyword = "PUREBASE_RENDERING_TRANSPARENT";
 
         /// <summary>Identifies the release-only postpixel alpha probe source.</summary>
-        private const string PostPixelProbePath = "Packages/jp.penguin.purebase/Tests/Release/Modules/RenderingMode/PostPixelAlpha/phase_postpixel.hlsl";
+        private const string PostPixelProbePath = "Packages/jp.penguin.purebase/Tests/Release/Modules/Standard/PostPixel/phase_postpixel.hlsl";
 
         /// <summary>Defines the small readback dimension used by transient numeric observations.</summary>
         private const int RenderSize = 64;

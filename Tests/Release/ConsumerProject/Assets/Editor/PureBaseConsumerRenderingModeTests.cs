@@ -30,7 +30,7 @@ namespace PureBase.Release.Consumer.Tests
     public sealed class PureBaseConsumerRenderingModeTests
     {
         /// <summary>Identifies the only release module selected by the postpixel alpha consumer invocation.</summary>
-        private const string PostPixelAlphaProbeId = "jp.penguin.purebase.release.renderingmode.postpixel-alpha";
+        private const string PostPixelAlphaProbeId = "jp.penguin.purebase.release.fixture.products.postpixel";
 
         /// <summary>Lists every local keyword owned by the rendering-mode contract.</summary>
         private static readonly string[] RenderingModeKeywords =
