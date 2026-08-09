@@ -1,7 +1,9 @@
 {
   "name": "PureBase.Release.Consumer.Tests",
   "rootNamespace": "PureBase.Release.Consumer.Tests",
-  "references": [],
+  "references": [
+    "PureBase.Editor"
+  ],
   "includePlatforms": [
     "Editor"
   ],

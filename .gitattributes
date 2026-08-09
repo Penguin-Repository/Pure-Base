@@ -18,3 +18,4 @@
 *.exr binary
 *.png binary
 Tests/Fixtures/Scenes/PureBaseValidation/LightingData.asset binary
+Tests/Fixtures/Scenes/PureBaseValidation/OwnerLightingData.asset binary

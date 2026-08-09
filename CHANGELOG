@@ -1,3 +1,13 @@
+2026/08/08
+Ver. 0.2.0-beta.1
+https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0-beta.1
+
+- Added the public `_RenderingMode` ABI with Opaque, Cutout, and Transparent states.
+- Added explicit editor synchronization through `PureBaseMaterialRenderingMode.Apply(Material)` and `Assets/PureBase/Resync Rendering Mode`.
+- Added documented render-state behavior for queue, blend, depth writing, coverage, and Transparent pass enablement.
+- Preserved four source pass declarations while allowing Transparent mode to disable `ShadowCaster` and `Meta`.
+- Updated the package version and release download identity to `0.2.0-beta.1`.
+
 2026/08/06
 Ver. 0.1.0
 https://github.com/Penguin-Repository/Pure-Base/releases#release-0.1.0

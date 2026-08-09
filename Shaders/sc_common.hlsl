@@ -38,7 +38,7 @@ void SCVertexPost(inout SCVertexData vertex, SCPositionAndDirection camera, SCPo
     __SC_PHASE_postvertex__
 }
 
-/// <summary>Evaluates immutable Cutout coverage for the Shader-Core shadow-caster wrapper.</summary>
+/// <summary>Applies mode-aware clipping to module-adjusted coverage: Opaque and Transparent do not clip, while keyword-free Cutout clips; the normalizer normally disables Transparent ShadowCaster.</summary>
 void SCPixelClip(v2f input, bool isFront, float bitangentDirection)
 {
     SCPositionAndDirection camera = SCGetCameraData();

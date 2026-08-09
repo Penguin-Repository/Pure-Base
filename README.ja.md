@@ -28,7 +28,7 @@ limitations under the License.
 [![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
 [![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
 
-Pure Base は、Shader-Core で使える4種類の基本シェーダーをまとめた Unity 向けパッケージです。
+Pure Base `0.2.0-beta.1` は、Shader-Core で使える4種類の基本シェーダーをまとめた Unity 向けパッケージです。
 
 複雑な機能を最初から大量に備えるのではなく、必要な機能を Shader-Core の追加モジュールで組み合わせて使うための、軽くて分かりやすい土台を目指しています。
 
@@ -56,7 +56,7 @@ Pure Base には、用途の異なる4つのシェーダーが含まれていま
 - Built-in Render Pipeline
 - Shader-Core 0.1.9
 
-URPと半透明のマテリアルには対応していません。透明部分は切り抜き方式で表示します。
+URPには対応していません。Opaque、Cutout、Transparent の描画モードを利用でき、初期状態は Cutout です。
 
 ## 導入方法
 
@@ -87,23 +87,36 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 3. 追加する版を選び、プロジェクトへ導入します。
 4. Shader-Core 0.1.9 が一緒に導入されることを確認します。
 
-現在は開発版のため、管理ソフトの設定によっては一覧に表示されない場合があります。その場合は、開発版やプレリリースを表示する設定を有効にしてください。
+このREADMEが対象とするパッケージ版は `0.2.0-beta.1` です。
 
 ## 基本的な使い方
 
 1. Unityで新しいマテリアルを作成します。
 2. マテリアルのシェーダーから `PureBase` を選びます。
 3. 用途に合わせて `Unlit`、`Toon`、`PBR`、`Hybrid` のいずれかを選びます。
-4. 基本色やテクスチャなどを設定します。
-5. 必要に応じて Shader-Core の追加モジュールを組み合わせます。
+4. 描画モードで Opaque、Cutout、Transparent のいずれかを選びます。初期状態は Cutout です。
+5. 基本色やテクスチャなどを設定します。
+6. 必要に応じて Shader-Core の追加モジュールを組み合わせます。
 
 最初に迷った場合は、アニメ調なら `Toon`、一般的な質感なら `PBR` が分かりやすい選択です。
+
+## 描画モード
+
+`_RenderingMode` は ShaderLab の `Integer` で、値は `Opaque=0`、`Cutout=1`（初期値）、`Transparent=2` です。
+
+| モード | 動作 |
+| --- | --- |
+| Opaque | 切り抜きとブレンドを行いません。キューは `2000`、`ZWrite 1` です。 |
+| Cutout | 被覆を切り抜きます。キューは `AlphaTest 2450` に解決され、モードキーワードを使いません。 |
+| Transparent | 深度を書き込まずにアルファブレンドします。キューは `3000` で、`ShadowCaster` と `Meta` は無効です。 |
+
+エディターから明示的にモードを適用するには `PureBaseMaterialRenderingMode.Apply(Material)` を使います。選択中のマテリアルには `Assets/PureBase/Resync Rendering Mode` を使えます。Inspector を開いたり更新したりするだけでは、旧形式のマテリアルを移行したり変更済みにしたりしません。実行時の切り替えは保証せず、カスタムキューは次にモードを明示的に編集または Resync するまで維持します。
 
 ## 注意点
 
 - Pure Base 本体は、できるだけ小さく保つ方針です。
 - リムライト、MatCap、発光、ディゾルブなどの追加表現は、別の Shader-Core モジュールで補う想定です。
-- 正式版ではない版では、仕様や使い方が変更される可能性があります。
+- 描画モードとパスの完全な契約は、[Pure-Base シェーダー契約](Docs/pure-base-shader-contract.md)に記載しています。
 - 不具合を報告する際は、使用したUnity、Pure Base、Shader-Coreの版を記載してください。
 
 ## 詳しい資料
@@ -242,7 +255,7 @@ URPは？
 
 半透明マテリアルは？
 
-対応していない！！
+Transparent モードで対応している！！
 
 透明部分はどうする！？
 
@@ -367,7 +380,7 @@ Pure Base は隠れているんじゃない。
 
 - Pure Base 本体は、できるだけ小さく保つ方針です。
 - リムライト、MatCap、発光、ディゾルブなどの追加表現は、別の Shader-Core モジュールで補う想定です。
-- 正式版ではない版では、仕様や使い方が変更される可能性があります。
+- 0.2.0-beta.1 の描画モード契約は、仕様と使い方を確認してから使ってください。
 - 不具合を報告する際は、使用したUnity、Pure Base、Shader-Coreの版を記載してください。
 
 なぜ小さく保つ！？
@@ -388,7 +401,7 @@ MatCapが欲しい？
 一つの巨大な塊にするな。
 必要な力を、必要な場所へ組み合わせろ！！
 
-そして忘れるな。これは正式版ではない版を含む！ 仕様や使い方が変わる可能性がある！
+そして忘れるな。Opaque、Cutout、Transparent の描画モードがある！ 仕様と使い方を確認して使え！
 
 変化を恐れるな。
 

@@ -1,0 +1,38 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+msgid ""
+msgstr ""
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ja-JP\n"
+
+msgid "Rendering Mode"
+msgstr "レンダリングモード"
+
+msgid "Opaque"
+msgstr "不透明"
+
+msgid "Cutout"
+msgstr "カットアウト"
+
+msgid "Transparent"
+msgstr "半透明"
+
+msgid "Transparent materials use alpha blending. ZWrite, ShadowCaster, and Meta are disabled."
+msgstr "半透明マテリアルはアルファブレンドを使用します。ZWrite、ShadowCaster、Meta は無効です。"
+
+msgid "One or more selected materials are Transparent. Those materials use alpha blending, and their ZWrite, ShadowCaster, and Meta are disabled."
+msgstr "選択したマテリアルの 1 つ以上が半透明です。該当するマテリアルはアルファブレンドを使用し、ZWrite、ShadowCaster、Meta は無効です。"

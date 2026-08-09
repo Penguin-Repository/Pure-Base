@@ -19,6 +19,8 @@
 #ifndef PUREBASE_BIRP_HOST_INCLUDED
 #define PUREBASE_BIRP_HOST_INCLUDED
 
+#include "Packages/jp.penguin.purebase/Shaders/Common/rendering_mode.hlsl"
+
 /// <summary>Accumulates a BIRP light after the Shader-Core per-light phase.</summary>
 void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, SCLightData light)
 {
@@ -89,7 +91,7 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     __SC_PHASE_add__
 
     sd.col.rgb += sd.add + sd.postadd;
-    sd.col.a = 1;
+    PureBaseApplyRenderingModeOutputAlpha(sd.col, coverage);
     #if defined(UNITY_PASS_FORWARDADD)
     UNITY_APPLY_FOG_COLOR(input.fogCoord, sd.col, fixed4(0, 0, 0, 0));
     #else

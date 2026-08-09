@@ -29,7 +29,7 @@ Pure Base is a minimal Shader-Core host. It is not intended to become a feature-
 - The package requires exactly `jp.lilxyzw.shadercore` `0.1.9`.
 - Future `0.1.x` Shader-Core releases are not accepted automatically. Shader-Core does not declare compatibility across `0.x` releases, and importer, project-setting, and method-shape contracts may change.
 - The integration harness forces D3D11 during test execution.
-- Transparent blending is not supported. Product shaders use Cutout render states; Forward and ShadowCaster coverage follows the module-adjusted `sd.albedoAlpha.a` after `base`, while Meta retains host-owned base-texture coverage.
+- Opaque, Cutout, and Transparent rendering modes are supported. Cutout is the default mode; URP is not supported.
 
 ## Stable shader paths
 
@@ -46,16 +46,30 @@ The complete, stable pass and property contract is defined in [Pure Base shader 
 
 ## Render passes and public properties
 
-Every shader uses `RenderType=TransparentCutout`, the `AlphaTest` queue, and exactly four passes:
+Every shader source retains exactly four passes. The rendering mode selects the effective render state; Transparent disables the `ShadowCaster` and `Meta` passes without removing their source declarations:
 
 - `ForwardBase`
 - `ForwardAdd`
 - `ShadowCaster`
 - `Meta`
 
+### Rendering mode ABI
+
+`_RenderingMode` is a ShaderLab `Integer` backed by `SC_uint`. The values are `Opaque=0`, `Cutout=1` (default), and `Transparent=2`.
+
+| Mode | Effective state |
+| --- | --- |
+| Opaque | `RenderType=Opaque`, queue `2000`, blend `One Zero`, `ZWrite 1`; uncut and unblended with lighting contributions enabled. |
+| Cutout | Clears the serialized queue override to `-1`, resolves `RenderType=TransparentCutout` and `AlphaTest` queue `2450`; keyword-free, clips coverage, and keeps lighting contributions enabled. |
+| Transparent | `RenderType=Transparent`, queue `3000`, base blend `SrcAlpha OneMinusSrcAlpha`, additional-light blend `SrcAlpha One`, `ZWrite 0`; `ShadowCaster` and `Meta` are disabled. |
+
+Only local Opaque and Transparent keywords are used; Cutout is keyword-free. The final alpha from `postpixel` controls the `ForwardBase` and `ForwardAdd` source alpha.
+
+The explicit editor action is `PureBaseMaterialRenderingMode.Apply(Material)`. For selected materials, use `Assets/PureBase/Resync Rendering Mode`. Opening or refreshing the Inspector does not migrate or dirty a legacy material. Runtime switching is not guaranteed. An explicit mode change or Resync resets the standard queue and synchronizes derived state; a user custom queue remains until the next explicit mode edit or Resync.
+
 All four shaders expose these common properties:
 
-`_BaseTexture`, `_BaseColor`, `_SharedMask`, `_SharedGradients`, `_Cutoff`, `_Cull`
+`_RenderingMode` (`Integer` backed by `SC_uint`; `Opaque=0`, `Cutout=1` (default), `Transparent=2`), `_BaseTexture`, `_BaseColor`, `_SharedMask`, `_SharedGradients`, `_Cutoff`, `_Cull`
 
 `PureBase/Toon` additionally exposes `_NormalMap` and `_NormalScale`.
 
@@ -71,8 +85,8 @@ The shared standard phase ABI is executed in this order:
 
 - `ForwardBase` owns the normal surface and lighting result.
 - `ForwardAdd` contributes additional direct light only and uses black fog semantics.
-- `ForwardBase`, `ForwardAdd`, and `ShadowCaster` derive Cutout coverage from the module-adjusted `sd.albedoAlpha.a` after `base`. `Meta` retains host-owned base-texture coverage.
-- `postpixel` is the final color mutation point. Modules may change the returned alpha there, but the product pass blend and color-mask states remain fixed and do not provide transparent blending.
+- In Cutout, `ForwardBase`, `ForwardAdd`, and enabled `ShadowCaster` derive coverage from the module-adjusted `sd.albedoAlpha.a` after `base`. Opaque is uncut, while Transparent alpha-blends without depth writing and disables `ShadowCaster` and `Meta`.
+- `postpixel` is the final color mutation point. Modules may change the returned alpha there, and that final alpha is used as the source alpha by both forward passes. The product color-mask states remain fixed.
 - PBR and Hybrid evaluate Unity Standard indirect GI and reflection probes in `ForwardBase`. Their `ForwardAdd` passes do not duplicate indirect lighting.
 
 Optional visual features belong in separate Shader-Core modules. Pure Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
@@ -80,6 +94,8 @@ Optional visual features belong in separate Shader-Core modules. Pure Base does 
 ## Release preparation and publication
 
 `package.json` is the sole release identity and version declaration.
+
+The current package release is `0.2.0-beta.1`.
 
 The `version` input of the manual `Release` workflow verifies the exact version already present in the checked-out package. It does not write or commit a version.
 

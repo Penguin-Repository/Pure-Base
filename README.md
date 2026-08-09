@@ -28,7 +28,7 @@ Language: [日本語](README.ja.md)
 [![Release validation](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release-validation.yml)
 [![Release](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml/badge.svg)](https://github.com/Penguin-Repository/Pure-Base/actions/workflows/release.yml)
 
-Pure Base is a Unity package that provides four base shaders for Shader-Core.
+Pure Base `0.2.0-beta.1` is a Unity package that provides four base shaders for Shader-Core.
 
 Instead of including a large collection of optional effects, it provides a small and understandable foundation that can be extended with Shader-Core modules when needed.
 
@@ -54,7 +54,7 @@ Every shader can be used without installing an optional module.
 - Built-in Render Pipeline
 - Shader-Core 0.1.9
 
-URP and transparent material blending are not supported. Transparent areas use Cutout rendering.
+URP is not supported. Opaque, Cutout, and Transparent rendering modes are available; Cutout is the default.
 
 ## Installation
 
@@ -85,23 +85,36 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 3. Select the version you want and add it to the project.
 4. Confirm that Shader-Core 0.1.9 is installed with it.
 
-Pure Base is currently distributed as a prerelease. Some package managers hide prerelease packages by default, so you may need to enable prerelease or development-version visibility.
+The package version described here is `0.2.0-beta.1`.
 
 ## Basic use
 
 1. Create a new material in Unity.
 2. Open the material's shader menu and select `PureBase`.
 3. Choose `Unlit`, `Toon`, `PBR`, or `Hybrid` for the intended look.
-4. Set the base color, texture, and other available properties.
-5. Add Shader-Core modules when additional effects are needed.
+4. Choose Opaque, Cutout, or Transparent in the rendering-mode setting. Cutout is the default.
+5. Set the base color, texture, and other available properties.
+6. Add Shader-Core modules when additional effects are needed.
 
 For a simple starting point, choose `Toon` for anime-style materials or `PBR` for general-purpose materials.
+
+## Rendering modes
+
+The `_RenderingMode` property is a ShaderLab `Integer` with `Opaque=0`, `Cutout=1` (default), and `Transparent=2`.
+
+| Mode | Behavior |
+| --- | --- |
+| Opaque | Uncut and unblended; queue `2000`, `ZWrite 1`. |
+| Cutout | Clips coverage; queue resolves to `AlphaTest 2450`, with no mode keyword. |
+| Transparent | Alpha-blends without depth writing; queue `3000`, with `ShadowCaster` and `Meta` disabled. |
+
+To apply the mode explicitly in the editor, use `PureBaseMaterialRenderingMode.Apply(Material)`. For selected materials, use `Assets/PureBase/Resync Rendering Mode`. Opening or refreshing the Inspector does not migrate or dirty legacy materials. Runtime switching is not guaranteed, and a custom queue remains until the next explicit mode edit or Resync.
 
 ## Notes
 
 - Pure Base is intentionally kept small.
 - Effects such as rim lighting, MatCap, emission, and dissolve are expected to be supplied by separate Shader-Core modules.
-- Behavior and usage may change while the package is in prerelease.
+- The complete rendering-mode and pass contract is documented in [Pure-Base Shader Contract](Docs/pure-base-shader-contract.md).
 - When reporting a problem, include the Unity, Pure Base, and Shader-Core versions you used.
 
 ## Technical documentation

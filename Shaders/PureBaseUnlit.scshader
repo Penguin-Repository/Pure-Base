@@ -20,11 +20,17 @@ Shader "PureBase/Unlit"
     Properties
     {
         __SC_SHADERLAB_properties__
+        [HideInInspector] _SrcBlend ("", Float) = 1
+        [HideInInspector] _DstBlend ("", Float) = 0
+        [HideInInspector] _ZWrite ("", Float) = 1
+        [HideInInspector] _AddSrcBlend ("", Float) = 1
+        [HideInInspector] _AddDstBlend ("", Float) = 1
         [HideInInspector] _PureBaseShaderLabSentinel ("", Float) = 0
     }
 
     HLSLINCLUDE
     __SC_SHADERKEYWORDS__
+    #pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT
     ENDHLSL
 
     SubShader
@@ -36,8 +42,9 @@ Shader "PureBase/Unlit"
             Name "ForwardBase"
             Tags { "LightMode" = "ForwardBase" }
             Cull [_Cull]
-            ZWrite On
+            ZWrite [_ZWrite]
             ZTest LEqual
+            Blend [_SrcBlend] [_DstBlend]
 
             HLSLPROGRAM
             #pragma target 5.0
@@ -53,7 +60,7 @@ Shader "PureBase/Unlit"
             Cull [_Cull]
             ZWrite Off
             ZTest LEqual
-            Blend One One
+            Blend [_AddSrcBlend] [_AddDstBlend]
             ColorMask RGB
 
             HLSLPROGRAM
@@ -93,6 +100,7 @@ Shader "PureBase/Unlit"
             #include "UnityMetaPass.cginc"
             #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp.hlsl"
             __SC_BIRP_properties__
+            #include "Common/rendering_mode.hlsl"
             #include "Models/unlit.hlsl"
 
             /// <summary>Defines the bind-pose vertex and lightmap UV inputs for Unity's Meta pass.</summary>
@@ -145,11 +153,11 @@ Shader "PureBase/Unlit"
                 return output;
             }
 
-            /// <summary>Returns albedo-only Meta data using the fixed Cutout coverage contract.</summary>
+            /// <summary>Returns albedo-only Meta data using the selected rendering-mode coverage contract.</summary>
             float4 PureBaseUnlitMetaFragment(PureBaseUnlitMetaVaryings input) : SV_Target
             {
                 half4 albedoAlpha = SCSample(_BaseTexture, sampler_BaseTexture, input.uv) * _BaseColor;
-                clip(albedoAlpha.a - _Cutoff);
+                PureBaseApplyRenderingModeClip(albedoAlpha.a);
                 UnityMetaInput output;
                 UNITY_INITIALIZE_OUTPUT(UnityMetaInput, output);
                 output.Albedo = albedoAlpha.rgb;
