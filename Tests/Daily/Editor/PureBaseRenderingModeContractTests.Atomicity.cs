@@ -132,13 +132,14 @@ namespace PureBase.Tests.Daily
             second.SetInteger("_RenderingMode", 2);
             failing.SetInteger("_RenderingMode", 1);
             first.SetOverrideTag("RenderType", string.Empty);
-            second.SetOverrideTag("RenderType", "LegacyTransparent");
+            second.SetOverrideTag("RenderType", "TransparentCutout");
             foreach (int invalidMode in new[] { -1, 3 })
             {
                 failing.SetInteger("_RenderingMode", 1);
                 EditorUtility.ClearDirty(first);
                 EditorUtility.ClearDirty(second);
                 EditorUtility.ClearDirty(failing);
+                AssertDistinctFallbackRenderTypeOverrideStates(first, second, "before late batch rollback");
                 MaterialState firstBefore = MaterialState.Capture(first);
                 MaterialState secondBefore = MaterialState.Capture(second);
                 var materials = new LateInvalidatingMaterialList(new[] { first, second, failing }, 2, invalidMode);
@@ -148,10 +149,27 @@ namespace PureBase.Tests.Daily
                 Assert.That(materials.ObservedPriorMutations, Is.True, "The late invalidation must occur after prior materials are normalized.");
                 firstBefore.AssertEqual(first, "first material after late batch rollback");
                 secondBefore.AssertEqual(second, "second material after late batch rollback");
+                AssertDistinctFallbackRenderTypeOverrideStates(first, second, "after late batch rollback");
                 Assert.That(AssetDatabase.GetAssetPath(first), Is.Empty, "The rollback fixture must remain transient.");
                 Assert.That(AssetDatabase.GetAssetPath(second), Is.Empty, "The rollback fixture must remain transient.");
                 Assert.That(AssetDatabase.GetAssetPath(failing), Is.Empty, "The failure fixture must remain transient.");
             }
+        }
+
+        /// <summary>Asserts that absent and fallback-valued RenderType overrides remain distinct serialized states.</summary>
+        /// <param name="withoutOverride">The material whose raw RenderType override is absent.</param>
+        /// <param name="withFallbackOverride">The material whose raw override equals the shader fallback.</param>
+        /// <param name="context">The operation boundary described by the assertions.</param>
+        private static void AssertDistinctFallbackRenderTypeOverrideStates(Material withoutOverride, Material withFallbackOverride, string context)
+        {
+            bool hasAbsentOverride = TryGetSerializedRenderTypeOverride(withoutOverride, out string absentOverride);
+            bool hasFallbackOverride = TryGetSerializedRenderTypeOverride(withFallbackOverride, out string fallbackOverride);
+            Assert.That(hasAbsentOverride, Is.False, $"The {context} absent override fixture must not serialize RenderType.");
+            Assert.That(absentOverride, Is.Null, $"The {context} absent override fixture must not expose a RenderType value.");
+            Assert.That(hasFallbackOverride, Is.True, $"The {context} fallback override fixture must serialize RenderType.");
+            Assert.That(fallbackOverride, Is.EqualTo("TransparentCutout"), $"The {context} fallback override fixture must preserve its raw RenderType value.");
+            Assert.That(withoutOverride.GetTag("RenderType", false), Is.EqualTo("TransparentCutout"), $"The {context} absent override fixture must resolve the PureBase SubShader RenderType fallback.");
+            Assert.That(withFallbackOverride.GetTag("RenderType", false), Is.EqualTo("TransparentCutout"), $"The {context} fallback override fixture must resolve the same RenderType value.");
         }
 
         /// <summary>Assigns distinguishable values to every shader property before atomicity snapshots without modifying persistent assets.</summary>

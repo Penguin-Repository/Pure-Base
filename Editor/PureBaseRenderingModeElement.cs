@@ -41,15 +41,6 @@ namespace PureBase.Editor
         /// <summary>Explains the derived state when a mixed selection includes Transparent materials.</summary>
         private const string MixedTransparentDescription = "One or more selected materials are Transparent. Those materials use alpha blending, and their ZWrite, ShadowCaster, and Meta are disabled.";
 
-        /// <summary>Lists the only stable public shader names owned by Pure-Base.</summary>
-        private static readonly HashSet<string> PureBaseShaderNames = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "PureBase/Unlit",
-            "PureBase/Toon",
-            "PureBase/PBR",
-            "PureBase/Hybrid",
-        };
-
         /// <summary>Defines the mode values in their popup display order.</summary>
         private static readonly List<int> ModeValues = new List<int>
         {
@@ -200,7 +191,7 @@ namespace PureBase.Editor
         /// <returns><see langword="true"/> when the material uses one of the four supported shader names.</returns>
         internal static bool IsPureBaseMaterial(Material material)
         {
-            return material != null && material.shader != null && PureBaseShaderNames.Contains(material.shader.name);
+            return PureBaseMaterialRenderingMode.IsPureBaseMaterial(material);
         }
 
         /// <summary>Updates the popup and help-box state from the current material values without writing them.</summary>

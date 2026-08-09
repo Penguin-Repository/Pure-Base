@@ -130,6 +130,14 @@ namespace PureBase.Editor
             ApplyValidatedMaterials(materials);
         }
 
+        /// <summary>Determines whether one material uses a stable Pure-Base shader.</summary>
+        /// <param name="material">The material to inspect.</param>
+        /// <returns><see langword="true"/> when the material uses one of the four supported shader names.</returns>
+        internal static bool IsPureBaseMaterial(Material material)
+        {
+            return material != null && material.shader != null && PureBaseShaderNames.Contains(material.shader.name);
+        }
+
         /// <summary>Validates one material without modifying its serialized state.</summary>
         /// <param name="material">The material to validate.</param>
         internal static void Validate(Material material)
@@ -137,9 +145,10 @@ namespace PureBase.Editor
             if (material == null)
                 throw new ArgumentNullException(nameof(material));
 
-            Shader shader = material.shader;
-            if (shader == null || !PureBaseShaderNames.Contains(shader.name))
+            if (!IsPureBaseMaterial(material))
                 throw CreateValidationException(material, "its shader is not a supported Pure-Base shader");
+
+            Shader shader = material.shader;
 
             if (!material.HasProperty(RenderingModePropertyName))
                 throw CreateValidationException(material, "it does not expose the Pure-Base rendering-mode property");
@@ -222,7 +231,7 @@ namespace PureBase.Editor
             for (int index = 0; index < selectedMaterials.Length; index++)
             {
                 Material material = selectedMaterials[index];
-                if (material != null && material.shader != null && PureBaseShaderNames.Contains(material.shader.name))
+                if (IsPureBaseMaterial(material))
                     pureBaseMaterials.Add(material);
             }
 
