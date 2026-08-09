@@ -41,6 +41,18 @@ namespace PureBase.Release.Consumer.Tests
             "PureBase/Hybrid",
         };
 
+        /// <summary>Defines the common visible Stencil ABI metadata and default values.</summary>
+        private static readonly StencilPropertyContract[] StencilProperties =
+        {
+            new StencilPropertyContract("_StencilRef", 0.0f, "SCRangeInt(0,255)"),
+            new StencilPropertyContract("_StencilReadMask", 255.0f, "SCRangeInt(0,255)"),
+            new StencilPropertyContract("_StencilWriteMask", 255.0f, "SCRangeInt(0,255)"),
+            new StencilPropertyContract("_StencilComp", 8.0f, "SCEnum(UnityEngine.Rendering.CompareFunction)"),
+            new StencilPropertyContract("_StencilPass", 0.0f, "SCEnum(UnityEngine.Rendering.StencilOp)"),
+            new StencilPropertyContract("_StencilFail", 0.0f, "SCEnum(UnityEngine.Rendering.StencilOp)"),
+            new StencilPropertyContract("_StencilZFail", 0.0f, "SCEnum(UnityEngine.Rendering.StencilOp)"),
+        };
+
         /// <summary>Imports all runner-configured module-free products and checks their public and generated contracts.</summary>
         [Test]
         public void ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts()
@@ -74,11 +86,12 @@ namespace PureBase.Release.Consumer.Tests
                     ConsumerValidationSupport.GetPassNames(shader),
                     $"Module-free consumer run '{contract.runLabel}' changed pass layout for '{product.shaderName}'."
                 );
-                CollectionAssert.AreEquivalent(
+                CollectionAssert.AreEqual(
                     product.expectedVisiblePropertyNames,
                     ConsumerValidationSupport.GetVisiblePropertyNames(shader),
-                    $"Module-free consumer run '{contract.runLabel}' changed visible properties for '{product.shaderName}'."
+                    $"Module-free consumer run '{contract.runLabel}' changed visible property order for '{product.shaderName}'."
                 );
+                AssertStencilPropertyMetadata(contract, product, shader);
                 string source = ConsumerValidationSupport.LoadGeneratedSource(
                     product,
                     contract.runLabel
@@ -129,6 +142,44 @@ namespace PureBase.Release.Consumer.Tests
                 actualNames,
                 $"Module-free consumer run '{contract.runLabel}' did not configure the complete public product set."
             );
+        }
+
+        /// <summary>Checks the common visible Stencil ABI against imported shader metadata.</summary>
+        /// <param name="contract">The runner-provided module-free contract.</param>
+        /// <param name="product">The imported product contract.</param>
+        /// <param name="shader">The cold-imported product shader.</param>
+        private static void AssertStencilPropertyMetadata(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            Shader shader
+        )
+        {
+            int previousPropertyIndex = -1;
+            foreach (StencilPropertyContract property in StencilProperties)
+            {
+                int propertyIndex = shader.FindPropertyIndex(property.name);
+                Assert.That(
+                    propertyIndex,
+                    Is.GreaterThan(previousPropertyIndex),
+                    $"Module-free consumer run '{contract.runLabel}' product '{product.shaderName}' must expose Stencil property '{property.name}' in the runner-provided visible property order."
+                );
+                Assert.That(
+                    shader.GetPropertyType(propertyIndex),
+                    Is.EqualTo(ShaderPropertyType.Float),
+                    $"Module-free consumer run '{contract.runLabel}' product '{product.shaderName}' Stencil property '{property.name}' must be a Float."
+                );
+                CollectionAssert.AreEqual(
+                    new[] { property.attribute },
+                    shader.GetPropertyAttributes(propertyIndex),
+                    $"Module-free consumer run '{contract.runLabel}' product '{product.shaderName}' Stencil property '{property.name}' must expose exactly its required drawer attribute."
+                );
+                Assert.That(
+                    shader.GetPropertyDefaultFloatValue(propertyIndex),
+                    Is.EqualTo(property.defaultValue),
+                    $"Module-free consumer run '{contract.runLabel}' product '{product.shaderName}' Stencil property '{property.name}' default value."
+                );
+                previousPropertyIndex = propertyIndex;
+            }
         }
 
         /// <summary>Checks non-pass-specific required and forbidden source fragments.</summary>
@@ -356,6 +407,30 @@ namespace PureBase.Release.Consumer.Tests
         internal static string[] EmptyWhenNull(string[] values)
         {
             return values ?? Array.Empty<string>();
+        }
+
+        /// <summary>Describes one imported common Stencil property contract.</summary>
+        private sealed class StencilPropertyContract
+        {
+            /// <summary>Initializes one common Stencil property contract.</summary>
+            /// <param name="name">The visible shader property name.</param>
+            /// <param name="defaultValue">The imported Float default value.</param>
+            /// <param name="attribute">The exact imported drawer attribute.</param>
+            public StencilPropertyContract(string name, float defaultValue, string attribute)
+            {
+                this.name = name;
+                this.defaultValue = defaultValue;
+                this.attribute = attribute;
+            }
+
+            /// <summary>Gets the visible shader property name.</summary>
+            public string name { get; }
+
+            /// <summary>Gets the imported Float default value.</summary>
+            public float defaultValue { get; }
+
+            /// <summary>Gets the exact imported drawer attribute.</summary>
+            public string attribute { get; }
         }
     }
 

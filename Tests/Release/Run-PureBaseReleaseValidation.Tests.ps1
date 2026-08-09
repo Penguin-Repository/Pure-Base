@@ -16,28 +16,82 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$runnerPath = Join-Path $PSScriptRoot 'Run-PureBaseReleaseValidation.ps1'
-$runnerSource = Get-Content -LiteralPath $runnerPath -Raw
-$entryPointIndex = $runnerSource.IndexOf("`n`$packageRoot = Get-PackageGitRoot")
-$libraryStartIndex = $runnerSource.IndexOf('Set-StrictMode -Version Latest')
-if ($entryPointIndex -lt 0 -or $libraryStartIndex -lt 0) {
-    throw 'The runner entry point could not be isolated for the runner-only harness.'
-}
-$libraryPath = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseRunner-' + [guid]::NewGuid().ToString('N') + '.ps1')
-[System.IO.File]::WriteAllText($libraryPath, $runnerSource.Substring($libraryStartIndex, $entryPointIndex - $libraryStartIndex), (New-Object System.Text.UTF8Encoding($false)))
-. $libraryPath
+Describe 'Release validation runner contracts' {
+    BeforeAll {
+        $script:runnerPath = Join-Path $PSScriptRoot 'Run-PureBaseReleaseValidation.ps1'
+        $runnerSource = Get-Content -LiteralPath $script:runnerPath -Raw
+        $entryPointIndex = $runnerSource.IndexOf("`n`$packageRoot = Get-PackageGitRoot")
+        $libraryStartIndex = $runnerSource.IndexOf('Set-StrictMode -Version Latest')
+        if ($entryPointIndex -lt 0 -or $libraryStartIndex -lt 0) {
+            throw 'The runner entry point could not be isolated for the runner-only harness.'
+        }
+        $script:libraryPath = Join-Path ([System.IO.Path]::GetTempPath()) ('PureBaseReleaseRunner-' + [guid]::NewGuid().ToString('N') + '.ps1')
+        [System.IO.File]::WriteAllText($script:libraryPath, $runnerSource.Substring($libraryStartIndex, $entryPointIndex - $libraryStartIndex), (New-Object System.Text.UTF8Encoding($false)))
+        . $script:libraryPath
 
-function Assert-Harness {
-    param(
-        [Parameter(Mandatory = $true)][bool]$Condition,
-        [Parameter(Mandatory = $true)][string]$Message
-    )
+        function Assert-Harness {
+            param(
+                [Parameter(Mandatory = $true)][bool]$Condition,
+                [Parameter(Mandatory = $true)][string]$Message
+            )
 
-    if (-not $Condition) {
-        throw $Message
+            if (-not $Condition) {
+                throw $Message
+            }
+        }
     }
-}
 
+    It 'emits the shared Stencil ABI and pass policies for every product' {
+        $stencilProperties = @('_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail')
+        $expectedVisibleProperties = [ordered]@{
+            'PureBase/Unlit' = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties
+            'PureBase/Toon' = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale')
+            'PureBase/PBR' = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale', '_Metallic', '_Roughness')
+            'PureBase/Hybrid' = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale', '_Metallic', '_Roughness')
+        }
+        $expectedPassContracts = [ordered]@{
+            'ForwardBase' = [ordered]@{
+                requiredFragments = @('ZWrite [_ZWrite]', 'Blend [_SrcBlend] [_DstBlend]', 'Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'WriteMask [_StencilWriteMask]', 'Comp [_StencilComp]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]')
+                forbiddenFragments = @()
+            }
+            'ForwardAdd' = [ordered]@{
+                requiredFragments = @('ZWrite Off', 'Blend [_AddSrcBlend] [_AddDstBlend]', 'ColorMask RGB', 'Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'Comp [_StencilComp]', 'WriteMask 0', 'Pass Keep', 'Fail Keep', 'ZFail Keep')
+                forbiddenFragments = @('WriteMask [_StencilWriteMask]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]')
+            }
+            'ShadowCaster' = [ordered]@{
+                requiredFragments = @()
+                forbiddenFragments = @('Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'WriteMask [_StencilWriteMask]', 'Comp [_StencilComp]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]')
+            }
+            'Meta' = [ordered]@{
+                requiredFragments = @()
+                forbiddenFragments = @('Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'WriteMask [_StencilWriteMask]', 'Comp [_StencilComp]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]')
+            }
+        }
+        $expectedPassNames = @($expectedPassContracts.Keys)
+
+        foreach ($shaderName in $expectedVisibleProperties.Keys) {
+            $product = New-ProductContract -ShaderName $shaderName
+            $product.shaderName | Should -BeExactly $shaderName
+            (@($product.expectedVisiblePropertyNames) -join "`n") | Should -BeExactly ($expectedVisibleProperties[$shaderName] -join "`n")
+            (@($product.expectedPassNames) -join "`n") | Should -BeExactly ($expectedPassNames -join "`n")
+            @($product.passContracts).Count | Should -Be $expectedPassNames.Count
+
+            for ($passIndex = 0; $passIndex -lt $expectedPassNames.Count; $passIndex++) {
+                $passName = $expectedPassNames[$passIndex]
+                $actualPassContract = $product.passContracts[$passIndex]
+                $expectedPassContract = $expectedPassContracts[$passName]
+                $expectedNextPassName = if ($passIndex + 1 -lt $expectedPassNames.Count) { $expectedPassNames[$passIndex + 1] } else { '' }
+
+                $actualPassContract.passName | Should -BeExactly $passName
+                $actualPassContract.nextPassName | Should -BeExactly $expectedNextPassName
+                (@($actualPassContract.requiredFragments) -join "`n") | Should -BeExactly ($expectedPassContract.requiredFragments -join "`n")
+                (@($actualPassContract.forbiddenFragments) -join "`n") | Should -BeExactly ($expectedPassContract.forbiddenFragments -join "`n")
+                $actualPassContract.selectedSentinelCount | Should -Be 0
+            }
+        }
+    }
+
+    It 'executes the Unity-free immutable manifest harness' {
 $preStagedPureBaseMetaPaths = @(
     '_LocalPackages/jp.penguin.purebase/CHANGELOG.meta',
     '_LocalPackages/jp.penguin.purebase/Editor.meta',
@@ -1192,3 +1246,5 @@ finally {
 $runnerSource = Get-Content -LiteralPath $runnerPath -Raw
 Assert-Harness -Condition ($runnerSource -match '\$packageJson\.version') -Message 'Release validation must derive the archive name from package.json.version.'
 Assert-Harness -Condition ($runnerSource -notmatch 'jp\.penguin\.purebase-0\.1\.0\.zip') -Message 'Release validation must not use a fixed 0.1.0 archive name.'
+    }
+}

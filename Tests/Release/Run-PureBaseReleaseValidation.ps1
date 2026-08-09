@@ -1638,8 +1638,26 @@ function New-ProductContract {
         $nextPassName = if ($passIndex + 1 -lt $ProductPasses.Count) { $ProductPasses[$passIndex + 1] } else { '' }
         $selectedSentinelCount = if ($null -eq $PassSentinelCounts) { 0 } else { [int]$PassSentinelCounts[$passName] }
         $requiredFragments = switch ($passName) {
-            'ForwardBase' { @('ZWrite [_ZWrite]', 'Blend [_SrcBlend] [_DstBlend]') }
-            'ForwardAdd' { @('ZWrite Off', 'Blend [_AddSrcBlend] [_AddDstBlend]', 'ColorMask RGB') }
+            'ForwardBase' {
+                @(
+                    'ZWrite [_ZWrite]', 'Blend [_SrcBlend] [_DstBlend]',
+                    'Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'WriteMask [_StencilWriteMask]', 'Comp [_StencilComp]',
+                    'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]'
+                )
+            }
+            'ForwardAdd' {
+                @(
+                    'ZWrite Off', 'Blend [_AddSrcBlend] [_AddDstBlend]', 'ColorMask RGB',
+                    'Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'Comp [_StencilComp]',
+                    'WriteMask 0', 'Pass Keep', 'Fail Keep', 'ZFail Keep'
+                )
+            }
+            default { @() }
+        }
+        $forbiddenFragments = switch ($passName) {
+            'ForwardAdd' { @('WriteMask [_StencilWriteMask]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]') }
+            'ShadowCaster' { @('Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'WriteMask [_StencilWriteMask]', 'Comp [_StencilComp]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]') }
+            'Meta' { @('Ref [_StencilRef]', 'ReadMask [_StencilReadMask]', 'WriteMask [_StencilWriteMask]', 'Comp [_StencilComp]', 'Pass [_StencilPass]', 'Fail [_StencilFail]', 'ZFail [_StencilZFail]') }
             default { @() }
         }
         if ($selectedSentinelCount -lt 0) {
@@ -1655,15 +1673,15 @@ function New-ProductContract {
             passName              = $passName
             nextPassName          = $nextPassName
             requiredFragments     = $requiredFragments
-            forbiddenFragments    = @()
+            forbiddenFragments    = $forbiddenFragments
             selectedSentinelCount = $selectedSentinelCount
         }
     }
     $expectedVisiblePropertyNames = switch ($ShaderName) {
-        'PureBase/Unlit' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') }
-        'PureBase/Toon' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale') }
-        'PureBase/PBR' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
-        'PureBase/Hybrid' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
+        'PureBase/Unlit' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail') }
+        'PureBase/Toon' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale') }
+        'PureBase/PBR' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
+        'PureBase/Hybrid' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
         default { throw "Unsupported PureBase product '$ShaderName'." }
     }
     return [ordered]@{
