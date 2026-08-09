@@ -174,9 +174,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Lists the common visible Stencil ABI, imported defaults, required drawer attributes, and test overrides.</summary>
         private static readonly StencilPropertyContract[] StencilProperties =
         {
-            new StencilPropertyContract("_StencilRef", 0.0f, 37.0f, "SCRangeInt", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"0(?:\.0+)?"),
-            new StencilPropertyContract("_StencilReadMask", 255.0f, 203.0f, "SCRangeInt", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"255(?:\.0+)?"),
-            new StencilPropertyContract("_StencilWriteMask", 255.0f, 85.0f, "SCRangeInt", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"255(?:\.0+)?"),
+            new StencilPropertyContract("_StencilRef", 0.0f, 37.0f, "SCRangeInt(0,255)", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"0(?:\.0+)?"),
+            new StencilPropertyContract("_StencilReadMask", 255.0f, 203.0f, "SCRangeInt(0,255)", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"255(?:\.0+)?"),
+            new StencilPropertyContract("_StencilWriteMask", 255.0f, 85.0f, "SCRangeInt(0,255)", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"255(?:\.0+)?"),
             new StencilPropertyContract("_StencilComp", 8.0f, 3.0f, "SCEnum(UnityEngine.Rendering.CompareFunction)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.CompareFunction\s*\)", @"8(?:\.0+)?"),
             new StencilPropertyContract("_StencilPass", 0.0f, 2.0f, "SCEnum(UnityEngine.Rendering.StencilOp)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)", @"0(?:\.0+)?"),
             new StencilPropertyContract("_StencilFail", 0.0f, 5.0f, "SCEnum(UnityEngine.Rendering.StencilOp)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)", @"0(?:\.0+)?"),

@@ -53,6 +53,18 @@ Every product shader source retains exactly four passes:
 
 The effective tags, queue, blend state, depth writing, and pass enablement are selected by the rendering-mode ABI below. The `ForwardAdd` additive blend state in Opaque and Cutout is an additional direct-light pass, not transparent blending.
 
+### Stencil pass policy
+
+The camera Stencil policy is bounded to the forward passes:
+
+- `ForwardBase` applies all seven public Stencil settings.
+- `ForwardAdd` compares the Stencil value left by `ForwardBase` using only `_StencilRef`, `_StencilReadMask`, and `_StencilComp`. It fixes `WriteMask` to `0` and `Pass`, `Fail`, and `ZFail` to `Keep`, so additional lights cannot mutate Stencil.
+- `ShadowCaster` and `Meta` do not apply the camera Stencil policy.
+
+The defaults are `Always` with `Keep` for all outcomes (`0, 255, 255, 8, 0, 0, 0`). They are a no-op Stencil state: a legacy material without saved Stencil fields continues to draw and does not mutate Stencil. A `ForwardBase` operation such as `Replace`, `Incr`, `Decr`, or `Invert` can intentionally change the value observed by `ForwardAdd`; the additional-light pass then accepts or rejects independently based on that post-`ForwardBase` value. It does not preserve a comparison against the pre-`ForwardBase` value.
+
+The Stencil ABI adds no Stencil-specific keyword, shader variant, pass, or package dependency. Rendering-mode changes and Resync synchronize rendering-mode state while preserving all user Stencil values.
+
 ## Rendering-mode ABI
 
 `_RenderingMode` is a ShaderLab `Integer` backed by `SC_uint` with these values:
@@ -71,7 +83,7 @@ The explicit editor action is `PureBaseMaterialRenderingMode.Apply(Material)`. T
 
 ## Public Property ABI
 
-All four shaders expose exactly these common properties:
+All four shaders expose exactly these common visible properties, in declaration order:
 
 | Property | Applies to |
 | --- | --- |
@@ -79,9 +91,16 @@ All four shaders expose exactly these common properties:
 | `_BaseColor` | All shaders |
 | `_SharedMask` | All shaders |
 | `_SharedGradients` | All shaders |
+| `_RenderingMode` | All shaders |
 | `_Cutoff` | All shaders |
 | `_Cull` | All shaders |
-| `_RenderingMode` | All shaders |
+| `_StencilRef` | All shaders |
+| `_StencilReadMask` | All shaders |
+| `_StencilWriteMask` | All shaders |
+| `_StencilComp` | All shaders |
+| `_StencilPass` | All shaders |
+| `_StencilFail` | All shaders |
+| `_StencilZFail` | All shaders |
 
 The model-specific properties are:
 
@@ -95,6 +114,22 @@ The model-specific properties are:
 PBR and Hybrid use byte-identical property declarations. `_Roughness` clamps from `0.002` to `1`.
 
 The forbidden release-boundary property names `_Emission`, `_Rim`, `_MatCap`, and `_ClearCoat` are not part of this ABI.
+
+### Stencil ABI
+
+All four product shaders expose the following public Stencil properties. The declarations use the Float-compatible `SC_float` ABI, including the enum-backed values.
+
+| Property | Public UI contract | Default |
+| --- | --- | ---: |
+| `_StencilRef` | `SC_float`; integer UI range `0-255` | `0` |
+| `_StencilReadMask` | `SC_float`; integer UI range `0-255` | `255` |
+| `_StencilWriteMask` | `SC_float`; integer UI range `0-255` | `255` |
+| `_StencilComp` | `SC_float`; `UnityEngine.Rendering.CompareFunction` | `8` (`Always`) |
+| `_StencilPass` | `SC_float`; `UnityEngine.Rendering.StencilOp` | `0` (`Keep`) |
+| `_StencilFail` | `SC_float`; `UnityEngine.Rendering.StencilOp` | `0` (`Keep`) |
+| `_StencilZFail` | `SC_float`; `UnityEngine.Rendering.StencilOp` | `0` (`Keep`) |
+
+The three mask/reference properties use the `0-255` UI range. The comparison and operation properties use Unity's `CompareFunction` and `StencilOp` enums respectively.
 
 ## Shader-Core Phase ABI
 
