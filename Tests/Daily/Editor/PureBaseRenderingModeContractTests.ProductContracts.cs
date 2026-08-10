@@ -29,7 +29,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
 namespace PureBase.Tests.Daily
 {
     public sealed partial class PureBaseRenderingModeContractTests
@@ -66,8 +65,20 @@ namespace PureBase.Tests.Daily
                 "Packages/jp.penguin.purebase/Shaders/PureBaseUnlit_properties.hlsl",
                 new[]
                 {
-                    "_BaseTexture", "_BaseColor", "_SharedMask", "_SharedGradients", "_RenderingMode", "_Cutoff", "_Cull",
-                    "_StencilRef", "_StencilReadMask", "_StencilWriteMask", "_StencilComp", "_StencilPass", "_StencilFail", "_StencilZFail",
+                    "_BaseTexture",
+                    "_BaseColor",
+                    "_SharedMask",
+                    "_SharedGradients",
+                    "_RenderingMode",
+                    "_Cutoff",
+                    "_Cull",
+                    "_StencilRef",
+                    "_StencilReadMask",
+                    "_StencilWriteMask",
+                    "_StencilComp",
+                    "_StencilPass",
+                    "_StencilFail",
+                    "_StencilZFail",
                 }
             ),
             new ProductContract(
@@ -75,9 +86,22 @@ namespace PureBase.Tests.Daily
                 "Packages/jp.penguin.purebase/Shaders/PureBaseToon_properties.hlsl",
                 new[]
                 {
-                    "_BaseTexture", "_BaseColor", "_SharedMask", "_SharedGradients", "_RenderingMode", "_Cutoff", "_Cull",
-                    "_StencilRef", "_StencilReadMask", "_StencilWriteMask", "_StencilComp", "_StencilPass", "_StencilFail", "_StencilZFail",
-                    "_NormalMap", "_NormalScale",
+                    "_BaseTexture",
+                    "_BaseColor",
+                    "_SharedMask",
+                    "_SharedGradients",
+                    "_RenderingMode",
+                    "_Cutoff",
+                    "_Cull",
+                    "_StencilRef",
+                    "_StencilReadMask",
+                    "_StencilWriteMask",
+                    "_StencilComp",
+                    "_StencilPass",
+                    "_StencilFail",
+                    "_StencilZFail",
+                    "_NormalMap",
+                    "_NormalScale",
                 }
             ),
             new ProductContract(
@@ -85,9 +109,24 @@ namespace PureBase.Tests.Daily
                 "Packages/jp.penguin.purebase/Shaders/PureBasePBR_properties.hlsl",
                 new[]
                 {
-                    "_BaseTexture", "_BaseColor", "_SharedMask", "_SharedGradients", "_RenderingMode", "_Cutoff", "_Cull",
-                    "_StencilRef", "_StencilReadMask", "_StencilWriteMask", "_StencilComp", "_StencilPass", "_StencilFail", "_StencilZFail",
-                    "_NormalMap", "_NormalScale", "_Metallic", "_Roughness",
+                    "_BaseTexture",
+                    "_BaseColor",
+                    "_SharedMask",
+                    "_SharedGradients",
+                    "_RenderingMode",
+                    "_Cutoff",
+                    "_Cull",
+                    "_StencilRef",
+                    "_StencilReadMask",
+                    "_StencilWriteMask",
+                    "_StencilComp",
+                    "_StencilPass",
+                    "_StencilFail",
+                    "_StencilZFail",
+                    "_NormalMap",
+                    "_NormalScale",
+                    "_Metallic",
+                    "_Roughness",
                 }
             ),
             new ProductContract(
@@ -95,9 +134,24 @@ namespace PureBase.Tests.Daily
                 "Packages/jp.penguin.purebase/Shaders/PureBaseHybrid_properties.hlsl",
                 new[]
                 {
-                    "_BaseTexture", "_BaseColor", "_SharedMask", "_SharedGradients", "_RenderingMode", "_Cutoff", "_Cull",
-                    "_StencilRef", "_StencilReadMask", "_StencilWriteMask", "_StencilComp", "_StencilPass", "_StencilFail", "_StencilZFail",
-                    "_NormalMap", "_NormalScale", "_Metallic", "_Roughness",
+                    "_BaseTexture",
+                    "_BaseColor",
+                    "_SharedMask",
+                    "_SharedGradients",
+                    "_RenderingMode",
+                    "_Cutoff",
+                    "_Cull",
+                    "_StencilRef",
+                    "_StencilReadMask",
+                    "_StencilWriteMask",
+                    "_StencilComp",
+                    "_StencilPass",
+                    "_StencilFail",
+                    "_StencilZFail",
+                    "_NormalMap",
+                    "_NormalScale",
+                    "_Metallic",
+                    "_Roughness",
                 }
             ),
         };
@@ -145,7 +199,13 @@ namespace PureBase.Tests.Daily
             new ModeContract(
                 0,
                 "Opaque",
-                new BlendState((int)BlendMode.One, (int)BlendMode.Zero, 1, (int)BlendMode.One, (int)BlendMode.One),
+                new BlendState(
+                    (int)BlendMode.One,
+                    (int)BlendMode.Zero,
+                    1,
+                    (int)BlendMode.One,
+                    (int)BlendMode.One
+                ),
                 new RenderTypeState("Opaque", true, "Opaque"),
                 new QueueState(2000, 2000),
                 new[] { "PUREBASE_RENDERING_OPAQUE" },
@@ -154,7 +214,13 @@ namespace PureBase.Tests.Daily
             new ModeContract(
                 1,
                 "Cutout",
-                new BlendState((int)BlendMode.One, (int)BlendMode.Zero, 1, (int)BlendMode.One, (int)BlendMode.One),
+                new BlendState(
+                    (int)BlendMode.One,
+                    (int)BlendMode.Zero,
+                    1,
+                    (int)BlendMode.One,
+                    (int)BlendMode.One
+                ),
                 new RenderTypeState(string.Empty, false, "TransparentCutout"),
                 new QueueState(-1, (int)RenderQueue.AlphaTest),
                 Array.Empty<string>(),
@@ -163,7 +229,13 @@ namespace PureBase.Tests.Daily
             new ModeContract(
                 2,
                 "Transparent",
-                new BlendState((int)BlendMode.SrcAlpha, (int)BlendMode.OneMinusSrcAlpha, 0, (int)BlendMode.SrcAlpha, (int)BlendMode.One),
+                new BlendState(
+                    (int)BlendMode.SrcAlpha,
+                    (int)BlendMode.OneMinusSrcAlpha,
+                    0,
+                    (int)BlendMode.SrcAlpha,
+                    (int)BlendMode.One
+                ),
                 new RenderTypeState("Transparent", true, "Transparent"),
                 new QueueState(3000, 3000),
                 new[] { "PUREBASE_RENDERING_TRANSPARENT" },
@@ -174,13 +246,62 @@ namespace PureBase.Tests.Daily
         /// <summary>Lists the common visible Stencil ABI, imported defaults, required drawer attributes, and test overrides.</summary>
         private static readonly StencilPropertyContract[] StencilProperties =
         {
-            new StencilPropertyContract("_StencilRef", 0.0f, 37.0f, "SCRangeInt(0,255)", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"0(?:\.0+)?"),
-            new StencilPropertyContract("_StencilReadMask", 255.0f, 203.0f, "SCRangeInt(0,255)", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"255(?:\.0+)?"),
-            new StencilPropertyContract("_StencilWriteMask", 255.0f, 85.0f, "SCRangeInt(0,255)", @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)", @"255(?:\.0+)?"),
-            new StencilPropertyContract("_StencilComp", 8.0f, 3.0f, "SCEnum(UnityEngine.Rendering.CompareFunction)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.CompareFunction\s*\)", @"8(?:\.0+)?"),
-            new StencilPropertyContract("_StencilPass", 0.0f, 2.0f, "SCEnum(UnityEngine.Rendering.StencilOp)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)", @"0(?:\.0+)?"),
-            new StencilPropertyContract("_StencilFail", 0.0f, 5.0f, "SCEnum(UnityEngine.Rendering.StencilOp)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)", @"0(?:\.0+)?"),
-            new StencilPropertyContract("_StencilZFail", 0.0f, 4.0f, "SCEnum(UnityEngine.Rendering.StencilOp)", @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)", @"0(?:\.0+)?"),
+            new StencilPropertyContract(
+                "_StencilRef",
+                0.0f,
+                37.0f,
+                "SCRangeInt(0,255)",
+                @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)",
+                @"0(?:\.0+)?"
+            ),
+            new StencilPropertyContract(
+                "_StencilReadMask",
+                255.0f,
+                203.0f,
+                "SCRangeInt(0,255)",
+                @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)",
+                @"255(?:\.0+)?"
+            ),
+            new StencilPropertyContract(
+                "_StencilWriteMask",
+                255.0f,
+                85.0f,
+                "SCRangeInt(0,255)",
+                @"SCRangeInt\s*\(\s*0\s*,\s*255\s*\)",
+                @"255(?:\.0+)?"
+            ),
+            new StencilPropertyContract(
+                "_StencilComp",
+                8.0f,
+                3.0f,
+                "SCEnum(UnityEngine.Rendering.CompareFunction)",
+                @"SCEnum\s*\(\s*UnityEngine\.Rendering\.CompareFunction\s*\)",
+                @"8(?:\.0+)?"
+            ),
+            new StencilPropertyContract(
+                "_StencilPass",
+                0.0f,
+                2.0f,
+                "SCEnum(UnityEngine.Rendering.StencilOp)",
+                @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)",
+                @"0(?:\.0+)?"
+            ),
+            new StencilPropertyContract(
+                "_StencilFail",
+                0.0f,
+                5.0f,
+                "SCEnum(UnityEngine.Rendering.StencilOp)",
+                @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)",
+                @"0(?:\.0+)?"
+            ),
+            new StencilPropertyContract(
+                "_StencilZFail",
+                0.0f,
+                4.0f,
+                "SCEnum(UnityEngine.Rendering.StencilOp)",
+                @"SCEnum\s*\(\s*UnityEngine\.Rendering\.StencilOp\s*\)",
+                @"0(?:\.0+)?"
+            ),
         };
 
         /// <summary>Requires the complete shader ABI, static Cutout defaults, pass ABI, and local-keyword declaration.</summary>
@@ -200,16 +321,54 @@ namespace PureBase.Tests.Daily
         /// <param name="shader">The imported product shader.</param>
         private static void AssertProductShaderAbi(ProductContract product, Shader shader)
         {
-            CollectionAssert.AreEqual(product.visiblePropertyNames, GetVisiblePropertyNames(shader), $"Product shader '{product.shaderName}' changed its public property ABI.");
+            CollectionAssert.AreEqual(
+                product.visiblePropertyNames,
+                GetVisiblePropertyNames(shader),
+                $"Product shader '{product.shaderName}' changed its public property ABI."
+            );
             int modeIndex = shader.FindPropertyIndex("_RenderingMode");
-            Assert.That(modeIndex, Is.GreaterThanOrEqualTo(0), $"Product shader '{product.shaderName}' must expose _RenderingMode.");
-            Assert.That(shader.GetPropertyType(modeIndex), Is.EqualTo(ShaderPropertyType.Int), $"Product shader '{product.shaderName}' must expose _RenderingMode as an Integer property.");
-            CollectionAssert.Contains(shader.GetPropertyAttributes(modeIndex), "PureBaseRenderingMode", $"Product shader '{product.shaderName}' must use the Pure-Base rendering-mode drawer.");
-            Assert.That(Regex.IsMatch(File.ReadAllText(product.propertySourcePath), RenderingModePropertySourcePattern), Is.True, $"Product property source '{product.propertySourcePath}' must declare _RenderingMode as SC_uint with default 1 and the PureBaseRenderingMode drawer.");
+            Assert.That(
+                modeIndex,
+                Is.GreaterThanOrEqualTo(0),
+                $"Product shader '{product.shaderName}' must expose _RenderingMode."
+            );
+            Assert.That(
+                shader.GetPropertyType(modeIndex),
+                Is.EqualTo(ShaderPropertyType.Int),
+                $"Product shader '{product.shaderName}' must expose _RenderingMode as an Integer property."
+            );
+            CollectionAssert.Contains(
+                shader.GetPropertyAttributes(modeIndex),
+                "PureBaseRenderingMode",
+                $"Product shader '{product.shaderName}' must use the Pure-Base rendering-mode drawer."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    File.ReadAllText(product.propertySourcePath),
+                    RenderingModePropertySourcePattern
+                ),
+                Is.True,
+                $"Product property source '{product.propertySourcePath}' must declare _RenderingMode as SC_uint with default 1 and the PureBaseRenderingMode drawer."
+            );
             int cutoffIndex = shader.FindPropertyIndex("_Cutoff");
-            Assert.That(cutoffIndex, Is.GreaterThanOrEqualTo(0), $"Product shader '{product.shaderName}' must expose _Cutoff.");
-            CollectionAssert.Contains(shader.GetPropertyAttributes(cutoffIndex), "PureBaseCutoff", $"Product shader '{product.shaderName}' must use the Pure-Base Cutoff drawer.");
-            Assert.That(Regex.IsMatch(File.ReadAllText(product.propertySourcePath), CutoffPropertySourcePattern), Is.True, $"Product property source '{product.propertySourcePath}' must declare _Cutoff with the PureBaseCutoff drawer and SCRange(-0.001,1.001).");
+            Assert.That(
+                cutoffIndex,
+                Is.GreaterThanOrEqualTo(0),
+                $"Product shader '{product.shaderName}' must expose _Cutoff."
+            );
+            CollectionAssert.Contains(
+                shader.GetPropertyAttributes(cutoffIndex),
+                "PureBaseCutoff",
+                $"Product shader '{product.shaderName}' must use the Pure-Base Cutoff drawer."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    File.ReadAllText(product.propertySourcePath),
+                    CutoffPropertySourcePattern
+                ),
+                Is.True,
+                $"Product property source '{product.propertySourcePath}' must declare _Cutoff with the PureBaseCutoff drawer and SCRange(-0.001,1.001)."
+            );
             AssertStencilPropertyAbi(product, shader);
         }
 
@@ -224,18 +383,51 @@ namespace PureBase.Tests.Daily
             foreach (StencilPropertyContract property in StencilProperties)
             {
                 int shaderIndex = shader.FindPropertyIndex(property.name);
-                Assert.That(shaderIndex, Is.GreaterThanOrEqualTo(0), $"Product shader '{product.shaderName}' must expose {property.name}.");
-                Assert.That(shaderIndex, Is.GreaterThan(previousShaderIndex), $"Product shader '{product.shaderName}' must preserve the common Stencil property order.");
-                Assert.That(shader.GetPropertyType(shaderIndex), Is.EqualTo(ShaderPropertyType.Float), $"Product shader '{product.shaderName}' property '{property.name}' must be a Float.");
-                Assert.That(shader.GetPropertyDefaultFloatValue(shaderIndex), Is.EqualTo(property.defaultValue), $"Product shader '{product.shaderName}' property '{property.name}' default value.");
-                CollectionAssert.AreEqual(new[] { property.attribute }, shader.GetPropertyAttributes(shaderIndex), $"Product shader '{product.shaderName}' property '{property.name}' must expose exactly its permitted drawer attribute.");
+                Assert.That(
+                    shaderIndex,
+                    Is.GreaterThanOrEqualTo(0),
+                    $"Product shader '{product.shaderName}' must expose {property.name}."
+                );
+                Assert.That(
+                    shaderIndex,
+                    Is.GreaterThan(previousShaderIndex),
+                    $"Product shader '{product.shaderName}' must preserve the common Stencil property order."
+                );
+                Assert.That(
+                    shader.GetPropertyType(shaderIndex),
+                    Is.EqualTo(ShaderPropertyType.Float),
+                    $"Product shader '{product.shaderName}' property '{property.name}' must be a Float."
+                );
+                Assert.That(
+                    shader.GetPropertyDefaultFloatValue(shaderIndex),
+                    Is.EqualTo(property.defaultValue),
+                    $"Product shader '{product.shaderName}' property '{property.name}' default value."
+                );
+                CollectionAssert.AreEqual(
+                    new[] { property.attribute },
+                    shader.GetPropertyAttributes(shaderIndex),
+                    $"Product shader '{product.shaderName}' property '{property.name}' must expose exactly its permitted drawer attribute."
+                );
 
                 string declarationPattern =
-                    @"SC_float\s*\(\s*" + Regex.Escape(property.name) + @"\s*,\s*" + property.sourceDefaultPattern +
-                    @"\s*,\s*\[\s*" + property.sourceAttributePattern + @"\s*\]\s*,\s*""[^""\r\n]*""\s*,\s*""[^""\r\n]*""\s*\)";
+                    @"SC_float\s*\(\s*"
+                    + Regex.Escape(property.name)
+                    + @"\s*,\s*"
+                    + property.sourceDefaultPattern
+                    + @"\s*,\s*\[\s*"
+                    + property.sourceAttributePattern
+                    + @"\s*\]\s*,\s*""[^""\r\n]*""\s*,\s*""[^""\r\n]*""\s*\)";
                 Match declaration = Regex.Match(source, declarationPattern);
-                Assert.That(declaration.Success, Is.True, $"Product property source '{product.propertySourcePath}' must declare {property.name} with SC_float, its default, and exactly its permitted {property.attribute} drawer attribute.");
-                Assert.That(declaration.Index, Is.GreaterThan(previousSourceIndex), $"Product property source '{product.propertySourcePath}' must preserve the common Stencil property order.");
+                Assert.That(
+                    declaration.Success,
+                    Is.True,
+                    $"Product property source '{product.propertySourcePath}' must declare {property.name} with SC_float, its default, and exactly its permitted {property.attribute} drawer attribute."
+                );
+                Assert.That(
+                    declaration.Index,
+                    Is.GreaterThan(previousSourceIndex),
+                    $"Product property source '{product.propertySourcePath}' must preserve the common Stencil property order."
+                );
 
                 previousShaderIndex = shaderIndex;
                 previousSourceIndex = declaration.Index;
@@ -256,7 +448,10 @@ namespace PureBase.Tests.Daily
             Assert.That(material.GetShaderPassEnabled("Meta"), Is.True);
             AssertRenderingKeywords(material, Array.Empty<string>());
             CollectionAssert.AreEqual(PassNames, GetPassNames(shader));
-            AssertRenderingModeKeywordDeclarations(LoadGeneratedSource(product.shaderName), product.shaderName);
+            AssertRenderingModeKeywordDeclarations(
+                LoadGeneratedSource(product.shaderName),
+                product.shaderName
+            );
         }
 
         /// <summary>Requires a new unsaved material to behave as Cutout without creating persistence dirtiness.</summary>
@@ -268,7 +463,11 @@ namespace PureBase.Tests.Daily
             {
                 Assert.That(shader.FindPropertyIndex("_RenderingMode"), Is.GreaterThanOrEqualTo(0));
                 EditorUtility.ClearDirty(material);
-                Assert.That(EditorUtility.IsDirty(material), Is.False, "The Inspector-bind test must establish a clean baseline.");
+                Assert.That(
+                    EditorUtility.IsDirty(material),
+                    Is.False,
+                    "The Inspector-bind test must establish a clean baseline."
+                );
                 MaterialState baseline = MaterialState.Capture(material);
                 MaterialEditor.GetMaterialProperties(new UnityEngine.Object[] { material });
                 baseline.AssertEqual(material, "Inspector bind");
@@ -287,16 +486,26 @@ namespace PureBase.Tests.Daily
         {
             byte[] beforeBytes = File.ReadAllBytes(LegacyFixturePath);
             string beforeText = File.ReadAllText(LegacyFixturePath);
-            Assert.That(beforeText.IndexOf("_RenderingMode", StringComparison.Ordinal), Is.LessThan(0));
+            Assert.That(
+                beforeText.IndexOf("_RenderingMode", StringComparison.Ordinal),
+                Is.LessThan(0)
+            );
 
             AssetDatabase.ImportAsset(LegacyFixturePath, ImportAssetOptions.ForceSynchronousImport);
             Material material = AssetDatabase.LoadAssetAtPath<Material>(LegacyFixturePath);
             Assert.That(material, Is.Not.Null, "The legacy fixture did not import as a material.");
-            Assert.That(material.shader.FindPropertyIndex("_RenderingMode"), Is.GreaterThanOrEqualTo(0));
+            Assert.That(
+                material.shader.FindPropertyIndex("_RenderingMode"),
+                Is.GreaterThanOrEqualTo(0)
+            );
             MaterialState before = MaterialState.Capture(material);
             AssertLegacyState(before);
             MaterialEditor.GetMaterialProperties(new UnityEngine.Object[] { material });
-            Assert.That(EditorUtility.IsDirty(material), Is.False, "Binding a legacy material must not normalize it.");
+            Assert.That(
+                EditorUtility.IsDirty(material),
+                Is.False,
+                "Binding a legacy material must not normalize it."
+            );
 
             SaveOnlyOwnedAssetAndReimport(material, LegacyFixturePath);
             material = AssetDatabase.LoadAssetAtPath<Material>(LegacyFixturePath);
@@ -318,14 +527,24 @@ namespace PureBase.Tests.Daily
                     {
                         material.SetInteger("_RenderingMode", mode.value);
                         InvokeApply(apply, material);
-                        Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(mode.value), $"{product.shaderName} {mode.name} mode value.");
+                        Assert.That(
+                            material.GetInteger("_RenderingMode"),
+                            Is.EqualTo(mode.value),
+                            $"{product.shaderName} {mode.name} mode value."
+                        );
                         AssertRenderTypeState(material, mode);
                         Assert.That(GetRawRenderQueue(material), Is.EqualTo(mode.rawQueue));
                         Assert.That(material.renderQueue, Is.EqualTo(mode.resolvedQueue));
                         AssertHiddenState(material, mode);
                         AssertRenderingKeywords(material, mode.enabledKeywords);
-                        Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.EqualTo(mode.enableContributionPasses));
-                        Assert.That(material.GetShaderPassEnabled("Meta"), Is.EqualTo(mode.enableContributionPasses));
+                        Assert.That(
+                            material.GetShaderPassEnabled("ShadowCaster"),
+                            Is.EqualTo(mode.enableContributionPasses)
+                        );
+                        Assert.That(
+                            material.GetShaderPassEnabled("Meta"),
+                            Is.EqualTo(mode.enableContributionPasses)
+                        );
                     }
                 }
             }
@@ -342,7 +561,14 @@ namespace PureBase.Tests.Daily
                 var material = CreateMaterial(RequireProductShader(product.shaderName));
                 foreach (StencilPropertyContract property in StencilProperties)
                 {
-                    Assert.That(material.shader.FindPropertyIndex(property.name), Is.GreaterThanOrEqualTo(0), product.shaderName + " must expose " + property.name + " before normalizer retention is tested.");
+                    Assert.That(
+                        material.shader.FindPropertyIndex(property.name),
+                        Is.GreaterThanOrEqualTo(0),
+                        product.shaderName
+                            + " must expose "
+                            + property.name
+                            + " before normalizer retention is tested."
+                    );
                     material.SetFloat(property.name, property.overrideValue);
                 }
 
@@ -350,9 +576,15 @@ namespace PureBase.Tests.Daily
                 {
                     material.SetInteger("_RenderingMode", mode.value);
                     InvokeApply(apply, material);
-                    AssertStencilOverrides(material, product.shaderName + " " + mode.name + " after Apply");
+                    AssertStencilOverrides(
+                        material,
+                        product.shaderName + " " + mode.name + " after Apply"
+                    );
                     InvokeDrawerSelectionRefresh(refreshSelection, new[] { material });
-                    AssertStencilOverrides(material, product.shaderName + " " + mode.name + " after Resync");
+                    AssertStencilOverrides(
+                        material,
+                        product.shaderName + " " + mode.name + " after Resync"
+                    );
                 }
             }
         }
@@ -364,8 +596,16 @@ namespace PureBase.Tests.Daily
         {
             foreach (StencilPropertyContract property in StencilProperties)
             {
-                Assert.That(material.HasProperty(property.name), Is.True, context + " must retain " + property.name + ".");
-                Assert.That(material.GetFloat(property.name), Is.EqualTo(property.overrideValue), context + " property " + property.name + ".");
+                Assert.That(
+                    material.HasProperty(property.name),
+                    Is.True,
+                    context + " must retain " + property.name + "."
+                );
+                Assert.That(
+                    material.GetFloat(property.name),
+                    Is.EqualTo(property.overrideValue),
+                    context + " property " + property.name + "."
+                );
             }
         }
 
@@ -374,7 +614,11 @@ namespace PureBase.Tests.Daily
         public void PublicRenderingModeApiIsDiscoverableWithoutATestAssemblyDependency()
         {
             Type enumType = FindLoadedType("PureBase.Editor.PureBaseRenderingMode");
-            Assert.That(enumType, Is.Not.Null, "PureBaseRenderingMode must be discoverable from the loaded Editor assemblies.");
+            Assert.That(
+                enumType,
+                Is.Not.Null,
+                "PureBaseRenderingMode must be discoverable from the loaded Editor assemblies."
+            );
             Assert.That(enumType.IsPublic, Is.True, "PureBaseRenderingMode must be public.");
             Assert.That(enumType.IsEnum, Is.True, "PureBaseRenderingMode must be an enum.");
             CollectionAssert.AreEqual(
@@ -392,8 +636,16 @@ namespace PureBase.Tests.Daily
                 "PureBaseRenderingMode must expose exactly the stable 0, 1, and 2 ABI values without aliases."
             );
             Type normalizerType = FindLoadedType("PureBase.Editor.PureBaseMaterialRenderingMode");
-            Assert.That(normalizerType, Is.Not.Null, "PureBaseMaterialRenderingMode must be discoverable from the loaded Editor assemblies.");
-            Assert.That(normalizerType.IsPublic, Is.True, "PureBaseMaterialRenderingMode must be public.");
+            Assert.That(
+                normalizerType,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode must be discoverable from the loaded Editor assemblies."
+            );
+            Assert.That(
+                normalizerType.IsPublic,
+                Is.True,
+                "PureBaseMaterialRenderingMode must be public."
+            );
             Assert.That(RequireApplyMethod(), Is.Not.Null);
         }
 
@@ -407,7 +659,14 @@ namespace PureBase.Tests.Daily
             /// <param name="attribute">The exact imported drawer attribute.</param>
             /// <param name="sourceAttributePattern">The whitespace-tolerant source attribute pattern.</param>
             /// <param name="sourceDefaultPattern">The whitespace-tolerant source default pattern.</param>
-            public StencilPropertyContract(string name, float defaultValue, float overrideValue, string attribute, string sourceAttributePattern, string sourceDefaultPattern)
+            public StencilPropertyContract(
+                string name,
+                float defaultValue,
+                float overrideValue,
+                string attribute,
+                string sourceAttributePattern,
+                string sourceDefaultPattern
+            )
             {
                 this.name = name;
                 this.defaultValue = defaultValue;
@@ -435,6 +694,5 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the source default value pattern.</summary>
             public readonly string sourceDefaultPattern;
         }
-
     }
 }

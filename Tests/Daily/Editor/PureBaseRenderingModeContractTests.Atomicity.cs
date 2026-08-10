@@ -29,7 +29,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
 namespace PureBase.Tests.Daily
 {
     public sealed partial class PureBaseRenderingModeContractTests
@@ -46,21 +45,64 @@ namespace PureBase.Tests.Daily
             var assertedPropertyTypes = new HashSet<ShaderUtil.ShaderPropertyType>();
 
             var unsupportedOwnership = CreateMaterial(RequireUnsupportedRenderingModeShader());
-            AssertUnsupportedInputIsAtomic(apply, unsupportedOwnership, true, "The unsupported ownership input must expose _RenderingMode without being owned by Pure-Base.", "non-Pure-Base shader with _RenderingMode", seededPropertyTypes, capturedPropertyTypes, assertedPropertyTypes);
+            AssertUnsupportedInputIsAtomic(
+                apply,
+                unsupportedOwnership,
+                true,
+                "The unsupported ownership input must expose _RenderingMode without being owned by Pure-Base.",
+                "non-Pure-Base shader with _RenderingMode",
+                seededPropertyTypes,
+                capturedPropertyTypes,
+                assertedPropertyTypes
+            );
 
-            var unsupportedMissingProperty = CreateMaterial(RequireUnsupportedShaderWithoutRenderingMode());
-            AssertUnsupportedInputIsAtomic(apply, unsupportedMissingProperty, false, "The missing-property input must not expose _RenderingMode.", "non-Pure-Base shader without _RenderingMode", seededPropertyTypes, capturedPropertyTypes, assertedPropertyTypes);
+            var unsupportedMissingProperty = CreateMaterial(
+                RequireUnsupportedShaderWithoutRenderingMode()
+            );
+            AssertUnsupportedInputIsAtomic(
+                apply,
+                unsupportedMissingProperty,
+                false,
+                "The missing-property input must not expose _RenderingMode.",
+                "non-Pure-Base shader without _RenderingMode",
+                seededPropertyTypes,
+                capturedPropertyTypes,
+                assertedPropertyTypes
+            );
 
             var first = CreateMaterial(RequireProductShader("PureBase/Unlit"));
             var second = CreateMaterial(RequireProductShader("PureBase/Toon"));
-            AssertInvalidModesAreAtomic(apply, applyAll, first, second, seededPropertyTypes, capturedPropertyTypes, assertedPropertyTypes);
+            AssertInvalidModesAreAtomic(
+                apply,
+                applyAll,
+                first,
+                second,
+                seededPropertyTypes,
+                capturedPropertyTypes,
+                assertedPropertyTypes
+            );
 
-            foreach (Material coverageMaterial in CreateAtomicityCoverageMaterials(seededPropertyTypes, capturedPropertyTypes, assertedPropertyTypes))
+            foreach (
+                Material coverageMaterial in CreateAtomicityCoverageMaterials(
+                    seededPropertyTypes,
+                    capturedPropertyTypes,
+                    assertedPropertyTypes
+                )
+            )
             {
                 SeedAtomicityState(coverageMaterial, seededPropertyTypes);
-                MaterialState before = MaterialState.Capture(coverageMaterial, capturedPropertyTypes);
-                Assert.Throws<InvalidOperationException>(() => InvokeApply(apply, coverageMaterial));
-                before.AssertEqual(coverageMaterial, "non-Pure-Base property-type coverage target", assertedPropertyTypes);
+                MaterialState before = MaterialState.Capture(
+                    coverageMaterial,
+                    capturedPropertyTypes
+                );
+                Assert.Throws<InvalidOperationException>(() =>
+                    InvokeApply(apply, coverageMaterial)
+                );
+                before.AssertEqual(
+                    coverageMaterial,
+                    "non-Pure-Base property-type coverage target",
+                    assertedPropertyTypes
+                );
             }
 
             AssertCompleteAtomicityPropertyTypeCoverage(seededPropertyTypes, "seed");
@@ -77,10 +119,23 @@ namespace PureBase.Tests.Daily
         /// <param name="seededPropertyTypes">The set that records seeded shader property types.</param>
         /// <param name="capturedPropertyTypes">The set that records captured shader property types.</param>
         /// <param name="assertedPropertyTypes">The set that records asserted shader property types.</param>
-        private void AssertUnsupportedInputIsAtomic(MethodInfo apply, Material material, bool hasRenderingMode, string propertyMessage, string context, ISet<ShaderUtil.ShaderPropertyType> seededPropertyTypes, ISet<ShaderUtil.ShaderPropertyType> capturedPropertyTypes, ISet<ShaderUtil.ShaderPropertyType> assertedPropertyTypes)
+        private void AssertUnsupportedInputIsAtomic(
+            MethodInfo apply,
+            Material material,
+            bool hasRenderingMode,
+            string propertyMessage,
+            string context,
+            ISet<ShaderUtil.ShaderPropertyType> seededPropertyTypes,
+            ISet<ShaderUtil.ShaderPropertyType> capturedPropertyTypes,
+            ISet<ShaderUtil.ShaderPropertyType> assertedPropertyTypes
+        )
         {
             SeedAtomicityState(material, seededPropertyTypes);
-            Assert.That(material.HasProperty("_RenderingMode"), Is.EqualTo(hasRenderingMode), propertyMessage);
+            Assert.That(
+                material.HasProperty("_RenderingMode"),
+                Is.EqualTo(hasRenderingMode),
+                propertyMessage
+            );
             MaterialState before = MaterialState.Capture(material, capturedPropertyTypes);
             Assert.Throws<InvalidOperationException>(() => InvokeApply(apply, material));
             before.AssertEqual(material, context, assertedPropertyTypes);
@@ -94,7 +149,15 @@ namespace PureBase.Tests.Daily
         /// <param name="seededPropertyTypes">The set that records seeded shader property types.</param>
         /// <param name="capturedPropertyTypes">The set that records captured shader property types.</param>
         /// <param name="assertedPropertyTypes">The set that records asserted shader property types.</param>
-        private void AssertInvalidModesAreAtomic(MethodInfo apply, MethodInfo applyAll, Material first, Material second, ISet<ShaderUtil.ShaderPropertyType> seededPropertyTypes, ISet<ShaderUtil.ShaderPropertyType> capturedPropertyTypes, ISet<ShaderUtil.ShaderPropertyType> assertedPropertyTypes)
+        private void AssertInvalidModesAreAtomic(
+            MethodInfo apply,
+            MethodInfo applyAll,
+            Material first,
+            Material second,
+            ISet<ShaderUtil.ShaderPropertyType> seededPropertyTypes,
+            ISet<ShaderUtil.ShaderPropertyType> capturedPropertyTypes,
+            ISet<ShaderUtil.ShaderPropertyType> assertedPropertyTypes
+        )
         {
             SeedAtomicityState(first, seededPropertyTypes);
             SeedAtomicityState(second, seededPropertyTypes);
@@ -106,14 +169,45 @@ namespace PureBase.Tests.Daily
                 MaterialState firstBefore = MaterialState.Capture(first, capturedPropertyTypes);
                 MaterialState secondBefore = MaterialState.Capture(second, capturedPropertyTypes);
                 firstBefore.AssertCapturesShaderProperty("_PureBaseShaderLabSentinel");
-                ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApply(apply, first));
-                AssertInvalidRenderingModeException(exception, first, invalidMode, "single-target invalid mode");
-                firstBefore.AssertEqual(first, $"invalid mode {invalidMode}", assertedPropertyTypes);
-                secondBefore.AssertEqual(second, $"unrelated target after invalid mode {invalidMode}", assertedPropertyTypes);
-                exception = Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApplyAll(applyAll, new[] { first, second }));
-                AssertInvalidRenderingModeException(exception, first, invalidMode, "batch invalid mode");
-                firstBefore.AssertEqual(first, $"batch invalid mode {invalidMode}", assertedPropertyTypes);
-                secondBefore.AssertEqual(second, $"unrelated target after batch invalid mode {invalidMode}", assertedPropertyTypes);
+                ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
+                    () =>
+                        InvokeApply(apply, first)
+                );
+                AssertInvalidRenderingModeException(
+                    exception,
+                    first,
+                    invalidMode,
+                    "single-target invalid mode"
+                );
+                firstBefore.AssertEqual(
+                    first,
+                    $"invalid mode {invalidMode}",
+                    assertedPropertyTypes
+                );
+                secondBefore.AssertEqual(
+                    second,
+                    $"unrelated target after invalid mode {invalidMode}",
+                    assertedPropertyTypes
+                );
+                exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+                    InvokeApplyAll(applyAll, new[] { first, second })
+                );
+                AssertInvalidRenderingModeException(
+                    exception,
+                    first,
+                    invalidMode,
+                    "batch invalid mode"
+                );
+                firstBefore.AssertEqual(
+                    first,
+                    $"batch invalid mode {invalidMode}",
+                    assertedPropertyTypes
+                );
+                secondBefore.AssertEqual(
+                    second,
+                    $"unrelated target after batch invalid mode {invalidMode}",
+                    assertedPropertyTypes
+                );
             }
         }
 
@@ -139,20 +233,56 @@ namespace PureBase.Tests.Daily
                 EditorUtility.ClearDirty(first);
                 EditorUtility.ClearDirty(second);
                 EditorUtility.ClearDirty(failing);
-                AssertDistinctFallbackRenderTypeOverrideStates(first, second, "before late batch rollback");
+                AssertDistinctFallbackRenderTypeOverrideStates(
+                    first,
+                    second,
+                    "before late batch rollback"
+                );
                 MaterialState firstBefore = MaterialState.Capture(first);
                 MaterialState secondBefore = MaterialState.Capture(second);
-                var materials = new LateInvalidatingMaterialList(new[] { first, second, failing }, 2, invalidMode);
+                var materials = new LateInvalidatingMaterialList(
+                    new[] { first, second, failing },
+                    2,
+                    invalidMode
+                );
 
-                ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(() => InvokeApplyAll(applyAll, materials));
-                AssertInvalidRenderingModeException(exception, failing, invalidMode, "late batch invalid mode");
-                Assert.That(materials.ObservedPriorMutations, Is.True, "The late invalidation must occur after prior materials are normalized.");
+                ArgumentOutOfRangeException exception = Assert.Throws<ArgumentOutOfRangeException>(
+                    () =>
+                        InvokeApplyAll(applyAll, materials)
+                );
+                AssertInvalidRenderingModeException(
+                    exception,
+                    failing,
+                    invalidMode,
+                    "late batch invalid mode"
+                );
+                Assert.That(
+                    materials.ObservedPriorMutations,
+                    Is.True,
+                    "The late invalidation must occur after prior materials are normalized."
+                );
                 firstBefore.AssertEqual(first, "first material after late batch rollback");
                 secondBefore.AssertEqual(second, "second material after late batch rollback");
-                AssertDistinctFallbackRenderTypeOverrideStates(first, second, "after late batch rollback");
-                Assert.That(AssetDatabase.GetAssetPath(first), Is.Empty, "The rollback fixture must remain transient.");
-                Assert.That(AssetDatabase.GetAssetPath(second), Is.Empty, "The rollback fixture must remain transient.");
-                Assert.That(AssetDatabase.GetAssetPath(failing), Is.Empty, "The failure fixture must remain transient.");
+                AssertDistinctFallbackRenderTypeOverrideStates(
+                    first,
+                    second,
+                    "after late batch rollback"
+                );
+                Assert.That(
+                    AssetDatabase.GetAssetPath(first),
+                    Is.Empty,
+                    "The rollback fixture must remain transient."
+                );
+                Assert.That(
+                    AssetDatabase.GetAssetPath(second),
+                    Is.Empty,
+                    "The rollback fixture must remain transient."
+                );
+                Assert.That(
+                    AssetDatabase.GetAssetPath(failing),
+                    Is.Empty,
+                    "The failure fixture must remain transient."
+                );
             }
         }
 
@@ -160,28 +290,68 @@ namespace PureBase.Tests.Daily
         /// <param name="withoutOverride">The material whose raw RenderType override is absent.</param>
         /// <param name="withFallbackOverride">The material whose raw override equals the shader fallback.</param>
         /// <param name="context">The operation boundary described by the assertions.</param>
-        private static void AssertDistinctFallbackRenderTypeOverrideStates(Material withoutOverride, Material withFallbackOverride, string context)
+        private static void AssertDistinctFallbackRenderTypeOverrideStates(
+            Material withoutOverride,
+            Material withFallbackOverride,
+            string context
+        )
         {
-            bool hasAbsentOverride = TryGetSerializedRenderTypeOverride(withoutOverride, out string absentOverride);
-            bool hasFallbackOverride = TryGetSerializedRenderTypeOverride(withFallbackOverride, out string fallbackOverride);
-            Assert.That(hasAbsentOverride, Is.False, $"The {context} absent override fixture must not serialize RenderType.");
-            Assert.That(absentOverride, Is.Null, $"The {context} absent override fixture must not expose a RenderType value.");
-            Assert.That(hasFallbackOverride, Is.True, $"The {context} fallback override fixture must serialize RenderType.");
-            Assert.That(fallbackOverride, Is.EqualTo("TransparentCutout"), $"The {context} fallback override fixture must preserve its raw RenderType value.");
-            Assert.That(withoutOverride.GetTag("RenderType", false), Is.EqualTo("TransparentCutout"), $"The {context} absent override fixture must resolve the PureBase SubShader RenderType fallback.");
-            Assert.That(withFallbackOverride.GetTag("RenderType", false), Is.EqualTo("TransparentCutout"), $"The {context} fallback override fixture must resolve the same RenderType value.");
+            bool hasAbsentOverride = TryGetSerializedRenderTypeOverride(
+                withoutOverride,
+                out string absentOverride
+            );
+            bool hasFallbackOverride = TryGetSerializedRenderTypeOverride(
+                withFallbackOverride,
+                out string fallbackOverride
+            );
+            Assert.That(
+                hasAbsentOverride,
+                Is.False,
+                $"The {context} absent override fixture must not serialize RenderType."
+            );
+            Assert.That(
+                absentOverride,
+                Is.Null,
+                $"The {context} absent override fixture must not expose a RenderType value."
+            );
+            Assert.That(
+                hasFallbackOverride,
+                Is.True,
+                $"The {context} fallback override fixture must serialize RenderType."
+            );
+            Assert.That(
+                fallbackOverride,
+                Is.EqualTo("TransparentCutout"),
+                $"The {context} fallback override fixture must preserve its raw RenderType value."
+            );
+            Assert.That(
+                withoutOverride.GetTag("RenderType", false),
+                Is.EqualTo("TransparentCutout"),
+                $"The {context} absent override fixture must resolve the PureBase SubShader RenderType fallback."
+            );
+            Assert.That(
+                withFallbackOverride.GetTag("RenderType", false),
+                Is.EqualTo("TransparentCutout"),
+                $"The {context} fallback override fixture must resolve the same RenderType value."
+            );
         }
 
         /// <summary>Assigns distinguishable values to every shader property before atomicity snapshots without modifying persistent assets.</summary>
         /// <param name="material">The transient material that must remain unchanged after rejection.</param>
         /// <param name="observedPropertyTypes">The optional set that records seeded shader property types.</param>
-        private void SeedAtomicityState(Material material, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null)
+        private void SeedAtomicityState(
+            Material material,
+            ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null
+        )
         {
             Shader shader = material.shader;
             for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
             {
                 string propertyName = shader.GetPropertyName(index);
-                ShaderUtil.ShaderPropertyType propertyType = ShaderUtil.GetPropertyType(shader, index);
+                ShaderUtil.ShaderPropertyType propertyType = ShaderUtil.GetPropertyType(
+                    shader,
+                    index
+                );
                 ObserveAtomicityPropertyType(observedPropertyTypes, propertyType);
                 switch (propertyType)
                 {
@@ -193,10 +363,16 @@ namespace PureBase.Tests.Daily
                         material.SetInteger(propertyName, 17 + index);
                         break;
                     case ShaderUtil.ShaderPropertyType.Color:
-                        material.SetColor(propertyName, new Color(0.13f + (index * 0.01f), 0.27f, 0.41f, 0.59f));
+                        material.SetColor(
+                            propertyName,
+                            new Color(0.13f + (index * 0.01f), 0.27f, 0.41f, 0.59f)
+                        );
                         break;
                     case ShaderUtil.ShaderPropertyType.Vector:
-                        material.SetVector(propertyName, new Vector4(0.11f, 0.23f, 0.37f, 0.53f + (index * 0.01f)));
+                        material.SetVector(
+                            propertyName,
+                            new Vector4(0.11f, 0.23f, 0.37f, 0.53f + (index * 0.01f))
+                        );
                         break;
                     case ShaderUtil.ShaderPropertyType.TexEnv:
                         material.SetTexture(propertyName, CreateTextureSentinel(shader, index));
@@ -204,7 +380,9 @@ namespace PureBase.Tests.Daily
                         material.SetTextureOffset(propertyName, new Vector2(0.17f, 0.29f));
                         break;
                     default:
-                        Assert.Fail($"Unsupported shader property type '{ShaderUtil.GetPropertyType(shader, index)}' for '{propertyName}'.");
+                        Assert.Fail(
+                            $"Unsupported shader property type '{ShaderUtil.GetPropertyType(shader, index)}' for '{propertyName}'."
+                        );
                         break;
                 }
             }
@@ -239,7 +417,9 @@ namespace PureBase.Tests.Daily
                     texture = new CubemapArray(2, 1, TextureFormat.RGBA32, false);
                     break;
                 default:
-                    Assert.Fail($"Shader property '{shader.GetPropertyName(propertyIndex)}' has unsupported texture dimension '{dimension}'.");
+                    Assert.Fail(
+                        $"Shader property '{shader.GetPropertyName(propertyIndex)}' has unsupported texture dimension '{dimension}'."
+                    );
                     return null;
             }
 
@@ -255,22 +435,29 @@ namespace PureBase.Tests.Daily
         private IEnumerable<Material> CreateAtomicityCoverageMaterials(
             ISet<ShaderUtil.ShaderPropertyType> seededPropertyTypes,
             ISet<ShaderUtil.ShaderPropertyType> capturedPropertyTypes,
-            ISet<ShaderUtil.ShaderPropertyType> assertedPropertyTypes)
+            ISet<ShaderUtil.ShaderPropertyType> assertedPropertyTypes
+        )
         {
             foreach (ShaderUtil.ShaderPropertyType propertyType in RequiredAtomicityPropertyTypes)
             {
-                if (seededPropertyTypes.Contains(propertyType)
+                if (
+                    seededPropertyTypes.Contains(propertyType)
                     && capturedPropertyTypes.Contains(propertyType)
-                    && assertedPropertyTypes.Contains(propertyType))
+                    && assertedPropertyTypes.Contains(propertyType)
+                )
                     continue;
-                yield return CreateMaterial(RequireSupportedNonProductShaderWithPropertyType(propertyType));
+                yield return CreateMaterial(
+                    RequireSupportedNonProductShaderWithPropertyType(propertyType)
+                );
             }
         }
 
         /// <summary>Returns a deterministic supported non-Pure-Base shader that exposes one required property type.</summary>
         /// <param name="propertyType">The property type required by atomicity coverage.</param>
         /// <returns>An imported, supported non-Pure-Base shader.</returns>
-        private static Shader RequireSupportedNonProductShaderWithPropertyType(ShaderUtil.ShaderPropertyType propertyType)
+        private static Shader RequireSupportedNonProductShaderWithPropertyType(
+            ShaderUtil.ShaderPropertyType propertyType
+        )
         {
             Shader shader = RequireUnsupportedRenderingModeShader();
             for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
@@ -279,14 +466,19 @@ namespace PureBase.Tests.Daily
                     return shader;
             }
 
-            Assert.Fail($"The deterministic non-Pure-Base fixture shader did not expose '{propertyType}' for atomicity coverage.");
+            Assert.Fail(
+                $"The deterministic non-Pure-Base fixture shader did not expose '{propertyType}' for atomicity coverage."
+            );
             return null;
         }
 
         /// <summary>Records one property type observed by an atomicity execution path.</summary>
         /// <param name="observedPropertyTypes">The optional path-local observed type set.</param>
         /// <param name="propertyType">The property type encountered by the path.</param>
-        private static void ObserveAtomicityPropertyType(ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes, ShaderUtil.ShaderPropertyType propertyType)
+        private static void ObserveAtomicityPropertyType(
+            ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes,
+            ShaderUtil.ShaderPropertyType propertyType
+        )
         {
             if (observedPropertyTypes != null)
                 observedPropertyTypes.Add(propertyType);
@@ -295,7 +487,10 @@ namespace PureBase.Tests.Daily
         /// <summary>Requires one atomicity execution path to exercise every supported property type.</summary>
         /// <param name="observedPropertyTypes">The types observed by the execution path.</param>
         /// <param name="pathName">The diagnostic name of the execution path.</param>
-        private static void AssertCompleteAtomicityPropertyTypeCoverage(ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes, string pathName)
+        private static void AssertCompleteAtomicityPropertyTypeCoverage(
+            ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes,
+            string pathName
+        )
         {
             CollectionAssert.AreEquivalent(
                 RequiredAtomicityPropertyTypes,
@@ -307,11 +502,17 @@ namespace PureBase.Tests.Daily
         /// <summary>Records every property type visible to one atomicity assertion path.</summary>
         /// <param name="material">The material whose shader properties are being asserted.</param>
         /// <param name="observedPropertyTypes">The optional path-local observed type set.</param>
-        private static void ObserveAtomicityPropertyTypes(Material material, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes)
+        private static void ObserveAtomicityPropertyTypes(
+            Material material,
+            ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes
+        )
         {
             Shader shader = material.shader;
             for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
-                ObserveAtomicityPropertyType(observedPropertyTypes, ShaderUtil.GetPropertyType(shader, index));
+                ObserveAtomicityPropertyType(
+                    observedPropertyTypes,
+                    ShaderUtil.GetPropertyType(shader, index)
+                );
         }
 
         /// <summary>Returns one supported non-Pure-Base shader that has no rendering-mode property.</summary>
@@ -320,7 +521,11 @@ namespace PureBase.Tests.Daily
         {
             Shader shader = Shader.Find("Standard") ?? Shader.Find("Unlit/Color");
             Assert.That(shader, Is.Not.Null, "No built-in unsupported shader was available.");
-            Assert.That(shader.FindPropertyIndex("_RenderingMode"), Is.LessThan(0), "The missing-property shader must not expose _RenderingMode.");
+            Assert.That(
+                shader.FindPropertyIndex("_RenderingMode"),
+                Is.LessThan(0),
+                "The missing-property shader must not expose _RenderingMode."
+            );
             return shader;
         }
 
@@ -328,13 +533,39 @@ namespace PureBase.Tests.Daily
         /// <returns>A non-Pure-Base shader with <c>_RenderingMode</c>.</returns>
         private static Shader RequireUnsupportedRenderingModeShader()
         {
-            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(UnsupportedRenderingModeFixturePath);
-            Assert.That(shader, Is.Not.Null, $"The unsupported-ownership fixture shader was not imported at '{UnsupportedRenderingModeFixturePath}'.");
-            Assert.That(shader.name, Is.EqualTo("PureBaseTests/Unsupported Rendering Mode"), "The unsupported-ownership fixture shader name changed.");
-            Assert.That(shader.name, Does.Not.StartWith("PureBase/"), "The unsupported-ownership fixture shader must not be owned by Pure-Base.");
-            Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, "The unsupported-ownership fixture shader has import errors.");
-            Assert.That(shader.isSupported, Is.True, "The unsupported-ownership fixture shader is unsupported.");
-            Assert.That(shader.FindPropertyIndex("_RenderingMode"), Is.GreaterThanOrEqualTo(0), "The unsupported-ownership fixture shader must expose _RenderingMode.");
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(
+                UnsupportedRenderingModeFixturePath
+            );
+            Assert.That(
+                shader,
+                Is.Not.Null,
+                $"The unsupported-ownership fixture shader was not imported at '{UnsupportedRenderingModeFixturePath}'."
+            );
+            Assert.That(
+                shader.name,
+                Is.EqualTo("PureBaseTests/Unsupported Rendering Mode"),
+                "The unsupported-ownership fixture shader name changed."
+            );
+            Assert.That(
+                shader.name,
+                Does.Not.StartWith("PureBase/"),
+                "The unsupported-ownership fixture shader must not be owned by Pure-Base."
+            );
+            Assert.That(
+                ShaderUtil.ShaderHasError(shader),
+                Is.False,
+                "The unsupported-ownership fixture shader has import errors."
+            );
+            Assert.That(
+                shader.isSupported,
+                Is.True,
+                "The unsupported-ownership fixture shader is unsupported."
+            );
+            Assert.That(
+                shader.FindPropertyIndex("_RenderingMode"),
+                Is.GreaterThanOrEqualTo(0),
+                "The unsupported-ownership fixture shader must expose _RenderingMode."
+            );
             return shader;
         }
 

@@ -82,7 +82,9 @@ namespace PureBase.Editor
         private const string ResyncUndoName = "Resync PureBase Rendering Mode";
 
         /// <summary>Lists the only stable public shader names owned by Pure-Base.</summary>
-        private static readonly HashSet<string> PureBaseShaderNames = new HashSet<string>(StringComparer.Ordinal)
+        private static readonly HashSet<string> PureBaseShaderNames = new HashSet<string>(
+            StringComparer.Ordinal
+        )
         {
             "PureBase/Unlit",
             "PureBase/Toon",
@@ -135,7 +137,9 @@ namespace PureBase.Editor
         /// <returns><see langword="true"/> when the material uses one of the four supported shader names.</returns>
         internal static bool IsPureBaseMaterial(Material material)
         {
-            return material != null && material.shader != null && PureBaseShaderNames.Contains(material.shader.name);
+            return material != null
+                && material.shader != null
+                && PureBaseShaderNames.Contains(material.shader.name);
         }
 
         /// <summary>Validates one material without modifying its serialized state.</summary>
@@ -146,21 +150,36 @@ namespace PureBase.Editor
                 throw new ArgumentNullException(nameof(material));
 
             if (!IsPureBaseMaterial(material))
-                throw CreateValidationException(material, "its shader is not a supported Pure-Base shader");
+                throw CreateValidationException(
+                    material,
+                    "its shader is not a supported Pure-Base shader"
+                );
 
             Shader shader = material.shader;
 
             if (!material.HasProperty(RenderingModePropertyName))
-                throw CreateValidationException(material, "it does not expose the Pure-Base rendering-mode property");
+                throw CreateValidationException(
+                    material,
+                    "it does not expose the Pure-Base rendering-mode property"
+                );
 
             int renderingModePropertyIndex = shader.FindPropertyIndex(RenderingModePropertyName);
-            if (renderingModePropertyIndex < 0 || shader.GetPropertyType(renderingModePropertyIndex) != ShaderPropertyType.Int)
-                throw CreateValidationException(material, "it does not expose the Pure-Base integer rendering-mode property");
+            if (
+                renderingModePropertyIndex < 0
+                || shader.GetPropertyType(renderingModePropertyIndex) != ShaderPropertyType.Int
+            )
+                throw CreateValidationException(
+                    material,
+                    "it does not expose the Pure-Base integer rendering-mode property"
+                );
 
             for (int index = 0; index < RequiredStatePropertyNames.Length; index++)
             {
                 if (!material.HasProperty(RequiredStatePropertyNames[index]))
-                    throw CreateValidationException(material, "it does not expose the complete Pure-Base rendering-mode state contract");
+                    throw CreateValidationException(
+                        material,
+                        "it does not expose the complete Pure-Base rendering-mode state contract"
+                    );
             }
 
             GetModeIndex(material);
@@ -170,9 +189,14 @@ namespace PureBase.Editor
         /// <param name="material">The non-null material that failed validation.</param>
         /// <param name="reason">The specific rendering-mode contract rejection reason.</param>
         /// <returns>An exception that preserves the established validation exception type.</returns>
-        private static InvalidOperationException CreateValidationException(Material material, string reason)
+        private static InvalidOperationException CreateValidationException(
+            Material material,
+            string reason
+        )
         {
-            return new InvalidOperationException("Material '" + material.name + "' was rejected because " + reason + ".");
+            return new InvalidOperationException(
+                "Material '" + material.name + "' was rejected because " + reason + "."
+            );
         }
 
         /// <summary>Invokes selected-material resynchronization from Unity's Assets menu.</summary>
@@ -331,7 +355,9 @@ namespace PureBase.Editor
                 throw new ArgumentOutOfRangeException(
                     RenderingModePropertyName,
                     value,
-                    "Material '" + material.name + "' has a rendering-mode value outside the supported range: 0, 1, or 2."
+                    "Material '"
+                        + material.name
+                        + "' has a rendering-mode value outside the supported range: 0, 1, or 2."
                 );
 
             return value;
@@ -405,7 +431,8 @@ namespace PureBase.Editor
                 int additiveDestinationBlend,
                 string renderType,
                 int rawRenderQueue,
-                ModeStateFlags flags)
+                ModeStateFlags flags
+            )
             {
                 SourceBlend = sourceBlend;
                 DestinationBlend = destinationBlend;
@@ -457,7 +484,11 @@ namespace PureBase.Editor
             /// <param name="enableOpaqueKeyword">Whether the Opaque keyword is enabled.</param>
             /// <param name="enableTransparentKeyword">Whether the Transparent keyword is enabled.</param>
             /// <param name="enableContributionPasses">Whether ShadowCaster and Meta are enabled.</param>
-            public ModeStateFlags(bool enableOpaqueKeyword, bool enableTransparentKeyword, bool enableContributionPasses)
+            public ModeStateFlags(
+                bool enableOpaqueKeyword,
+                bool enableTransparentKeyword,
+                bool enableContributionPasses
+            )
             {
                 EnableOpaqueKeyword = enableOpaqueKeyword;
                 EnableTransparentKeyword = enableTransparentKeyword;
@@ -490,7 +521,8 @@ namespace PureBase.Editor
                 float depthWrite,
                 float additiveSourceBlend,
                 float additiveDestinationBlend,
-                MaterialStateSnapshotMetadata metadata)
+                MaterialStateSnapshotMetadata metadata
+            )
             {
                 SourceBlend = sourceBlend;
                 DestinationBlend = destinationBlend;
@@ -551,7 +583,10 @@ namespace PureBase.Editor
             /// <returns>A rollback snapshot for <paramref name="material"/>.</returns>
             public static MaterialStateSnapshot Capture(Material material)
             {
-                bool hasRenderTypeOverride = TryGetRawRenderTypeOverride(material, out string renderTypeOverride);
+                bool hasRenderTypeOverride = TryGetRawRenderTypeOverride(
+                    material,
+                    out string renderTypeOverride
+                );
                 return new MaterialStateSnapshot(
                     material.GetFloat(SourceBlendPropertyName),
                     material.GetFloat(DestinationBlendPropertyName),
@@ -580,7 +615,10 @@ namespace PureBase.Editor
                 material.SetFloat(DepthWritePropertyName, DepthWrite);
                 material.SetFloat(AdditiveSourceBlendPropertyName, AdditiveSourceBlend);
                 material.SetFloat(AdditiveDestinationBlendPropertyName, AdditiveDestinationBlend);
-                material.SetOverrideTag(RenderTypeTagName, HasRenderTypeOverride ? RenderTypeOverride : string.Empty);
+                material.SetOverrideTag(
+                    RenderTypeTagName,
+                    HasRenderTypeOverride ? RenderTypeOverride : string.Empty
+                );
                 material.renderQueue = RawRenderQueue;
                 SetKeyword(material, OpaqueKeyword, OpaqueKeywordEnabled);
                 SetKeyword(material, TransparentKeyword, TransparentKeywordEnabled);
@@ -611,7 +649,8 @@ namespace PureBase.Editor
                 bool transparentKeywordEnabled,
                 bool shadowCasterEnabled,
                 bool metaEnabled,
-                bool wasDirty)
+                bool wasDirty
+            )
             {
                 HasRenderTypeOverride = hasRenderTypeOverride;
                 RenderTypeOverride = renderTypeOverride;
@@ -652,14 +691,25 @@ namespace PureBase.Editor
         /// <param name="material">The material whose serialized tag map is read.</param>
         /// <param name="renderTypeOverride">Receives the raw override value when one exists.</param>
         /// <returns><see langword="true"/> when the material serializes an explicit RenderType override.</returns>
-        private static bool TryGetRawRenderTypeOverride(Material material, out string renderTypeOverride)
+        private static bool TryGetRawRenderTypeOverride(
+            Material material,
+            out string renderTypeOverride
+        )
         {
             string serializedMaterial = EditorJsonUtility.ToJson(material);
-            Match tagMap = Regex.Match(serializedMaterial, @"""stringTagMap""\s*:\s*\{(?<entries>[^}]*)\}");
+            Match tagMap = Regex.Match(
+                serializedMaterial,
+                @"""stringTagMap""\s*:\s*\{(?<entries>[^}]*)\}"
+            );
             if (!tagMap.Success)
-                throw new InvalidOperationException("The material does not expose a serialized raw RenderType tag map.");
+                throw new InvalidOperationException(
+                    "The material does not expose a serialized raw RenderType tag map."
+                );
 
-            Match renderType = Regex.Match(tagMap.Groups["entries"].Value, @"""RenderType""\s*:\s*""(?<value>[^""]*)""");
+            Match renderType = Regex.Match(
+                tagMap.Groups["entries"].Value,
+                @"""RenderType""\s*:\s*""(?<value>[^""]*)"""
+            );
             renderTypeOverride = renderType.Success ? renderType.Groups["value"].Value : null;
             return renderType.Success;
         }
@@ -671,9 +721,13 @@ namespace PureBase.Editor
         {
             using (var serializedMaterial = new SerializedObject(material))
             {
-                SerializedProperty rawRenderQueue = serializedMaterial.FindProperty("m_CustomRenderQueue");
+                SerializedProperty rawRenderQueue = serializedMaterial.FindProperty(
+                    "m_CustomRenderQueue"
+                );
                 if (rawRenderQueue == null)
-                    throw new InvalidOperationException("The material does not expose a serialized raw render queue.");
+                    throw new InvalidOperationException(
+                        "The material does not expose a serialized raw render queue."
+                    );
 
                 return rawRenderQueue.intValue;
             }

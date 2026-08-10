@@ -1041,10 +1041,7 @@ namespace PureBase.Tests.Daily
             SceneRegressionBaseline baseline = LoadBaseline();
             Scene ownerScene = default;
             Scene validationScene = default;
-            var fixtureScope = new ControlledFixtureSceneScope(
-                TestOwnerScenePath,
-                ScenePath
-            );
+            var fixtureScope = new ControlledFixtureSceneScope(TestOwnerScenePath, ScenePath);
             try
             {
                 ownerScene = fixtureScope.GetLoadedFixture(TestOwnerScenePath);
@@ -1083,7 +1080,10 @@ namespace PureBase.Tests.Daily
                     Is.EqualTo(baseline.staticLightmapCount)
                 );
 
-                ownerScene = EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
+                ownerScene = EditorSceneManager.OpenScene(
+                    TestOwnerScenePath,
+                    OpenSceneMode.Additive
+                );
                 int ownerAndCanonicalGlobalLightmapCount = LightmapSettings.lightmaps.Length;
                 int ownerAndCanonicalStaticLightmapCount = CountAssignedStaticLightmaps(
                     GetStaticRenderers(validationScene)
@@ -1519,9 +1519,7 @@ namespace PureBase.Tests.Daily
         /// <summary>Counts the unique valid static-lightmap assignments used by canonical scene renderers.</summary>
         /// <param name="staticRenderers">The enabled static renderers from the canonical validation scene.</param>
         /// <returns>The number of committed static lightmaps referenced by the canonical scene.</returns>
-        private static int CountAssignedStaticLightmaps(
-            IReadOnlyList<MeshRenderer> staticRenderers
-        )
+        private static int CountAssignedStaticLightmaps(IReadOnlyList<MeshRenderer> staticRenderers)
         {
             LightmapData[] lightmaps = LightmapSettings.lightmaps;
             Assert.That(lightmaps, Is.Not.Null, "The current lightmap settings are unavailable.");
@@ -2931,8 +2929,16 @@ namespace PureBase.Tests.Daily
             /// <param name="fixtureScene">The valid loaded fixture scene to activate.</param>
             public void SetActiveFixture(Scene fixtureScene)
             {
-                Assert.That(fixtureScene.IsValid(), Is.True, "The controlled fixture scene was invalid.");
-                Assert.That(fixtureScene.isLoaded, Is.True, "The controlled fixture scene was not loaded.");
+                Assert.That(
+                    fixtureScene.IsValid(),
+                    Is.True,
+                    "The controlled fixture scene was invalid."
+                );
+                Assert.That(
+                    fixtureScene.isLoaded,
+                    Is.True,
+                    "The controlled fixture scene was not loaded."
+                );
                 if (SceneManager.GetActiveScene().Equals(fixtureScene))
                     return;
                 Assert.That(
@@ -3028,11 +3034,10 @@ namespace PureBase.Tests.Daily
                 public static FixtureSceneState Capture(string path, Scene activeScene)
                 {
                     Scene scene = SceneManager.GetSceneByPath(path);
-                    FixtureScenePresence presence = !scene.IsValid()
-                        ? FixtureScenePresence.Absent
-                        : scene.isLoaded
-                            ? FixtureScenePresence.Loaded
-                            : FixtureScenePresence.Unloaded;
+                    FixtureScenePresence presence =
+                        !scene.IsValid() ? FixtureScenePresence.Absent
+                        : scene.isLoaded ? FixtureScenePresence.Loaded
+                        : FixtureScenePresence.Unloaded;
                     bool isActive = scene.IsValid() && scene.Equals(activeScene);
 
                     return new FixtureSceneState(path, presence, isActive);
@@ -3056,8 +3061,16 @@ namespace PureBase.Tests.Daily
 
                     EditorSceneManager.OpenScene(Path, OpenSceneMode.Additive);
                     scene = SceneManager.GetSceneByPath(Path);
-                    Assert.That(scene.IsValid(), Is.True, $"Fixture '{Path}' was invalid after reopening.");
-                    Assert.That(scene.isLoaded, Is.True, $"Fixture '{Path}' was not loaded after reopening.");
+                    Assert.That(
+                        scene.IsValid(),
+                        Is.True,
+                        $"Fixture '{Path}' was invalid after reopening."
+                    );
+                    Assert.That(
+                        scene.isLoaded,
+                        Is.True,
+                        $"Fixture '{Path}' was not loaded after reopening."
+                    );
                     return scene;
                 }
 
@@ -3087,15 +3100,35 @@ namespace PureBase.Tests.Daily
                     switch (originalPresence)
                     {
                         case FixtureScenePresence.Loaded:
-                            Assert.That(scene.IsValid(), Is.True, $"Fixture '{Path}' was removed during restoration.");
-                            Assert.That(scene.isLoaded, Is.True, $"Fixture '{Path}' was not restored as loaded.");
+                            Assert.That(
+                                scene.IsValid(),
+                                Is.True,
+                                $"Fixture '{Path}' was removed during restoration."
+                            );
+                            Assert.That(
+                                scene.isLoaded,
+                                Is.True,
+                                $"Fixture '{Path}' was not restored as loaded."
+                            );
                             break;
                         case FixtureScenePresence.Unloaded:
-                            Assert.That(scene.IsValid(), Is.True, $"Fixture '{Path}' was removed instead of restored as unloaded.");
-                            Assert.That(scene.isLoaded, Is.False, $"Fixture '{Path}' was not restored as unloaded.");
+                            Assert.That(
+                                scene.IsValid(),
+                                Is.True,
+                                $"Fixture '{Path}' was removed instead of restored as unloaded."
+                            );
+                            Assert.That(
+                                scene.isLoaded,
+                                Is.False,
+                                $"Fixture '{Path}' was not restored as unloaded."
+                            );
                             break;
                         case FixtureScenePresence.Absent:
-                            Assert.That(scene.IsValid(), Is.False, $"Fixture '{Path}' was left registered after restoration.");
+                            Assert.That(
+                                scene.IsValid(),
+                                Is.False,
+                                $"Fixture '{Path}' was left registered after restoration."
+                            );
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();

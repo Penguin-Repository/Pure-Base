@@ -46,14 +46,21 @@ namespace PureBase.Editor
         /// <param name="property">The Cutoff material property.</param>
         /// <param name="_">Unused drawer arguments.</param>
         /// <param name="container">The property container that owns the drawer UI.</param>
-        private static void Draw(SCMaterialEditor editor, SCMaterialProperty property, string _, VisualElement container)
+        private static void Draw(
+            SCMaterialEditor editor,
+            SCMaterialProperty property,
+            string _,
+            VisualElement container
+        )
         {
             var rangeContainer = new VisualElement();
             container.Add(rangeContainer);
             editor.ShaderProperty(rangeContainer, property, new[] { CutoffRangeAttribute });
 
             UpdateVisibility(rangeContainer, property.targets);
-            rangeContainer.RegisterCallback<SCUpdateEvent>(_ => UpdateVisibility(rangeContainer, property.targets));
+            rangeContainer.RegisterCallback<SCUpdateEvent>(_ =>
+                UpdateVisibility(rangeContainer, property.targets)
+            );
         }
 
         /// <summary>Updates visibility from current selected material values without modifying them.</summary>
@@ -62,7 +69,9 @@ namespace PureBase.Editor
         private static void UpdateVisibility(VisualElement container, UnityEngine.Object[] targets)
         {
             SelectionDisplayState displayState = GetSelectionDisplayState(targets);
-            container.style.display = displayState.IsVisible ? DisplayStyle.Flex : DisplayStyle.None;
+            container.style.display = displayState.IsVisible
+                ? DisplayStyle.Flex
+                : DisplayStyle.None;
         }
 
         /// <summary>Gets the read-only Cutoff drawer state for the supplied material selection.</summary>
@@ -75,10 +84,13 @@ namespace PureBase.Editor
 
             for (int index = 0; index < targets.Length; index++)
             {
-                if (targets[index] is Material material
+                if (
+                    targets[index] is Material material
                     && PureBaseRenderingModeElement.IsPureBaseMaterial(material)
                     && material.HasProperty(RenderingModePropertyName)
-                    && material.GetInteger(RenderingModePropertyName) == (int)PureBaseRenderingMode.Cutout)
+                    && material.GetInteger(RenderingModePropertyName)
+                        == (int)PureBaseRenderingMode.Cutout
+                )
                 {
                     return new SelectionDisplayState(true);
                 }

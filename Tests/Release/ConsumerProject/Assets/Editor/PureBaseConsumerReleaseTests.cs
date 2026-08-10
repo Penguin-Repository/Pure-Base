@@ -47,10 +47,26 @@ namespace PureBase.Release.Consumer.Tests
             new StencilPropertyContract("_StencilRef", 0.0f, "SCRangeInt(0,255)"),
             new StencilPropertyContract("_StencilReadMask", 255.0f, "SCRangeInt(0,255)"),
             new StencilPropertyContract("_StencilWriteMask", 255.0f, "SCRangeInt(0,255)"),
-            new StencilPropertyContract("_StencilComp", 8.0f, "SCEnum(UnityEngine.Rendering.CompareFunction)"),
-            new StencilPropertyContract("_StencilPass", 0.0f, "SCEnum(UnityEngine.Rendering.StencilOp)"),
-            new StencilPropertyContract("_StencilFail", 0.0f, "SCEnum(UnityEngine.Rendering.StencilOp)"),
-            new StencilPropertyContract("_StencilZFail", 0.0f, "SCEnum(UnityEngine.Rendering.StencilOp)"),
+            new StencilPropertyContract(
+                "_StencilComp",
+                8.0f,
+                "SCEnum(UnityEngine.Rendering.CompareFunction)"
+            ),
+            new StencilPropertyContract(
+                "_StencilPass",
+                0.0f,
+                "SCEnum(UnityEngine.Rendering.StencilOp)"
+            ),
+            new StencilPropertyContract(
+                "_StencilFail",
+                0.0f,
+                "SCEnum(UnityEngine.Rendering.StencilOp)"
+            ),
+            new StencilPropertyContract(
+                "_StencilZFail",
+                0.0f,
+                "SCEnum(UnityEngine.Rendering.StencilOp)"
+            ),
         };
 
         /// <summary>Imports all runner-configured module-free products and checks their public and generated contracts.</summary>

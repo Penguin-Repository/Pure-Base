@@ -37,7 +37,8 @@ namespace PureBase.Tests.Daily
             private const int FixtureLayer = 31;
 
             /// <summary>Identifies the imported RenderTexture asset that prevents compatible-format promotion.</summary>
-            private const string RenderTextureAssetPath = "Packages/jp.penguin.purebase/Tests/Daily/Editor/PureBaseD24S8StencilTarget.renderTexture";
+            private const string RenderTextureAssetPath =
+                "Packages/jp.penguin.purebase/Tests/Daily/Editor/PureBaseD24S8StencilTarget.renderTexture";
 
             /// <summary>Stores the isolated preview scene that prevents unrelated scene content from affecting readback.</summary>
             private Scene scene;
@@ -92,17 +93,52 @@ namespace PureBase.Tests.Daily
             {
                 get
                 {
-                    return "Device=" + SystemInfo.graphicsDeviceType +
-                        " AssetPath=" + RenderTextureAssetPath +
-                        " RequestedColor=" + (renderTexture == null ? "<unloaded>" : renderTexture.descriptor.graphicsFormat.ToString()) +
-                        " RequestedDepthStencil=" + GraphicsFormat.D24_UNorm_S8_UInt +
-                        " ActualColor=" + (renderTexture == null ? "<unallocated>" : renderTexture.graphicsFormat.ToString()) +
-                        " ActualDepthStencil=" + (renderTexture == null ? "<unallocated>" : renderTexture.depthStencilFormat.ToString()) +
-                        " StencilBits=" + (renderTexture == null ? "<unallocated>" : GetStencilBitCount(renderTexture.depthStencilFormat).ToString()) +
-                        " RequestedRenderingPath=" + (cameraObject == null ? "<unallocated>" : cameraObject.GetComponent<Camera>().renderingPath.ToString()) +
-                        " ActualRenderingPath=" + (cameraObject == null ? "<unallocated>" : cameraObject.GetComponent<Camera>().actualRenderingPath.ToString()) +
-                        " PixelLightCount=" + QualitySettings.pixelLightCount +
-                        " IsCreated=" + (renderTexture != null && renderTexture.IsCreated());
+                    return "Device="
+                        + SystemInfo.graphicsDeviceType
+                        + " AssetPath="
+                        + RenderTextureAssetPath
+                        + " RequestedColor="
+                        + (
+                            renderTexture == null
+                                ? "<unloaded>"
+                                : renderTexture.descriptor.graphicsFormat.ToString()
+                        )
+                        + " RequestedDepthStencil="
+                        + GraphicsFormat.D24_UNorm_S8_UInt
+                        + " ActualColor="
+                        + (
+                            renderTexture == null
+                                ? "<unallocated>"
+                                : renderTexture.graphicsFormat.ToString()
+                        )
+                        + " ActualDepthStencil="
+                        + (
+                            renderTexture == null
+                                ? "<unallocated>"
+                                : renderTexture.depthStencilFormat.ToString()
+                        )
+                        + " StencilBits="
+                        + (
+                            renderTexture == null
+                                ? "<unallocated>"
+                                : GetStencilBitCount(renderTexture.depthStencilFormat).ToString()
+                        )
+                        + " RequestedRenderingPath="
+                        + (
+                            cameraObject == null
+                                ? "<unallocated>"
+                                : cameraObject.GetComponent<Camera>().renderingPath.ToString()
+                        )
+                        + " ActualRenderingPath="
+                        + (
+                            cameraObject == null
+                                ? "<unallocated>"
+                                : cameraObject.GetComponent<Camera>().actualRenderingPath.ToString()
+                        )
+                        + " PixelLightCount="
+                        + QualitySettings.pixelLightCount
+                        + " IsCreated="
+                        + (renderTexture != null && renderTexture.IsCreated());
                 }
             }
 
@@ -120,9 +156,26 @@ namespace PureBase.Tests.Daily
                 RenderSettings.ambientMode = AmbientMode.Flat;
                 RenderSettings.ambientLight = Color.black;
                 RenderSettings.reflectionIntensity = 0.0f;
-                Assert.That(SystemInfo.graphicsDeviceType, Is.EqualTo(GraphicsDeviceType.Direct3D11), "The D24S8 Stencil fixture requires D3D11 and must not silently run on " + SystemInfo.graphicsDeviceType + ".");
-                Assert.That(SystemInfo.IsFormatSupported(GraphicsFormat.D24_UNorm_S8_UInt, FormatUsage.Render), Is.True, "D3D11 must support D24_UNorm_S8_UInt as a render attachment for the Stencil fixture.");
-                Assert.That(SystemInfo.IsFormatSupported(GraphicsFormat.R8G8B8A8_UNorm, FormatUsage.Render), Is.True, "D3D11 must support the fixture color attachment format.");
+                Assert.That(
+                    SystemInfo.graphicsDeviceType,
+                    Is.EqualTo(GraphicsDeviceType.Direct3D11),
+                    "The D24S8 Stencil fixture requires D3D11 and must not silently run on "
+                        + SystemInfo.graphicsDeviceType
+                        + "."
+                );
+                Assert.That(
+                    SystemInfo.IsFormatSupported(
+                        GraphicsFormat.D24_UNorm_S8_UInt,
+                        FormatUsage.Render
+                    ),
+                    Is.True,
+                    "D3D11 must support D24_UNorm_S8_UInt as a render attachment for the Stencil fixture."
+                );
+                Assert.That(
+                    SystemInfo.IsFormatSupported(GraphicsFormat.R8G8B8A8_UNorm, FormatUsage.Render),
+                    Is.True,
+                    "D3D11 must support the fixture color attachment format."
+                );
 
                 renderTexture = LoadAndCreateD24S8RenderTextureAsset();
 
@@ -149,9 +202,21 @@ namespace PureBase.Tests.Daily
             /// <param name="stencilState">The explicit material Stencil state.</param>
             /// <param name="renderingMode">The Pure-Base rendering mode to apply.</param>
             /// <returns>The center pixel after the product draw.</returns>
-            public Color RenderSingle(Shader shader, Color baseColor, byte clearStencil, StencilState stencilState, int renderingMode)
+            public Color RenderSingle(
+                Shader shader,
+                Color baseColor,
+                byte clearStencil,
+                StencilState stencilState,
+                int renderingMode
+            )
             {
-                Material material = CreateProductMaterial(shader, baseColor, stencilState, renderingMode, "single draw");
+                Material material = CreateProductMaterial(
+                    shader,
+                    baseColor,
+                    stencilState,
+                    renderingMode,
+                    "single draw"
+                );
                 ClearTarget(clearStencil);
                 RenderMaterial(material);
                 return ReadCenterPixel(renderTexture, texture);
@@ -167,22 +232,62 @@ namespace PureBase.Tests.Daily
             /// <param name="renderingMode">The Pure-Base rendering mode to apply to both materials.</param>
             /// <param name="writerOnly">Receives the center pixel from the same writer without a reader.</param>
             /// <returns>The center pixel after the reader draw.</returns>
-            public Color RenderWriterThenReader(Shader shader, byte clearStencil, Color writerColor, StencilState writerState, Color readerColor, StencilState readerState, int renderingMode, out Color writerOnly)
+            public Color RenderWriterThenReader(
+                Shader shader,
+                byte clearStencil,
+                Color writerColor,
+                StencilState writerState,
+                Color readerColor,
+                StencilState readerState,
+                int renderingMode,
+                out Color writerOnly
+            )
             {
-                Material writer = CreateProductMaterial(shader, writerColor, writerState, renderingMode, "Stencil writer");
-                Material reader = CreateProductMaterial(shader, readerColor, readerState, renderingMode, "Stencil reader");
+                Material writer = CreateProductMaterial(
+                    shader,
+                    writerColor,
+                    writerState,
+                    renderingMode,
+                    "Stencil writer"
+                );
+                Material reader = CreateProductMaterial(
+                    shader,
+                    readerColor,
+                    readerState,
+                    renderingMode,
+                    "Stencil reader"
+                );
                 Material control = CreateProductMaterial(
                     shader,
                     readerColor,
-                    new StencilState(0, 255, 0, CompareFunction.Always, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep),
+                    new StencilState(
+                        0,
+                        255,
+                        0,
+                        CompareFunction.Always,
+                        StencilOp.Keep,
+                        StencilOp.Keep,
+                        StencilOp.Keep
+                    ),
                     renderingMode,
                     "Always+Keep Stencil reader control"
                 );
 
                 RenderStencilSequence(clearStencil, writer, RearDepth, control, FrontDepth);
                 Color controlPixel = ReadCenterPixel(renderTexture, texture);
-                AssertFinite(controlPixel, shader.name + " Always+Keep reader control " + FormatDescription);
-                Assert.That(RgbMagnitude(controlPixel), Is.GreaterThan(0.05f), shader.name + " Always+Keep reader control after the writer must render before Equal/NotEqual is observed. " + FormatDescription + " Pixel=" + controlPixel);
+                AssertFinite(
+                    controlPixel,
+                    shader.name + " Always+Keep reader control " + FormatDescription
+                );
+                Assert.That(
+                    RgbMagnitude(controlPixel),
+                    Is.GreaterThan(0.05f),
+                    shader.name
+                        + " Always+Keep reader control after the writer must render before Equal/NotEqual is observed. "
+                        + FormatDescription
+                        + " Pixel="
+                        + controlPixel
+                );
 
                 ClearTarget(clearStencil);
                 RenderMaterial(writer);
@@ -197,10 +302,21 @@ namespace PureBase.Tests.Daily
             /// <param name="stencilState">The material Stencil state.</param>
             /// <param name="lightCount">The number of directional lights to render.</param>
             /// <returns>The center pixel after the Toon composite.</returns>
-            public Color RenderToonComposite(Shader shader, byte clearStencil, StencilState stencilState, int lightCount)
+            public Color RenderToonComposite(
+                Shader shader,
+                byte clearStencil,
+                StencilState stencilState,
+                int lightCount
+            )
             {
                 SetLightCount(lightCount);
-                Material material = CreateProductMaterial(shader, new Color(0.8f, 0.6f, 0.4f, 0.5f), stencilState, 2, "Toon ForwardAdd composite");
+                Material material = CreateProductMaterial(
+                    shader,
+                    new Color(0.8f, 0.6f, 0.4f, 0.5f),
+                    stencilState,
+                    2,
+                    "Toon ForwardAdd composite"
+                );
                 AssertToonForwardAddPreconditions(lightCount, material);
                 ClearTarget(clearStencil);
                 RenderMaterial(material);
@@ -339,32 +455,125 @@ namespace PureBase.Tests.Daily
             /// <returns>The exact tracked D24S8 asset with a created GPU resource.</returns>
             private static RenderTexture LoadAndCreateD24S8RenderTextureAsset()
             {
-                RenderTexture target = AssetDatabase.LoadAssetAtPath<RenderTexture>(RenderTextureAssetPath);
-                Assert.That(target, Is.Not.Null, "The D24S8 fixture asset must exist at '" + RenderTextureAssetPath + "'. This is fixture configuration, not product behavior.");
+                RenderTexture target = AssetDatabase.LoadAssetAtPath<RenderTexture>(
+                    RenderTextureAssetPath
+                );
+                Assert.That(
+                    target,
+                    Is.Not.Null,
+                    "The D24S8 fixture asset must exist at '"
+                        + RenderTextureAssetPath
+                        + "'. This is fixture configuration, not product behavior."
+                );
                 AssertCompatibleFormatFallbackIsDisabled(target);
 
                 RenderTextureDescriptor descriptor = target.descriptor;
-                Assert.That(descriptor.graphicsFormat, Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm), "The D24S8 fixture asset descriptor must request R8G8B8A8_UNorm color without fallback. " + DescribeTarget(target));
-                Assert.That(descriptor.depthStencilFormat, Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt), "The D24S8 fixture asset descriptor must request D24_UNorm_S8_UInt depth-stencil without fallback. " + DescribeTarget(target));
-                Assert.That(target.antiAliasing, Is.EqualTo(1), "The D24S8 fixture asset must use MSAA 1. " + DescribeTarget(target));
-                Assert.That(descriptor.msaaSamples, Is.EqualTo(1), "The D24S8 fixture descriptor must use MSAA 1. " + DescribeTarget(target));
-                Assert.That(target.sRGB, Is.False, "The D24S8 fixture asset must be linear and non-sRGB. " + DescribeTarget(target));
-                Assert.That(descriptor.sRGB, Is.False, "The D24S8 fixture descriptor must be linear and non-sRGB. " + DescribeTarget(target));
-                Assert.That(target.useMipMap, Is.False, "The D24S8 fixture asset must not use mipmaps. " + DescribeTarget(target));
-                Assert.That(descriptor.useMipMap, Is.False, "The D24S8 fixture descriptor must not use mipmaps. " + DescribeTarget(target));
-                Assert.That(target.useDynamicScale, Is.False, "The D24S8 fixture asset must not use dynamic scaling. " + DescribeTarget(target));
-                Assert.That(descriptor.useDynamicScale, Is.False, "The D24S8 fixture descriptor must not use dynamic scaling. " + DescribeTarget(target));
-                Assert.That(target.enableRandomWrite, Is.False, "The D24S8 fixture asset must not enable random writes. " + DescribeTarget(target));
-                Assert.That(descriptor.enableRandomWrite, Is.False, "The D24S8 fixture descriptor must not enable random writes. " + DescribeTarget(target));
+                Assert.That(
+                    descriptor.graphicsFormat,
+                    Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm),
+                    "The D24S8 fixture asset descriptor must request R8G8B8A8_UNorm color without fallback. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.depthStencilFormat,
+                    Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt),
+                    "The D24S8 fixture asset descriptor must request D24_UNorm_S8_UInt depth-stencil without fallback. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.antiAliasing,
+                    Is.EqualTo(1),
+                    "The D24S8 fixture asset must use MSAA 1. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.msaaSamples,
+                    Is.EqualTo(1),
+                    "The D24S8 fixture descriptor must use MSAA 1. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.sRGB,
+                    Is.False,
+                    "The D24S8 fixture asset must be linear and non-sRGB. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.sRGB,
+                    Is.False,
+                    "The D24S8 fixture descriptor must be linear and non-sRGB. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.useMipMap,
+                    Is.False,
+                    "The D24S8 fixture asset must not use mipmaps. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.useMipMap,
+                    Is.False,
+                    "The D24S8 fixture descriptor must not use mipmaps. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.useDynamicScale,
+                    Is.False,
+                    "The D24S8 fixture asset must not use dynamic scaling. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.useDynamicScale,
+                    Is.False,
+                    "The D24S8 fixture descriptor must not use dynamic scaling. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.enableRandomWrite,
+                    Is.False,
+                    "The D24S8 fixture asset must not enable random writes. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.enableRandomWrite,
+                    Is.False,
+                    "The D24S8 fixture descriptor must not enable random writes. "
+                        + DescribeTarget(target)
+                );
 
                 try
                 {
-                    Assert.That(target.Create(), Is.True, "The configured D24S8 fixture asset must create its GPU resource without compatible-format fallback. " + DescribeTarget(target));
-                    Assert.That(target.IsCreated(), Is.True, "The configured D24S8 fixture asset GPU resource must be created. " + DescribeTarget(target));
-                    Assert.That(target.graphicsFormat, Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm), "The created D24S8 fixture asset must allocate exact R8G8B8A8_UNorm color. " + DescribeTarget(target));
-                    Assert.That(target.depthStencilFormat, Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt), "The created D24S8 fixture asset must allocate exact D24_UNorm_S8_UInt depth-stencil. " + DescribeTarget(target));
-                    Assert.That(RenderTexture.SupportsStencil(target), Is.True, "The created D24S8 fixture asset must provide a Stencil attachment. " + DescribeTarget(target));
-                    Assert.That(GetStencilBitCount(target.depthStencilFormat), Is.EqualTo(8), "The created D24S8 fixture asset must provide exactly eight Stencil bits. " + DescribeTarget(target));
+                    Assert.That(
+                        target.Create(),
+                        Is.True,
+                        "The configured D24S8 fixture asset must create its GPU resource without compatible-format fallback. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        target.IsCreated(),
+                        Is.True,
+                        "The configured D24S8 fixture asset GPU resource must be created. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        target.graphicsFormat,
+                        Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm),
+                        "The created D24S8 fixture asset must allocate exact R8G8B8A8_UNorm color. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        target.depthStencilFormat,
+                        Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt),
+                        "The created D24S8 fixture asset must allocate exact D24_UNorm_S8_UInt depth-stencil. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        RenderTexture.SupportsStencil(target),
+                        Is.True,
+                        "The created D24S8 fixture asset must provide a Stencil attachment. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        GetStencilBitCount(target.depthStencilFormat),
+                        Is.EqualTo(8),
+                        "The created D24S8 fixture asset must provide exactly eight Stencil bits. "
+                            + DescribeTarget(target)
+                    );
                     return target;
                 }
                 catch
@@ -377,41 +586,136 @@ namespace PureBase.Tests.Daily
             /// <summary>Loads and conditionally creates the shared D24S8 asset for the active-scene Toon scope.</summary>
             /// <param name="createdRenderTextureResource">Receives whether this call created the GPU resource.</param>
             /// <returns>The exact tracked D24S8 asset with a created GPU resource.</returns>
-            public static RenderTexture LoadAndCreateD24S8RenderTextureAssetForToonScope(out bool createdRenderTextureResource)
+            public static RenderTexture LoadAndCreateD24S8RenderTextureAssetForToonScope(
+                out bool createdRenderTextureResource
+            )
             {
-                RenderTexture target = AssetDatabase.LoadAssetAtPath<RenderTexture>(RenderTextureAssetPath);
-                Assert.That(target, Is.Not.Null, "The D24S8 fixture asset must exist at '" + RenderTextureAssetPath + "'. This is fixture configuration, not product behavior.");
+                RenderTexture target = AssetDatabase.LoadAssetAtPath<RenderTexture>(
+                    RenderTextureAssetPath
+                );
+                Assert.That(
+                    target,
+                    Is.Not.Null,
+                    "The D24S8 fixture asset must exist at '"
+                        + RenderTextureAssetPath
+                        + "'. This is fixture configuration, not product behavior."
+                );
                 AssertCompatibleFormatFallbackIsDisabled(target);
                 bool initiallyCreated = target.IsCreated();
                 createdRenderTextureResource = false;
 
                 RenderTextureDescriptor descriptor = target.descriptor;
-                Assert.That(descriptor.graphicsFormat, Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm), "The D24S8 fixture asset descriptor must request R8G8B8A8_UNorm color without fallback. " + DescribeTarget(target));
-                Assert.That(descriptor.depthStencilFormat, Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt), "The D24S8 fixture asset descriptor must request D24_UNorm_S8_UInt depth-stencil without fallback. " + DescribeTarget(target));
-                Assert.That(target.antiAliasing, Is.EqualTo(1), "The D24S8 fixture asset must use MSAA 1. " + DescribeTarget(target));
-                Assert.That(descriptor.msaaSamples, Is.EqualTo(1), "The D24S8 fixture descriptor must use MSAA 1. " + DescribeTarget(target));
-                Assert.That(target.sRGB, Is.False, "The D24S8 fixture asset must be linear and non-sRGB. " + DescribeTarget(target));
-                Assert.That(descriptor.sRGB, Is.False, "The D24S8 fixture descriptor must be linear and non-sRGB. " + DescribeTarget(target));
-                Assert.That(target.useMipMap, Is.False, "The D24S8 fixture asset must not use mipmaps. " + DescribeTarget(target));
-                Assert.That(descriptor.useMipMap, Is.False, "The D24S8 fixture descriptor must not use mipmaps. " + DescribeTarget(target));
-                Assert.That(target.useDynamicScale, Is.False, "The D24S8 fixture asset must not use dynamic scaling. " + DescribeTarget(target));
-                Assert.That(descriptor.useDynamicScale, Is.False, "The D24S8 fixture descriptor must not use dynamic scaling. " + DescribeTarget(target));
-                Assert.That(target.enableRandomWrite, Is.False, "The D24S8 fixture asset must not enable random writes. " + DescribeTarget(target));
-                Assert.That(descriptor.enableRandomWrite, Is.False, "The D24S8 fixture descriptor must not enable random writes. " + DescribeTarget(target));
+                Assert.That(
+                    descriptor.graphicsFormat,
+                    Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm),
+                    "The D24S8 fixture asset descriptor must request R8G8B8A8_UNorm color without fallback. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.depthStencilFormat,
+                    Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt),
+                    "The D24S8 fixture asset descriptor must request D24_UNorm_S8_UInt depth-stencil without fallback. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.antiAliasing,
+                    Is.EqualTo(1),
+                    "The D24S8 fixture asset must use MSAA 1. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.msaaSamples,
+                    Is.EqualTo(1),
+                    "The D24S8 fixture descriptor must use MSAA 1. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.sRGB,
+                    Is.False,
+                    "The D24S8 fixture asset must be linear and non-sRGB. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.sRGB,
+                    Is.False,
+                    "The D24S8 fixture descriptor must be linear and non-sRGB. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.useMipMap,
+                    Is.False,
+                    "The D24S8 fixture asset must not use mipmaps. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.useMipMap,
+                    Is.False,
+                    "The D24S8 fixture descriptor must not use mipmaps. " + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.useDynamicScale,
+                    Is.False,
+                    "The D24S8 fixture asset must not use dynamic scaling. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.useDynamicScale,
+                    Is.False,
+                    "The D24S8 fixture descriptor must not use dynamic scaling. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    target.enableRandomWrite,
+                    Is.False,
+                    "The D24S8 fixture asset must not enable random writes. "
+                        + DescribeTarget(target)
+                );
+                Assert.That(
+                    descriptor.enableRandomWrite,
+                    Is.False,
+                    "The D24S8 fixture descriptor must not enable random writes. "
+                        + DescribeTarget(target)
+                );
 
                 try
                 {
                     if (!initiallyCreated)
                     {
-                        Assert.That(target.Create(), Is.True, "The configured D24S8 fixture asset must create its GPU resource without compatible-format fallback. " + DescribeTarget(target));
+                        Assert.That(
+                            target.Create(),
+                            Is.True,
+                            "The configured D24S8 fixture asset must create its GPU resource without compatible-format fallback. "
+                                + DescribeTarget(target)
+                        );
                         createdRenderTextureResource = true;
                     }
 
-                    Assert.That(target.IsCreated(), Is.True, "The configured D24S8 fixture asset GPU resource must be created. " + DescribeTarget(target));
-                    Assert.That(target.graphicsFormat, Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm), "The created D24S8 fixture asset must allocate exact R8G8B8A8_UNorm color. " + DescribeTarget(target));
-                    Assert.That(target.depthStencilFormat, Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt), "The created D24S8 fixture asset must allocate exact D24_UNorm_S8_UInt depth-stencil. " + DescribeTarget(target));
-                    Assert.That(RenderTexture.SupportsStencil(target), Is.True, "The created D24S8 fixture asset must provide a Stencil attachment. " + DescribeTarget(target));
-                    Assert.That(GetStencilBitCount(target.depthStencilFormat), Is.EqualTo(8), "The created D24S8 fixture asset must provide exactly eight Stencil bits. " + DescribeTarget(target));
+                    Assert.That(
+                        target.IsCreated(),
+                        Is.True,
+                        "The configured D24S8 fixture asset GPU resource must be created. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        target.graphicsFormat,
+                        Is.EqualTo(GraphicsFormat.R8G8B8A8_UNorm),
+                        "The created D24S8 fixture asset must allocate exact R8G8B8A8_UNorm color. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        target.depthStencilFormat,
+                        Is.EqualTo(GraphicsFormat.D24_UNorm_S8_UInt),
+                        "The created D24S8 fixture asset must allocate exact D24_UNorm_S8_UInt depth-stencil. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        RenderTexture.SupportsStencil(target),
+                        Is.True,
+                        "The created D24S8 fixture asset must provide a Stencil attachment. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        GetStencilBitCount(target.depthStencilFormat),
+                        Is.EqualTo(8),
+                        "The created D24S8 fixture asset must provide exactly eight Stencil bits. "
+                            + DescribeTarget(target)
+                    );
                     return target;
                 }
                 catch
@@ -432,9 +736,21 @@ namespace PureBase.Tests.Daily
                 using (var serializedTarget = new SerializedObject(target))
                 {
                     serializedTarget.Update();
-                    SerializedProperty compatibleFallback = serializedTarget.FindProperty("m_EnableCompatibleFormat");
-                    Assert.That(compatibleFallback, Is.Not.Null, "The D24S8 fixture asset must expose m_EnableCompatibleFormat through SerializedObject inspection. " + DescribeTarget(target));
-                    Assert.That(compatibleFallback.boolValue, Is.False, "The D24S8 fixture asset must disable compatible-format fallback. " + DescribeTarget(target));
+                    SerializedProperty compatibleFallback = serializedTarget.FindProperty(
+                        "m_EnableCompatibleFormat"
+                    );
+                    Assert.That(
+                        compatibleFallback,
+                        Is.Not.Null,
+                        "The D24S8 fixture asset must expose m_EnableCompatibleFormat through SerializedObject inspection. "
+                            + DescribeTarget(target)
+                    );
+                    Assert.That(
+                        compatibleFallback.boolValue,
+                        Is.False,
+                        "The D24S8 fixture asset must disable compatible-format fallback. "
+                            + DescribeTarget(target)
+                    );
                 }
             }
 
@@ -457,23 +773,40 @@ namespace PureBase.Tests.Daily
                 }
 
                 RenderTextureDescriptor descriptor = target.descriptor;
-                return "AssetPath=" + RenderTextureAssetPath +
-                    " DescriptorColor=" + descriptor.graphicsFormat +
-                    " DescriptorDepthStencil=" + descriptor.depthStencilFormat +
-                    " DescriptorMSAA=" + descriptor.msaaSamples +
-                    " DescriptorSRGB=" + descriptor.sRGB +
-                    " DescriptorMipMap=" + descriptor.useMipMap +
-                    " DescriptorDynamicScale=" + descriptor.useDynamicScale +
-                    " DescriptorRandomWrite=" + descriptor.enableRandomWrite +
-                    " ActualColor=" + target.graphicsFormat +
-                    " ActualDepthStencil=" + target.depthStencilFormat +
-                    " ActualMSAA=" + target.antiAliasing +
-                    " ActualSRGB=" + target.sRGB +
-                    " ActualMipMap=" + target.useMipMap +
-                    " ActualDynamicScale=" + target.useDynamicScale +
-                    " ActualRandomWrite=" + target.enableRandomWrite +
-                    " StencilBits=" + GetStencilBitCount(target.depthStencilFormat) +
-                    " IsCreated=" + target.IsCreated();
+                return "AssetPath="
+                    + RenderTextureAssetPath
+                    + " DescriptorColor="
+                    + descriptor.graphicsFormat
+                    + " DescriptorDepthStencil="
+                    + descriptor.depthStencilFormat
+                    + " DescriptorMSAA="
+                    + descriptor.msaaSamples
+                    + " DescriptorSRGB="
+                    + descriptor.sRGB
+                    + " DescriptorMipMap="
+                    + descriptor.useMipMap
+                    + " DescriptorDynamicScale="
+                    + descriptor.useDynamicScale
+                    + " DescriptorRandomWrite="
+                    + descriptor.enableRandomWrite
+                    + " ActualColor="
+                    + target.graphicsFormat
+                    + " ActualDepthStencil="
+                    + target.depthStencilFormat
+                    + " ActualMSAA="
+                    + target.antiAliasing
+                    + " ActualSRGB="
+                    + target.sRGB
+                    + " ActualMipMap="
+                    + target.useMipMap
+                    + " ActualDynamicScale="
+                    + target.useDynamicScale
+                    + " ActualRandomWrite="
+                    + target.enableRandomWrite
+                    + " StencilBits="
+                    + GetStencilBitCount(target.depthStencilFormat)
+                    + " IsCreated="
+                    + target.IsCreated();
             }
 
             /// <summary>Configures the fixture camera to render only its isolated preview scene into the D24S8 target.</summary>
@@ -512,7 +845,11 @@ namespace PureBase.Tests.Daily
             /// <param name="lightCount">The required number of lights.</param>
             private void SetLightCount(int lightCount)
             {
-                Assert.That(lightCount, Is.GreaterThanOrEqualTo(1), "The Stencil fixture must have at least one directional light.");
+                Assert.That(
+                    lightCount,
+                    Is.GreaterThanOrEqualTo(1),
+                    "The Stencil fixture must have at least one directional light."
+                );
                 DestroyLights();
                 int cullingMask = 1 << FixtureLayer;
                 for (int index = 0; index < lightCount; index++)
@@ -527,7 +864,11 @@ namespace PureBase.Tests.Daily
                     light.color = Color.white;
                     light.intensity = 1.0f;
                     light.cullingMask = cullingMask;
-                    lightObject.transform.rotation = Quaternion.Euler(30.0f, index == 0 ? -30.0f : 30.0f, 0.0f);
+                    lightObject.transform.rotation = Quaternion.Euler(
+                        30.0f,
+                        index == 0 ? -30.0f : 30.0f,
+                        0.0f
+                    );
                 }
 
                 RenderSettings.sun = lightObjects[0].GetComponent<Light>();
@@ -539,21 +880,61 @@ namespace PureBase.Tests.Daily
             private void AssertToonForwardAddPreconditions(int lightCount, Material material)
             {
                 Camera camera = cameraObject.GetComponent<Camera>();
-                Assert.That(camera.renderingPath, Is.EqualTo(RenderingPath.Forward), "The Toon Stencil fixture must force the BIRP Forward camera path before observing ForwardAdd.");
-                Assert.That(QualitySettings.pixelLightCount, Is.GreaterThanOrEqualTo(2), "The Toon Stencil fixture must allow at least two pixel lights before observing ForwardAdd.");
-                Assert.That(lightCount, Is.GreaterThanOrEqualTo(1), "The Toon Stencil fixture requires at least one directional light.");
-                Assert.That(lightObjects.Count, Is.EqualTo(lightCount), "The Toon Stencil fixture must create exactly the requested number of directional lights.");
+                Assert.That(
+                    camera.renderingPath,
+                    Is.EqualTo(RenderingPath.Forward),
+                    "The Toon Stencil fixture must force the BIRP Forward camera path before observing ForwardAdd."
+                );
+                Assert.That(
+                    QualitySettings.pixelLightCount,
+                    Is.GreaterThanOrEqualTo(2),
+                    "The Toon Stencil fixture must allow at least two pixel lights before observing ForwardAdd."
+                );
+                Assert.That(
+                    lightCount,
+                    Is.GreaterThanOrEqualTo(1),
+                    "The Toon Stencil fixture requires at least one directional light."
+                );
+                Assert.That(
+                    lightObjects.Count,
+                    Is.EqualTo(lightCount),
+                    "The Toon Stencil fixture must create exactly the requested number of directional lights."
+                );
                 foreach (GameObject lightObject in lightObjects)
                 {
                     Light light = lightObject.GetComponent<Light>();
-                    Assert.That(light.type, Is.EqualTo(LightType.Directional), "The Toon Stencil fixture requires directional pixel lights.");
-                    Assert.That(light.renderMode, Is.EqualTo(LightRenderMode.ForcePixel), "The Toon Stencil fixture must force each directional light to the pixel-light path.");
-                    Assert.That(light.intensity, Is.GreaterThan(0.0f), "The Toon Stencil fixture requires a nonzero directional-light intensity.");
+                    Assert.That(
+                        light.type,
+                        Is.EqualTo(LightType.Directional),
+                        "The Toon Stencil fixture requires directional pixel lights."
+                    );
+                    Assert.That(
+                        light.renderMode,
+                        Is.EqualTo(LightRenderMode.ForcePixel),
+                        "The Toon Stencil fixture must force each directional light to the pixel-light path."
+                    );
+                    Assert.That(
+                        light.intensity,
+                        Is.GreaterThan(0.0f),
+                        "The Toon Stencil fixture requires a nonzero directional-light intensity."
+                    );
                 }
 
-                Assert.That(material.HasProperty("_NormalMap"), Is.True, "The Toon Stencil fixture requires the public normal-map input before observing ForwardAdd.");
-                Assert.That(material.GetTexture("_NormalMap"), Is.EqualTo(Texture2D.normalTexture), "The Toon Stencil fixture must use the neutral normal map before observing ForwardAdd.");
-                Assert.That(material.GetFloat("_NormalScale"), Is.EqualTo(1.0f), "The Toon Stencil fixture must use unit normal-map scale before observing ForwardAdd.");
+                Assert.That(
+                    material.HasProperty("_NormalMap"),
+                    Is.True,
+                    "The Toon Stencil fixture requires the public normal-map input before observing ForwardAdd."
+                );
+                Assert.That(
+                    material.GetTexture("_NormalMap"),
+                    Is.EqualTo(Texture2D.normalTexture),
+                    "The Toon Stencil fixture must use the neutral normal map before observing ForwardAdd."
+                );
+                Assert.That(
+                    material.GetFloat("_NormalScale"),
+                    Is.EqualTo(1.0f),
+                    "The Toon Stencil fixture must use unit normal-map scale before observing ForwardAdd."
+                );
             }
 
             /// <summary>Destroys temporary directional lights in reverse creation order.</summary>
@@ -574,13 +955,41 @@ namespace PureBase.Tests.Daily
             /// <param name="renderingMode">The Pure-Base rendering mode.</param>
             /// <param name="scenario">The scenario used to distinguish missing product behavior from fixture failure.</param>
             /// <returns>The configured material.</returns>
-            private Material CreateProductMaterial(Shader shader, Color baseColor, StencilState stencilState, int renderingMode, string scenario)
+            private Material CreateProductMaterial(
+                Shader shader,
+                Color baseColor,
+                StencilState stencilState,
+                int renderingMode,
+                string scenario
+            )
             {
-                Assert.That(shader, Is.Not.Null, "The product shader is required for the D24S8 Stencil " + scenario + " fixture.");
+                Assert.That(
+                    shader,
+                    Is.Not.Null,
+                    "The product shader is required for the D24S8 Stencil " + scenario + " fixture."
+                );
                 var material = new Material(shader);
                 materials.Add(material);
-                Assert.That(material.HasProperty("_BaseColor"), Is.True, "Product shader '" + shader.name + "' must expose _BaseColor for D24S8 Stencil " + scenario + ". " + FormatDescription);
-                Assert.That(material.HasProperty("_Cutoff"), Is.True, "Product shader '" + shader.name + "' must expose _Cutoff for D24S8 Stencil " + scenario + ". " + FormatDescription);
+                Assert.That(
+                    material.HasProperty("_BaseColor"),
+                    Is.True,
+                    "Product shader '"
+                        + shader.name
+                        + "' must expose _BaseColor for D24S8 Stencil "
+                        + scenario
+                        + ". "
+                        + FormatDescription
+                );
+                Assert.That(
+                    material.HasProperty("_Cutoff"),
+                    Is.True,
+                    "Product shader '"
+                        + shader.name
+                        + "' must expose _Cutoff for D24S8 Stencil "
+                        + scenario
+                        + ". "
+                        + FormatDescription
+                );
                 material.SetTexture("_BaseTexture", Texture2D.whiteTexture);
                 material.SetColor("_BaseColor", baseColor);
                 material.SetFloat("_Cutoff", 0.5f);
@@ -599,7 +1008,11 @@ namespace PureBase.Tests.Daily
             /// <param name="material">The material receiving Stencil values.</param>
             /// <param name="stencilState">The required Stencil values.</param>
             /// <param name="scenario">The scenario used in failure diagnostics.</param>
-            private void ConfigureStencil(Material material, StencilState stencilState, string scenario)
+            private void ConfigureStencil(
+                Material material,
+                StencilState stencilState,
+                string scenario
+            )
             {
                 RequireStencilProperty(material, "_StencilRef", scenario);
                 RequireStencilProperty(material, "_StencilReadMask", scenario);
@@ -621,9 +1034,24 @@ namespace PureBase.Tests.Daily
             /// <param name="material">The product material.</param>
             /// <param name="propertyName">The required public Stencil property.</param>
             /// <param name="scenario">The scenario used in failure diagnostics.</param>
-            private void RequireStencilProperty(Material material, string propertyName, string scenario)
+            private void RequireStencilProperty(
+                Material material,
+                string propertyName,
+                string scenario
+            )
             {
-                Assert.That(material.HasProperty(propertyName), Is.True, "Product shader '" + material.shader.name + "' is missing Stencil ABI property '" + propertyName + "' for " + scenario + ". This is product behavior, not fixture format failure. " + FormatDescription);
+                Assert.That(
+                    material.HasProperty(propertyName),
+                    Is.True,
+                    "Product shader '"
+                        + material.shader.name
+                        + "' is missing Stencil ABI property '"
+                        + propertyName
+                        + "' for "
+                        + scenario
+                        + ". This is product behavior, not fixture format failure. "
+                        + FormatDescription
+                );
             }
 
             /// <summary>Clears color, depth, and the exact requested Stencil byte through the owned command buffer.</summary>
@@ -659,7 +1087,13 @@ namespace PureBase.Tests.Daily
             /// <param name="rearDepth">The camera-relative depth of the writer.</param>
             /// <param name="frontMaterial">The material drawn in front of the writer.</param>
             /// <param name="frontDepth">The camera-relative depth of the reader.</param>
-            private void RenderStencilSequence(byte clearStencil, Material rearMaterial, float rearDepth, Material frontMaterial, float frontDepth)
+            private void RenderStencilSequence(
+                byte clearStencil,
+                Material rearMaterial,
+                float rearDepth,
+                Material frontMaterial,
+                float frontDepth
+            )
             {
                 ClearTarget(clearStencil);
                 Renderer writerRenderer = writerObject.GetComponent<Renderer>();

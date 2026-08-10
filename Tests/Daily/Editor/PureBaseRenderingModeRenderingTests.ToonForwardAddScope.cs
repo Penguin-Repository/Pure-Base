@@ -101,12 +101,17 @@ namespace PureBase.Tests.Daily
             {
                 get
                 {
-                    Camera camera = cameraObject == null ? null : cameraObject.GetComponent<Camera>();
-                    return D24S8StencilFixture.DescribeTarget(renderTexture) +
-                        " RequestedRenderingPath=" + (camera == null ? "<unallocated>" : camera.renderingPath.ToString()) +
-                        " ActualRenderingPath=" + (camera == null ? "<unallocated>" : camera.actualRenderingPath.ToString()) +
-                        " PixelLightCount=" + QualitySettings.pixelLightCount +
-                        " FixtureLayer=" + fixtureLayer;
+                    Camera camera =
+                        cameraObject == null ? null : cameraObject.GetComponent<Camera>();
+                    return D24S8StencilFixture.DescribeTarget(renderTexture)
+                        + " RequestedRenderingPath="
+                        + (camera == null ? "<unallocated>" : camera.renderingPath.ToString())
+                        + " ActualRenderingPath="
+                        + (camera == null ? "<unallocated>" : camera.actualRenderingPath.ToString())
+                        + " PixelLightCount="
+                        + QualitySettings.pixelLightCount
+                        + " FixtureLayer="
+                        + fixtureLayer;
                 }
             }
 
@@ -115,10 +120,16 @@ namespace PureBase.Tests.Daily
             {
                 CaptureSharedState();
                 fixtureLayer = FindUnusedLayer();
-                renderTexture = D24S8StencilFixture.LoadAndCreateD24S8RenderTextureAssetForToonScope(out createdRenderTextureResource);
+                renderTexture =
+                    D24S8StencilFixture.LoadAndCreateD24S8RenderTextureAssetForToonScope(
+                        out createdRenderTextureResource
+                    );
                 commandBuffer = new CommandBuffer { name = "PureBase Toon ForwardAdd D24S8 Clear" };
                 cameraObject = CreateHiddenObject("PureBaseToonForwardAddCamera");
-                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBA32, false, true) { hideFlags = HideFlags.HideAndDontSave };
+                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBA32, false, true)
+                {
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
                 quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 quadObject.hideFlags = HideFlags.HideAndDontSave;
                 quadObject.layer = fixtureLayer;
@@ -135,7 +146,11 @@ namespace PureBase.Tests.Daily
                 camera.clearFlags = CameraClearFlags.Nothing;
                 camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
                 camera.targetTexture = renderTexture;
-                Assert.That(camera.renderingPath, Is.EqualTo(RenderingPath.Forward), "The Toon D24S8 scope must request the BIRP Forward camera path.");
+                Assert.That(
+                    camera.renderingPath,
+                    Is.EqualTo(RenderingPath.Forward),
+                    "The Toon D24S8 scope must request the BIRP Forward camera path."
+                );
             }
 
             /// <summary>Renders one transparent Toon material with the requested isolated directional-light count.</summary>
@@ -144,7 +159,12 @@ namespace PureBase.Tests.Daily
             /// <param name="stencilState">The explicit Stencil configuration.</param>
             /// <param name="lightCount">The number of ForcePixel directional lights.</param>
             /// <returns>The rendered center pixel.</returns>
-            public Color RenderToonComposite(Shader shader, byte clearStencil, StencilState stencilState, int lightCount)
+            public Color RenderToonComposite(
+                Shader shader,
+                byte clearStencil,
+                StencilState stencilState,
+                int lightCount
+            )
             {
                 SetLightCount(lightCount);
                 Material material = CreateToonMaterial(shader, stencilState);
@@ -156,7 +176,12 @@ namespace PureBase.Tests.Daily
                 try
                 {
                     camera.Render();
-                    Assert.That(camera.actualRenderingPath, Is.EqualTo(RenderingPath.Forward), "The Toon D24S8 scope must actually use the BIRP Forward camera path. " + FormatDescription);
+                    Assert.That(
+                        camera.actualRenderingPath,
+                        Is.EqualTo(RenderingPath.Forward),
+                        "The Toon D24S8 scope must actually use the BIRP Forward camera path. "
+                            + FormatDescription
+                    );
                     return ReadCenterPixel(renderTexture, texture);
                 }
                 finally
@@ -267,11 +292,23 @@ namespace PureBase.Tests.Daily
             /// <summary>Verifies that every temporary Unity object was destroyed.</summary>
             private void AssertTemporaryObjectsDestroyed()
             {
-                Assert.That(quadObject == null, Is.True, "The Toon D24S8 scope must destroy its temporary quad.");
-                Assert.That(cameraObject == null, Is.True, "The Toon D24S8 scope must destroy its temporary camera.");
+                Assert.That(
+                    quadObject == null,
+                    Is.True,
+                    "The Toon D24S8 scope must destroy its temporary quad."
+                );
+                Assert.That(
+                    cameraObject == null,
+                    Is.True,
+                    "The Toon D24S8 scope must destroy its temporary camera."
+                );
                 foreach (GameObject lightObject in lightObjects)
                 {
-                    Assert.That(lightObject == null, Is.True, "The Toon D24S8 scope must destroy every temporary directional light.");
+                    Assert.That(
+                        lightObject == null,
+                        Is.True,
+                        "The Toon D24S8 scope must destroy every temporary directional light."
+                    );
                 }
             }
 
@@ -303,24 +340,48 @@ namespace PureBase.Tests.Daily
             /// <summary>Restores the active scene and verifies every loaded-scene dirty state remained unchanged.</summary>
             private void RestoreSceneState()
             {
-                Assert.That(SceneManager.sceneCount, Is.EqualTo(sceneCount), "The Toon D24S8 scope must not add or remove loaded scenes.");
+                Assert.That(
+                    SceneManager.sceneCount,
+                    Is.EqualTo(sceneCount),
+                    "The Toon D24S8 scope must not add or remove loaded scenes."
+                );
                 if (activeScene.IsValid() && activeScene.isLoaded)
                 {
                     if (SceneManager.GetActiveScene() != activeScene)
                     {
-                        Assert.That(SceneManager.SetActiveScene(activeScene), Is.True, "The Toon D24S8 scope must restore the original active scene.");
+                        Assert.That(
+                            SceneManager.SetActiveScene(activeScene),
+                            Is.True,
+                            "The Toon D24S8 scope must restore the original active scene."
+                        );
                     }
-                    Assert.That(SceneManager.GetActiveScene(), Is.EqualTo(activeScene), "The Toon D24S8 scope must preserve the original active scene.");
+                    Assert.That(
+                        SceneManager.GetActiveScene(),
+                        Is.EqualTo(activeScene),
+                        "The Toon D24S8 scope must preserve the original active scene."
+                    );
                 }
 
                 foreach (SceneState state in sceneStates)
                 {
-                    Assert.That(state.scene.isLoaded, Is.True, "The Toon D24S8 scope must keep every initially loaded scene loaded.");
+                    Assert.That(
+                        state.scene.isLoaded,
+                        Is.True,
+                        "The Toon D24S8 scope must keep every initially loaded scene loaded."
+                    );
                     if (state.isDirty)
                     {
-                        Assert.That(EditorSceneManager.MarkSceneDirty(state.scene), Is.True, "The Toon D24S8 scope must restore initially dirty scene state.");
+                        Assert.That(
+                            EditorSceneManager.MarkSceneDirty(state.scene),
+                            Is.True,
+                            "The Toon D24S8 scope must restore initially dirty scene state."
+                        );
                     }
-                    Assert.That(state.scene.isDirty, Is.EqualTo(state.isDirty), "The Toon D24S8 scope must preserve clean and dirty scene states.");
+                    Assert.That(
+                        state.scene.isDirty,
+                        Is.EqualTo(state.isDirty),
+                        "The Toon D24S8 scope must preserve clean and dirty scene states."
+                    );
                 }
             }
 
@@ -336,7 +397,9 @@ namespace PureBase.Tests.Daily
                     }
                 }
 
-                Assert.Fail("The Toon D24S8 scope requires one unused user layer to exclude existing scene rendering.");
+                Assert.Fail(
+                    "The Toon D24S8 scope requires one unused user layer to exclude existing scene rendering."
+                );
                 return 0;
             }
 
@@ -400,13 +463,19 @@ namespace PureBase.Tests.Daily
             /// <param name="lightCount">The required light count.</param>
             private void SetLightCount(int lightCount)
             {
-                Assert.That(lightCount, Is.GreaterThanOrEqualTo(1), "The Toon D24S8 scope requires at least one directional light.");
+                Assert.That(
+                    lightCount,
+                    Is.GreaterThanOrEqualTo(1),
+                    "The Toon D24S8 scope requires at least one directional light."
+                );
                 DestroyLights();
                 QualitySettings.pixelLightCount = Math.Max(2, pixelLightCount);
                 int cullingMask = 1 << fixtureLayer;
                 for (int index = 0; index < lightCount; index++)
                 {
-                    GameObject lightObject = CreateHiddenObject("PureBaseToonForwardAddLight" + index);
+                    GameObject lightObject = CreateHiddenObject(
+                        "PureBaseToonForwardAddLight" + index
+                    );
                     lightObjects.Add(lightObject);
                     Light light = lightObject.AddComponent<Light>();
                     light.type = LightType.Directional;
@@ -414,10 +483,18 @@ namespace PureBase.Tests.Daily
                     light.color = Color.white;
                     light.intensity = 1.0f;
                     light.cullingMask = cullingMask;
-                    lightObject.transform.rotation = Quaternion.Euler(30.0f, index == 0 ? -30.0f : 30.0f, 0.0f);
+                    lightObject.transform.rotation = Quaternion.Euler(
+                        30.0f,
+                        index == 0 ? -30.0f : 30.0f,
+                        0.0f
+                    );
                 }
 
-                Assert.That(QualitySettings.pixelLightCount, Is.GreaterThanOrEqualTo(2), "The Toon D24S8 scope must allow at least two pixel lights.");
+                Assert.That(
+                    QualitySettings.pixelLightCount,
+                    Is.GreaterThanOrEqualTo(2),
+                    "The Toon D24S8 scope must allow at least two pixel lights."
+                );
             }
 
             /// <summary>Destroys all temporary directional lights in reverse creation order.</summary>
@@ -437,12 +514,28 @@ namespace PureBase.Tests.Daily
             /// <returns>The caller-owned configured material.</returns>
             private Material CreateToonMaterial(Shader shader, StencilState stencilState)
             {
-                Assert.That(shader, Is.Not.Null, "The Toon shader is required for the D24S8 ForwardAdd scope.");
+                Assert.That(
+                    shader,
+                    Is.Not.Null,
+                    "The Toon shader is required for the D24S8 ForwardAdd scope."
+                );
                 var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
                 materials.Add(material);
-                Assert.That(material.HasProperty("_BaseColor"), Is.True, "Toon must expose _BaseColor for the D24S8 ForwardAdd scope.");
-                Assert.That(material.HasProperty("_Cutoff"), Is.True, "Toon must expose _Cutoff for the D24S8 ForwardAdd scope.");
-                Assert.That(material.HasProperty("_NormalMap"), Is.True, "Toon must expose _NormalMap for the D24S8 ForwardAdd scope.");
+                Assert.That(
+                    material.HasProperty("_BaseColor"),
+                    Is.True,
+                    "Toon must expose _BaseColor for the D24S8 ForwardAdd scope."
+                );
+                Assert.That(
+                    material.HasProperty("_Cutoff"),
+                    Is.True,
+                    "Toon must expose _Cutoff for the D24S8 ForwardAdd scope."
+                );
+                Assert.That(
+                    material.HasProperty("_NormalMap"),
+                    Is.True,
+                    "Toon must expose _NormalMap for the D24S8 ForwardAdd scope."
+                );
                 material.SetTexture("_BaseTexture", Texture2D.whiteTexture);
                 material.SetColor("_BaseColor", new Color(0.8f, 0.6f, 0.4f, 0.5f));
                 material.SetFloat("_Cutoff", 0.5f);
@@ -458,10 +551,26 @@ namespace PureBase.Tests.Daily
             /// <param name="stencilState">The requested Stencil configuration.</param>
             private void ConfigureStencil(Material material, StencilState stencilState)
             {
-                string[] properties = { "_StencilRef", "_StencilReadMask", "_StencilWriteMask", "_StencilComp", "_StencilPass", "_StencilFail", "_StencilZFail" };
+                string[] properties =
+                {
+                    "_StencilRef",
+                    "_StencilReadMask",
+                    "_StencilWriteMask",
+                    "_StencilComp",
+                    "_StencilPass",
+                    "_StencilFail",
+                    "_StencilZFail",
+                };
                 foreach (string property in properties)
                 {
-                    Assert.That(material.HasProperty(property), Is.True, "Toon is missing Stencil ABI property '" + property + "' for the D24S8 ForwardAdd scope. " + FormatDescription);
+                    Assert.That(
+                        material.HasProperty(property),
+                        Is.True,
+                        "Toon is missing Stencil ABI property '"
+                            + property
+                            + "' for the D24S8 ForwardAdd scope. "
+                            + FormatDescription
+                    );
                 }
                 material.SetFloat("_StencilRef", stencilState.referenceValue);
                 material.SetFloat("_StencilReadMask", stencilState.readMask);
@@ -478,7 +587,12 @@ namespace PureBase.Tests.Daily
             {
                 commandBuffer.Clear();
                 commandBuffer.SetRenderTarget(renderTexture);
-                commandBuffer.ClearRenderTarget(RTClearFlags.All, new Color(0.0f, 0.0f, 0.0f, 0.6f), 1.0f, clearStencil);
+                commandBuffer.ClearRenderTarget(
+                    RTClearFlags.All,
+                    new Color(0.0f, 0.0f, 0.0f, 0.6f),
+                    1.0f,
+                    clearStencil
+                );
                 Graphics.ExecuteCommandBuffer(commandBuffer);
             }
         }

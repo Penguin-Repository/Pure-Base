@@ -29,7 +29,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
 namespace PureBase.Tests.Daily
 {
     public sealed partial class PureBaseRenderingModeContractTests
@@ -54,7 +53,11 @@ namespace PureBase.Tests.Daily
             );
 
             Type attributeActionsType = FindLoadedType("jp.lilxyzw.shadercore.AttributeActions");
-            Assert.That(attributeActionsType, Is.Not.Null, "Shader-Core AttributeActions was not loaded.");
+            Assert.That(
+                attributeActionsType,
+                Is.Not.Null,
+                "Shader-Core AttributeActions was not loaded."
+            );
             MethodInfo containsKey = attributeActionsType.GetMethod(
                 "ContainsKey",
                 BindingFlags.Public | BindingFlags.Static,
@@ -63,11 +66,17 @@ namespace PureBase.Tests.Daily
                 null
             );
             Assert.That(containsKey, Is.Not.Null);
-            Assert.That((bool)containsKey.Invoke(null, new object[] { "PureBaseRenderingMode" }), Is.True);
+            Assert.That(
+                (bool)containsKey.Invoke(null, new object[] { "PureBaseRenderingMode" }),
+                Is.True
+            );
         }
 
         /// <summary>Asserts the complete read-only mixed-selection drawer workflow for two normalized material modes.</summary>
-        private static void AssertMixedSelectionDrawerReadsAreReadOnly(Material opaque, Material transparent)
+        private static void AssertMixedSelectionDrawerReadsAreReadOnly(
+            Material opaque,
+            Material transparent
+        )
         {
             MethodInfo apply = RequireApplyMethod();
             MethodInfo refreshSelection = RequireDrawerSelectionRefreshMethod();
@@ -77,36 +86,94 @@ namespace PureBase.Tests.Daily
             NormalizeAndClearMixedSelectionTargets(apply, opaque, transparent);
             MaterialState opaqueBaseline = MaterialState.Capture(opaque);
             MaterialState transparentBaseline = MaterialState.Capture(transparent);
-            MaterialProperty property = MaterialEditor.GetMaterialProperty(new UnityEngine.Object[] { opaque, transparent }, "_RenderingMode");
-            Assert.That(property.hasMixedValue, Is.True, "The rendering-mode field must expose mixed state before user selection.");
+            MaterialProperty property = MaterialEditor.GetMaterialProperty(
+                new UnityEngine.Object[] { opaque, transparent },
+                "_RenderingMode"
+            );
+            Assert.That(
+                property.hasMixedValue,
+                Is.True,
+                "The rendering-mode field must expose mixed state before user selection."
+            );
             opaqueBaseline.AssertEqual(opaque, "Opaque target after mixed field binding");
-            transparentBaseline.AssertEqual(transparent, "Transparent target after mixed field binding");
-            object selectionDisplayState = InvokeDrawerSelectionDisplayState(getSelectionDisplayState, new[] { opaque, transparent });
-            AssertSelectionDisplayState(selectionDisplayState, true, new[] { "Opaque", "Cutout", "Transparent" });
-            opaqueBaseline.AssertEqual(opaque, "Opaque target after mixed drawer display-state read");
-            transparentBaseline.AssertEqual(transparent, "Transparent target after mixed drawer display-state read");
+            transparentBaseline.AssertEqual(
+                transparent,
+                "Transparent target after mixed field binding"
+            );
+            object selectionDisplayState = InvokeDrawerSelectionDisplayState(
+                getSelectionDisplayState,
+                new[] { opaque, transparent }
+            );
+            AssertSelectionDisplayState(
+                selectionDisplayState,
+                true,
+                new[] { "Opaque", "Cutout", "Transparent" }
+            );
+            opaqueBaseline.AssertEqual(
+                opaque,
+                "Opaque target after mixed drawer display-state read"
+            );
+            transparentBaseline.AssertEqual(
+                transparent,
+                "Transparent target after mixed drawer display-state read"
+            );
             InvokeDrawerSelectionRefresh(refreshSelection, new[] { opaque, transparent });
             opaqueBaseline.AssertEqual(opaque, "Opaque target after read-only mixed refresh");
-            transparentBaseline.AssertEqual(transparent, "Transparent target after read-only mixed refresh");
+            transparentBaseline.AssertEqual(
+                transparent,
+                "Transparent target after read-only mixed refresh"
+            );
         }
 
         /// <summary>Explicitly normalizes each mixed-selection target and restores the clean read-only baseline.</summary>
-        private static void NormalizeAndClearMixedSelectionTargets(MethodInfo apply, Material opaque, Material transparent)
+        private static void NormalizeAndClearMixedSelectionTargets(
+            MethodInfo apply,
+            Material opaque,
+            Material transparent
+        )
         {
             EditorUtility.ClearDirty(opaque);
             EditorUtility.ClearDirty(transparent);
-            Assert.That(EditorUtility.IsDirty(opaque), Is.False, "The Opaque resync target must be clean before explicit normalization.");
-            Assert.That(EditorUtility.IsDirty(transparent), Is.False, "The Transparent resync target must be clean before explicit normalization.");
+            Assert.That(
+                EditorUtility.IsDirty(opaque),
+                Is.False,
+                "The Opaque resync target must be clean before explicit normalization."
+            );
+            Assert.That(
+                EditorUtility.IsDirty(transparent),
+                Is.False,
+                "The Transparent resync target must be clean before explicit normalization."
+            );
             InvokeApply(apply, opaque);
-            Assert.That(EditorUtility.IsDirty(opaque), Is.True, "Explicit normalization must move the clean Opaque resync target to dirty.");
+            Assert.That(
+                EditorUtility.IsDirty(opaque),
+                Is.True,
+                "Explicit normalization must move the clean Opaque resync target to dirty."
+            );
             EditorUtility.ClearDirty(transparent);
-            Assert.That(EditorUtility.IsDirty(transparent), Is.False, "The Transparent resync target must be clean immediately before its own explicit normalization.");
+            Assert.That(
+                EditorUtility.IsDirty(transparent),
+                Is.False,
+                "The Transparent resync target must be clean immediately before its own explicit normalization."
+            );
             InvokeApply(apply, transparent);
-            Assert.That(EditorUtility.IsDirty(transparent), Is.True, "Explicit normalization must move the clean Transparent resync target to dirty.");
+            Assert.That(
+                EditorUtility.IsDirty(transparent),
+                Is.True,
+                "Explicit normalization must move the clean Transparent resync target to dirty."
+            );
             EditorUtility.ClearDirty(opaque);
             EditorUtility.ClearDirty(transparent);
-            Assert.That(EditorUtility.IsDirty(opaque), Is.False, "The Opaque mixed-selection baseline must be clean.");
-            Assert.That(EditorUtility.IsDirty(transparent), Is.False, "The Transparent mixed-selection baseline must be clean.");
+            Assert.That(
+                EditorUtility.IsDirty(opaque),
+                Is.False,
+                "The Opaque mixed-selection baseline must be clean."
+            );
+            Assert.That(
+                EditorUtility.IsDirty(transparent),
+                Is.False,
+                "The Transparent mixed-selection baseline must be clean."
+            );
         }
 
         /// <summary>Requires the Cutoff drawer to register and report read-only visibility from supported Cutout selections only.</summary>
@@ -114,7 +181,11 @@ namespace PureBase.Tests.Daily
         public void CutoffDrawerIsRegisteredAndVisibilityModelIsReadOnly()
         {
             Type attributeActionsType = FindLoadedType("jp.lilxyzw.shadercore.AttributeActions");
-            Assert.That(attributeActionsType, Is.Not.Null, "Shader-Core AttributeActions was not loaded.");
+            Assert.That(
+                attributeActionsType,
+                Is.Not.Null,
+                "Shader-Core AttributeActions was not loaded."
+            );
             MethodInfo containsKey = attributeActionsType.GetMethod(
                 "ContainsKey",
                 BindingFlags.Public | BindingFlags.Static,
@@ -126,7 +197,11 @@ namespace PureBase.Tests.Daily
             Assert.That((bool)containsKey.Invoke(null, new object[] { "PureBaseCutoff" }), Is.True);
 
             Type cutoffElementType = FindLoadedType("PureBase.Editor.PureBaseCutoffElement");
-            Assert.That(cutoffElementType, Is.Not.Null, "The dedicated Cutoff Inspector drawer must be loaded.");
+            Assert.That(
+                cutoffElementType,
+                Is.Not.Null,
+                "The dedicated Cutoff Inspector drawer must be loaded."
+            );
             MethodInfo getSelectionDisplayState = cutoffElementType.GetMethod(
                 "GetSelectionDisplayState",
                 BindingFlags.Static | BindingFlags.NonPublic,
@@ -134,9 +209,20 @@ namespace PureBase.Tests.Daily
                 new[] { typeof(UnityEngine.Object[]) },
                 null
             );
-            Assert.That(getSelectionDisplayState, Is.Not.Null, "The Cutoff drawer must expose its read-only selection display model.");
-            PropertyInfo isVisible = getSelectionDisplayState.ReturnType.GetProperty("IsVisible", BindingFlags.Public | BindingFlags.Instance);
-            Assert.That(isVisible, Is.Not.Null, "The Cutoff selection display model must expose visibility.");
+            Assert.That(
+                getSelectionDisplayState,
+                Is.Not.Null,
+                "The Cutoff drawer must expose its read-only selection display model."
+            );
+            PropertyInfo isVisible = getSelectionDisplayState.ReturnType.GetProperty(
+                "IsVisible",
+                BindingFlags.Public | BindingFlags.Instance
+            );
+            Assert.That(
+                isVisible,
+                Is.Not.Null,
+                "The Cutoff selection display model must expose visibility."
+            );
 
             var opaque = CreateMaterial(RequireProductShader("PureBase/Unlit"));
             var transparent = CreateMaterial(RequireProductShader("PureBase/Toon"));
@@ -151,14 +237,37 @@ namespace PureBase.Tests.Daily
             MaterialState unsupportedBaseline = MaterialState.Capture(unsupported);
 
             Func<UnityEngine.Object[], bool> getVisibility = targets =>
-                (bool)isVisible.GetValue(getSelectionDisplayState.Invoke(null, new object[] { targets }));
-            Assert.That(getVisibility(new UnityEngine.Object[] { opaque, transparent }), Is.False, "All Opaque and Transparent supported targets must hide Cutoff.");
-            Assert.That(getVisibility(new UnityEngine.Object[] { opaque, transparent, unsupported }), Is.False, "Unsupported targets must not make Cutoff visible.");
-            Assert.That(getVisibility(new UnityEngine.Object[] { opaque, transparent, cutout, unsupported }), Is.True, "Any supported Cutout target must make Cutoff visible.");
+                (bool)
+                    isVisible.GetValue(
+                        getSelectionDisplayState.Invoke(null, new object[] { targets })
+                    );
+            Assert.That(
+                getVisibility(new UnityEngine.Object[] { opaque, transparent }),
+                Is.False,
+                "All Opaque and Transparent supported targets must hide Cutoff."
+            );
+            Assert.That(
+                getVisibility(new UnityEngine.Object[] { opaque, transparent, unsupported }),
+                Is.False,
+                "Unsupported targets must not make Cutoff visible."
+            );
+            Assert.That(
+                getVisibility(
+                    new UnityEngine.Object[] { opaque, transparent, cutout, unsupported }
+                ),
+                Is.True,
+                "Any supported Cutout target must make Cutoff visible."
+            );
             opaqueBaseline.AssertEqual(opaque, "Opaque target after Cutoff display-state read");
-            transparentBaseline.AssertEqual(transparent, "Transparent target after Cutoff display-state read");
+            transparentBaseline.AssertEqual(
+                transparent,
+                "Transparent target after Cutoff display-state read"
+            );
             cutoutBaseline.AssertEqual(cutout, "Cutout target after Cutoff display-state read");
-            unsupportedBaseline.AssertEqual(unsupported, "Unsupported target after Cutoff display-state read");
+            unsupportedBaseline.AssertEqual(
+                unsupported,
+                "Unsupported target after Cutoff display-state read"
+            );
         }
 
         /// <summary>Requires the drawer's one-action multi-target boundary to validate, normalize, undo, redo, and refresh without incidental mutation.</summary>
@@ -181,7 +290,15 @@ namespace PureBase.Tests.Daily
                 MaterialState firstBefore = MaterialState.Capture(first);
                 MaterialState secondBefore = MaterialState.Capture(second);
                 MaterialState unsupportedBefore = MaterialState.Capture(unsupported);
-                AssertRejectedSelectionPreservesEveryTarget(applySelection, first, second, unsupported, firstBefore, secondBefore, unsupportedBefore);
+                AssertRejectedSelectionPreservesEveryTarget(
+                    applySelection,
+                    first,
+                    second,
+                    unsupported,
+                    firstBefore,
+                    secondBefore,
+                    unsupportedBefore
+                );
 
                 InvokeDrawerSelectionApply(applySelection, new[] { first, second }, 2);
                 int editUndoGroup = Undo.GetCurrentGroup();
@@ -192,7 +309,13 @@ namespace PureBase.Tests.Daily
                 );
                 AssertModeState(first, Modes[2]);
                 AssertModeState(second, Modes[2]);
-                AssertUndoRedoRefreshesAreReadOnly(refreshSelection, first, second, firstBefore, secondBefore);
+                AssertUndoRedoRefreshesAreReadOnly(
+                    refreshSelection,
+                    first,
+                    second,
+                    firstBefore,
+                    secondBefore
+                );
             }
             finally
             {
@@ -201,16 +324,32 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Asserts that a rejected mixed selection leaves all targets and the Undo stack unchanged.</summary>
-        private static void AssertRejectedSelectionPreservesEveryTarget(MethodInfo applySelection, Material first, Material second, Material unsupported, MaterialState firstBefore, MaterialState secondBefore, MaterialState unsupportedBefore)
+        private static void AssertRejectedSelectionPreservesEveryTarget(
+            MethodInfo applySelection,
+            Material first,
+            Material second,
+            Material unsupported,
+            MaterialState firstBefore,
+            MaterialState secondBefore,
+            MaterialState unsupportedBefore
+        )
         {
             int undoBeforeRejectedSelection = Undo.GetCurrentGroup();
             Assert.Throws<InvalidOperationException>(
-                () => InvokeDrawerSelectionApply(applySelection, new[] { first, second, unsupported }, 2),
+                () =>
+                    InvokeDrawerSelectionApply(
+                        applySelection,
+                        new[] { first, second, unsupported },
+                        2
+                    ),
                 "The drawer must validate every selected material before mutating any valid target."
             );
             firstBefore.AssertEqual(first, "valid target after rejected mixed selection");
             secondBefore.AssertEqual(second, "second valid target after rejected mixed selection");
-            unsupportedBefore.AssertEqual(unsupported, "unsupported target after rejected mixed selection");
+            unsupportedBefore.AssertEqual(
+                unsupported,
+                "unsupported target after rejected mixed selection"
+            );
             Assert.That(
                 Undo.GetCurrentGroup(),
                 Is.EqualTo(undoBeforeRejectedSelection),
@@ -219,7 +358,13 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Asserts that Undo, Redo, and their subsequent drawer refreshes preserve established material state.</summary>
-        private static void AssertUndoRedoRefreshesAreReadOnly(MethodInfo refreshSelection, Material first, Material second, MaterialState firstBefore, MaterialState secondBefore)
+        private static void AssertUndoRedoRefreshesAreReadOnly(
+            MethodInfo refreshSelection,
+            Material first,
+            Material second,
+            MaterialState firstBefore,
+            MaterialState secondBefore
+        )
         {
             Undo.PerformUndo();
             firstBefore.AssertEqual(first, "first target after Undo");
@@ -246,7 +391,11 @@ namespace PureBase.Tests.Daily
             var retainedPaths = new List<string>();
             try
             {
-                Assert.That(AssetDatabase.IsValidFolder(TemporaryAssetRoot), Is.False, "Temporary asset root already exists.");
+                Assert.That(
+                    AssetDatabase.IsValidFolder(TemporaryAssetRoot),
+                    Is.False,
+                    "Temporary asset root already exists."
+                );
                 AssetDatabase.CreateFolder("Assets", "PureBaseRenderingModeTests");
                 Material material = CreateAndPersistTransparentMaterial(materialPath);
                 SaveMaterialAsPrefab(material, prefabPath);
@@ -272,7 +421,11 @@ namespace PureBase.Tests.Daily
                     retainedPaths.Add(materialPath);
                 if (AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(prefabPath) != null)
                     retainedPaths.Add(prefabPath);
-                Assert.That(retainedPaths, Is.Empty, $"Rendering-mode persistence test retained temporary assets: {string.Join(", ", retainedPaths)}.");
+                Assert.That(
+                    retainedPaths,
+                    Is.Empty,
+                    $"Rendering-mode persistence test retained temporary assets: {string.Join(", ", retainedPaths)}."
+                );
             }
         }
 
@@ -283,7 +436,11 @@ namespace PureBase.Tests.Daily
             AssetDatabase.CreateAsset(material, materialPath);
             material.SetInteger("_RenderingMode", 2);
             InvokeApply(RequireApplyMethod(), material);
-            Assert.That(EditorUtility.IsDirty(material), Is.True, "Explicit normalization must dirty the temporary material before the path-scoped save.");
+            Assert.That(
+                EditorUtility.IsDirty(material),
+                Is.True,
+                "Explicit normalization must dirty the temporary material before the path-scoped save."
+            );
             SaveOnlyOwnedAssetAndReimport(material, materialPath);
             material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
             Assert.That(material, Is.Not.Null);
@@ -310,11 +467,29 @@ namespace PureBase.Tests.Daily
         private static MethodInfo RequireApplyMethod()
         {
             Type type = FindLoadedType("PureBase.Editor.PureBaseMaterialRenderingMode");
-            Assert.That(type, Is.Not.Null, "PureBaseMaterialRenderingMode must be loaded from PureBase.Editor.");
+            Assert.That(
+                type,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode must be loaded from PureBase.Editor."
+            );
             Assert.That(type.IsPublic, Is.True, "PureBaseMaterialRenderingMode must be public.");
-            MethodInfo method = type.GetMethod("Apply", BindingFlags.Public | BindingFlags.Static, null, new[] { typeof(Material) }, null);
-            Assert.That(method, Is.Not.Null, "PureBaseMaterialRenderingMode must expose public static Apply(Material).");
-            Assert.That(method.ReturnType, Is.EqualTo(typeof(void)), "PureBaseMaterialRenderingMode.Apply(Material) must return void.");
+            MethodInfo method = type.GetMethod(
+                "Apply",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] { typeof(Material) },
+                null
+            );
+            Assert.That(
+                method,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode must expose public static Apply(Material)."
+            );
+            Assert.That(
+                method.ReturnType,
+                Is.EqualTo(typeof(void)),
+                "PureBaseMaterialRenderingMode.Apply(Material) must return void."
+            );
             return method;
         }
 
@@ -323,7 +498,11 @@ namespace PureBase.Tests.Daily
         private static MethodInfo RequireApplyAllMethod()
         {
             Type type = FindLoadedType("PureBase.Editor.PureBaseMaterialRenderingMode");
-            Assert.That(type, Is.Not.Null, "PureBaseMaterialRenderingMode must be loaded from PureBase.Editor.");
+            Assert.That(
+                type,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode must be loaded from PureBase.Editor."
+            );
             MethodInfo method = type.GetMethod(
                 "ApplyAll",
                 BindingFlags.NonPublic | BindingFlags.Static,
@@ -331,7 +510,11 @@ namespace PureBase.Tests.Daily
                 new[] { typeof(IReadOnlyList<Material>) },
                 null
             );
-            Assert.That(method, Is.Not.Null, "PureBaseMaterialRenderingMode must retain the validated batch boundary.");
+            Assert.That(
+                method,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode must retain the validated batch boundary."
+            );
             return method;
         }
 
@@ -353,8 +536,15 @@ namespace PureBase.Tests.Daily
         /// <returns>The static <c>GetSelectionDisplayState(Material[])</c> drawer operation.</returns>
         private static MethodInfo RequireDrawerSelectionDisplayStateMethod()
         {
-            MethodInfo method = RequireDrawerMethod("GetSelectionDisplayState", new[] { typeof(Material[]) });
-            Assert.That(method.ReturnType, Is.Not.EqualTo(typeof(void)), "The drawer selection display-state boundary must return a readable UI model.");
+            MethodInfo method = RequireDrawerMethod(
+                "GetSelectionDisplayState",
+                new[] { typeof(Material[]) }
+            );
+            Assert.That(
+                method.ReturnType,
+                Is.Not.EqualTo(typeof(void)),
+                "The drawer selection display-state boundary must return a readable UI model."
+            );
             return method;
         }
 
@@ -365,7 +555,11 @@ namespace PureBase.Tests.Daily
         private static MethodInfo RequireDrawerMethod(string methodName, Type[] parameterTypes)
         {
             Type type = FindLoadedType("PureBase.Editor.PureBaseRenderingModeElement");
-            Assert.That(type, Is.Not.Null, "The dedicated rendering-mode Inspector drawer must be loaded.");
+            Assert.That(
+                type,
+                Is.Not.Null,
+                "The dedicated rendering-mode Inspector drawer must be loaded."
+            );
             MethodInfo method = type.GetMethod(
                 methodName,
                 BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static,
@@ -376,7 +570,9 @@ namespace PureBase.Tests.Daily
             Assert.That(
                 method,
                 Is.Not.Null,
-                "PureBaseRenderingModeElement must expose the testable " + methodName + " selection boundary."
+                "PureBaseRenderingModeElement must expose the testable "
+                    + methodName
+                    + " selection boundary."
             );
             return method;
         }
@@ -402,20 +598,45 @@ namespace PureBase.Tests.Daily
         /// <param name="material">The rejected material identified by the exception.</param>
         /// <param name="value">The rejected rendering-mode value.</param>
         /// <param name="context">The operation context used in assertion diagnostics.</param>
-        private static void AssertInvalidRenderingModeException(ArgumentOutOfRangeException exception, Material material, int value, string context)
+        private static void AssertInvalidRenderingModeException(
+            ArgumentOutOfRangeException exception,
+            Material material,
+            int value,
+            string context
+        )
         {
-            Assert.That(exception, Is.Not.Null, context + " must throw an ArgumentOutOfRangeException.");
-            Assert.That(exception.ParamName, Is.EqualTo("_RenderingMode"), context + " exception parameter.");
+            Assert.That(
+                exception,
+                Is.Not.Null,
+                context + " must throw an ArgumentOutOfRangeException."
+            );
+            Assert.That(
+                exception.ParamName,
+                Is.EqualTo("_RenderingMode"),
+                context + " exception parameter."
+            );
             Assert.That(exception.ActualValue, Is.EqualTo(value), context + " exception value.");
-            StringAssert.Contains(material.name, exception.Message, context + " exception material identity.");
-            StringAssert.Contains("0, 1, or 2", exception.Message, context + " exception supported values.");
+            StringAssert.Contains(
+                material.name,
+                exception.Message,
+                context + " exception material identity."
+            );
+            StringAssert.Contains(
+                "0, 1, or 2",
+                exception.Message,
+                context + " exception supported values."
+            );
         }
 
         /// <summary>Invokes the drawer's one-action multi-target operation while preserving its original exception type.</summary>
         /// <param name="method">The reflected drawer operation.</param>
         /// <param name="materials">The selected material targets.</param>
         /// <param name="mode">The requested serialized rendering-mode value.</param>
-        private static void InvokeDrawerSelectionApply(MethodInfo method, Material[] materials, int mode)
+        private static void InvokeDrawerSelectionApply(
+            MethodInfo method,
+            Material[] materials,
+            int mode
+        )
         {
             InvokeReflectedMethod(method, new object[] { materials, mode });
         }
@@ -432,7 +653,10 @@ namespace PureBase.Tests.Daily
         /// <param name="method">The reflected drawer display-state operation.</param>
         /// <param name="materials">The selected material targets.</param>
         /// <returns>The read-only drawer display model.</returns>
-        private static object InvokeDrawerSelectionDisplayState(MethodInfo method, Material[] materials)
+        private static object InvokeDrawerSelectionDisplayState(
+            MethodInfo method,
+            Material[] materials
+        )
         {
             return InvokeReflectedMethod(method, new object[] { materials });
         }
@@ -457,14 +681,34 @@ namespace PureBase.Tests.Daily
         /// <param name="displayState">The reflection-returned drawer selection model.</param>
         /// <param name="expectedMixed">Whether the selection must be displayed as mixed.</param>
         /// <param name="expectedChoices">The complete ordered mode labels presented by the popup.</param>
-        private static void AssertSelectionDisplayState(object displayState, bool expectedMixed, string[] expectedChoices)
+        private static void AssertSelectionDisplayState(
+            object displayState,
+            bool expectedMixed,
+            string[] expectedChoices
+        )
         {
-            Assert.That(displayState, Is.Not.Null, "The drawer must return a real selection display model.");
-            Assert.That(ReadDisplayStateMember(displayState, "HasMixedValue"), Is.EqualTo(expectedMixed), "The drawer display model mixed indicator.");
+            Assert.That(
+                displayState,
+                Is.Not.Null,
+                "The drawer must return a real selection display model."
+            );
+            Assert.That(
+                ReadDisplayStateMember(displayState, "HasMixedValue"),
+                Is.EqualTo(expectedMixed),
+                "The drawer display model mixed indicator."
+            );
             object choices = ReadDisplayStateMember(displayState, "Choices");
             var labels = choices as IEnumerable<string>;
-            Assert.That(labels, Is.Not.Null, "The drawer display model Choices member must be a readable string sequence.");
-            CollectionAssert.AreEqual(expectedChoices, labels, "The drawer popup must expose exactly the three supported rendering-mode choices.");
+            Assert.That(
+                labels,
+                Is.Not.Null,
+                "The drawer display model Choices member must be a readable string sequence."
+            );
+            CollectionAssert.AreEqual(
+                expectedChoices,
+                labels,
+                "The drawer popup must expose exactly the three supported rendering-mode choices."
+            );
         }
 
         /// <summary>Reads one field or property from a drawer-owned selection display model without depending on its accessibility.</summary>
@@ -474,12 +718,19 @@ namespace PureBase.Tests.Daily
         private static object ReadDisplayStateMember(object displayState, string memberName)
         {
             Type type = displayState.GetType();
-            const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            const BindingFlags Flags =
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
             PropertyInfo property = type.GetProperty(memberName, Flags);
             if (property != null)
                 return property.GetValue(displayState, null);
             FieldInfo field = type.GetField(memberName, Flags);
-            Assert.That(field, Is.Not.Null, "The drawer display model must expose " + memberName + " as a readable field or property.");
+            Assert.That(
+                field,
+                Is.Not.Null,
+                "The drawer display model must expose "
+                    + memberName
+                    + " as a readable field or property."
+            );
             return field.GetValue(displayState);
         }
 
