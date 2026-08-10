@@ -127,7 +127,9 @@ namespace PureBase.Tests.Daily
 		{
 			var passNames = new List<string>();
 			foreach (Match match in Regex.Matches(source, @"\bName\s+""(?<name>[^""]+)"""))
+			{
 				passNames.Add(match.Groups["name"].Value);
+			}
 
 			CollectionAssert.AreEqual(ExpectedPassNames, passNames, "Product shader '" + shaderName + "' must retain exactly the established pass order.");
 		}
@@ -139,7 +141,9 @@ namespace PureBase.Tests.Daily
 		{
 			var variantDeclarations = new List<string>();
 			foreach (Match declaration in Regex.Matches(source, @"^\s*#pragma\s+(?<directive>shader_feature(?:_local)?|multi_compile(?:_local)?)\s+(?<keywords>[^\r\n]+?)\s*$", RegexOptions.Multiline))
+			{
 				variantDeclarations.Add(Regex.Replace("#pragma " + declaration.Groups["directive"].Value + " " + declaration.Groups["keywords"].Value, @"\s+", " "));
+			}
 
 			CollectionAssert.AreEqual(
 				new[] { ExpectedRenderingModeVariantDeclaration, ExpectedEditorVisualizationVariantDeclaration },
@@ -171,7 +175,9 @@ namespace PureBase.Tests.Daily
 			{
 				Match name = names[index];
 				if (!string.Equals(name.Groups["name"].Value, passName, StringComparison.Ordinal))
+				{
 					continue;
+				}
 
 				int end = index + 1 < names.Count ? names[index + 1].Index : source.Length;
 				return source.Substring(name.Index, end - name.Index);
