@@ -41,6 +41,12 @@ Describe 'Release validation runner contracts' {
         }
     }
 
+    AfterAll {
+        if ((Test-Path -LiteralPath 'variable:script:libraryPath') -and (Test-Path -LiteralPath $script:libraryPath)) {
+            Remove-Item -LiteralPath $script:libraryPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     It 'emits the shared Stencil ABI and pass policies for every product' {
         $stencilProperties = @('_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail')
         $expectedVisibleProperties = [ordered]@{
@@ -1239,7 +1245,6 @@ try {
     Write-Host 'Runner-only immutable manifest harness passed.'
 }
 finally {
-    Remove-Item -LiteralPath $libraryPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $fakeUnityPath -Force -ErrorAction SilentlyContinue
 }
 

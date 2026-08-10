@@ -427,6 +427,8 @@ namespace PureBase.Tests.Daily
                 {
                     UnityEngine.Object.DestroyImmediate(lightObjects[index]);
                 }
+
+                lightObjects.Clear();
             }
 
             /// <summary>Creates one hidden Toon material with deterministic normal input and explicit Stencil state.</summary>
