@@ -1,11 +1,15 @@
-2026/08/08
+2026/08/11
 Ver. 0.2.0-beta.1
 https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0-beta.1
 
-- Added the public `_RenderingMode` ABI with Opaque, Cutout, and Transparent states.
-- Added explicit editor synchronization through `PureBaseMaterialRenderingMode.Apply(Material)` and `Assets/PureBase/Resync Rendering Mode`.
-- Added documented render-state behavior for queue, blend, depth writing, coverage, and Transparent pass enablement.
-- Preserved four source pass declarations while allowing Transparent mode to disable `ShadowCaster` and `Meta`.
+- Added configurable Opaque, Cutout, and Transparent rendering modes to all PureBase shaders through the public `_RenderingMode` ABI.
+- Added shared Inspector controls and material-state synchronization for rendering mode and Cutout threshold, including `Assets/PureBase/Resync Rendering Mode`.
+- Added documented render-state behavior for render queue, blending, depth writing, alpha-to-coverage, and Transparent pass enablement while preserving the four source pass declarations.
+- Added configurable stencil support to all PureBase shaders with shared reference, read/write mask, comparison, and pass/fail operations.
+- Added ForwardAdd stencil behavior that re-tests the configured stencil comparison without modifying the stencil buffer, while ShadowCaster and Meta remain outside the camera stencil policy.
+- Preserved compatibility defaults for existing materials, including Cutout as the default rendering mode and no-op stencil defaults.
+- Expanded Daily, release-runner, and cold-consumer validation for rendering modes, stencil behavior, Inspector persistence, rollback, and D24S8 runtime coverage.
+- Added repository-wide LF line-ending enforcement and updated release/security workflow dependencies.
 - Updated the package version and release download identity to `0.2.0-beta.1`.
 
 2026/08/06
