@@ -41,6 +41,16 @@ Shader "PureBase/Unlit"
         {
             Name "ForwardBase"
             Tags { "LightMode" = "ForwardBase" }
+            Stencil
+            {
+                Ref [_StencilRef]
+                ReadMask [_StencilReadMask]
+                WriteMask [_StencilWriteMask]
+                Comp [_StencilComp]
+                Pass [_StencilPass]
+                Fail [_StencilFail]
+                ZFail [_StencilZFail]
+            }
             Cull [_Cull]
             ZWrite [_ZWrite]
             ZTest LEqual
@@ -57,6 +67,16 @@ Shader "PureBase/Unlit"
         {
             Name "ForwardAdd"
             Tags { "LightMode" = "ForwardAdd" }
+            Stencil
+            {
+                Ref [_StencilRef]
+                ReadMask [_StencilReadMask]
+                Comp [_StencilComp]
+                WriteMask 0
+                Pass Keep
+                Fail Keep
+                ZFail Keep
+            }
             Cull [_Cull]
             ZWrite Off
             ZTest LEqual

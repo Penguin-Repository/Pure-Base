@@ -75,6 +75,26 @@ All four shaders expose these common properties:
 
 `PureBase/PBR` and `PureBase/Hybrid` expose the same normal-map properties plus `_Metallic` and `_Roughness`. Their public property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
 
+### Stencil ABI
+
+All four product shaders expose these public Stencil properties through the Float-compatible `SC_float` ABI:
+
+| Property | UI contract | Default |
+| --- | --- | ---: |
+| `_StencilRef` | Integer range `0-255` | `0` |
+| `_StencilReadMask` | Integer range `0-255` | `255` |
+| `_StencilWriteMask` | Integer range `0-255` | `255` |
+| `_StencilComp` | `UnityEngine.Rendering.CompareFunction` | `8` (`Always`) |
+| `_StencilPass` | `UnityEngine.Rendering.StencilOp` | `0` (`Keep`) |
+| `_StencilFail` | `UnityEngine.Rendering.StencilOp` | `0` (`Keep`) |
+| `_StencilZFail` | `UnityEngine.Rendering.StencilOp` | `0` (`Keep`) |
+
+`ForwardBase` applies all seven settings. `ForwardAdd` compares the post-`ForwardBase` Stencil value using `_StencilRef`, `_StencilReadMask`, and `_StencilComp` only; it fixes `WriteMask` to `0` and `Pass`, `Fail`, and `ZFail` to `Keep`, so additional lights do not mutate Stencil. `ShadowCaster` and `Meta` do not apply the camera Stencil policy.
+
+The default `Always` plus `Keep` state is a no-op: a legacy material without saved Stencil fields continues to draw and does not mutate Stencil. If `ForwardBase` uses `Replace`, `Incr`, `Decr`, `Invert`, or another mutating operation, `ForwardAdd` may compare the changed value and therefore accept or reject independently. The policy intentionally does not preserve a comparison against the pre-`ForwardBase` value.
+
+Stencil adds no Stencil-specific keyword, variant, pass, or package dependency. Rendering-mode changes and Resync preserve user values for all seven Stencil properties.
+
 ## Shader-Core integration
 
 The shared standard phase ABI is executed in this order:

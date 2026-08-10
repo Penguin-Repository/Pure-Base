@@ -75,6 +75,26 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 `PureBase/PBR` と `PureBase/Hybrid` は、法線マップ用の項目に加えて `_Metallic` と `_Roughness` を公開します。両者の公開項目定義は完全に同一です。粗さは `0.002` から `1` の範囲に制限されます。
 
+### ステンシル ABI
+
+4つの製品シェーダーは、Float互換の `SC_float` ABI を通じて、次のステンシル項目を公開します。列挙型に対応する項目も `SC_float` として宣言されます。
+
+| 項目 | UI の仕様 | 初期値 |
+| --- | --- | ---: |
+| `_StencilRef` | 整数範囲 `0-255` | `0` |
+| `_StencilReadMask` | 整数範囲 `0-255` | `255` |
+| `_StencilWriteMask` | 整数範囲 `0-255` | `255` |
+| `_StencilComp` | `UnityEngine.Rendering.CompareFunction` | `8`（`Always`） |
+| `_StencilPass` | `UnityEngine.Rendering.StencilOp` | `0`（`Keep`） |
+| `_StencilFail` | `UnityEngine.Rendering.StencilOp` | `0`（`Keep`） |
+| `_StencilZFail` | `UnityEngine.Rendering.StencilOp` | `0`（`Keep`） |
+
+`ForwardBase` は7項目すべてを適用します。`ForwardAdd` は `ForwardBase` 後のステンシル値を `_StencilRef`、`_StencilReadMask`、`_StencilComp` だけで比較します。`WriteMask` は `0`、`Pass`、`Fail`、`ZFail` は `Keep` に固定されるため、追加ライトがステンシルを書き換えることはありません。`ShadowCaster` と `Meta` ではカメラ用のステンシル方針を適用しません。
+
+初期値の `Always` と `Keep` の組み合わせは、ステンシルに対する何もしない状態です。保存済みのステンシル項目を持たない旧形式のマテリアルも描画を継続し、ステンシルを書き換えません。`ForwardBase` で `Replace`、`Incr`、`Decr`、`Invert` などを指定すると、`ForwardAdd` が変更後の値を比較するため、追加ライトは独立して通過または拒否されることがあります。`ForwardBase` 前の値との比較を維持する仕様ではありません。
+
+ステンシルの追加によって、ステンシル専用のキーワード、シェーダーバリアント、パス、パッケージ依存関係は増えません。描画モードの変更と Resync は描画モードの状態を同期しますが、ユーザーが設定した7つのステンシル項目は保持します。
+
 ## Shader-Core との連携
 
 共通の処理差し込み位置は、次の順で実行されます。

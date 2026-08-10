@@ -17,6 +17,7 @@
 // Defines source-order contracts for the rendering-mode BIRP integration.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
@@ -38,6 +39,30 @@ namespace PureBase.Tests.Daily
 
 		/// <summary>Identifies the rendering-mode keyword whose output alpha preserves coverage.</summary>
 		private const string TransparentRenderingModeKeyword = "PUREBASE_RENDERING_TRANSPARENT";
+
+		/// <summary>Identifies the sole allowed generated rendering-mode variant declaration.</summary>
+		private const string ExpectedRenderingModeVariantDeclaration = "#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT";
+
+		/// <summary>Identifies the built-in Scene View variant retained by generated product sources.</summary>
+		private const string ExpectedEditorVisualizationVariantDeclaration = "#pragma shader_feature EDITOR_VISUALIZATION";
+
+		/// <summary>Lists the product shaders whose generated BIRP source shares the Stencil pass policy.</summary>
+		private static readonly string[] ProductShaderNames =
+		{
+			"PureBase/Unlit",
+			"PureBase/Toon",
+			"PureBase/PBR",
+			"PureBase/Hybrid",
+		};
+
+		/// <summary>Lists the exact pass ABI retained by every product generated source.</summary>
+		private static readonly string[] ExpectedPassNames =
+		{
+			"ForwardBase",
+			"ForwardAdd",
+			"ShadowCaster",
+			"Meta",
+		};
 
 		/// <summary>Identifies the release-only postpixel alpha probe source.</summary>
 		private const string PostPixelProbePath = "Packages/jp.penguin.purebase/Tests/Release/Modules/Standard/PostPixel/phase_postpixel.hlsl";
@@ -70,6 +95,192 @@ namespace PureBase.Tests.Daily
 			StringAssert.Contains("Blend [_AddSrcBlend] [_AddDstBlend]", generatedProductSource);
 			StringAssert.Contains("ColorMask RGB", generatedProductSource);
 			StringAssert.Contains("sd.col.a = half(0.25)", File.ReadAllText(PostPixelProbePath));
+		}
+
+		/// <summary>Requires pass-bounded Stencil policy while preserving the existing pass and rendering-mode keyword ABI.</summary>
+		[Test]
+		public void ProductGeneratedSourcesExposeStencilPassContractsWithoutNewVariantsOrPasses()
+		{
+			foreach (string shaderName in ProductShaderNames)
+			{
+				string source = LoadProductSource(shaderName);
+				AssertExpectedPassNames(source, shaderName);
+				AssertRenderingModeKeywordContracts(source, shaderName);
+				AssertNoStencilKeywordsOrPasses(source, shaderName);
+
+				string forwardBasePrefix = ExtractRenderStatePrefix(ExtractNamedPass(source, "ForwardBase"), shaderName, "ForwardBase");
+				string forwardAddPrefix = ExtractRenderStatePrefix(ExtractNamedPass(source, "ForwardAdd"), shaderName, "ForwardAdd");
+				string shadowCasterPrefix = ExtractRenderStatePrefix(ExtractNamedPass(source, "ShadowCaster"), shaderName, "ShadowCaster");
+				string metaPrefix = ExtractRenderStatePrefix(ExtractNamedPass(source, "Meta"), shaderName, "Meta");
+
+				AssertForwardBaseStencilBlock(forwardBasePrefix, shaderName);
+				AssertForwardAddStencilBlock(forwardAddPrefix, shaderName);
+				AssertNoStencilRenderState(shadowCasterPrefix, shaderName, "ShadowCaster");
+				AssertNoStencilRenderState(metaPrefix, shaderName, "Meta");
+			}
+		}
+
+		/// <summary>Asserts that generated source has exactly the established four named passes.</summary>
+		/// <param name="source">The generated shader source.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		private static void AssertExpectedPassNames(string source, string shaderName)
+		{
+			var passNames = new List<string>();
+			foreach (Match match in Regex.Matches(source, @"\bName\s+""(?<name>[^""]+)"""))
+			{
+				passNames.Add(match.Groups["name"].Value);
+			}
+
+			CollectionAssert.AreEqual(ExpectedPassNames, passNames, "Product shader '" + shaderName + "' must retain exactly the established pass order.");
+		}
+
+		/// <summary>Asserts the exact rendering-mode variant declaration remains the complete allowed variant set.</summary>
+		/// <param name="source">The generated shader source.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		private static void AssertRenderingModeKeywordContracts(string source, string shaderName)
+		{
+			var variantDeclarations = new List<string>();
+			foreach (Match declaration in Regex.Matches(source, @"^\s*#pragma\s+(?<directive>shader_feature(?:_local)?|multi_compile(?:_local)?)\s+(?<keywords>[^\r\n]+?)\s*$", RegexOptions.Multiline))
+			{
+				variantDeclarations.Add(Regex.Replace("#pragma " + declaration.Groups["directive"].Value + " " + declaration.Groups["keywords"].Value, @"\s+", " "));
+			}
+
+			CollectionAssert.AreEqual(
+				new[] { ExpectedRenderingModeVariantDeclaration, ExpectedEditorVisualizationVariantDeclaration },
+				variantDeclarations,
+				"Product shader '" + shaderName + "' must retain exactly the established rendering-mode variant declaration without additional variants."
+			);
+		}
+
+		/// <summary>Rejects Stencil-specific keyword declarations and named passes without inspecting valid HLSL declarations.</summary>
+		/// <param name="source">The generated shader source.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		private static void AssertNoStencilKeywordsOrPasses(string source, string shaderName)
+		{
+			Assert.That(
+				Regex.IsMatch(source, @"^\s*#pragma\s+[^\r\n]*(?:stencil|_stencil)[^\r\n]*$", RegexOptions.Multiline | RegexOptions.IgnoreCase),
+				Is.False,
+				"Product shader '" + shaderName + "' must not declare a Stencil keyword, shader_feature, or multi_compile variant."
+			);
+		}
+
+		/// <summary>Extracts one named Pass from its Name marker through the immediate next named Pass.</summary>
+		/// <param name="source">The generated shader source.</param>
+		/// <param name="passName">The required Pass name.</param>
+		/// <returns>The source section belonging only to the requested Pass.</returns>
+		private static string ExtractNamedPass(string source, string passName)
+		{
+			MatchCollection names = Regex.Matches(source, @"\bName\s+""(?<name>[^""]+)""");
+			for (int index = 0; index < names.Count; index++)
+			{
+				Match name = names[index];
+				if (!string.Equals(name.Groups["name"].Value, passName, StringComparison.Ordinal))
+				{
+					continue;
+				}
+
+				int end = index + 1 < names.Count ? names[index + 1].Index : source.Length;
+				return source.Substring(name.Index, end - name.Index);
+			}
+
+			Assert.Fail("Generated source did not contain Pass '" + passName + "'.");
+			return null;
+		}
+
+		/// <summary>Limits render-state assertions to the ShaderLab prefix before the Pass HLSLPROGRAM.</summary>
+		/// <param name="passSource">The source section for one named Pass.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		/// <param name="passName">The Pass name used in diagnostics.</param>
+		/// <returns>The ShaderLab render-state prefix.</returns>
+		private static string ExtractRenderStatePrefix(string passSource, string shaderName, string passName)
+		{
+			int hlslProgram = passSource.IndexOf("HLSLPROGRAM", StringComparison.OrdinalIgnoreCase);
+			Assert.That(hlslProgram, Is.GreaterThanOrEqualTo(0), "Product shader '" + shaderName + "' Pass '" + passName + "' must contain HLSLPROGRAM.");
+			return passSource.Substring(0, hlslProgram);
+		}
+
+		/// <summary>Asserts that ForwardBase uses the complete seven-property Stencil block.</summary>
+		/// <param name="prefix">The ForwardBase ShaderLab render-state prefix.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		private static void AssertForwardBaseStencilBlock(string prefix, string shaderName)
+		{
+			string body = RequireStencilBody(prefix, shaderName, "ForwardBase");
+			const string refDirective = @"\bRef\s*\[\s*_StencilRef\s*\]";
+			const string readMaskDirective = @"\bReadMask\s*\[\s*_StencilReadMask\s*\]";
+			const string writeMaskDirective = @"\bWriteMask\s*\[\s*_StencilWriteMask\s*\]";
+			const string compDirective = @"\bComp\s*\[\s*_StencilComp\s*\]";
+			const string passDirective = @"\bPass\s*\[\s*_StencilPass\s*\]";
+			const string failDirective = @"\bFail\s*\[\s*_StencilFail\s*\]";
+			const string zFailDirective = @"\bZFail\s*\[\s*_StencilZFail\s*\]";
+
+			AssertStencilDirectiveExactlyOnce(body, refDirective, shaderName, "ForwardBase", "Ref [_StencilRef]");
+			AssertStencilDirectiveExactlyOnce(body, readMaskDirective, shaderName, "ForwardBase", "ReadMask [_StencilReadMask]");
+			AssertStencilDirectiveExactlyOnce(body, writeMaskDirective, shaderName, "ForwardBase", "WriteMask [_StencilWriteMask]");
+			AssertStencilDirectiveExactlyOnce(body, compDirective, shaderName, "ForwardBase", "Comp [_StencilComp]");
+			AssertStencilDirectiveExactlyOnce(body, passDirective, shaderName, "ForwardBase", "Pass [_StencilPass]");
+			AssertStencilDirectiveExactlyOnce(body, failDirective, shaderName, "ForwardBase", "Fail [_StencilFail]");
+			AssertStencilDirectiveExactlyOnce(body, zFailDirective, shaderName, "ForwardBase", "ZFail [_StencilZFail]");
+
+			string unrecognizedState = Regex.Replace(body, refDirective + "|" + readMaskDirective + "|" + writeMaskDirective + "|" + compDirective + "|" + passDirective + "|" + failDirective + "|" + zFailDirective, string.Empty);
+			Assert.That(string.IsNullOrWhiteSpace(unrecognizedState), Is.True, "Product shader '" + shaderName + "' ForwardBase must contain only the fixed shared Stencil state directives.");
+		}
+
+		/// <summary>Asserts that ForwardAdd compares the shared Stencil value without writing or repeating operations.</summary>
+		/// <param name="prefix">The ForwardAdd ShaderLab render-state prefix.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		private static void AssertForwardAddStencilBlock(string prefix, string shaderName)
+		{
+			string body = RequireStencilBody(prefix, shaderName, "ForwardAdd");
+			const string refDirective = @"\bRef\s*\[\s*_StencilRef\s*\]";
+			const string readMaskDirective = @"\bReadMask\s*\[\s*_StencilReadMask\s*\]";
+			const string compDirective = @"\bComp\s*\[\s*_StencilComp\s*\]";
+			const string writeMaskDirective = @"\bWriteMask\s+0(?:\.0+)?\b";
+			const string passDirective = @"\bPass\s+Keep\b";
+			const string failDirective = @"\bFail\s+Keep\b";
+			const string zFailDirective = @"\bZFail\s+Keep\b";
+
+			AssertStencilDirectiveExactlyOnce(body, refDirective, shaderName, "ForwardAdd", "Ref [_StencilRef]");
+			AssertStencilDirectiveExactlyOnce(body, readMaskDirective, shaderName, "ForwardAdd", "ReadMask [_StencilReadMask]");
+			AssertStencilDirectiveExactlyOnce(body, compDirective, shaderName, "ForwardAdd", "Comp [_StencilComp]");
+			AssertStencilDirectiveExactlyOnce(body, writeMaskDirective, shaderName, "ForwardAdd", "WriteMask 0");
+			AssertStencilDirectiveExactlyOnce(body, passDirective, shaderName, "ForwardAdd", "Pass Keep");
+			AssertStencilDirectiveExactlyOnce(body, failDirective, shaderName, "ForwardAdd", "Fail Keep");
+			AssertStencilDirectiveExactlyOnce(body, zFailDirective, shaderName, "ForwardAdd", "ZFail Keep");
+
+			string unrecognizedState = Regex.Replace(body, refDirective + "|" + readMaskDirective + "|" + compDirective + "|" + writeMaskDirective + "|" + passDirective + "|" + failDirective + "|" + zFailDirective, string.Empty);
+			Assert.That(string.IsNullOrWhiteSpace(unrecognizedState), Is.True, "Product shader '" + shaderName + "' ForwardAdd must contain only the fixed compare-only Stencil state directives.");
+		}
+
+		/// <summary>Requires a single ShaderLab Stencil body in a screen-rendering Pass prefix.</summary>
+		/// <param name="prefix">The ShaderLab render-state prefix.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		/// <param name="passName">The Pass name used in diagnostics.</param>
+		/// <returns>The contents of the Stencil block.</returns>
+		private static string RequireStencilBody(string prefix, string shaderName, string passName)
+		{
+			MatchCollection blocks = Regex.Matches(prefix, @"\bStencil\s*\{(?<body>[^{}]*)\}", RegexOptions.Singleline);
+			Assert.That(blocks.Count, Is.EqualTo(1), "Product shader '" + shaderName + "' Pass '" + passName + "' must contain exactly one bounded Stencil block.");
+			return blocks[0].Groups["body"].Value;
+		}
+
+		/// <summary>Asserts one fixed Stencil directive and rejects duplicate or alternate state.</summary>
+		/// <param name="body">The bounded Stencil block body.</param>
+		/// <param name="pattern">The exact directive pattern.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		/// <param name="passName">The Pass name used in diagnostics.</param>
+		/// <param name="description">The human-readable directive description.</param>
+		private static void AssertStencilDirectiveExactlyOnce(string body, string pattern, string shaderName, string passName, string description)
+		{
+			Assert.That(Regex.Matches(body, pattern).Count, Is.EqualTo(1), "Product shader '" + shaderName + "' " + passName + " must contain exactly one " + description + " directive.");
+		}
+
+		/// <summary>Rejects Stencil blocks and property directives from ShadowCaster and Meta render-state prefixes.</summary>
+		/// <param name="prefix">The ShaderLab render-state prefix.</param>
+		/// <param name="shaderName">The product shader name used in diagnostics.</param>
+		/// <param name="passName">The Pass name used in diagnostics.</param>
+		private static void AssertNoStencilRenderState(string prefix, string shaderName, string passName)
+		{
+			Assert.That(Regex.IsMatch(prefix, @"\bStencil\b|_Stencil", RegexOptions.IgnoreCase), Is.False, "Product shader '" + shaderName + "' Pass '" + passName + "' must not apply Stencil before HLSLPROGRAM.");
 		}
 
 		/// <summary>Loads one generated product source subasset without modifying its import state.</summary>
