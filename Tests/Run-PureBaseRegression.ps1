@@ -430,8 +430,8 @@ function Assert-SmokeContract {
     }
 
     $mutatingCommands = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true) |
-    ForEach-Object { $_.GetCommandName() } |
-    Where-Object { $_ -in @('Copy-Item', 'Move-Item', 'Remove-Item') }
+        ForEach-Object { $_.GetCommandName() } |
+        Where-Object { $_ -in @('Copy-Item', 'Move-Item', 'Remove-Item') }
     if (@($mutatingCommands).Count -gt 0) {
         throw "Daily runner must not copy, move, or delete project content. Found: $($mutatingCommands -join ', ')."
     }

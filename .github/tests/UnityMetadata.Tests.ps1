@@ -52,9 +52,9 @@ Describe 'Unity documentation metadata' {
         )
         $missingMetadata = @(
             $documentationAssets |
-            Where-Object { -not $_.Name.EndsWith('.meta', [StringComparison]::Ordinal) } |
-            Where-Object { -not (Test-Path -LiteralPath ($_.FullName + '.meta') -PathType Leaf) } |
-            ForEach-Object { $_.FullName.Substring($repositoryRoot.Length + 1).Replace('\', '/') }
+                Where-Object { -not $_.Name.EndsWith('.meta', [StringComparison]::Ordinal) } |
+                Where-Object { -not (Test-Path -LiteralPath ($_.FullName + '.meta') -PathType Leaf) } |
+                ForEach-Object { $_.FullName.Substring($repositoryRoot.Length + 1).Replace('\', '/') }
         )
 
         $missingMetadata | Should -BeNullOrEmpty
@@ -63,15 +63,16 @@ Describe 'Unity documentation metadata' {
     It 'uses unique 32-character hexadecimal GUIDs for documentation metadata' {
         $guidEntries = @(
             Get-DocumentationMetadataFiles |
-            ForEach-Object {
-                [pscustomobject]@{
-                    Path = $_.FullName.Substring($repositoryRoot.Length + 1).Replace('\', '/')
-                    Guid = Get-UnityMetadataGuid -Path $_.FullName
+                ForEach-Object {
+                    [pscustomobject]@{
+                        Path = $_.FullName.Substring($repositoryRoot.Length + 1).Replace('\', '/')
+                        Guid = Get-UnityMetadataGuid -Path $_.FullName
+                    }
                 }
-            }
         )
 
         @($guidEntries | Where-Object { [string]::IsNullOrEmpty($_.Guid) }).Path | Should -BeNullOrEmpty
-        @($guidEntries | Group-Object Guid | Where-Object Count -gt 1).Name | Should -BeNullOrEmpty
+        @($guidEntries | Group-Object Guid | Where-Object Count -GT 1).Name | Should -BeNullOrEmpty
     }
 }
+

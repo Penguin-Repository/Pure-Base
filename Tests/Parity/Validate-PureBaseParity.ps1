@@ -43,7 +43,7 @@ function Test-PathEqualOrDescendant {
     $normalizedRoot = (Get-FullPath -Path $Root).TrimEnd('\', '/')
     $normalizedCandidate = (Get-FullPath -Path $Candidate).TrimEnd('\', '/')
     return [string]::Equals($normalizedRoot, $normalizedCandidate, [System.StringComparison]::OrdinalIgnoreCase) -or
-        $normalizedCandidate.StartsWith($normalizedRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+    $normalizedCandidate.StartsWith($normalizedRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-JsonArtifact {
@@ -323,7 +323,7 @@ function Test-ReleaseZip {
                     Add-Failure -Failures $Failures -Code 'release-zip-required-entry' -Message "Release ZIP omits required contract entry '$requiredEntry'."
                 }
             }
-            $manifestEntries = @($archive.Entries | Where-Object FullName -ceq 'package.json')
+            $manifestEntries = @($archive.Entries | Where-Object FullName -CEQ 'package.json')
             if ($manifestEntries.Count -ne 1) {
                 Add-Failure -Failures $Failures -Code 'release-zip-version' -Message 'Release ZIP must contain exactly one package.json.'
             }
@@ -577,10 +577,10 @@ function Test-Manifest {
     foreach ($mapping in $mappings) {
         $mappedId = if ($null -eq $mapping) { '' } else { [string]$mapping.legacyId }
         $mappingValid = $null -ne $mapping -and $invocationsById.ContainsKey($mappedId) -and $mappedIds.Add($mappedId) -and
-            -not [string]::IsNullOrWhiteSpace([string]$mapping.newOwner) -and -not [string]::IsNullOrWhiteSpace([string]$mapping.newLane) -and
-            $mapping.oracle -eq 'nunit-and-release-bootstrap' -and $mapping.status -eq 'required' -and
-            (@('covered', 'intentionally-replaced-with-equivalent-oracle') -contains [string]$mapping.classification) -and
-            @($mapping.artifacts).Count -ge $requiredArtifacts.Count -and @($mapping.evidence).Count -ge $requiredEvidence.Count
+        -not [string]::IsNullOrWhiteSpace([string]$mapping.newOwner) -and -not [string]::IsNullOrWhiteSpace([string]$mapping.newLane) -and
+        $mapping.oracle -eq 'nunit-and-release-bootstrap' -and $mapping.status -eq 'required' -and
+        (@('covered', 'intentionally-replaced-with-equivalent-oracle') -contains [string]$mapping.classification) -and
+        @($mapping.artifacts).Count -ge $requiredArtifacts.Count -and @($mapping.evidence).Count -ge $requiredEvidence.Count
         if ($mappingValid) {
             foreach ($artifact in $requiredArtifacts) { if (-not (@($mapping.artifacts) -contains $artifact)) { $mappingValid = $false } }
             foreach ($evidence in $requiredEvidence) { if (-not (@($mapping.evidence) -contains $evidence)) { $mappingValid = $false } }
@@ -626,22 +626,22 @@ function Test-LegacyEvidence {
     $feasibility = Get-JsonArtifact -Path $feasibilityPath -Failures $Failures -Code 'legacy-dynamic-lightmaps'
     if ($null -ne $feasibility) {
         $dynamicValid = $null -ne (Get-StringProperty -Object $feasibility -Name 'check' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
-            (Get-StringProperty -Object $feasibility -Name 'status' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -eq 'PASSED' -and
-            $null -ne (Get-StringProperty -Object $feasibility -Name 'unityVersion' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
-            $null -ne (Get-StringPropertyAlias -Object $feasibility -Names @('graphicsApi', 'graphicsDevice') -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
-            (Get-StringProperty -Object $feasibility -Name 'testName' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -eq 'PureBase.Integration.Tests.PureBaseValidationSceneTests.FixedValidationSceneBakesAndRequestsRepresentativeBirpVariants' -and
-            $null -ne (Get-StringProperty -Object $feasibility -Name 'artifactPath' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
-            (Get-StringProperty -Object $feasibility -Name 'dynamicLightmapStatus' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -eq 'NOT_DETERMINISTIC_IN_BATCH_EDITMODE'
+        (Get-StringProperty -Object $feasibility -Name 'status' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -eq 'PASSED' -and
+        $null -ne (Get-StringProperty -Object $feasibility -Name 'unityVersion' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
+        $null -ne (Get-StringPropertyAlias -Object $feasibility -Names @('graphicsApi', 'graphicsDevice') -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
+        (Get-StringProperty -Object $feasibility -Name 'testName' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -eq 'PureBase.Integration.Tests.PureBaseValidationSceneTests.FixedValidationSceneBakesAndRequestsRepresentativeBirpVariants' -and
+        $null -ne (Get-StringProperty -Object $feasibility -Name 'artifactPath' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -and
+        (Get-StringProperty -Object $feasibility -Name 'dynamicLightmapStatus' -Failures $Failures -Code 'legacy-dynamic-lightmaps') -eq 'NOT_DETERMINISTIC_IN_BATCH_EDITMODE'
         if (-not $dynamicValid) { Add-Failure -Failures $Failures -Code 'legacy-dynamic-lightmaps' -Message 'Dynamic-lightmaps evidence does not match the required JSON schema and known limitation.' }
     }
     $probe = Get-JsonArtifact -Path (Join-Path $Root 'birp-probe-feasibility.json') -Failures $Failures -Code 'legacy-birp-probe'
     if ($null -ne $probe) {
         $probeValid = $null -ne (Get-StringProperty -Object $probe -Name 'check' -Failures $Failures -Code 'legacy-birp-probe') -and
-            (Get-StringProperty -Object $probe -Name 'status' -Failures $Failures -Code 'legacy-birp-probe') -eq 'PASSED' -and
-            $null -ne (Get-StringProperty -Object $probe -Name 'unityVersion' -Failures $Failures -Code 'legacy-birp-probe') -and
-            $null -ne (Get-StringPropertyAlias -Object $probe -Names @('graphicsApi', 'graphicsDevice') -Failures $Failures -Code 'legacy-birp-probe') -and
-            (Test-StringArrayProperty -Object $probe -Name 'testNames' -Failures $Failures -Code 'legacy-birp-probe' -ExpectedCount 2 -RequiredValues @('PureBase.Integration.Tests.BirpGiProbeReadbackTests.BlackProbePathProducesFiniteHdrReadbackWithMeshCoverage', 'PureBase.Integration.Tests.BirpGiProbeReadbackTests.BoxProjectedReflectionProbePathProducesFiniteHdrReadbackWithMeshCoverage')) -and
-            (Test-StringArrayProperty -Object $probe -Name 'artifactPaths' -Failures $Failures -Code 'legacy-birp-probe' -ExpectedCount 2)
+        (Get-StringProperty -Object $probe -Name 'status' -Failures $Failures -Code 'legacy-birp-probe') -eq 'PASSED' -and
+        $null -ne (Get-StringProperty -Object $probe -Name 'unityVersion' -Failures $Failures -Code 'legacy-birp-probe') -and
+        $null -ne (Get-StringPropertyAlias -Object $probe -Names @('graphicsApi', 'graphicsDevice') -Failures $Failures -Code 'legacy-birp-probe') -and
+        (Test-StringArrayProperty -Object $probe -Name 'testNames' -Failures $Failures -Code 'legacy-birp-probe' -ExpectedCount 2 -RequiredValues @('PureBase.Integration.Tests.BirpGiProbeReadbackTests.BlackProbePathProducesFiniteHdrReadbackWithMeshCoverage', 'PureBase.Integration.Tests.BirpGiProbeReadbackTests.BoxProjectedReflectionProbePathProducesFiniteHdrReadbackWithMeshCoverage')) -and
+        (Test-StringArrayProperty -Object $probe -Name 'artifactPaths' -Failures $Failures -Code 'legacy-birp-probe' -ExpectedCount 2)
         if (-not $probeValid) { Add-Failure -Failures $Failures -Code 'legacy-birp-probe' -Message 'BIRP probe evidence does not match the required JSON schema and passing verdict.' }
     }
     $audit = Get-JsonArtifact -Path (Join-Path $Root 'release-boundary-audit.json') -Failures $Failures -Code 'legacy-release-boundary'
@@ -652,18 +652,18 @@ function Test-LegacyEvidence {
             Add-Failure -Failures $Failures -Code 'legacy-release-boundary-test-assets' -Message "Release-boundary audit property 'packageContainsPureBaseTestAssets' must be Boolean false."
         }
         $auditValid = $packageContainsPureBaseTestAssetsValid -and
-            $null -ne (Get-StringProperty -Object $audit -Name 'check' -Failures $Failures -Code 'legacy-release-boundary') -and
-            (Get-StringProperty -Object $audit -Name 'status' -Failures $Failures -Code 'legacy-release-boundary') -eq 'PASSED' -and
-            $null -ne (Get-StringProperty -Object $audit -Name 'packagePath' -Failures $Failures -Code 'legacy-release-boundary') -and
-            (Test-StringArrayProperty -Object $audit -Name 'trackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary') -and
-            (Test-StringArrayProperty -Object $audit -Name 'approvedTrackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary') -and
-            (Test-StringArrayProperty -Object $audit -Name 'unapprovedTrackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary' -ExpectedCount 0) -and
-            (Test-StringArrayProperty -Object $audit -Name 'missingTrackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary' -ExpectedCount 0) -and
-            $true -eq (Get-BooleanProperty -Object $audit -Name 'trackedScmodulePathsExactlyApproved' -Failures $Failures -Code 'legacy-release-boundary') -and
-            $null -ne (Get-StringProperty -Object $audit -Name 'shaderCoreDependency' -Failures $Failures -Code 'legacy-release-boundary') -and
-            $false -eq (Get-BooleanProperty -Object $audit -Name 'urpDependencyPresent' -Failures $Failures -Code 'legacy-release-boundary') -and
-            $true -eq (Get-BooleanProperty -Object $audit -Name 'pbrHybridPropertiesByteIdentical' -Failures $Failures -Code 'legacy-release-boundary') -and
-            $true -eq (Get-BooleanProperty -Object $audit -Name 'roughnessAbi' -Failures $Failures -Code 'legacy-release-boundary')
+        $null -ne (Get-StringProperty -Object $audit -Name 'check' -Failures $Failures -Code 'legacy-release-boundary') -and
+        (Get-StringProperty -Object $audit -Name 'status' -Failures $Failures -Code 'legacy-release-boundary') -eq 'PASSED' -and
+        $null -ne (Get-StringProperty -Object $audit -Name 'packagePath' -Failures $Failures -Code 'legacy-release-boundary') -and
+        (Test-StringArrayProperty -Object $audit -Name 'trackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary') -and
+        (Test-StringArrayProperty -Object $audit -Name 'approvedTrackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary') -and
+        (Test-StringArrayProperty -Object $audit -Name 'unapprovedTrackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary' -ExpectedCount 0) -and
+        (Test-StringArrayProperty -Object $audit -Name 'missingTrackedScmodulePaths' -Failures $Failures -Code 'legacy-release-boundary' -ExpectedCount 0) -and
+        $true -eq (Get-BooleanProperty -Object $audit -Name 'trackedScmodulePathsExactlyApproved' -Failures $Failures -Code 'legacy-release-boundary') -and
+        $null -ne (Get-StringProperty -Object $audit -Name 'shaderCoreDependency' -Failures $Failures -Code 'legacy-release-boundary') -and
+        $false -eq (Get-BooleanProperty -Object $audit -Name 'urpDependencyPresent' -Failures $Failures -Code 'legacy-release-boundary') -and
+        $true -eq (Get-BooleanProperty -Object $audit -Name 'pbrHybridPropertiesByteIdentical' -Failures $Failures -Code 'legacy-release-boundary') -and
+        $true -eq (Get-BooleanProperty -Object $audit -Name 'roughnessAbi' -Failures $Failures -Code 'legacy-release-boundary')
         foreach ($name in @('requiredProperties', 'forbiddenProperties')) {
             $entries = @(Get-ArrayPropertyItems -Object $audit -Name $name -Failures $Failures -Code 'legacy-release-boundary')
             $expectedPresent = $name -eq 'requiredProperties'
@@ -715,11 +715,11 @@ catch {
 }
 
 $report = [ordered]@{
-    schemaVersion = 1
-    validator = 'Validate-PureBaseParity.ps1'
+    schemaVersion    = 1
+    validator        = 'Validate-PureBaseParity.ps1'
     deletionEligible = ($failures.Count -eq 0)
-    failureCount = $failures.Count
-    failures = $failures.ToArray()
+    failureCount     = $failures.Count
+    failures         = $failures.ToArray()
 }
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding UTF8
 if ($failures.Count -ne 0) {

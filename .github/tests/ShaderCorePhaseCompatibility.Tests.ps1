@@ -27,7 +27,7 @@ Describe 'Shader-Core phase compatibility' {
             Get-ChildItem -LiteralPath $releaseModuleRoot -Recurse -File -Filter '*.hlsl' |
                 ForEach-Object {
                     [pscustomobject]@{
-                        Path = $_.FullName
+                        Path   = $_.FullName
                         Source = Get-Content -LiteralPath $_.FullName -Raw
                     }
                 }
@@ -72,3 +72,4 @@ Describe 'Shader-Core phase compatibility' {
         $tail | Should -Not -Match 'UNITY_APPLY_FOG'
     }
 }
+

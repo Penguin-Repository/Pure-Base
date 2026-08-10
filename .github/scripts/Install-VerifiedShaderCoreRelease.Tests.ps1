@@ -222,3 +222,4 @@ Describe 'Install-VerifiedShaderCoreRelease' {
         Assert-RecoverableBackupPreserved
     }
 }
+

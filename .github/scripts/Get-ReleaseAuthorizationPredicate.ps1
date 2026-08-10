@@ -84,45 +84,46 @@ if ($actualSha256 -cne $expectedSha256) {
 $predicate = [ordered]@{
     schemaVersion = 1
     authorization = [ordered]@{
-        method = 'github-actions-workflow-dispatch'
-        actor = [ordered]@{
+        method          = 'github-actions-workflow-dispatch'
+        actor           = [ordered]@{
             login = $ActorLogin
-            id = $ActorId
+            id    = $ActorId
         }
         triggeringActor = $TriggeringActorLogin
-        eventName = $EventName
+        eventName       = $EventName
     }
-    release = [ordered]@{
-        repository = $Repository
-        repositoryId = $RepositoryId
-        repositoryOwner = $RepositoryOwner
+    release       = [ordered]@{
+        repository        = $Repository
+        repositoryId      = $RepositoryId
+        repositoryOwner   = $RepositoryOwner
         repositoryOwnerId = $RepositoryOwnerId
-        version = $ConfirmedVersion
-        commitSha = [string]$state.commitSha
-        releaseUrl = [string]$state.releaseUrl
-        vpmRepository = [string]$state.vpmRepository
-        artifact = [ordered]@{
-            name = $assetName
+        version           = $ConfirmedVersion
+        commitSha         = [string]$state.commitSha
+        releaseUrl        = [string]$state.releaseUrl
+        vpmRepository     = [string]$state.vpmRepository
+        artifact          = [ordered]@{
+            name   = $assetName
             sha256 = $actualSha256
         }
     }
-    workflow = [ordered]@{
-        name = $WorkflowName
-        ref = $WorkflowRef
-        sha = $WorkflowSha
-        runId = $RunId
-        runNumber = $RunNumber
-        runAttempt = $RunAttempt
+    workflow      = [ordered]@{
+        name        = $WorkflowName
+        ref         = $WorkflowRef
+        sha         = $WorkflowSha
+        runId       = $RunId
+        runNumber   = $RunNumber
+        runAttempt  = $RunAttempt
         environment = 'release'
     }
-    request = [ordered]@{
-        ref = $DispatchRef
-        refName = $DispatchRefName
-        refType = $DispatchRefType
-        resume = [bool]$Resume
+    request       = [ordered]@{
+        ref           = $DispatchRef
+        refName       = $DispatchRefName
+        refType       = $DispatchRefType
+        resume        = [bool]$Resume
         preflightOnly = $false
     }
     recordedAtUtc = [DateTime]::UtcNow.ToString('o')
 }
 
 $predicate | ConvertTo-Json -Depth 8
+

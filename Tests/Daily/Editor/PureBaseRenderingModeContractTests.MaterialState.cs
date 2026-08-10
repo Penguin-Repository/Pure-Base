@@ -29,19 +29,21 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
 namespace PureBase.Tests.Daily
 {
     public sealed partial class PureBaseRenderingModeContractTests
     {
-    /// <summary>Captures every material field whose mutation must be rejected by invalid normalizer inputs.</summary>
-    private sealed class MaterialState
-    {
+        /// <summary>Captures every material field whose mutation must be rejected by invalid normalizer inputs.</summary>
+        private sealed class MaterialState
+        {
             /// <summary>Captures an immutable snapshot from one material.</summary>
             /// <param name="material">The material to snapshot.</param>
             /// <param name="observedPropertyTypes">The optional set that records captured shader property types.</param>
             /// <returns>The captured state.</returns>
-            public static MaterialState Capture(Material material, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null)
+            public static MaterialState Capture(
+                Material material,
+                ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null
+            )
             {
                 MaterialState state = CreateBaseState(material);
                 CaptureShaderPropertyState(state, material, observedPropertyTypes);
@@ -54,7 +56,10 @@ namespace PureBase.Tests.Daily
             {
                 return new MaterialState
                 {
-                    hasRenderTypeOverride = TryGetSerializedRenderTypeOverride(material, out string renderTypeOverride),
+                    hasRenderTypeOverride = TryGetSerializedRenderTypeOverride(
+                        material,
+                        out string renderTypeOverride
+                    ),
                     renderTypeOverride = renderTypeOverride,
                     resolvedRenderType = material.GetTag("RenderType", true),
                     rawQueue = GetRawRenderQueue(material),
@@ -67,13 +72,20 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Captures every visible shader property in declaration order.</summary>
-            private static void CaptureShaderPropertyState(MaterialState state, Material material, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes)
+            private static void CaptureShaderPropertyState(
+                MaterialState state,
+                Material material,
+                ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes
+            )
             {
                 Shader shader = material.shader;
                 for (int index = 0; index < ShaderUtil.GetPropertyCount(shader); index++)
                 {
                     string propertyName = shader.GetPropertyName(index);
-                    ShaderUtil.ShaderPropertyType propertyType = ShaderUtil.GetPropertyType(shader, index);
+                    ShaderUtil.ShaderPropertyType propertyType = ShaderUtil.GetPropertyType(
+                        shader,
+                        index
+                    );
                     ObserveAtomicityPropertyType(observedPropertyTypes, propertyType);
                     switch (propertyType)
                     {
@@ -91,10 +103,15 @@ namespace PureBase.Tests.Daily
                             state.vectors[propertyName] = material.GetVector(propertyName);
                             break;
                         case ShaderUtil.ShaderPropertyType.TexEnv:
-                            state.textures[propertyName] = TexturePropertyState.Capture(material, propertyName);
+                            state.textures[propertyName] = TexturePropertyState.Capture(
+                                material,
+                                propertyName
+                            );
                             break;
                         default:
-                            Assert.Fail($"Unsupported shader property type '{ShaderUtil.GetPropertyType(shader, index)}' for '{propertyName}'.");
+                            Assert.Fail(
+                                $"Unsupported shader property type '{ShaderUtil.GetPropertyType(shader, index)}' for '{propertyName}'."
+                            );
                             break;
                     }
                 }
@@ -117,35 +134,98 @@ namespace PureBase.Tests.Daily
             /// <param name="material">The material to compare.</param>
             /// <param name="context">The diagnostic operation context.</param>
             /// <param name="observedPropertyTypes">The optional set that records asserted shader property types.</param>
-            public void AssertEqual(Material material, string context, ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null)
+            public void AssertEqual(
+                Material material,
+                string context,
+                ISet<ShaderUtil.ShaderPropertyType> observedPropertyTypes = null
+            )
             {
                 ObserveAtomicityPropertyTypes(material, observedPropertyTypes);
-                bool actualHasRenderTypeOverride = TryGetSerializedRenderTypeOverride(material, out string actualRenderTypeOverride);
-                Assert.That(actualHasRenderTypeOverride, Is.EqualTo(hasRenderTypeOverride), context + " RenderType override presence.");
+                bool actualHasRenderTypeOverride = TryGetSerializedRenderTypeOverride(
+                    material,
+                    out string actualRenderTypeOverride
+                );
+                Assert.That(
+                    actualHasRenderTypeOverride,
+                    Is.EqualTo(hasRenderTypeOverride),
+                    context + " RenderType override presence."
+                );
                 if (actualHasRenderTypeOverride)
-                    Assert.That(actualRenderTypeOverride, Is.EqualTo(renderTypeOverride), context + " RenderType override.");
-                Assert.That(material.GetTag("RenderType", true), Is.EqualTo(resolvedRenderType), context + " resolved RenderType tag.");
-                Assert.That(GetRawRenderQueue(material), Is.EqualTo(rawQueue), context + " raw render queue.");
-                Assert.That(material.renderQueue, Is.EqualTo(resolvedQueue), context + " resolved render queue.");
-                Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.EqualTo(shadowCasterEnabled), context + " ShadowCaster state.");
-                Assert.That(material.GetShaderPassEnabled("Meta"), Is.EqualTo(metaEnabled), context + " Meta state.");
-                Assert.That(EditorUtility.IsDirty(material), Is.EqualTo(dirty), context + " dirty state.");
-                CollectionAssert.AreEquivalent(keywords, material.shaderKeywords, context + " keyword set.");
+                    Assert.That(
+                        actualRenderTypeOverride,
+                        Is.EqualTo(renderTypeOverride),
+                        context + " RenderType override."
+                    );
+                Assert.That(
+                    material.GetTag("RenderType", true),
+                    Is.EqualTo(resolvedRenderType),
+                    context + " resolved RenderType tag."
+                );
+                Assert.That(
+                    GetRawRenderQueue(material),
+                    Is.EqualTo(rawQueue),
+                    context + " raw render queue."
+                );
+                Assert.That(
+                    material.renderQueue,
+                    Is.EqualTo(resolvedQueue),
+                    context + " resolved render queue."
+                );
+                Assert.That(
+                    material.GetShaderPassEnabled("ShadowCaster"),
+                    Is.EqualTo(shadowCasterEnabled),
+                    context + " ShadowCaster state."
+                );
+                Assert.That(
+                    material.GetShaderPassEnabled("Meta"),
+                    Is.EqualTo(metaEnabled),
+                    context + " Meta state."
+                );
+                Assert.That(
+                    EditorUtility.IsDirty(material),
+                    Is.EqualTo(dirty),
+                    context + " dirty state."
+                );
+                CollectionAssert.AreEquivalent(
+                    keywords,
+                    material.shaderKeywords,
+                    context + " keyword set."
+                );
                 foreach (KeyValuePair<string, float> pair in floats)
-                    Assert.That(material.GetFloat(pair.Key), Is.EqualTo(pair.Value), context + " property " + pair.Key + ".");
+                    Assert.That(
+                        material.GetFloat(pair.Key),
+                        Is.EqualTo(pair.Value),
+                        context + " property " + pair.Key + "."
+                    );
                 foreach (KeyValuePair<string, int> pair in integers)
                 {
                     int actual = material.GetInteger(pair.Key);
-                    Assert.That(actual, Is.EqualTo(pair.Value), context + " int property " + pair.Key + ".");
+                    Assert.That(
+                        actual,
+                        Is.EqualTo(pair.Value),
+                        context + " int property " + pair.Key + "."
+                    );
                 }
                 foreach (KeyValuePair<string, Color> pair in colors)
-                    Assert.That(material.GetColor(pair.Key), Is.EqualTo(pair.Value), context + " color property " + pair.Key + ".");
+                    Assert.That(
+                        material.GetColor(pair.Key),
+                        Is.EqualTo(pair.Value),
+                        context + " color property " + pair.Key + "."
+                    );
                 foreach (KeyValuePair<string, Vector4> pair in vectors)
-                    Assert.That(material.GetVector(pair.Key), Is.EqualTo(pair.Value), context + " vector property " + pair.Key + ".");
+                    Assert.That(
+                        material.GetVector(pair.Key),
+                        Is.EqualTo(pair.Value),
+                        context + " vector property " + pair.Key + "."
+                    );
                 foreach (KeyValuePair<string, TexturePropertyState> pair in textures)
                     pair.Value.AssertEqual(material, pair.Key, context);
                 foreach (KeyValuePair<string, bool> pair in passes)
-                    Assert.That(material.GetShaderPassEnabled(pair.Key), Is.EqualTo(pair.Value), context + " pass " + pair.Key + ".");
+                    Assert.That(
+                        material.GetShaderPassEnabled(pair.Key),
+                        Is.EqualTo(pair.Value),
+                        context + " pass " + pair.Key + "."
+                    );
             }
 
             /// <summary>Asserts that this snapshot includes one visible or hidden shader property.</summary>
@@ -154,10 +234,10 @@ namespace PureBase.Tests.Daily
             {
                 Assert.That(
                     floats.ContainsKey(propertyName)
-                    || integers.ContainsKey(propertyName)
-                    || colors.ContainsKey(propertyName)
-                    || vectors.ContainsKey(propertyName)
-                    || textures.ContainsKey(propertyName),
+                        || integers.ContainsKey(propertyName)
+                        || colors.ContainsKey(propertyName)
+                        || vectors.ContainsKey(propertyName)
+                        || textures.ContainsKey(propertyName),
                     Is.True,
                     "The material snapshot must include shader property '" + propertyName + "'."
                 );
@@ -191,22 +271,35 @@ namespace PureBase.Tests.Daily
             public string[] keywords;
 
             /// <summary>Stores captured float and range property values.</summary>
-            public readonly Dictionary<string, float> floats = new Dictionary<string, float>(StringComparer.Ordinal);
+            public readonly Dictionary<string, float> floats = new Dictionary<string, float>(
+                StringComparer.Ordinal
+            );
 
             /// <summary>Stores captured integer property values.</summary>
-            public readonly Dictionary<string, int> integers = new Dictionary<string, int>(StringComparer.Ordinal);
+            public readonly Dictionary<string, int> integers = new Dictionary<string, int>(
+                StringComparer.Ordinal
+            );
 
             /// <summary>Stores captured color property values.</summary>
-            public readonly Dictionary<string, Color> colors = new Dictionary<string, Color>(StringComparer.Ordinal);
+            public readonly Dictionary<string, Color> colors = new Dictionary<string, Color>(
+                StringComparer.Ordinal
+            );
 
             /// <summary>Stores captured vector property values.</summary>
-            public readonly Dictionary<string, Vector4> vectors = new Dictionary<string, Vector4>(StringComparer.Ordinal);
+            public readonly Dictionary<string, Vector4> vectors = new Dictionary<string, Vector4>(
+                StringComparer.Ordinal
+            );
 
             /// <summary>Stores captured texture property values and their UV transforms.</summary>
-            public readonly Dictionary<string, TexturePropertyState> textures = new Dictionary<string, TexturePropertyState>(StringComparer.Ordinal);
+            public readonly Dictionary<string, TexturePropertyState> textures = new Dictionary<
+                string,
+                TexturePropertyState
+            >(StringComparer.Ordinal);
 
             /// <summary>Stores captured enabled-state values for every rendering-mode-relevant pass.</summary>
-            public readonly Dictionary<string, bool> passes = new Dictionary<string, bool>(StringComparer.Ordinal);
+            public readonly Dictionary<string, bool> passes = new Dictionary<string, bool>(
+                StringComparer.Ordinal
+            );
         }
 
         /// <summary>Returns valid materials during validation and snapshots, then makes one later target invalid during application.</summary>
@@ -216,7 +309,11 @@ namespace PureBase.Tests.Daily
             /// <param name="materials">The ordered batch materials.</param>
             /// <param name="invalidMaterialIndex">The later material index to invalidate.</param>
             /// <param name="invalidRenderingMode">The unsupported mode assigned immediately before its application.</param>
-            public LateInvalidatingMaterialList(Material[] materials, int invalidMaterialIndex, int invalidRenderingMode)
+            public LateInvalidatingMaterialList(
+                Material[] materials,
+                int invalidMaterialIndex,
+                int invalidRenderingMode
+            )
             {
                 this.materials = materials;
                 this.invalidMaterialIndex = invalidMaterialIndex;
@@ -249,7 +346,8 @@ namespace PureBase.Tests.Daily
                 {
                     if (index == invalidMaterialIndex && ++invalidMaterialReadCount == 3)
                     {
-                        ObservedPriorMutations = materials[0].GetTag("RenderType", false) == "Opaque"
+                        ObservedPriorMutations =
+                            materials[0].GetTag("RenderType", false) == "Opaque"
                             && materials[1].GetTag("RenderType", false) == "Transparent";
                         materials[index].SetInteger("_RenderingMode", invalidRenderingMode);
                     }
@@ -297,9 +395,21 @@ namespace PureBase.Tests.Daily
             /// <param name="context">The diagnostic operation context.</param>
             public void AssertEqual(Material material, string propertyName, string context)
             {
-                Assert.That(material.GetTexture(propertyName), Is.EqualTo(texture), context + " texture property " + propertyName + ".");
-                Assert.That(material.GetTextureScale(propertyName), Is.EqualTo(scale), context + " texture scale " + propertyName + ".");
-                Assert.That(material.GetTextureOffset(propertyName), Is.EqualTo(offset), context + " texture offset " + propertyName + ".");
+                Assert.That(
+                    material.GetTexture(propertyName),
+                    Is.EqualTo(texture),
+                    context + " texture property " + propertyName + "."
+                );
+                Assert.That(
+                    material.GetTextureScale(propertyName),
+                    Is.EqualTo(scale),
+                    context + " texture scale " + propertyName + "."
+                );
+                Assert.That(
+                    material.GetTextureOffset(propertyName),
+                    Is.EqualTo(offset),
+                    context + " texture offset " + propertyName + "."
+                );
             }
 
             /// <summary>Stores the captured texture object.</summary>

@@ -29,7 +29,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-
 namespace PureBase.Tests.Daily
 {
     public sealed partial class PureBaseRenderingModeContractTests
@@ -37,10 +36,21 @@ namespace PureBase.Tests.Daily
         /// <summary>Saves and synchronously reimports one test-owned asset without persisting unrelated dirty Editor assets.</summary>
         /// <param name="asset">The exact fixture or temporary asset owned by this test.</param>
         /// <param name="assetPath">The expected project-relative path for <paramref name="asset"/>.</param>
-        private static void SaveOnlyOwnedAssetAndReimport(UnityEngine.Object asset, string assetPath)
+        private static void SaveOnlyOwnedAssetAndReimport(
+            UnityEngine.Object asset,
+            string assetPath
+        )
         {
-            Assert.That(asset, Is.Not.Null, $"Test-owned asset '{assetPath}' must exist before persistence.");
-            Assert.That(AssetDatabase.GetAssetPath(asset), Is.EqualTo(assetPath), "Persistence must target only the supplied test-owned asset path.");
+            Assert.That(
+                asset,
+                Is.Not.Null,
+                $"Test-owned asset '{assetPath}' must exist before persistence."
+            );
+            Assert.That(
+                AssetDatabase.GetAssetPath(asset),
+                Is.EqualTo(assetPath),
+                "Persistence must target only the supplied test-owned asset path."
+            );
             AssetDatabase.SaveAssetIfDirty(asset);
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
         }
@@ -52,8 +62,16 @@ namespace PureBase.Tests.Daily
         {
             Shader shader = Shader.Find(shaderName);
             Assert.That(shader, Is.Not.Null, $"Product shader '{shaderName}' was not imported.");
-            Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, $"Product shader '{shaderName}' has compiler errors.");
-            Assert.That(shader.isSupported, Is.True, $"Product shader '{shaderName}' is unsupported.");
+            Assert.That(
+                ShaderUtil.ShaderHasError(shader),
+                Is.False,
+                $"Product shader '{shaderName}' has compiler errors."
+            );
+            Assert.That(
+                shader.isSupported,
+                Is.True,
+                $"Product shader '{shaderName}' is unsupported."
+            );
             return shader;
         }
 
@@ -108,7 +126,12 @@ namespace PureBase.Tests.Daily
         private static string[] GetPassNames(Shader shader)
         {
             var names = new List<string>();
-            foreach (Match match in Regex.Matches(LoadGeneratedSource(shader.name), "\\bName\\s+\\\"([^\\\"]+)\\\""))
+            foreach (
+                Match match in Regex.Matches(
+                    LoadGeneratedSource(shader.name),
+                    "\\bName\\s+\\\"([^\\\"]+)\\\""
+                )
+            )
                 names.Add(match.Groups[1].Value);
             return names.ToArray();
         }
@@ -119,26 +142,43 @@ namespace PureBase.Tests.Daily
         private static string LoadGeneratedSource(string shaderName)
         {
             string path = null;
-            foreach (string guid in AssetDatabase.FindAssets("t:Shader", new[] { "Packages/jp.penguin.purebase/Shaders" }))
+            foreach (
+                string guid in AssetDatabase.FindAssets(
+                    "t:Shader",
+                    new[] { "Packages/jp.penguin.purebase/Shaders" }
+                )
+            )
             {
                 string candidate = AssetDatabase.GUIDToAssetPath(guid);
                 Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(candidate);
-                if (shader != null && string.Equals(shader.name, shaderName, StringComparison.Ordinal))
+                if (
+                    shader != null
+                    && string.Equals(shader.name, shaderName, StringComparison.Ordinal)
+                )
                 {
                     path = candidate;
                     break;
                 }
             }
 
-            Assert.That(path, Is.Not.Empty, $"Could not locate the Shader-Core source asset for '{shaderName}'.");
+            Assert.That(
+                path,
+                Is.Not.Empty,
+                $"Could not locate the Shader-Core source asset for '{shaderName}'."
+            );
             foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(path))
             {
                 var source = asset as TextAsset;
-                if (source != null && string.Equals(source.name, "Shader Source", StringComparison.Ordinal))
+                if (
+                    source != null
+                    && string.Equals(source.name, "Shader Source", StringComparison.Ordinal)
+                )
                     return source.text;
             }
 
-            Assert.Fail($"Shader-Core source asset '{path}' for '{shaderName}' has no generated Shader Source subasset.");
+            Assert.Fail(
+                $"Shader-Core source asset '{path}' for '{shaderName}' has no generated Shader Source subasset."
+            );
             return null;
         }
 
@@ -200,8 +240,14 @@ namespace PureBase.Tests.Daily
             Assert.That(material.renderQueue, Is.EqualTo(mode.resolvedQueue));
             AssertHiddenState(material, mode);
             AssertRenderingKeywords(material, mode.enabledKeywords);
-            Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.EqualTo(mode.enableContributionPasses));
-            Assert.That(material.GetShaderPassEnabled("Meta"), Is.EqualTo(mode.enableContributionPasses));
+            Assert.That(
+                material.GetShaderPassEnabled("ShadowCaster"),
+                Is.EqualTo(mode.enableContributionPasses)
+            );
+            Assert.That(
+                material.GetShaderPassEnabled("Meta"),
+                Is.EqualTo(mode.enableContributionPasses)
+            );
         }
 
         /// <summary>Asserts all noncanonical fields that the legacy fixture must preserve unchanged.</summary>
@@ -224,7 +270,11 @@ namespace PureBase.Tests.Daily
         {
             var serializedMaterial = new SerializedObject(material);
             SerializedProperty queue = serializedMaterial.FindProperty("m_CustomRenderQueue");
-            Assert.That(queue, Is.Not.Null, "Material serialization has no m_CustomRenderQueue property.");
+            Assert.That(
+                queue,
+                Is.Not.Null,
+                "Material serialization has no m_CustomRenderQueue property."
+            );
             return queue.intValue;
         }
 
@@ -233,23 +283,51 @@ namespace PureBase.Tests.Daily
         /// <param name="mode">The expected rendering-mode state.</param>
         private static void AssertRenderTypeState(Material material, ModeContract mode)
         {
-            bool hasOverride = TryGetSerializedRenderTypeOverride(material, out string renderTypeOverride);
-            Assert.That(hasOverride, Is.EqualTo(mode.hasRenderTypeOverride), mode.name + " RenderType override presence.");
+            bool hasOverride = TryGetSerializedRenderTypeOverride(
+                material,
+                out string renderTypeOverride
+            );
+            Assert.That(
+                hasOverride,
+                Is.EqualTo(mode.hasRenderTypeOverride),
+                mode.name + " RenderType override presence."
+            );
             if (hasOverride)
-                Assert.That(renderTypeOverride, Is.EqualTo(mode.renderTypeOverride), mode.name + " RenderType override.");
-            Assert.That(material.GetTag("RenderType", false), Is.EqualTo(mode.resolvedRenderType), mode.name + " resolved RenderType tag.");
+                Assert.That(
+                    renderTypeOverride,
+                    Is.EqualTo(mode.renderTypeOverride),
+                    mode.name + " RenderType override."
+                );
+            Assert.That(
+                material.GetTag("RenderType", false),
+                Is.EqualTo(mode.resolvedRenderType),
+                mode.name + " resolved RenderType tag."
+            );
         }
 
         /// <summary>Reads the raw RenderType override from Unity's serialized material tag map.</summary>
         /// <param name="material">The material whose serialized tag map is inspected.</param>
         /// <param name="renderTypeOverride">Receives the override value when it exists.</param>
         /// <returns>Whether the material serializes an explicit RenderType override.</returns>
-        private static bool TryGetSerializedRenderTypeOverride(Material material, out string renderTypeOverride)
+        private static bool TryGetSerializedRenderTypeOverride(
+            Material material,
+            out string renderTypeOverride
+        )
         {
             string serializedMaterial = EditorJsonUtility.ToJson(material);
-            Match tagMap = Regex.Match(serializedMaterial, @"""stringTagMap""\s*:\s*\{(?<entries>[^}]*)\}");
-            Assert.That(tagMap.Success, Is.True, "Material serialization has no stringTagMap object.");
-            Match renderType = Regex.Match(tagMap.Groups["entries"].Value, @"""RenderType""\s*:\s*""(?<value>[^""]*)""");
+            Match tagMap = Regex.Match(
+                serializedMaterial,
+                @"""stringTagMap""\s*:\s*\{(?<entries>[^}]*)\}"
+            );
+            Assert.That(
+                tagMap.Success,
+                Is.True,
+                "Material serialization has no stringTagMap object."
+            );
+            Match renderType = Regex.Match(
+                tagMap.Groups["entries"].Value,
+                @"""RenderType""\s*:\s*""(?<value>[^""]*)"""
+            );
             renderTypeOverride = renderType.Success ? renderType.Groups["value"].Value : null;
             return renderType.Success;
         }
@@ -260,9 +338,20 @@ namespace PureBase.Tests.Daily
         private static void AssertRenderingModeKeywordDeclarations(string source, string shaderName)
         {
             var declaredKeywords = new HashSet<string>(StringComparer.Ordinal);
-            foreach (Match declaration in Regex.Matches(source, @"^\s*#pragma\s+shader_feature_local\s+([^\r\n]+)", RegexOptions.Multiline))
+            foreach (
+                Match declaration in Regex.Matches(
+                    source,
+                    @"^\s*#pragma\s+shader_feature_local\s+([^\r\n]+)",
+                    RegexOptions.Multiline
+                )
+            )
             {
-                foreach (Match keyword in Regex.Matches(declaration.Groups[1].Value, @"\bPUREBASE_RENDERING_[A-Z0-9_]+\b"))
+                foreach (
+                    Match keyword in Regex.Matches(
+                        declaration.Groups[1].Value,
+                        @"\bPUREBASE_RENDERING_[A-Z0-9_]+\b"
+                    )
+                )
                     declaredKeywords.Add(keyword.Value);
             }
 
@@ -276,7 +365,9 @@ namespace PureBase.Tests.Daily
                 Assert.That(
                     Regex.IsMatch(
                         source,
-                        "HLSLINCLUDE[\\s\\S]*?#pragma\\s+shader_feature_local\\s+(?:_\\s+)?PUREBASE_RENDERING_OPAQUE\\s+PUREBASE_RENDERING_TRANSPARENT[\\s\\S]*?ENDHLSL[\\s\\S]*?Name\\s+\\\"" + Regex.Escape(passName) + "\\\""
+                        "HLSLINCLUDE[\\s\\S]*?#pragma\\s+shader_feature_local\\s+(?:_\\s+)?PUREBASE_RENDERING_OPAQUE\\s+PUREBASE_RENDERING_TRANSPARENT[\\s\\S]*?ENDHLSL[\\s\\S]*?Name\\s+\\\""
+                            + Regex.Escape(passName)
+                            + "\\\""
                     ),
                     Is.True,
                     $"Product shader '{shaderName}' pass '{passName}' must inherit the rendering-mode local shader feature from the shared HLSLINCLUDE block."
@@ -290,7 +381,11 @@ namespace PureBase.Tests.Daily
             /// <summary>Initializes one immutable product contract.</summary>
             /// <param name="shaderName">The stable public shader name.</param>
             /// <param name="visiblePropertyNames">The ordered visible property ABI.</param>
-            public ProductContract(string shaderName, string propertySourcePath, string[] visiblePropertyNames)
+            public ProductContract(
+                string shaderName,
+                string propertySourcePath,
+                string[] visiblePropertyNames
+            )
             {
                 this.shaderName = shaderName;
                 this.propertySourcePath = propertySourcePath;
@@ -311,7 +406,15 @@ namespace PureBase.Tests.Daily
         private sealed class ModeContract
         {
             /// <summary>Initializes one immutable state-table row.</summary>
-            public ModeContract(int value, string name, BlendState blend, RenderTypeState renderType, QueueState queue, string[] enabledKeywords, bool enableContributionPasses)
+            public ModeContract(
+                int value,
+                string name,
+                BlendState blend,
+                RenderTypeState renderType,
+                QueueState queue,
+                string[] enabledKeywords,
+                bool enableContributionPasses
+            )
             {
                 this.value = value;
                 this.name = name;
@@ -376,7 +479,13 @@ namespace PureBase.Tests.Daily
         private sealed class BlendState
         {
             /// <summary>Initializes one immutable blend-state value group.</summary>
-            public BlendState(int srcBlend, int dstBlend, int zWrite, int addSrcBlend, int addDstBlend)
+            public BlendState(
+                int srcBlend,
+                int dstBlend,
+                int zWrite,
+                int addSrcBlend,
+                int addDstBlend
+            )
             {
                 this.srcBlend = srcBlend;
                 this.dstBlend = dstBlend;
@@ -405,7 +514,11 @@ namespace PureBase.Tests.Daily
         private sealed class RenderTypeState
         {
             /// <summary>Initializes one immutable RenderType-state value group.</summary>
-            public RenderTypeState(string renderTypeOverride, bool hasRenderTypeOverride, string resolvedRenderType)
+            public RenderTypeState(
+                string renderTypeOverride,
+                bool hasRenderTypeOverride,
+                string resolvedRenderType
+            )
             {
                 this.renderTypeOverride = renderTypeOverride;
                 this.hasRenderTypeOverride = hasRenderTypeOverride;
@@ -438,6 +551,5 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the shader-resolved render queue.</summary>
             public readonly int resolvedQueue;
         }
-
-}
     }
+}

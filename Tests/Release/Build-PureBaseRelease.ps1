@@ -532,59 +532,59 @@ finally {
     $zipStream.Dispose()
 }
 
-    $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-    try {
-        $zipEntries = New-Object System.Collections.Generic.List[string]
-        foreach ($entry in $zip.Entries) {
-            if ($entry.FullName.EndsWith('/')) {
-                continue
-            }
-            $entryPath = Get-NormalizedRelativePath -Path $entry.FullName
-            if (-not (Test-ContractPath -Path $entryPath -Contract $contract)) {
-                throw "ZIP contains excluded or unapproved entry '$entryPath'."
-            }
-            if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) {
-                throw "ZIP entry '$entryPath' is a symbolic link."
-            }
-            $zipEntries.Add($entryPath)
+$zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+try {
+    $zipEntries = New-Object System.Collections.Generic.List[string]
+    foreach ($entry in $zip.Entries) {
+        if ($entry.FullName.EndsWith('/')) {
+            continue
         }
-
-        $duplicates = @($zipEntries | Group-Object | Where-Object { $_.Count -gt 1 })
-        if ($duplicates.Count -ne 0) {
-            throw ('ZIP contains duplicate normalized entries: ' + (($duplicates | ForEach-Object { $_.Name }) -join ', '))
+        $entryPath = Get-NormalizedRelativePath -Path $entry.FullName
+        if (-not (Test-ContractPath -Path $entryPath -Contract $contract)) {
+            throw "ZIP contains excluded or unapproved entry '$entryPath'."
         }
-        $sortedReleaseFiles = @(Get-OrdinalSortedStrings -Values $releaseFiles.ToArray())
-        $sortedZipEntries = @(Get-OrdinalSortedStrings -Values $zipEntries.ToArray())
-        $zipEntriesMatchReleaseFiles = $sortedReleaseFiles.Count -eq $sortedZipEntries.Count
-        if ($zipEntriesMatchReleaseFiles) {
-            for ($index = 0; $index -lt $sortedReleaseFiles.Count; $index++) {
-                if (-not [string]::Equals($sortedReleaseFiles[$index], $sortedZipEntries[$index], [System.StringComparison]::Ordinal)) {
-                    $zipEntriesMatchReleaseFiles = $false
-                    break
-                }
-            }
+        if ((($entry.ExternalAttributes -shr 16) -band 0xF000) -eq 0xA000) {
+            throw "ZIP entry '$entryPath' is a symbolic link."
         }
-        if (-not $zipEntriesMatchReleaseFiles) {
-            throw 'ZIP entries do not exactly match the audited tracked release source set.'
-        }
-        foreach ($requiredEntry in $contract.requiredEntries) {
-            if (-not $zipEntries.Contains([string]$requiredEntry)) {
-                throw "ZIP omits required release entry '$requiredEntry'."
-            }
-        }
-        $packageEntry = @($zip.Entries | Where-Object FullName -ceq 'package.json')
-        if ($packageEntry.Count -ne 1) { throw 'ZIP must contain exactly one package.json.' }
-        $reader = [IO.StreamReader]::new($packageEntry[0].Open(), [Text.UTF8Encoding]::new($false, $true))
-        try { $zipPackageVersion = [string](($reader.ReadToEnd() | ConvertFrom-Json).version) }
-        finally { $reader.Dispose() }
-        if ($zipPackageVersion -cne [string]$packageJson.version) { throw 'ZIP package.json version does not match the archive filename.' }
-    }
-    finally {
-        $zip.Dispose()
+        $zipEntries.Add($entryPath)
     }
 
-    $zipHash = Get-Sha256Hex -Path $zipPath
-    Set-Content -LiteralPath $hashPath -Value $zipHash -Encoding ASCII
+    $duplicates = @($zipEntries | Group-Object | Where-Object { $_.Count -gt 1 })
+    if ($duplicates.Count -ne 0) {
+        throw ('ZIP contains duplicate normalized entries: ' + (($duplicates | ForEach-Object { $_.Name }) -join ', '))
+    }
+    $sortedReleaseFiles = @(Get-OrdinalSortedStrings -Values $releaseFiles.ToArray())
+    $sortedZipEntries = @(Get-OrdinalSortedStrings -Values $zipEntries.ToArray())
+    $zipEntriesMatchReleaseFiles = $sortedReleaseFiles.Count -eq $sortedZipEntries.Count
+    if ($zipEntriesMatchReleaseFiles) {
+        for ($index = 0; $index -lt $sortedReleaseFiles.Count; $index++) {
+            if (-not [string]::Equals($sortedReleaseFiles[$index], $sortedZipEntries[$index], [System.StringComparison]::Ordinal)) {
+                $zipEntriesMatchReleaseFiles = $false
+                break
+            }
+        }
+    }
+    if (-not $zipEntriesMatchReleaseFiles) {
+        throw 'ZIP entries do not exactly match the audited tracked release source set.'
+    }
+    foreach ($requiredEntry in $contract.requiredEntries) {
+        if (-not $zipEntries.Contains([string]$requiredEntry)) {
+            throw "ZIP omits required release entry '$requiredEntry'."
+        }
+    }
+    $packageEntry = @($zip.Entries | Where-Object FullName -CEQ 'package.json')
+    if ($packageEntry.Count -ne 1) { throw 'ZIP must contain exactly one package.json.' }
+    $reader = [IO.StreamReader]::new($packageEntry[0].Open(), [Text.UTF8Encoding]::new($false, $true))
+    try { $zipPackageVersion = [string](($reader.ReadToEnd() | ConvertFrom-Json).version) }
+    finally { $reader.Dispose() }
+    if ($zipPackageVersion -cne [string]$packageJson.version) { throw 'ZIP package.json version does not match the archive filename.' }
+}
+finally {
+    $zip.Dispose()
+}
+
+$zipHash = Get-Sha256Hex -Path $zipPath
+Set-Content -LiteralPath $hashPath -Value $zipHash -Encoding ASCII
 Write-Output "Release ZIP: $zipPath"
 Write-Output "SHA-256: $zipHash"
 Write-Output "Audited entries: $($releaseFiles.Count)"

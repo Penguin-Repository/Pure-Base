@@ -121,15 +121,15 @@ Describe 'Hosted Unity review contracts' {
             $selectorPattern = "(?m)^(?:    - | {6})(?:$selectorName|`"$selectorName`"|'$selectorName')[ \t]*:[ \t]*(?:$selectorValue|`"$selectorValue`"|'$selectorValue')[ \t]*(?:#.*)?$"
             return @(
                 [regex]::Matches(($steps -join "`n"), '(?ms)^    - .*?(?=^    - |\z)') |
-                Where-Object {
-                    $stepMappingHeader = [regex]::Split(
-                        $_.Value,
-                        '(?m)^ {6}(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?$',
-                        2
-                    )[0]
-                    $stepMappingHeader -match $selectorPattern
-                } |
-                ForEach-Object Value
+                    Where-Object {
+                        $stepMappingHeader = [regex]::Split(
+                            $_.Value,
+                            '(?m)^ {6}(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?$',
+                            2
+                        )[0]
+                        $stepMappingHeader -match $selectorPattern
+                    } |
+                    ForEach-Object Value
             )
         }
 
@@ -419,7 +419,7 @@ Describe 'Hosted Unity review contracts' {
 
         $cacheActionReferences = @(
             Get-ActionReferences -Source $lookupAction |
-            Where-Object { $_ -match '^actions/cache(?:/restore)?@' }
+                Where-Object { $_ -match '^actions/cache(?:/restore)?@' }
         )
         $cacheActionReferences.Count | Should -Be 1
         $cacheActionReferences[0] | Should -Be 'actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
@@ -725,8 +725,8 @@ Describe 'Hosted Unity review contracts' {
         $pathMatch.Success | Should -BeTrue
         $pathLines = @(
             $pathMatch.Groups['paths'].Value -split "\r?\n" |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-            ForEach-Object { $_.Trim() }
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                ForEach-Object { $_.Trim() }
         )
         $artifactRoot = '${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}'
         $pathLines.Count | Should -Be 2
@@ -875,3 +875,4 @@ Describe 'Hosted Unity review contracts' {
         $shadowDiagnostics.Contains('shadowRange') | Should -BeTrue
     }
 }
+

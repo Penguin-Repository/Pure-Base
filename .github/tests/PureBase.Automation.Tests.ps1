@@ -41,7 +41,7 @@ Describe 'Resume tag handling' {
 
     It 'rejects a tag pointing to another commit' {
         { Resolve-PureBaseResumeTagAction -HeadSha 'abcdef' -ExistingTagSha '123456' } |
-        Should -Throw '*different commit*'
+            Should -Throw '*different commit*'
     }
 }
 
@@ -109,7 +109,7 @@ Describe 'VPM dispatch payload' {
             -Repository 'Penguin-Repository/Pure-Base' `
             -Version '0.2.0' `
             -AssetName 'jp.penguin.purebase-0.2.0.zip' |
-        Should -Be 'https://github.com/Penguin-Repository/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
+            Should -Be 'https://github.com/Penguin-Repository/Pure-Base/releases/download/0.2.0/jp.penguin.purebase-0.2.0.zip'
     }
 
     It 'includes the URL and SHA-256 in repository_dispatch data' {
@@ -264,7 +264,7 @@ Describe 'Immutable Releases preflight' {
                 -Repository 'Penguin-Repository/Pure-Base' `
                 -Token 'token' `
                 -ApiInvoker $invoker } |
-        Should -Throw '*must be enabled*'
+            Should -Throw '*must be enabled*'
     }
 
     It 'rejects an unexpected disabled response' {
@@ -274,7 +274,7 @@ Describe 'Immutable Releases preflight' {
                 -Repository 'Penguin-Repository/Pure-Base' `
                 -Token 'token' `
                 -ApiInvoker $invoker } |
-        Should -Throw '*did not confirm*'
+            Should -Throw '*did not confirm*'
     }
 }
 
@@ -308,7 +308,7 @@ Describe 'Published immutable release reuse' {
         $release = $publishedRelease.PSObject.Copy()
         $release.immutable = $false
         { Resolve-PureBasePublishedArtifact -Release $release -AssetName $assetName } |
-        Should -Throw '*immutable*'
+            Should -Throw '*immutable*'
     }
 
     It 'rejects a published asset without a valid digest' {
@@ -318,12 +318,12 @@ Describe 'Published immutable release reuse' {
             assets    = @([pscustomobject]@{ name = $assetName; state = 'uploaded'; digest = ''; browser_download_url = 'https://example.invalid/file.zip' })
         }
         { Resolve-PureBasePublishedArtifact -Release $release -AssetName $assetName } |
-        Should -Throw '*valid SHA-256 digest*'
+            Should -Throw '*valid SHA-256 digest*'
     }
 
     It 'validates an expected digest when one is supplied' {
         { Resolve-PureBasePublishedArtifact -Release $publishedRelease -AssetName $assetName -ExpectedSha256 ('b' * 64) } |
-        Should -Throw '*expected SHA-256*'
+            Should -Throw '*expected SHA-256*'
     }
 }
 
@@ -365,7 +365,7 @@ Describe 'Production workflow integration' {
 
         $activityTypes = @(
             [regex]::Matches($triggerMatch.Groups['body'].Value, '(?m)^\s+-\s+([^\s]+)\s*$') |
-            ForEach-Object { $_.Groups[1].Value }
+                ForEach-Object { $_.Groups[1].Value }
         )
         $activityTypes.Count | Should -Be 4
         ($activityTypes -join ',') | Should -Be 'opened,synchronize,reopened,ready_for_review'
@@ -461,19 +461,19 @@ Describe 'Validated artifact fresh release orchestration' {
             }
             $expectedAssetDigest = ''
             if ($null -ne $Release) {
-                $matchingAssets = @($Release.assets | Where-Object name -eq $AssetName | Select-Object -First 1)
+                $matchingAssets = @($Release.assets | Where-Object name -EQ $AssetName | Select-Object -First 1)
                 if ($matchingAssets.Count -eq 1 -and $null -ne $matchingAssets[0].PSObject.Properties['digest']) {
                     $expectedAssetDigest = [string]$matchingAssets[0].digest
                 }
             }
             [pscustomobject]@{
-                Exists = ($null -ne $Release)
-                TagName = if ($null -eq $Release) { '' } else { [string]$Release.tag_name }
-                TargetCommitish = if ($null -eq $Release) { '' } else { [string]$Release.target_commitish }
-                Draft = if ($null -eq $Release) { $null } else { [bool]$Release.draft }
-                Immutable = if ($null -eq $Release) { $null } else { [bool]$Release.immutable }
-                Body = if ($null -eq $Release) { '' } else { [string]$Release.body }
-                Assets = $assets
+                Exists              = ($null -ne $Release)
+                TagName             = if ($null -eq $Release) { '' } else { [string]$Release.tag_name }
+                TargetCommitish     = if ($null -eq $Release) { '' } else { [string]$Release.target_commitish }
+                Draft               = if ($null -eq $Release) { $null } else { [bool]$Release.draft }
+                Immutable           = if ($null -eq $Release) { $null } else { [bool]$Release.immutable }
+                Body                = if ($null -eq $Release) { '' } else { [string]$Release.body }
+                Assets              = $assets
                 ExpectedAssetDigest = $expectedAssetDigest
             }
         }
@@ -569,7 +569,7 @@ Describe 'Validated artifact fresh release orchestration' {
                 $validationArtifactPayload = Join-Path $validationArtifactStaging 'validated-package'
                 New-Item -ItemType Directory -Path $validationArtifactPayload -Force | Out-Null
                 Get-ChildItem -LiteralPath $validatedPackageDirectory -Force |
-                Copy-Item -Destination $validationArtifactPayload -Recurse -Force
+                    Copy-Item -Destination $validationArtifactPayload -Recurse -Force
                 [IO.Compression.ZipFile]::CreateFromDirectory($validationArtifactStaging, $validationArtifactArchive)
 
                 $hookLogPath = $pushLogPath.Replace('\', '/')
@@ -647,20 +647,20 @@ Describe 'Validated artifact fresh release orchestration' {
                     param($Method, $Uri, $Body, $InFile)
                     $assetDigest = ''
                     if ($null -ne $release) {
-                        $matchingAssets = @($release.assets | Where-Object name -eq $assetName | Select-Object -First 1)
+                        $matchingAssets = @($release.assets | Where-Object name -EQ $assetName | Select-Object -First 1)
                         if ($matchingAssets.Count -eq 1 -and $null -ne $matchingAssets[0].PSObject.Properties['digest']) {
                             $assetDigest = [string]$matchingAssets[0].digest
                         }
                     }
                     $apiCall = [pscustomobject]@{
-                            Method = $Method; Uri = $Uri; Body = $Body; InFile = $InFile
-                            ReleaseDraft = if ($null -eq $release) { $null } else { $release.draft }
-                            ReleaseImmutable = if ($null -eq $release) { $null } else { $release.immutable }
-                            AssetDigest = $assetDigest
-                            CreateResponseHasAssets = $null
-                            StateBefore = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
-                            StateAfter = $null
-                        }
+                        Method = $Method; Uri = $Uri; Body = $Body; InFile = $InFile
+                        ReleaseDraft = if ($null -eq $release) { $null } else { $release.draft }
+                        ReleaseImmutable = if ($null -eq $release) { $null } else { $release.immutable }
+                        AssetDigest = $assetDigest
+                        CreateResponseHasAssets = $null
+                        StateBefore = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
+                        StateAfter = $null
+                    }
                     $apiCalls.Add($apiCall) | Out-Null
                     $operationLog.Add([pscustomobject]@{ Kind = 'api'; Boundary = ''; ApiCall = $apiCall }) | Out-Null
                     if ($Uri -match '/immutable-releases$') {
@@ -671,7 +671,7 @@ Describe 'Validated artifact fresh release orchestration' {
                         $operationLog.Add([pscustomobject]@{ Kind = 'validation-run'; Boundary = ''; ApiCall = $apiCall }) | Out-Null
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                         return [pscustomobject]@{
-                                workflow_runs = @([pscustomobject]@{
+                            workflow_runs = @([pscustomobject]@{
                                     id = 11; path = '.github/workflows/release-validation.yml'; head_sha = $eventSha; head_branch = 'master'
                                     event = 'workflow_dispatch'; run_number = 11; run_attempt = 2; status = 'completed'; conclusion = 'success'
                                 })
@@ -682,7 +682,7 @@ Describe 'Validated artifact fresh release orchestration' {
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
                         return [pscustomobject]@{
                             total_count = 1
-                            artifacts = @([pscustomobject]@{
+                            artifacts   = @([pscustomobject]@{
                                     id = 7; node_id = 'MDg6QXJ0aWZhY3Q3'; name = 'pure-base-release-validation-11-2'; size_in_bytes = 1024
                                     url = 'https://api.example.invalid/repos/test/Pure-Base/actions/artifacts/7'; archive_download_url = 'https://api.example.invalid/repos/test/Pure-Base/actions/artifacts/7/zip'
                                     expired = $false; created_at = '2026-08-01T00:00:00Z'; updated_at = '2026-08-01T00:00:00Z'; expires_at = '2026-08-31T00:00:00Z'
@@ -715,7 +715,7 @@ Describe 'Validated artifact fresh release orchestration' {
                     }
                     if ($Uri -match '/releases\?per_page=100$') {
                         $apiCall.StateAfter = Get-ValidatedArtifactReleaseState -Release $release -AssetName $assetName
-                        return ,([object[]]@())
+                        return , ([object[]]@())
                     }
                     if ($Method -eq 'POST' -and $Uri -match '/repos/test/Pure-Base/releases$') {
                         $create = $Body | ConvertFrom-Json
@@ -863,7 +863,7 @@ Describe 'Validated artifact fresh release orchestration' {
             $eventPackage = (& git -C $fixture.RemoteRoot show "$($fixture.EventSha):package.json" | ConvertFrom-Json)
             $archive = [IO.Compression.ZipFile]::OpenRead($fixture.ZipPath)
             try {
-                $entry = @($archive.Entries | Where-Object FullName -ceq 'package.json')
+                $entry = @($archive.Entries | Where-Object FullName -CEQ 'package.json')
                 $entry.Count | Should -Be 1
                 $reader = [IO.StreamReader]::new($entry[0].Open(), [Text.UTF8Encoding]::new($false, $true))
                 try { $archivePackage = $reader.ReadToEnd() | ConvertFrom-Json }
@@ -902,14 +902,14 @@ Describe 'Validated artifact fresh release orchestration' {
         $fixture = New-ValidatedArtifactReleaseFixture
         try {
             $fixture.Failure | Should -BeNullOrEmpty
-            $firstMutationIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]]{
+            $firstMutationIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]] {
                     param($entry)
                     $entry.Kind -eq 'gate' -and $entry.Boundary -eq 'tag-push'
                 })
             $firstMutationIndex | Should -BeGreaterThan -1
 
             foreach ($validationOperation in @('validation-run', 'validation-artifact', 'validation-archive-request', 'validation-archive-download')) {
-                $operationIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]]{
+                $operationIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]] {
                         param($entry)
                         $entry.Kind -eq $validationOperation
                     }.GetNewClosure())
@@ -917,7 +917,7 @@ Describe 'Validated artifact fresh release orchestration' {
                 $operationIndex | Should -BeLessThan $firstMutationIndex
             }
 
-            $preflightIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]]{
+            $preflightIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]] {
                     param($entry)
                     $entry.Kind -eq 'api' -and $entry.ApiCall.Uri -match '/immutable-releases$'
                 })
@@ -985,23 +985,23 @@ Describe 'Validated artifact fresh release orchestration' {
         $fixture = New-ValidatedArtifactReleaseFixture -CreateResponseWithoutAssets
         try {
             $fixture.Failure | Should -BeNullOrEmpty
-            $draftCreateIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+            $draftCreateIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] {
                     param($call)
                     $call.Method -eq 'POST' -and $call.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases'
                 })
-            $canonicalReleaseIndex = [array]::FindIndex($fixture.ApiCalls, $draftCreateIndex + 1, [Predicate[object]]{
+            $canonicalReleaseIndex = [array]::FindIndex($fixture.ApiCalls, $draftCreateIndex + 1, [Predicate[object]] {
                     param($call)
                     $call.Method -eq 'GET' -and $call.Uri -eq 'https://api.example.invalid/repos/test/Pure-Base/releases/42'
                 })
-            $assetUploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+            $assetUploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] {
                     param($call)
                     $call.Method -eq 'POST' -and $call.Uri -match '/assets\?name='
                 })
-            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] {
                     param($call)
                     $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$'
                 })
-            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{
+            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] {
                     param($call)
                     $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$'
                 })
@@ -1077,7 +1077,7 @@ Describe 'Validated artifact fresh release orchestration' {
             $fixture.Failure | Should -Not -BeNullOrEmpty
             $fixture.Failure.Exception.Message | Should -Match 'remote release branch.*advanced'
             $fixture.MutationBoundaries | Should -Contain $Boundary
-            $gateIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]]{ param($entry) $entry.Kind -eq 'gate' -and $entry.Boundary -eq $Boundary })
+            $gateIndex = [array]::FindIndex($fixture.OperationLog, [Predicate[object]] { param($entry) $entry.Kind -eq 'gate' -and $entry.Boundary -eq $Boundary })
             $gateIndex | Should -BeGreaterThan -1
             $postGateMutations = @($fixture.OperationLog | Select-Object -Skip ($gateIndex + 1) | Where-Object {
                     $_.Kind -eq 'api' -and $_.ApiCall.Method -in @('POST', 'PATCH', 'DELETE')
@@ -1270,7 +1270,7 @@ Describe 'Validated artifact fresh release orchestration' {
             @($fixture.ApiCalls | Where-Object { $_.Method -eq 'DELETE' -or ($_.Method -eq 'POST' -and $_.Uri -match '/assets\?name=') -or ($_.Method -eq 'PATCH' -and $_.Uri -match '/releases/42$') }).Count | Should -Be 0
             $fixture.Release.draft | Should -BeTrue
             $fixture.Release.immutable | Should -BeFalse
-            @($fixture.Release.assets | Where-Object name -eq $fixture.AssetName).Count | Should -Be $ExpectedAssetCount
+            @($fixture.Release.assets | Where-Object name -EQ $fixture.AssetName).Count | Should -Be $ExpectedAssetCount
             $fixture.MutationBoundaries | Should -Not -Contain 'publish'
             $fixture.MutationBoundaries | Should -Not -Contain 'vpm-dispatch'
         }
@@ -1284,8 +1284,8 @@ Describe 'Validated artifact fresh release orchestration' {
             @($fixture.ApiCalls | Where-Object {
                     $_.Method -eq 'PATCH' -or $_.Method -eq 'DELETE' -or ($_.Method -eq 'POST' -and ($_.Uri -match '/releases$' -or $_.Uri -match '/assets\?name='))
                 }).Count | Should -Be 0
-            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$' })
-            $verifiedPublishedIndex = [array]::FindLastIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and $call.StateBefore.Exists -and -not $call.StateBefore.Draft -and $call.StateBefore.Immutable -and $call.StateBefore.TagName -eq $fixture.Version -and $call.StateBefore.TargetCommitish -eq $fixture.EventSha -and $call.StateBefore.ExpectedAssetDigest -eq "sha256:$($fixture.ZipSha256)" })
+            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$' })
+            $verifiedPublishedIndex = [array]::FindLastIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and $call.StateBefore.Exists -and -not $call.StateBefore.Draft -and $call.StateBefore.Immutable -and $call.StateBefore.TagName -eq $fixture.Version -and $call.StateBefore.TargetCommitish -eq $fixture.EventSha -and $call.StateBefore.ExpectedAssetDigest -eq "sha256:$($fixture.ZipSha256)" })
             $verifiedPublishedIndex | Should -BeGreaterThan -1
             $dispatchIndex | Should -BeGreaterThan $verifiedPublishedIndex
             $fixture.DispatchPayloads.Count | Should -Be 1
@@ -1309,8 +1309,8 @@ Describe 'Validated artifact fresh release orchestration' {
                     $_.Method -in @('POST', 'PATCH', 'DELETE') -and
                     ($_.Uri -match '/releases$' -or $_.Uri -match '/releases/42$' -or $_.Uri -match '/assets\?name=')
                 }).Count | Should -Be 0
-            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$' })
-            $verifiedPublishedIndex = [array]::FindLastIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and $call.StateBefore.Exists -and -not $call.StateBefore.Draft -and $call.StateBefore.Immutable -and $call.StateBefore.TagName -eq $fixture.Version -and $call.StateBefore.TargetCommitish -eq $fixture.EventSha -and $call.StateBefore.ExpectedAssetDigest -eq "sha256:$($fixture.ZipSha256)" })
+            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$' })
+            $verifiedPublishedIndex = [array]::FindLastIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and $call.StateBefore.Exists -and -not $call.StateBefore.Draft -and $call.StateBefore.Immutable -and $call.StateBefore.TagName -eq $fixture.Version -and $call.StateBefore.TargetCommitish -eq $fixture.EventSha -and $call.StateBefore.ExpectedAssetDigest -eq "sha256:$($fixture.ZipSha256)" })
             $verifiedPublishedIndex | Should -BeGreaterThan -1
             $dispatchIndex | Should -BeGreaterThan $verifiedPublishedIndex
             $fixture.DispatchPayloads.Count | Should -Be 1
@@ -1336,9 +1336,9 @@ Describe 'Validated artifact fresh release orchestration' {
         $fixture = New-ValidatedArtifactReleaseFixture -ReleaseState 'draft-resume' -DraftAssetState 'absent'
         try {
             $fixture.Failure | Should -BeNullOrEmpty
-            $uploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'POST' -and $call.Uri -match '/assets\?name=' })
-            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$' -and $call.Body -match '"draft":false' })
-            $verificationIndex = [array]::FindIndex($fixture.ApiCalls, $uploadIndex + 1, $publishIndex - $uploadIndex - 1, [Predicate[object]]{ param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/42$' -and $call.AssetDigest -eq "sha256:$($fixture.ZipSha256)" })
+            $uploadIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'POST' -and $call.Uri -match '/assets\?name=' })
+            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$' -and $call.Body -match '"draft":false' })
+            $verificationIndex = [array]::FindIndex($fixture.ApiCalls, $uploadIndex + 1, $publishIndex - $uploadIndex - 1, [Predicate[object]] { param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/42$' -and $call.AssetDigest -eq "sha256:$($fixture.ZipSha256)" })
             $uploadIndex | Should -BeGreaterThan -1
             $verificationIndex | Should -BeGreaterThan $uploadIndex
             $publishIndex | Should -BeGreaterThan $verificationIndex
@@ -1357,9 +1357,9 @@ Describe 'Validated artifact fresh release orchestration' {
         $fixture = New-ValidatedArtifactReleaseFixture
         try {
             $fixture.Failure | Should -BeNullOrEmpty
-            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$' -and $call.Body -match '"draft":false' })
-            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]]{ param($call) $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$' })
-            $confirmationIndex = [array]::FindIndex($fixture.ApiCalls, $publishIndex + 1, $dispatchIndex - $publishIndex - 1, [Predicate[object]]{ param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and -not $call.ReleaseDraft -and $call.ReleaseImmutable -and $call.AssetDigest -eq "sha256:$($fixture.ZipSha256)" })
+            $publishIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'PATCH' -and $call.Uri -match '/releases/42$' -and $call.Body -match '"draft":false' })
+            $dispatchIndex = [array]::FindIndex($fixture.ApiCalls, [Predicate[object]] { param($call) $call.Method -eq 'POST' -and $call.Uri -match '/dispatches$' })
+            $confirmationIndex = [array]::FindIndex($fixture.ApiCalls, $publishIndex + 1, $dispatchIndex - $publishIndex - 1, [Predicate[object]] { param($call) $call.Method -eq 'GET' -and $call.Uri -match '/releases/tags/' -and -not $call.ReleaseDraft -and $call.ReleaseImmutable -and $call.AssetDigest -eq "sha256:$($fixture.ZipSha256)" })
             $publishIndex | Should -BeGreaterThan -1
             $confirmationIndex | Should -BeGreaterThan $publishIndex
             $dispatchIndex | Should -BeGreaterThan $confirmationIndex
@@ -1385,7 +1385,7 @@ Describe 'Prerelease release naming and dispatch' {
 
     It 'preserves exact prerelease text in the package URL' {
         New-PureBasePackageUrl -Repository 'Penguin-Repository/Pure-Base' -Version $version -AssetName $assetName |
-        Should -Be "https://github.com/Penguin-Repository/Pure-Base/releases/download/$version/$assetName"
+            Should -Be "https://github.com/Penguin-Repository/Pure-Base/releases/download/$version/$assetName"
     }
 
     It 'preserves exact prerelease text in the tag, name, ZIP, release URL, and dispatch payload' {
@@ -1451,7 +1451,7 @@ Describe 'VPM yank policy dispatch preflight' {
         $apiInvoker = { param($Method, $Uri, $Token, $Body) $calls.Add($Uri) | Out-Null }.GetNewClosure()
 
         { Invoke-PureBaseYankDispatch -PolicyPath $policyPath -PolicyCommitSha ('a' * 40) -ApiInvoker $apiInvoker } |
-        Should -Throw
+            Should -Throw
         $calls.Count | Should -Be 0
     }
 
@@ -2060,7 +2060,7 @@ Describe 'Validated artifact archive and mutation gate contracts' {
             $requestInvoker = { param($Method, $Uri, $Headers, $OutFile, $MaximumRedirection) return $null }
 
             { Invoke-PureBaseArtifactRequestWithoutRedirect -RequestInvoker $requestInvoker -Uri 'https://objects.example.invalid/archive.zip' -Headers @{ 'User-Agent' = 'Pure-Base-Actions' } -OutFile 'null-response.zip' } |
-            Should -Throw '*response contract violation*'
+                Should -Throw '*response contract violation*'
         }
     }
 
@@ -2158,3 +2158,4 @@ Describe 'Validated artifact archive and mutation gate contracts' {
     }
 
 }
+

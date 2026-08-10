@@ -36,10 +36,12 @@ namespace PureBase.Editor
         private const string UndoName = "Set PureBase Rendering Mode";
 
         /// <summary>Explains the derived state of one Transparent material selection.</summary>
-        private const string TransparentDescription = "Transparent materials use alpha blending. ZWrite, ShadowCaster, and Meta are disabled.";
+        private const string TransparentDescription =
+            "Transparent materials use alpha blending. ZWrite, ShadowCaster, and Meta are disabled.";
 
         /// <summary>Explains the derived state when a mixed selection includes Transparent materials.</summary>
-        private const string MixedTransparentDescription = "One or more selected materials are Transparent. Those materials use alpha blending, and their ZWrite, ShadowCaster, and Meta are disabled.";
+        private const string MixedTransparentDescription =
+            "One or more selected materials are Transparent. Those materials use alpha blending, and their ZWrite, ShadowCaster, and Meta are disabled.";
 
         /// <summary>Defines the mode values in their popup display order.</summary>
         private static readonly List<int> ModeValues = new List<int>
@@ -50,12 +52,7 @@ namespace PureBase.Editor
         };
 
         /// <summary>Defines the stable English mode labels used by the selection model.</summary>
-        private static readonly string[] ModeNames =
-        {
-            "Opaque",
-            "Cutout",
-            "Transparent",
-        };
+        private static readonly string[] ModeNames = { "Opaque", "Cutout", "Transparent" };
 
         /// <summary>Stores the material property currently represented by this field.</summary>
         public SCMaterialProperty Property { get; set; }
@@ -90,7 +87,12 @@ namespace PureBase.Editor
         /// <param name="property">The rendering-mode material property.</param>
         /// <param name="arguments">Unused drawer arguments.</param>
         /// <param name="container">The property container that owns the drawer UI.</param>
-        private static void Draw(SCMaterialEditor _, SCMaterialProperty property, string arguments, VisualElement container)
+        private static void Draw(
+            SCMaterialEditor _,
+            SCMaterialProperty property,
+            string arguments,
+            VisualElement container
+        )
         {
             var element = new PureBaseRenderingModeElement(property);
             container.Add(element.Root);
@@ -105,8 +107,14 @@ namespace PureBase.Editor
             formatListItemCallback = GetModeLabel;
             formatSelectedValueCallback = GetModeLabel;
 
-            TransparentHelpBox = new HelpBox(SCL10n.L(TransparentDescription), HelpBoxMessageType.Info);
-            MixedTransparentHelpBox = new HelpBox(SCL10n.L(MixedTransparentDescription), HelpBoxMessageType.Info);
+            TransparentHelpBox = new HelpBox(
+                SCL10n.L(TransparentDescription),
+                HelpBoxMessageType.Info
+            );
+            MixedTransparentHelpBox = new HelpBox(
+                SCL10n.L(MixedTransparentDescription),
+                HelpBoxMessageType.Info
+            );
             Root = new VisualElement();
             Root.Add(this);
             Root.Add(TransparentHelpBox);
@@ -132,8 +140,15 @@ namespace PureBase.Editor
         {
             if (materials == null)
                 throw new ArgumentNullException(nameof(materials));
-            if (mode < (int)PureBaseRenderingMode.Opaque || mode > (int)PureBaseRenderingMode.Transparent)
-                throw new ArgumentOutOfRangeException(nameof(mode), mode, "The rendering mode must be Opaque, Cutout, or Transparent.");
+            if (
+                mode < (int)PureBaseRenderingMode.Opaque
+                || mode > (int)PureBaseRenderingMode.Transparent
+            )
+                throw new ArgumentOutOfRangeException(
+                    nameof(mode),
+                    mode,
+                    "The rendering mode must be Opaque, Cutout, or Transparent."
+                );
 
             for (int index = 0; index < materials.Length; index++)
                 PureBaseMaterialRenderingMode.Validate(materials[index]);
@@ -183,7 +198,12 @@ namespace PureBase.Editor
                 }
             }
 
-            return new SelectionDisplayState(selectedValue, hasMixedValue, containsTransparent, ModeNames);
+            return new SelectionDisplayState(
+                selectedValue,
+                hasMixedValue,
+                containsTransparent,
+                ModeNames
+            );
         }
 
         /// <summary>Determines whether one material uses a stable Pure-Base shader.</summary>
@@ -202,12 +222,15 @@ namespace PureBase.Editor
             showMixedValue = displayState.HasMixedValue;
             SetValueWithoutNotify(displayState.SelectedValue);
             textElement.text = GetModeLabel(displayState.SelectedValue);
-            TransparentHelpBox.style.display = !displayState.HasMixedValue && displayState.SelectedValue == (int)PureBaseRenderingMode.Transparent
-                ? DisplayStyle.Flex
-                : DisplayStyle.None;
-            MixedTransparentHelpBox.style.display = displayState.HasMixedValue && displayState.ContainsTransparent
-                ? DisplayStyle.Flex
-                : DisplayStyle.None;
+            TransparentHelpBox.style.display =
+                !displayState.HasMixedValue
+                && displayState.SelectedValue == (int)PureBaseRenderingMode.Transparent
+                    ? DisplayStyle.Flex
+                    : DisplayStyle.None;
+            MixedTransparentHelpBox.style.display =
+                displayState.HasMixedValue && displayState.ContainsTransparent
+                    ? DisplayStyle.Flex
+                    : DisplayStyle.None;
         }
 
         /// <summary>Creates localized labels for the fixed rendering-mode names.</summary>
@@ -244,7 +267,9 @@ namespace PureBase.Editor
             int mode = material.HasProperty(RenderingModePropertyName)
                 ? material.GetInteger(RenderingModePropertyName)
                 : (int)PureBaseRenderingMode.Cutout;
-            return mode >= (int)PureBaseRenderingMode.Opaque && mode <= (int)PureBaseRenderingMode.Transparent
+            return
+                mode >= (int)PureBaseRenderingMode.Opaque
+                && mode <= (int)PureBaseRenderingMode.Transparent
                 ? mode
                 : (int)PureBaseRenderingMode.Cutout;
         }
@@ -276,7 +301,12 @@ namespace PureBase.Editor
             /// <param name="hasMixedValue">Whether selected materials have different modes.</param>
             /// <param name="containsTransparent">Whether any selected material is Transparent.</param>
             /// <param name="choices">The stable labels displayed by the popup.</param>
-            public SelectionDisplayState(int selectedValue, bool hasMixedValue, bool containsTransparent, IReadOnlyList<string> choices)
+            public SelectionDisplayState(
+                int selectedValue,
+                bool hasMixedValue,
+                bool containsTransparent,
+                IReadOnlyList<string> choices
+            )
             {
                 SelectedValue = selectedValue;
                 HasMixedValue = hasMixedValue;

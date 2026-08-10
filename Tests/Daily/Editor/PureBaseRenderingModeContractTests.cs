@@ -19,7 +19,5 @@
 namespace PureBase.Tests.Daily
 {
     /// <summary>Defines Editor-side rendering-mode contracts before the product normalizer is implemented.</summary>
-    public sealed partial class PureBaseRenderingModeContractTests
-    {
-    }
+    public sealed partial class PureBaseRenderingModeContractTests { }
 }

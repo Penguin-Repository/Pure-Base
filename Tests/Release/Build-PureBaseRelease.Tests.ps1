@@ -223,15 +223,15 @@ Describe 'Deterministic release archive contracts' {
 
             $utf8NoBom = [Text.UTF8Encoding]::new($false)
             $files = [ordered]@{
-                'LICENSE' = "license fixture`n"
-                'NOTICE' = "notice fixture`n"
-                'README.md' = "# Fixture`n"
-                'Editor/.gitkeep' = ''
+                'LICENSE'                         = "license fixture`n"
+                'NOTICE'                          = "notice fixture`n"
+                'README.md'                       = "# Fixture`n"
+                'Editor/.gitkeep'                 = ''
                 'Shaders/PureBaseHybrid.scshader' = "Shader fixture Hybrid`n"
-                'Shaders/PureBasePBR.scshader' = "Shader fixture PBR`n"
-                'Shaders/PureBaseToon.scshader' = "Shader fixture Toon`n"
-                'Shaders/PureBaseUnlit.scshader' = "Shader fixture Unlit`n"
-                'package.json' = "{`"name`":`"jp.penguin.purebase`",`"version`":`"0.2.0`",`"vpmDependencies`":{`"jp.lilxyzw.shadercore`":`"0.1.9`"}}`n"
+                'Shaders/PureBasePBR.scshader'    = "Shader fixture PBR`n"
+                'Shaders/PureBaseToon.scshader'   = "Shader fixture Toon`n"
+                'Shaders/PureBaseUnlit.scshader'  = "Shader fixture Unlit`n"
+                'package.json'                    = "{`"name`":`"jp.penguin.purebase`",`"version`":`"0.2.0`",`"vpmDependencies`":{`"jp.lilxyzw.shadercore`":`"0.1.9`"}}`n"
             }
             foreach ($entry in $files.GetEnumerator()) {
                 $path = Join-Path $packageRoot $entry.Key
@@ -364,6 +364,6 @@ Describe 'Deterministic release archive contracts' {
         $archive = Get-ChildItem -LiteralPath $outputDirectory -Filter 'jp.penguin.purebase-0.2.0.zip' -File | Select-Object -First 1
         $archive | Should -Not -BeNullOrEmpty
         (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant() |
-        Should -Be 'b9ea2454a4dc12be358824865bac7bd8beba293a83c8ec9c129083bc950130a1'
+            Should -Be 'b9ea2454a4dc12be358824865bac7bd8beba293a83c8ec9c129083bc950130a1'
     }
 }

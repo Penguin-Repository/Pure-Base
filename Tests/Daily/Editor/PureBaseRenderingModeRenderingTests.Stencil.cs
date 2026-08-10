@@ -40,22 +40,70 @@ namespace PureBase.Tests.Daily
                         shader,
                         new Color(0.8f, 0.6f, 0.4f, 1.0f),
                         0,
-                        new StencilState(37, 255, 255, CompareFunction.Always, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep),
+                        new StencilState(
+                            37,
+                            255,
+                            255,
+                            CompareFunction.Always,
+                            StencilOp.Keep,
+                            StencilOp.Keep,
+                            StencilOp.Keep
+                        ),
                         0
                     );
                     Color nonzeroClear = fixture.RenderSingle(
                         shader,
                         new Color(0.8f, 0.6f, 0.4f, 1.0f),
                         203,
-                        new StencilState(37, 255, 255, CompareFunction.Always, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep),
+                        new StencilState(
+                            37,
+                            255,
+                            255,
+                            CompareFunction.Always,
+                            StencilOp.Keep,
+                            StencilOp.Keep,
+                            StencilOp.Keep
+                        ),
                         0
                     );
 
-                    AssertFinite(zeroClear, shaderName + " default-Always clear-0 " + fixture.FormatDescription);
-                    AssertFinite(nonzeroClear, shaderName + " default-Always clear-203 " + fixture.FormatDescription);
-                    Assert.That(RgbMagnitude(zeroClear), Is.GreaterThan(0.05f), shaderName + " default Always+Keep must draw over clear stencil 0. " + fixture.FormatDescription + " Pixel=" + zeroClear);
-                    Assert.That(RgbMagnitude(nonzeroClear), Is.GreaterThan(0.05f), shaderName + " default Always+Keep must draw over clear stencil 203. " + fixture.FormatDescription + " Pixel=" + nonzeroClear);
-                    Assert.That(RgbMagnitude(zeroClear - nonzeroClear), Is.LessThan(0.02f), shaderName + " default Always+Keep must not depend on the cleared stencil value. " + fixture.FormatDescription + " Clear0=" + zeroClear + " Clear203=" + nonzeroClear);
+                    AssertFinite(
+                        zeroClear,
+                        shaderName + " default-Always clear-0 " + fixture.FormatDescription
+                    );
+                    AssertFinite(
+                        nonzeroClear,
+                        shaderName + " default-Always clear-203 " + fixture.FormatDescription
+                    );
+                    Assert.That(
+                        RgbMagnitude(zeroClear),
+                        Is.GreaterThan(0.05f),
+                        shaderName
+                            + " default Always+Keep must draw over clear stencil 0. "
+                            + fixture.FormatDescription
+                            + " Pixel="
+                            + zeroClear
+                    );
+                    Assert.That(
+                        RgbMagnitude(nonzeroClear),
+                        Is.GreaterThan(0.05f),
+                        shaderName
+                            + " default Always+Keep must draw over clear stencil 203. "
+                            + fixture.FormatDescription
+                            + " Pixel="
+                            + nonzeroClear
+                    );
+                    Assert.That(
+                        RgbMagnitude(zeroClear - nonzeroClear),
+                        Is.LessThan(0.02f),
+                        shaderName
+                            + " default Always+Keep must not depend on the cleared stencil value. "
+                            + fixture.FormatDescription
+                            + " Clear0="
+                            + zeroClear
+                            + " Clear203="
+                            + nonzeroClear
+                    );
                 }
                 finally
                 {
@@ -68,9 +116,33 @@ namespace PureBase.Tests.Daily
         [Test]
         public void D24S8StencilForwardBaseReplaceControlsEqualAndMismatchedReadersAcrossProductShaders()
         {
-            var writerState = new StencilState(60, 255, 255, CompareFunction.Always, StencilOp.Replace, StencilOp.Keep, StencilOp.Keep);
-            var matchingReaderState = new StencilState(60, 255, 0, CompareFunction.Equal, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
-            var mismatchedReaderState = new StencilState(61, 255, 0, CompareFunction.Equal, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
+            var writerState = new StencilState(
+                60,
+                255,
+                255,
+                CompareFunction.Always,
+                StencilOp.Replace,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
+            var matchingReaderState = new StencilState(
+                60,
+                255,
+                0,
+                CompareFunction.Equal,
+                StencilOp.Keep,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
+            var mismatchedReaderState = new StencilState(
+                61,
+                255,
+                0,
+                CompareFunction.Equal,
+                StencilOp.Keep,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
             foreach (string shaderName in ProductShaderNames)
             {
                 var fixture = new D24S8StencilFixture();
@@ -101,10 +173,38 @@ namespace PureBase.Tests.Daily
                         out mismatchedWriter
                     );
 
-                    AssertFinite(matching, shaderName + " Replace/Equal matching reader " + fixture.FormatDescription);
-                    AssertFinite(mismatched, shaderName + " Replace/Equal mismatched reader " + fixture.FormatDescription);
-                    Assert.That(RgbMagnitude(matching), Is.GreaterThan(0.05f), shaderName + " Replace writer followed by Equal reader with ref 60 must render. " + fixture.FormatDescription + " Pixel=" + matching);
-                    Assert.That(RgbMagnitude(mismatched - mismatchedWriter), Is.LessThan(RgbMagnitude(matching - matchingWriter) * 0.2f), shaderName + " Replace writer followed by Equal reader with ref 61 must reject without adding reader color beyond the black-writer baseline. " + fixture.FormatDescription + " Matching=" + matching + " MatchingWriter=" + matchingWriter + " Mismatched=" + mismatched + " MismatchedWriter=" + mismatchedWriter);
+                    AssertFinite(
+                        matching,
+                        shaderName + " Replace/Equal matching reader " + fixture.FormatDescription
+                    );
+                    AssertFinite(
+                        mismatched,
+                        shaderName + " Replace/Equal mismatched reader " + fixture.FormatDescription
+                    );
+                    Assert.That(
+                        RgbMagnitude(matching),
+                        Is.GreaterThan(0.05f),
+                        shaderName
+                            + " Replace writer followed by Equal reader with ref 60 must render. "
+                            + fixture.FormatDescription
+                            + " Pixel="
+                            + matching
+                    );
+                    Assert.That(
+                        RgbMagnitude(mismatched - mismatchedWriter),
+                        Is.LessThan(RgbMagnitude(matching - matchingWriter) * 0.2f),
+                        shaderName
+                            + " Replace writer followed by Equal reader with ref 61 must reject without adding reader color beyond the black-writer baseline. "
+                            + fixture.FormatDescription
+                            + " Matching="
+                            + matching
+                            + " MatchingWriter="
+                            + matchingWriter
+                            + " Mismatched="
+                            + mismatched
+                            + " MismatchedWriter="
+                            + mismatchedWriter
+                    );
                 }
                 finally
                 {
@@ -117,9 +217,33 @@ namespace PureBase.Tests.Daily
         [Test]
         public void D24S8StencilHonorsPartialReadAndWriteMasksAcrossProductShaders()
         {
-            var writerState = new StencilState(0x12, 255, 0x0f, CompareFunction.Always, StencilOp.Replace, StencilOp.Keep, StencilOp.Keep);
-            var matchingReaderState = new StencilState(0xf2, 0x0f, 0, CompareFunction.Equal, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
-            var mismatchedReaderState = new StencilState(0xf1, 0x0f, 0, CompareFunction.Equal, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
+            var writerState = new StencilState(
+                0x12,
+                255,
+                0x0f,
+                CompareFunction.Always,
+                StencilOp.Replace,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
+            var matchingReaderState = new StencilState(
+                0xf2,
+                0x0f,
+                0,
+                CompareFunction.Equal,
+                StencilOp.Keep,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
+            var mismatchedReaderState = new StencilState(
+                0xf1,
+                0x0f,
+                0,
+                CompareFunction.Equal,
+                StencilOp.Keep,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
             foreach (string shaderName in ProductShaderNames)
             {
                 var fixture = new D24S8StencilFixture();
@@ -150,10 +274,38 @@ namespace PureBase.Tests.Daily
                         out mismatchedWriter
                     );
 
-                    AssertFinite(matching, shaderName + " partial-mask matching reader " + fixture.FormatDescription);
-                    AssertFinite(mismatched, shaderName + " partial-mask mismatched reader " + fixture.FormatDescription);
-                    Assert.That(RgbMagnitude(matching), Is.GreaterThan(0.05f), shaderName + " WriteMask 0x0f must write low bits that ReadMask 0x0f can match. " + fixture.FormatDescription + " Pixel=" + matching);
-                    Assert.That(RgbMagnitude(mismatched - mismatchedWriter), Is.LessThan(RgbMagnitude(matching - matchingWriter) * 0.2f), shaderName + " ReadMask 0x0f must reject a mismatched low-bit reference without adding reader color beyond the black-writer baseline. " + fixture.FormatDescription + " Matching=" + matching + " MatchingWriter=" + matchingWriter + " Mismatched=" + mismatched + " MismatchedWriter=" + mismatchedWriter);
+                    AssertFinite(
+                        matching,
+                        shaderName + " partial-mask matching reader " + fixture.FormatDescription
+                    );
+                    AssertFinite(
+                        mismatched,
+                        shaderName + " partial-mask mismatched reader " + fixture.FormatDescription
+                    );
+                    Assert.That(
+                        RgbMagnitude(matching),
+                        Is.GreaterThan(0.05f),
+                        shaderName
+                            + " WriteMask 0x0f must write low bits that ReadMask 0x0f can match. "
+                            + fixture.FormatDescription
+                            + " Pixel="
+                            + matching
+                    );
+                    Assert.That(
+                        RgbMagnitude(mismatched - mismatchedWriter),
+                        Is.LessThan(RgbMagnitude(matching - matchingWriter) * 0.2f),
+                        shaderName
+                            + " ReadMask 0x0f must reject a mismatched low-bit reference without adding reader color beyond the black-writer baseline. "
+                            + fixture.FormatDescription
+                            + " Matching="
+                            + matching
+                            + " MatchingWriter="
+                            + matchingWriter
+                            + " Mismatched="
+                            + mismatched
+                            + " MismatchedWriter="
+                            + mismatchedWriter
+                    );
                 }
                 finally
                 {
@@ -167,30 +319,127 @@ namespace PureBase.Tests.Daily
         public void D24S8StencilToonForwardAddRecomparesPostBaseStencilWithoutWriting()
         {
             Shader toon = RequireProductShader("PureBase/Toon");
-            var equalKeep = new StencilState(0, 255, 255, CompareFunction.Equal, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
-            var notEqualReplace = new StencilState(1, 255, 255, CompareFunction.NotEqual, StencilOp.Replace, StencilOp.Keep, StencilOp.Keep);
+            var equalKeep = new StencilState(
+                0,
+                255,
+                255,
+                CompareFunction.Equal,
+                StencilOp.Keep,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
+            var notEqualReplace = new StencilState(
+                1,
+                255,
+                255,
+                CompareFunction.NotEqual,
+                StencilOp.Replace,
+                StencilOp.Keep,
+                StencilOp.Keep
+            );
             var fixture = new ToonForwardAddScope();
             try
             {
                 fixture.Initialize();
-                var alwaysKeep = new StencilState(0, 255, 255, CompareFunction.Always, StencilOp.Keep, StencilOp.Keep, StencilOp.Keep);
+                var alwaysKeep = new StencilState(
+                    0,
+                    255,
+                    255,
+                    CompareFunction.Always,
+                    StencilOp.Keep,
+                    StencilOp.Keep,
+                    StencilOp.Keep
+                );
                 Color alwaysKeepOneLight = fixture.RenderToonComposite(toon, 0, alwaysKeep, 1);
-                AssertFinite(alwaysKeepOneLight, "Toon Always+Keep one-light " + fixture.FormatDescription);
-                Assert.That(RgbMagnitude(alwaysKeepOneLight), Is.GreaterThan(0.05f), "Toon Always+Keep transparent one-light control must render before testing ForwardAdd Stencil recompare. " + fixture.FormatDescription + " Pixel=" + alwaysKeepOneLight);
+                AssertFinite(
+                    alwaysKeepOneLight,
+                    "Toon Always+Keep one-light " + fixture.FormatDescription
+                );
+                Assert.That(
+                    RgbMagnitude(alwaysKeepOneLight),
+                    Is.GreaterThan(0.05f),
+                    "Toon Always+Keep transparent one-light control must render before testing ForwardAdd Stencil recompare. "
+                        + fixture.FormatDescription
+                        + " Pixel="
+                        + alwaysKeepOneLight
+                );
                 Color equalKeepOneLight = fixture.RenderToonComposite(toon, 0, equalKeep, 1);
                 Color equalKeepTwoLights = fixture.RenderToonComposite(toon, 0, equalKeep, 2);
                 float retainedAddDelta = RgbMagnitude(equalKeepTwoLights - equalKeepOneLight);
-                AssertFinite(equalKeepOneLight, "Toon Equal+Keep one-light " + fixture.FormatDescription);
-                AssertFinite(equalKeepTwoLights, "Toon Equal+Keep two-light " + fixture.FormatDescription);
-                Assert.That(retainedAddDelta, Is.GreaterThan(0.01f), "Toon two-light control must expose a measurable ForwardAdd contribution before testing Stencil recompare. " + fixture.FormatDescription + " OneLight=" + equalKeepOneLight + " TwoLights=" + equalKeepTwoLights + " Delta=" + retainedAddDelta);
-                Color notEqualReplaceOneLight = fixture.RenderToonComposite(toon, 0, notEqualReplace, 1);
-                Color notEqualReplaceTwoLights = fixture.RenderToonComposite(toon, 0, notEqualReplace, 2);
-                float rejectedAddDelta = RgbMagnitude(notEqualReplaceTwoLights - notEqualReplaceOneLight);
+                AssertFinite(
+                    equalKeepOneLight,
+                    "Toon Equal+Keep one-light " + fixture.FormatDescription
+                );
+                AssertFinite(
+                    equalKeepTwoLights,
+                    "Toon Equal+Keep two-light " + fixture.FormatDescription
+                );
+                Assert.That(
+                    retainedAddDelta,
+                    Is.GreaterThan(0.01f),
+                    "Toon two-light control must expose a measurable ForwardAdd contribution before testing Stencil recompare. "
+                        + fixture.FormatDescription
+                        + " OneLight="
+                        + equalKeepOneLight
+                        + " TwoLights="
+                        + equalKeepTwoLights
+                        + " Delta="
+                        + retainedAddDelta
+                );
+                Color notEqualReplaceOneLight = fixture.RenderToonComposite(
+                    toon,
+                    0,
+                    notEqualReplace,
+                    1
+                );
+                Color notEqualReplaceTwoLights = fixture.RenderToonComposite(
+                    toon,
+                    0,
+                    notEqualReplace,
+                    2
+                );
+                float rejectedAddDelta = RgbMagnitude(
+                    notEqualReplaceTwoLights - notEqualReplaceOneLight
+                );
 
-                AssertFinite(notEqualReplaceOneLight, "Toon NotEqual+Replace one-light " + fixture.FormatDescription);
-                AssertFinite(notEqualReplaceTwoLights, "Toon NotEqual+Replace two-light " + fixture.FormatDescription);
-                Assert.That(rejectedAddDelta, Is.LessThan(retainedAddDelta * 0.2f), "Toon NotEqual+Replace must make ForwardAdd recompare the post-ForwardBase value and reject its add contribution. " + fixture.FormatDescription + " OneLight=" + notEqualReplaceOneLight + " TwoLights=" + notEqualReplaceTwoLights + " RetainedDelta=" + retainedAddDelta + " RejectedDelta=" + rejectedAddDelta);
-                TestContext.Progress.WriteLine("Toon D24S8 controls: AlwaysKeepOneLight=" + alwaysKeepOneLight + " EqualKeepOneLight=" + equalKeepOneLight + " EqualKeepTwoLights=" + equalKeepTwoLights + " NotEqualReplaceOneLight=" + notEqualReplaceOneLight + " NotEqualReplaceTwoLights=" + notEqualReplaceTwoLights + " RetainedAddDelta=" + retainedAddDelta + " RejectedAddDelta=" + rejectedAddDelta);
+                AssertFinite(
+                    notEqualReplaceOneLight,
+                    "Toon NotEqual+Replace one-light " + fixture.FormatDescription
+                );
+                AssertFinite(
+                    notEqualReplaceTwoLights,
+                    "Toon NotEqual+Replace two-light " + fixture.FormatDescription
+                );
+                Assert.That(
+                    rejectedAddDelta,
+                    Is.LessThan(retainedAddDelta * 0.2f),
+                    "Toon NotEqual+Replace must make ForwardAdd recompare the post-ForwardBase value and reject its add contribution. "
+                        + fixture.FormatDescription
+                        + " OneLight="
+                        + notEqualReplaceOneLight
+                        + " TwoLights="
+                        + notEqualReplaceTwoLights
+                        + " RetainedDelta="
+                        + retainedAddDelta
+                        + " RejectedDelta="
+                        + rejectedAddDelta
+                );
+                TestContext.Progress.WriteLine(
+                    "Toon D24S8 controls: AlwaysKeepOneLight="
+                        + alwaysKeepOneLight
+                        + " EqualKeepOneLight="
+                        + equalKeepOneLight
+                        + " EqualKeepTwoLights="
+                        + equalKeepTwoLights
+                        + " NotEqualReplaceOneLight="
+                        + notEqualReplaceOneLight
+                        + " NotEqualReplaceTwoLights="
+                        + notEqualReplaceTwoLights
+                        + " RetainedAddDelta="
+                        + retainedAddDelta
+                        + " RejectedAddDelta="
+                        + rejectedAddDelta
+                );
             }
             finally
             {
@@ -209,7 +458,15 @@ namespace PureBase.Tests.Daily
             /// <param name="passOperation">The operation when Stencil and depth tests pass.</param>
             /// <param name="failOperation">The operation when the Stencil test fails.</param>
             /// <param name="depthFailOperation">The operation when the depth test fails.</param>
-            public StencilState(byte referenceValue, byte readMask, byte writeMask, CompareFunction comparison, StencilOp passOperation, StencilOp failOperation, StencilOp depthFailOperation)
+            public StencilState(
+                byte referenceValue,
+                byte readMask,
+                byte writeMask,
+                CompareFunction comparison,
+                StencilOp passOperation,
+                StencilOp failOperation,
+                StencilOp depthFailOperation
+            )
             {
                 this.referenceValue = referenceValue;
                 this.readMask = readMask;
@@ -241,6 +498,5 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the Stencil operation when the depth test fails.</summary>
             public readonly StencilOp depthFailOperation;
         }
-
     }
 }

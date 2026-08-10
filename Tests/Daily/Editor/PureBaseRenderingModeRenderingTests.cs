@@ -62,7 +62,10 @@ namespace PureBase.Tests.Daily
                 Assert.That(opaque.GetFloat("_ZWrite"), Is.EqualTo(1.0f));
                 Assert.That(cutout.GetFloat("_ZWrite"), Is.EqualTo(1.0f));
                 Assert.That(transparent.GetFloat("_ZWrite"), Is.EqualTo(0.0f));
-                Assert.That(transparent.GetFloat("_AddSrcBlend"), Is.EqualTo((float)BlendMode.SrcAlpha));
+                Assert.That(
+                    transparent.GetFloat("_AddSrcBlend"),
+                    Is.EqualTo((float)BlendMode.SrcAlpha)
+                );
                 Assert.That(transparentToon.GetShaderPassEnabled("ShadowCaster"), Is.False);
                 Assert.That(transparentToon.GetShaderPassEnabled("Meta"), Is.False);
             }
@@ -76,8 +79,16 @@ namespace PureBase.Tests.Daily
             Color contributingBaseColor = new Color(0.8f, 0.2f, 0.1f, 1.0f);
             var opaque = CreateConfiguredMaterial(shader, 0, contributingBaseColor);
             var cutout = CreateConfiguredMaterial(shader, 1, contributingBaseColor);
-            var cutoutBelow = CreateConfiguredMaterial(shader, 1, new Color(0.8f, 0.2f, 0.1f, 0.25f));
-            var transparent = CreateConfiguredMaterial(shader, 2, new Color(0.8f, 0.2f, 0.1f, 0.25f));
+            var cutoutBelow = CreateConfiguredMaterial(
+                shader,
+                1,
+                new Color(0.8f, 0.2f, 0.1f, 0.25f)
+            );
+            var transparent = CreateConfiguredMaterial(
+                shader,
+                2,
+                new Color(0.8f, 0.2f, 0.1f, 0.25f)
+            );
             {
                 AssertShadowContributions(opaque, cutout, cutoutBelow, transparent);
                 AssertMetaContributions(opaque, cutout, transparent, contributingBaseColor.linear);
@@ -85,70 +96,200 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Asserts ShadowCaster enablement and measured contribution boundaries for all rendering modes.</summary>
-        private static void AssertShadowContributions(Material opaque, Material cutout, Material cutoutBelow, Material transparent)
+        private static void AssertShadowContributions(
+            Material opaque,
+            Material cutout,
+            Material cutoutBelow,
+            Material transparent
+        )
         {
-            Assert.That(opaque.GetShaderPassEnabled("ShadowCaster"), Is.True, "Opaque ShadowCaster must be enabled before its silhouette is observed.");
-            Assert.That(cutout.GetShaderPassEnabled("ShadowCaster"), Is.True, "Cutout ShadowCaster must be enabled before its silhouette is observed.");
-            Assert.That(cutoutBelow.GetShaderPassEnabled("ShadowCaster"), Is.True, "Cutout below-cutoff ShadowCaster must remain enabled so clip behavior is observed at runtime.");
-            Assert.That(transparent.GetShaderPassEnabled("ShadowCaster"), Is.False, "Transparent ShadowCaster must be disabled before its missing silhouette is observed.");
+            Assert.That(
+                opaque.GetShaderPassEnabled("ShadowCaster"),
+                Is.True,
+                "Opaque ShadowCaster must be enabled before its silhouette is observed."
+            );
+            Assert.That(
+                cutout.GetShaderPassEnabled("ShadowCaster"),
+                Is.True,
+                "Cutout ShadowCaster must be enabled before its silhouette is observed."
+            );
+            Assert.That(
+                cutoutBelow.GetShaderPassEnabled("ShadowCaster"),
+                Is.True,
+                "Cutout below-cutoff ShadowCaster must remain enabled so clip behavior is observed at runtime."
+            );
+            Assert.That(
+                transparent.GetShaderPassEnabled("ShadowCaster"),
+                Is.False,
+                "Transparent ShadowCaster must be disabled before its missing silhouette is observed."
+            );
             ShadowReadback opaqueShadow = RenderShadowReadback(opaque);
             ShadowReadback cutoutShadow = RenderShadowReadback(cutout);
             ShadowReadback cutoutBelowShadow = RenderShadowReadback(cutoutBelow);
             ShadowReadback transparentShadow = RenderShadowReadback(transparent);
             AssertFinite(opaqueShadow.maxAbsoluteRgbDelta, "Opaque ShadowCaster maximum RGB delta");
             AssertFinite(cutoutShadow.maxAbsoluteRgbDelta, "Cutout ShadowCaster maximum RGB delta");
-            AssertFinite(cutoutBelowShadow.maxAbsoluteRgbDelta, "Cutout below-cutoff ShadowCaster maximum RGB delta");
-            AssertFinite(transparentShadow.maxAbsoluteRgbDelta, "Transparent ShadowCaster maximum RGB delta");
+            AssertFinite(
+                cutoutBelowShadow.maxAbsoluteRgbDelta,
+                "Cutout below-cutoff ShadowCaster maximum RGB delta"
+            );
+            AssertFinite(
+                transparentShadow.maxAbsoluteRgbDelta,
+                "Transparent ShadowCaster maximum RGB delta"
+            );
             AssertContributingShadowReadbacks(opaqueShadow, cutoutShadow);
-            AssertNoncontributingShadowReadbacks(opaqueShadow, cutoutShadow, cutoutBelowShadow, transparentShadow);
+            AssertNoncontributingShadowReadbacks(
+                opaqueShadow,
+                cutoutShadow,
+                cutoutBelowShadow,
+                transparentShadow
+            );
         }
 
         /// <summary>Asserts that Opaque and Cutout ShadowCaster measurements retain meaningful silhouettes.</summary>
-        private static void AssertContributingShadowReadbacks(ShadowReadback opaqueShadow, ShadowReadback cutoutShadow)
+        private static void AssertContributingShadowReadbacks(
+            ShadowReadback opaqueShadow,
+            ShadowReadback cutoutShadow
+        )
         {
-            Assert.That(opaqueShadow.maxAbsoluteRgbDelta, Is.GreaterThan(ShadowPixelNoiseThreshold), opaqueShadow.Describe("Opaque"));
-            Assert.That(opaqueShadow.changedPixelCount, Is.GreaterThan(MinimumShadowSilhouettePixelCount), opaqueShadow.Describe("Opaque"));
-            Assert.That(cutoutShadow.maxAbsoluteRgbDelta, Is.GreaterThan(ShadowPixelNoiseThreshold), cutoutShadow.Describe("Cutout"));
-            Assert.That(cutoutShadow.changedPixelCount, Is.GreaterThan(MinimumShadowSilhouettePixelCount), cutoutShadow.Describe("Cutout"));
-            Assert.That(cutoutShadow.maxAbsoluteRgbDelta, Is.GreaterThan(opaqueShadow.maxAbsoluteRgbDelta * 0.25f), cutoutShadow.Describe("Cutout") + " must retain a visible silhouette relative to Opaque.");
-            Assert.That(cutoutShadow.changedPixelCount, Is.GreaterThan(opaqueShadow.changedPixelCount * 0.25f), cutoutShadow.Describe("Cutout") + " must retain sufficient changed pixels relative to Opaque.");
+            Assert.That(
+                opaqueShadow.maxAbsoluteRgbDelta,
+                Is.GreaterThan(ShadowPixelNoiseThreshold),
+                opaqueShadow.Describe("Opaque")
+            );
+            Assert.That(
+                opaqueShadow.changedPixelCount,
+                Is.GreaterThan(MinimumShadowSilhouettePixelCount),
+                opaqueShadow.Describe("Opaque")
+            );
+            Assert.That(
+                cutoutShadow.maxAbsoluteRgbDelta,
+                Is.GreaterThan(ShadowPixelNoiseThreshold),
+                cutoutShadow.Describe("Cutout")
+            );
+            Assert.That(
+                cutoutShadow.changedPixelCount,
+                Is.GreaterThan(MinimumShadowSilhouettePixelCount),
+                cutoutShadow.Describe("Cutout")
+            );
+            Assert.That(
+                cutoutShadow.maxAbsoluteRgbDelta,
+                Is.GreaterThan(opaqueShadow.maxAbsoluteRgbDelta * 0.25f),
+                cutoutShadow.Describe("Cutout")
+                    + " must retain a visible silhouette relative to Opaque."
+            );
+            Assert.That(
+                cutoutShadow.changedPixelCount,
+                Is.GreaterThan(opaqueShadow.changedPixelCount * 0.25f),
+                cutoutShadow.Describe("Cutout")
+                    + " must retain sufficient changed pixels relative to Opaque."
+            );
         }
 
         /// <summary>Asserts that below-cutoff and Transparent ShadowCaster measurements remain noncontributing.</summary>
-        private static void AssertNoncontributingShadowReadbacks(ShadowReadback opaqueShadow, ShadowReadback cutoutShadow, ShadowReadback cutoutBelowShadow, ShadowReadback transparentShadow)
+        private static void AssertNoncontributingShadowReadbacks(
+            ShadowReadback opaqueShadow,
+            ShadowReadback cutoutShadow,
+            ShadowReadback cutoutBelowShadow,
+            ShadowReadback transparentShadow
+        )
         {
-            Assert.That(cutoutBelowShadow.maxAbsoluteRgbDelta, Is.LessThanOrEqualTo(ShadowPixelNoiseThreshold), cutoutBelowShadow.Describe("Cutout below cutoff"));
-            Assert.That(cutoutBelowShadow.changedPixelCount, Is.LessThanOrEqualTo(MinimumShadowSilhouettePixelCount), cutoutBelowShadow.Describe("Cutout below cutoff"));
-            Assert.That(transparentShadow.maxAbsoluteRgbDelta, Is.LessThanOrEqualTo(ShadowPixelNoiseThreshold), transparentShadow.Describe("Transparent"));
-            Assert.That(transparentShadow.changedPixelCount, Is.LessThanOrEqualTo(MinimumShadowSilhouettePixelCount), transparentShadow.Describe("Transparent"));
-            float minimumContributingShadowDelta = Mathf.Min(opaqueShadow.maxAbsoluteRgbDelta, cutoutShadow.maxAbsoluteRgbDelta);
-            int minimumContributingShadowPixels = Mathf.Min(opaqueShadow.changedPixelCount, cutoutShadow.changedPixelCount);
-            Assert.That(transparentShadow.maxAbsoluteRgbDelta, Is.LessThan(minimumContributingShadowDelta * 0.25f), transparentShadow.Describe("Transparent") + " must remain below the Opaque and Cutout contribution boundary.");
-            Assert.That(transparentShadow.changedPixelCount, Is.LessThan(minimumContributingShadowPixels * 0.25f), transparentShadow.Describe("Transparent") + " must remain below the Opaque and Cutout changed-pixel contribution boundary.");
+            Assert.That(
+                cutoutBelowShadow.maxAbsoluteRgbDelta,
+                Is.LessThanOrEqualTo(ShadowPixelNoiseThreshold),
+                cutoutBelowShadow.Describe("Cutout below cutoff")
+            );
+            Assert.That(
+                cutoutBelowShadow.changedPixelCount,
+                Is.LessThanOrEqualTo(MinimumShadowSilhouettePixelCount),
+                cutoutBelowShadow.Describe("Cutout below cutoff")
+            );
+            Assert.That(
+                transparentShadow.maxAbsoluteRgbDelta,
+                Is.LessThanOrEqualTo(ShadowPixelNoiseThreshold),
+                transparentShadow.Describe("Transparent")
+            );
+            Assert.That(
+                transparentShadow.changedPixelCount,
+                Is.LessThanOrEqualTo(MinimumShadowSilhouettePixelCount),
+                transparentShadow.Describe("Transparent")
+            );
+            float minimumContributingShadowDelta = Mathf.Min(
+                opaqueShadow.maxAbsoluteRgbDelta,
+                cutoutShadow.maxAbsoluteRgbDelta
+            );
+            int minimumContributingShadowPixels = Mathf.Min(
+                opaqueShadow.changedPixelCount,
+                cutoutShadow.changedPixelCount
+            );
+            Assert.That(
+                transparentShadow.maxAbsoluteRgbDelta,
+                Is.LessThan(minimumContributingShadowDelta * 0.25f),
+                transparentShadow.Describe("Transparent")
+                    + " must remain below the Opaque and Cutout contribution boundary."
+            );
+            Assert.That(
+                transparentShadow.changedPixelCount,
+                Is.LessThan(minimumContributingShadowPixels * 0.25f),
+                transparentShadow.Describe("Transparent")
+                    + " must remain below the Opaque and Cutout changed-pixel contribution boundary."
+            );
         }
 
         /// <summary>Asserts Meta readback contribution boundaries for Opaque, Cutout, and Transparent materials.</summary>
-        private static void AssertMetaContributions(Material opaque, Material cutout, Material transparent, Color expectedContributingMeta)
+        private static void AssertMetaContributions(
+            Material opaque,
+            Material cutout,
+            Material transparent,
+            Color expectedContributingMeta
+        )
         {
-            float opaqueMetaMagnitude = AssertContributingMeta(RenderMetaCenterPixel(opaque), expectedContributingMeta, "Opaque");
-            float cutoutMetaMagnitude = AssertContributingMeta(RenderMetaCenterPixel(cutout), expectedContributingMeta, "Cutout");
+            float opaqueMetaMagnitude = AssertContributingMeta(
+                RenderMetaCenterPixel(opaque),
+                expectedContributingMeta,
+                "Opaque"
+            );
+            float cutoutMetaMagnitude = AssertContributingMeta(
+                RenderMetaCenterPixel(cutout),
+                expectedContributingMeta,
+                "Cutout"
+            );
             Color transparentMeta = RenderMetaCenterPixel(transparent);
             AssertFinite(transparentMeta, "Transparent Meta readback");
             float transparentMetaMagnitude = RgbMagnitude(transparentMeta);
-            Assert.That(transparentMetaMagnitude, Is.LessThan(0.02f), "Transparent Meta must not contribute effective albedo data in the actual BIRP readback.");
-            float minimumContributingMetaMagnitude = Mathf.Min(opaqueMetaMagnitude, cutoutMetaMagnitude);
-            Assert.That(transparentMetaMagnitude, Is.LessThan(minimumContributingMetaMagnitude * 0.25f), "Transparent Meta must remain below the Opaque and Cutout contribution boundary.");
+            Assert.That(
+                transparentMetaMagnitude,
+                Is.LessThan(0.02f),
+                "Transparent Meta must not contribute effective albedo data in the actual BIRP readback."
+            );
+            float minimumContributingMetaMagnitude = Mathf.Min(
+                opaqueMetaMagnitude,
+                cutoutMetaMagnitude
+            );
+            Assert.That(
+                transparentMetaMagnitude,
+                Is.LessThan(minimumContributingMetaMagnitude * 0.25f),
+                "Transparent Meta must remain below the Opaque and Cutout contribution boundary."
+            );
         }
 
         /// <summary>Asserts one Meta contribution's expected linear albedo and returns its RGB magnitude.</summary>
-        private static float AssertContributingMeta(Color observedMeta, Color expectedMeta, string label)
+        private static float AssertContributingMeta(
+            Color observedMeta,
+            Color expectedMeta,
+            string label
+        )
         {
             AssertFinite(observedMeta, label + " Meta readback");
             Assert.That(observedMeta.r, Is.EqualTo(expectedMeta.r).Within(0.08f));
             Assert.That(observedMeta.g, Is.EqualTo(expectedMeta.g).Within(0.08f));
             Assert.That(observedMeta.b, Is.EqualTo(expectedMeta.b).Within(0.08f));
             float magnitude = RgbMagnitude(observedMeta);
-            Assert.That(magnitude, Is.GreaterThan(0.2f), label + " Meta pass must contribute non-clear albedo data.");
+            Assert.That(
+                magnitude,
+                Is.GreaterThan(0.2f),
+                label + " Meta pass must contribute non-clear albedo data."
+            );
             return magnitude;
         }
 
@@ -157,8 +298,16 @@ namespace PureBase.Tests.Daily
         public void TransparentToonForwardAddAccumulatesRgbBySourceAlphaWithoutChangingDestinationAlpha()
         {
             Shader toon = RequireProductShader("PureBase/Toon");
-            var lowAlphaMaterial = CreateConfiguredMaterial(toon, 2, new Color(0.8f, 0.6f, 0.4f, 0.25f));
-            var highAlphaMaterial = CreateConfiguredMaterial(toon, 2, new Color(0.8f, 0.6f, 0.4f, 0.5f));
+            var lowAlphaMaterial = CreateConfiguredMaterial(
+                toon,
+                2,
+                new Color(0.8f, 0.6f, 0.4f, 0.25f)
+            );
+            var highAlphaMaterial = CreateConfiguredMaterial(
+                toon,
+                2,
+                new Color(0.8f, 0.6f, 0.4f, 0.5f)
+            );
             {
                 Color oneLowAlphaLight = RenderTransparentToonPixel(lowAlphaMaterial, 1);
                 Color twoLowAlphaLights = RenderTransparentToonPixel(lowAlphaMaterial, 2);
@@ -209,12 +358,28 @@ namespace PureBase.Tests.Daily
         [Test]
         public void TransparentMaterialsHaveNoEffectiveShadowCasterOrMetaContribution()
         {
-            foreach (string shaderName in new[] { "PureBase/Unlit", "PureBase/Toon", "PureBase/PBR", "PureBase/Hybrid" })
+            foreach (
+                string shaderName in new[]
+                {
+                    "PureBase/Unlit",
+                    "PureBase/Toon",
+                    "PureBase/PBR",
+                    "PureBase/Hybrid",
+                }
+            )
             {
                 var material = CreateMaterial(RequireProductShader(shaderName));
                 ConfigureMode(material, 2);
-                Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.False, shaderName + " Transparent ShadowCaster contribution.");
-                Assert.That(material.GetShaderPassEnabled("Meta"), Is.False, shaderName + " Transparent Meta contribution.");
+                Assert.That(
+                    material.GetShaderPassEnabled("ShadowCaster"),
+                    Is.False,
+                    shaderName + " Transparent ShadowCaster contribution."
+                );
+                Assert.That(
+                    material.GetShaderPassEnabled("Meta"),
+                    Is.False,
+                    shaderName + " Transparent Meta contribution."
+                );
             }
         }
 
@@ -262,9 +427,23 @@ namespace PureBase.Tests.Daily
         {
             material.SetInteger("_RenderingMode", mode);
             Type type = FindLoadedType("PureBase.Editor.PureBaseMaterialRenderingMode");
-            Assert.That(type, Is.Not.Null, "PureBaseMaterialRenderingMode is required for rendering observations.");
-            var apply = type.GetMethod("Apply", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static, null, new[] { typeof(Material) }, null);
-            Assert.That(apply, Is.Not.Null, "PureBaseMaterialRenderingMode.Apply(Material) is required for rendering observations.");
+            Assert.That(
+                type,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode is required for rendering observations."
+            );
+            var apply = type.GetMethod(
+                "Apply",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+                null,
+                new[] { typeof(Material) },
+                null
+            );
+            Assert.That(
+                apply,
+                Is.Not.Null,
+                "PureBaseMaterialRenderingMode.Apply(Material) is required for rendering observations."
+            );
             apply.Invoke(null, new object[] { material });
         }
 
@@ -283,8 +462,19 @@ namespace PureBase.Tests.Daily
             {
                 cameraObject = new GameObject("PureBaseRenderingModeCamera");
                 quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
-                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                renderTexture = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBFloat
+                );
+                texture = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAFloat,
+                    false,
+                    true
+                );
                 camera = cameraObject.AddComponent<Camera>();
                 ConfigureCenterPixelCamera(camera, renderTexture, background);
                 quadObject.GetComponent<Renderer>().sharedMaterial = material;
@@ -293,12 +483,22 @@ namespace PureBase.Tests.Daily
             }
             finally
             {
-                ReleaseQuadReadbackResources(cameraObject, quadObject, camera, renderTexture, texture);
+                ReleaseQuadReadbackResources(
+                    cameraObject,
+                    quadObject,
+                    camera,
+                    renderTexture,
+                    texture
+                );
             }
         }
 
         /// <summary>Configures the temporary camera used for one center-pixel readback.</summary>
-        private static void ConfigureCenterPixelCamera(Camera camera, RenderTexture renderTexture, Color background)
+        private static void ConfigureCenterPixelCamera(
+            Camera camera,
+            RenderTexture renderTexture,
+            Color background
+        )
         {
             camera.orthographic = true;
             camera.orthographicSize = 0.5f;
@@ -309,7 +509,13 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Releases one temporary quad readback fixture in its original ownership order.</summary>
-        private static void ReleaseQuadReadbackResources(GameObject cameraObject, GameObject quadObject, Camera camera, RenderTexture renderTexture, Texture2D texture)
+        private static void ReleaseQuadReadbackResources(
+            GameObject cameraObject,
+            GameObject quadObject,
+            Camera camera,
+            RenderTexture renderTexture,
+            Texture2D texture
+        )
         {
             if (camera != null)
                 camera.targetTexture = null;
@@ -342,8 +548,19 @@ namespace PureBase.Tests.Daily
                 cameraObject = new GameObject("PureBaseRenderingModeDepthCamera");
                 frontObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 rearObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
-                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                renderTexture = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBFloat
+                );
+                texture = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAFloat,
+                    false,
+                    true
+                );
                 Camera camera = cameraObject.AddComponent<Camera>();
                 camera.orthographic = true;
                 camera.orthographicSize = 0.5f;
@@ -383,7 +600,10 @@ namespace PureBase.Tests.Daily
         /// <param name="transparentMaterial">The configured Transparent material drawn first.</param>
         /// <param name="markerMaterial">The opaque marker material drawn after Transparent.</param>
         /// <returns>The center pixel after the controlled explicit draw order.</returns>
-        private static Color RenderTransparentThenOpaqueDepthProbe(Material transparentMaterial, Material markerMaterial)
+        private static Color RenderTransparentThenOpaqueDepthProbe(
+            Material transparentMaterial,
+            Material markerMaterial
+        )
         {
             GameObject cameraObject = null;
             GameObject quadObject = null;
@@ -395,24 +615,49 @@ namespace PureBase.Tests.Daily
             {
                 cameraObject = new GameObject("PureBaseRenderingModeExplicitDepthCamera");
                 quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
-                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                renderTexture = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBFloat
+                );
+                texture = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAFloat,
+                    false,
+                    true
+                );
                 camera = cameraObject.AddComponent<Camera>();
                 ConfigureExplicitDepthProbeCamera(camera, renderTexture);
                 renderTexture.Create();
-                commandBuffer = CreateExplicitDepthProbeCommandBuffer(quadObject, transparentMaterial, markerMaterial);
+                commandBuffer = CreateExplicitDepthProbeCommandBuffer(
+                    quadObject,
+                    transparentMaterial,
+                    markerMaterial
+                );
                 camera.AddCommandBuffer(CameraEvent.BeforeImageEffects, commandBuffer);
                 camera.Render();
                 return ReadCenterPixel(renderTexture, texture);
             }
             finally
             {
-                ReleaseExplicitDepthProbeResources(cameraObject, quadObject, camera, commandBuffer, renderTexture, texture);
+                ReleaseExplicitDepthProbeResources(
+                    cameraObject,
+                    quadObject,
+                    camera,
+                    commandBuffer,
+                    renderTexture,
+                    texture
+                );
             }
         }
 
         /// <summary>Configures the camera used by the explicit ForwardBase depth probe.</summary>
-        private static void ConfigureExplicitDepthProbeCamera(Camera camera, RenderTexture renderTexture)
+        private static void ConfigureExplicitDepthProbeCamera(
+            Camera camera,
+            RenderTexture renderTexture
+        )
         {
             camera.enabled = false;
             camera.cullingMask = 0;
@@ -425,19 +670,49 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Creates the command buffer that draws Transparent before the farther opaque marker.</summary>
-        private static CommandBuffer CreateExplicitDepthProbeCommandBuffer(GameObject quadObject, Material transparentMaterial, Material markerMaterial)
+        private static CommandBuffer CreateExplicitDepthProbeCommandBuffer(
+            GameObject quadObject,
+            Material transparentMaterial,
+            Material markerMaterial
+        )
         {
             int transparentPass = transparentMaterial.FindPass("ForwardBase");
-            Assert.That(transparentPass, Is.GreaterThanOrEqualTo(0), "The Transparent depth probe requires ForwardBase.");
-            var commandBuffer = new CommandBuffer { name = "PureBase Rendering Mode Explicit Depth Probe" };
+            Assert.That(
+                transparentPass,
+                Is.GreaterThanOrEqualTo(0),
+                "The Transparent depth probe requires ForwardBase."
+            );
+            var commandBuffer = new CommandBuffer
+            {
+                name = "PureBase Rendering Mode Explicit Depth Probe",
+            };
             Mesh quadMesh = quadObject.GetComponent<MeshFilter>().sharedMesh;
-            commandBuffer.DrawMesh(quadMesh, Matrix4x4.identity, transparentMaterial, 0, transparentPass);
-            commandBuffer.DrawMesh(quadMesh, Matrix4x4.Translate(new Vector3(0.0f, 0.0f, 0.1f)), markerMaterial, 0, 0);
+            commandBuffer.DrawMesh(
+                quadMesh,
+                Matrix4x4.identity,
+                transparentMaterial,
+                0,
+                transparentPass
+            );
+            commandBuffer.DrawMesh(
+                quadMesh,
+                Matrix4x4.Translate(new Vector3(0.0f, 0.0f, 0.1f)),
+                markerMaterial,
+                0,
+                0
+            );
             return commandBuffer;
         }
 
         /// <summary>Releases the explicit depth probe command buffer and transient render resources.</summary>
-        private static void ReleaseExplicitDepthProbeResources(GameObject cameraObject, GameObject quadObject, Camera camera, CommandBuffer commandBuffer, RenderTexture renderTexture, Texture2D texture)
+        private static void ReleaseExplicitDepthProbeResources(
+            GameObject cameraObject,
+            GameObject quadObject,
+            Camera camera,
+            CommandBuffer commandBuffer,
+            RenderTexture renderTexture,
+            Texture2D texture
+        )
         {
             if (camera != null && commandBuffer != null)
                 camera.RemoveCommandBuffer(CameraEvent.BeforeImageEffects, commandBuffer);
@@ -464,8 +739,19 @@ namespace PureBase.Tests.Daily
             {
                 cameraObject = new GameObject("PureBaseRenderingModeToonCamera");
                 quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                renderTexture = new RenderTexture(RenderSize, RenderSize, 24, RenderTextureFormat.ARGBFloat);
-                texture = new Texture2D(RenderSize, RenderSize, TextureFormat.RGBAFloat, false, true);
+                renderTexture = new RenderTexture(
+                    RenderSize,
+                    RenderSize,
+                    24,
+                    RenderTextureFormat.ARGBFloat
+                );
+                texture = new Texture2D(
+                    RenderSize,
+                    RenderSize,
+                    TextureFormat.RGBAFloat,
+                    false,
+                    true
+                );
                 camera = cameraObject.AddComponent<Camera>();
                 ConfigureTransparentToonCamera(camera, renderTexture, cullingMask);
                 quadObject.layer = renderingLayer;
@@ -476,12 +762,23 @@ namespace PureBase.Tests.Daily
             }
             finally
             {
-                ReleaseTransparentToonResources(lightObjects, cameraObject, quadObject, camera, renderTexture, texture);
+                ReleaseTransparentToonResources(
+                    lightObjects,
+                    cameraObject,
+                    quadObject,
+                    camera,
+                    renderTexture,
+                    texture
+                );
             }
         }
 
         /// <summary>Configures the temporary camera used for Transparent Toon light accumulation.</summary>
-        private static void ConfigureTransparentToonCamera(Camera camera, RenderTexture renderTexture, int cullingMask)
+        private static void ConfigureTransparentToonCamera(
+            Camera camera,
+            RenderTexture renderTexture,
+            int cullingMask
+        )
         {
             camera.orthographic = true;
             camera.orthographicSize = 0.5f;
@@ -493,7 +790,12 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Creates the directional lights used to isolate ForwardAdd alpha behavior.</summary>
-        private static void CreateTransparentToonLights(List<GameObject> lightObjects, int lightCount, int renderingLayer, int cullingMask)
+        private static void CreateTransparentToonLights(
+            List<GameObject> lightObjects,
+            int lightCount,
+            int renderingLayer,
+            int cullingMask
+        )
         {
             for (int index = 0; index < lightCount; index++)
             {
@@ -505,12 +807,23 @@ namespace PureBase.Tests.Daily
                 light.color = Color.white;
                 light.intensity = 1.0f;
                 light.cullingMask = cullingMask;
-                lightObject.transform.rotation = Quaternion.Euler(30.0f, index == 0 ? -30.0f : 30.0f, 0.0f);
+                lightObject.transform.rotation = Quaternion.Euler(
+                    30.0f,
+                    index == 0 ? -30.0f : 30.0f,
+                    0.0f
+                );
             }
         }
 
         /// <summary>Releases Transparent Toon lights and temporary render resources in their original order.</summary>
-        private static void ReleaseTransparentToonResources(List<GameObject> lightObjects, GameObject cameraObject, GameObject quadObject, Camera camera, RenderTexture renderTexture, Texture2D texture)
+        private static void ReleaseTransparentToonResources(
+            List<GameObject> lightObjects,
+            GameObject cameraObject,
+            GameObject quadObject,
+            Camera camera,
+            RenderTexture renderTexture,
+            Texture2D texture
+        )
         {
             foreach (GameObject lightObject in lightObjects)
                 UnityEngine.Object.DestroyImmediate(lightObject);
@@ -530,10 +843,26 @@ namespace PureBase.Tests.Daily
         /// <param name="label">The observation label.</param>
         private static void AssertFinite(Color color, string label)
         {
-            Assert.That(float.IsNaN(color.r) || float.IsInfinity(color.r), Is.False, label + " red is non-finite.");
-            Assert.That(float.IsNaN(color.g) || float.IsInfinity(color.g), Is.False, label + " green is non-finite.");
-            Assert.That(float.IsNaN(color.b) || float.IsInfinity(color.b), Is.False, label + " blue is non-finite.");
-            Assert.That(float.IsNaN(color.a) || float.IsInfinity(color.a), Is.False, label + " alpha is non-finite.");
+            Assert.That(
+                float.IsNaN(color.r) || float.IsInfinity(color.r),
+                Is.False,
+                label + " red is non-finite."
+            );
+            Assert.That(
+                float.IsNaN(color.g) || float.IsInfinity(color.g),
+                Is.False,
+                label + " green is non-finite."
+            );
+            Assert.That(
+                float.IsNaN(color.b) || float.IsInfinity(color.b),
+                Is.False,
+                label + " blue is non-finite."
+            );
+            Assert.That(
+                float.IsNaN(color.a) || float.IsInfinity(color.a),
+                Is.False,
+                label + " alpha is non-finite."
+            );
         }
 
         /// <summary>Asserts that one scalar readback metric is finite.</summary>
@@ -541,7 +870,11 @@ namespace PureBase.Tests.Daily
         /// <param name="label">The observation label.</param>
         private static void AssertFinite(float value, string label)
         {
-            Assert.That(float.IsNaN(value) || float.IsInfinity(value), Is.False, label + " is non-finite.");
+            Assert.That(
+                float.IsNaN(value) || float.IsInfinity(value),
+                Is.False,
+                label + " is non-finite."
+            );
         }
 
         /// <summary>Requires one imported public shader with no compiler errors.</summary>
@@ -550,8 +883,16 @@ namespace PureBase.Tests.Daily
         private static Shader RequireProductShader(string shaderName)
         {
             Shader shader = Shader.Find(shaderName);
-            Assert.That(shader, Is.Not.Null, "Product shader '" + shaderName + "' was not imported.");
-            Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, "Product shader '" + shaderName + "' has compiler errors.");
+            Assert.That(
+                shader,
+                Is.Not.Null,
+                "Product shader '" + shaderName + "' was not imported."
+            );
+            Assert.That(
+                ShaderUtil.ShaderHasError(shader),
+                Is.False,
+                "Product shader '" + shaderName + "' has compiler errors."
+            );
             return shader;
         }
 
@@ -559,7 +900,11 @@ namespace PureBase.Tests.Daily
         /// <param name="material">The material to inspect.</param>
         private static void RequireRenderingModeProperty(Material material)
         {
-            Assert.That(material.HasProperty("_RenderingMode"), Is.True, "Rendering observations require the public _RenderingMode property.");
+            Assert.That(
+                material.HasProperty("_RenderingMode"),
+                Is.True,
+                "Rendering observations require the public _RenderingMode property."
+            );
         }
 
         /// <summary>Finds a loaded type without adding a compile-time dependency on the future Editor assembly.</summary>
@@ -599,7 +944,11 @@ namespace PureBase.Tests.Daily
             /// <param name="label">The mode label associated with this measurement.</param>
             /// <returns>The formatted measurement.</returns>
             public string Describe(string label) =>
-                label + ": maxAbsoluteRgbDelta=" + maxAbsoluteRgbDelta + ", changedPixels=" + changedPixelCount;
+                label
+                + ": maxAbsoluteRgbDelta="
+                + maxAbsoluteRgbDelta
+                + ", changedPixels="
+                + changedPixelCount;
         }
     }
 }

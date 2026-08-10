@@ -34,8 +34,8 @@ Describe 'Release publication tag preservation' {
 
     It 'accepts a published release whose SHA differs only by case' {
         $release = [pscustomobject]@{
-            id = 42
-            tag_name = '0.1.0-beta.4'
+            id               = 42
+            tag_name         = '0.1.0-beta.4'
             target_commitish = 'A' * 40
         }
 
@@ -50,8 +50,8 @@ Describe 'Release publication tag preservation' {
 
     It 'rejects an unexpected release tag or release ID' {
         $release = [pscustomobject]@{
-            id = 43
-            tag_name = 'untagged-f42a63fceb89b817fe6d'
+            id               = 43
+            tag_name         = 'untagged-f42a63fceb89b817fe6d'
             target_commitish = 'a' * 40
         }
 
@@ -86,3 +86,4 @@ Describe 'Release publication tag preservation' {
         $delays.ToArray() | Should -Be @(250, 500, 1000, 2000)
     }
 }
+

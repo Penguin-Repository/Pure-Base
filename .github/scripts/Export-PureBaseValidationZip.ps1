@@ -72,7 +72,7 @@ catch { throw "package.json version must be valid strict SemVer: '$version'." }
 
 $sourceZips = @(
     Get-ChildItem -LiteralPath $validationArtifactRoot -Filter 'jp.penguin.purebase-*.zip' -File -Recurse |
-    Where-Object { $_.Directory.Name -ceq 'archive' }
+        Where-Object { $_.Directory.Name -ceq 'archive' }
 )
 if ($sourceZips.Count -ne 1) {
     throw "Release validation must produce exactly one audited package ZIP below '$validationArtifactRoot/archive'."
@@ -83,7 +83,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = $null
 try {
     $archive = [IO.Compression.ZipFile]::OpenRead($sourceZip.FullName)
-    $manifestEntries = @($archive.Entries | Where-Object FullName -ceq 'package.json')
+    $manifestEntries = @($archive.Entries | Where-Object FullName -CEQ 'package.json')
     if ($manifestEntries.Count -ne 1) { throw 'Audited package ZIP must contain exactly one package.json.' }
     $reader = [IO.StreamReader]::new($manifestEntries[0].Open(), [Text.UTF8Encoding]::new($false, $true))
     try {
@@ -137,3 +137,4 @@ finally {
 
 Write-Output "Validated package ZIP: $destinationZip"
 Write-Output "SHA-256: $sha256"
+

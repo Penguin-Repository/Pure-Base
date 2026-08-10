@@ -111,7 +111,7 @@ BeforeAll {
             $output = [string[]]@(@($stdout, $stderr) | Where-Object { -not [string]::IsNullOrEmpty($_) })
             return [pscustomobject]@{
                 ExitCode = $process.ExitCode
-                Output = $output
+                Output   = $output
             }
         }
         finally {

@@ -30,7 +30,8 @@ namespace PureBase.Release.Consumer.Tests
     public sealed class PureBaseConsumerRenderingModeTests
     {
         /// <summary>Identifies the only release module selected by the postpixel alpha consumer invocation.</summary>
-        private const string PostPixelAlphaProbeId = "jp.penguin.purebase.release.fixture.products.postpixel";
+        private const string PostPixelAlphaProbeId =
+            "jp.penguin.purebase.release.fixture.products.postpixel";
 
         /// <summary>Lists every local keyword owned by the rendering-mode contract.</summary>
         private static readonly string[] RenderingModeKeywords =
@@ -76,8 +77,14 @@ namespace PureBase.Release.Consumer.Tests
                 product,
                 contract.runLabel
             );
-            CollectionAssert.AreEqual(SourcePassNames, ConsumerValidationSupport.GetPassNames(shader));
-            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(product, contract.runLabel);
+            CollectionAssert.AreEqual(
+                SourcePassNames,
+                ConsumerValidationSupport.GetPassNames(shader)
+            );
+            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(
+                product,
+                contract.runLabel
+            );
             PureBaseConsumerModuleFreeImportTests.AssertGlobalFragments(
                 contract,
                 product,
@@ -145,10 +152,7 @@ namespace PureBase.Release.Consumer.Tests
                 "The ForwardBase fragment must contain the transparent toon alpha probe contract."
             );
             int alphaProbe = alphaProbeMatch.Index;
-            Match returnStatement = Regex.Match(
-                fragmentBody.Substring(alphaProbe),
-                @"\breturn\b"
-            );
+            Match returnStatement = Regex.Match(fragmentBody.Substring(alphaProbe), @"\breturn\b");
             Assert.That(modeAlphaOperation.Success, Is.True);
             Assert.That(alphaProbe, Is.GreaterThan(modeAlphaOperation.Index));
             Assert.That(returnStatement.Success, Is.True);
@@ -172,10 +176,7 @@ namespace PureBase.Release.Consumer.Tests
                 Is.True,
                 $"Consumer run '{runLabel}' product '{shaderName}' did not contain a generated ForwardBase frag function."
             );
-            int openingBrace = passSource.IndexOf(
-                '{',
-                declaration.Index + declaration.Length
-            );
+            int openingBrace = passSource.IndexOf('{', declaration.Index + declaration.Length);
             Assert.That(
                 openingBrace,
                 Is.GreaterThanOrEqualTo(0),
@@ -212,7 +213,10 @@ namespace PureBase.Release.Consumer.Tests
 
             foreach (ConsumerProductContract product in contract.products)
             {
-                Shader shader = ConsumerValidationSupport.ImportProductShader(product, contract.runLabel);
+                Shader shader = ConsumerValidationSupport.ImportProductShader(
+                    product,
+                    contract.runLabel
+                );
                 AssertRenderingModeAbi(product, shader, contract.runLabel);
                 var material = new Material(shader);
                 try
@@ -245,7 +249,10 @@ namespace PureBase.Release.Consumer.Tests
             string runLabel
         )
         {
-            CollectionAssert.AreEqual(SourcePassNames, ConsumerValidationSupport.GetPassNames(shader));
+            CollectionAssert.AreEqual(
+                SourcePassNames,
+                ConsumerValidationSupport.GetPassNames(shader)
+            );
             CollectionAssert.Contains(
                 ConsumerValidationSupport.GetVisiblePropertyNames(shader),
                 "_RenderingMode"
@@ -253,7 +260,10 @@ namespace PureBase.Release.Consumer.Tests
             int modeIndex = shader.FindPropertyIndex("_RenderingMode");
             Assert.That(modeIndex, Is.GreaterThanOrEqualTo(0));
             Assert.That(shader.GetPropertyType(modeIndex), Is.EqualTo(ShaderPropertyType.Int));
-            CollectionAssert.Contains(shader.GetPropertyAttributes(modeIndex), "PureBaseRenderingMode");
+            CollectionAssert.Contains(
+                shader.GetPropertyAttributes(modeIndex),
+                "PureBaseRenderingMode"
+            );
             foreach (string propertyName in HiddenStatePropertyNames)
             {
                 Assert.That(shader.FindPropertyIndex(propertyName), Is.GreaterThanOrEqualTo(0));
@@ -263,7 +273,10 @@ namespace PureBase.Release.Consumer.Tests
                 );
             }
 
-            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(product, runLabel);
+            string generatedSource = ConsumerValidationSupport.LoadGeneratedSource(
+                product,
+                runLabel
+            );
             StringAssert.Contains(
                 "#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT",
                 generatedSource
@@ -273,11 +286,14 @@ namespace PureBase.Release.Consumer.Tests
                 Is.LessThan(0),
                 product.shaderName + " must keep Cutout keyword-free."
             );
-            string propertySourcePath = Path.ChangeExtension(product.shaderAssetPath, null)
-                + "_properties.hlsl";
+            string propertySourcePath =
+                Path.ChangeExtension(product.shaderAssetPath, null) + "_properties.hlsl";
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             string propertySource = File.ReadAllText(
-                Path.Combine(projectRoot, propertySourcePath.Replace('/', Path.DirectorySeparatorChar))
+                Path.Combine(
+                    projectRoot,
+                    propertySourcePath.Replace('/', Path.DirectorySeparatorChar)
+                )
             );
             Assert.That(
                 Regex.IsMatch(propertySource, RenderingModePropertySourcePattern),
@@ -301,7 +317,11 @@ namespace PureBase.Release.Consumer.Tests
         /// <param name="mode">The public rendering-mode value.</param>
         private static void AssertModeState(Material material, string shaderName, int mode)
         {
-            Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(mode), shaderName + " rendering mode.");
+            Assert.That(
+                material.GetInteger("_RenderingMode"),
+                Is.EqualTo(mode),
+                shaderName + " rendering mode."
+            );
             var expectedState = GetExpectedModeState(mode);
             AssertDerivedModeState(material, expectedState);
         }
@@ -326,18 +346,42 @@ namespace PureBase.Release.Consumer.Tests
             {
                 case 0:
                     return (
-                        (int)BlendMode.One, (int)BlendMode.Zero, 1, (int)BlendMode.One,
-                        (int)BlendMode.One, "Opaque", 2000, true, false, true
+                        (int)BlendMode.One,
+                        (int)BlendMode.Zero,
+                        1,
+                        (int)BlendMode.One,
+                        (int)BlendMode.One,
+                        "Opaque",
+                        2000,
+                        true,
+                        false,
+                        true
                     );
                 case 1:
                     return (
-                        (int)BlendMode.One, (int)BlendMode.Zero, 1, (int)BlendMode.One,
-                        (int)BlendMode.One, "TransparentCutout", (int)RenderQueue.AlphaTest, false, false, true
+                        (int)BlendMode.One,
+                        (int)BlendMode.Zero,
+                        1,
+                        (int)BlendMode.One,
+                        (int)BlendMode.One,
+                        "TransparentCutout",
+                        (int)RenderQueue.AlphaTest,
+                        false,
+                        false,
+                        true
                     );
                 case 2:
                     return (
-                        (int)BlendMode.SrcAlpha, (int)BlendMode.OneMinusSrcAlpha, 0,
-                        (int)BlendMode.SrcAlpha, (int)BlendMode.One, "Transparent", 3000, false, true, false
+                        (int)BlendMode.SrcAlpha,
+                        (int)BlendMode.OneMinusSrcAlpha,
+                        0,
+                        (int)BlendMode.SrcAlpha,
+                        (int)BlendMode.One,
+                        "Transparent",
+                        3000,
+                        false,
+                        true,
+                        false
                     );
                 default:
                     throw new ArgumentOutOfRangeException(nameof(mode));
@@ -363,30 +407,58 @@ namespace PureBase.Release.Consumer.Tests
             ) expectedState
         )
         {
-            Assert.That(material.GetFloat("_SrcBlend"), Is.EqualTo((float)expectedState.sourceBlend));
-            Assert.That(material.GetFloat("_DstBlend"), Is.EqualTo((float)expectedState.destinationBlend));
+            Assert.That(
+                material.GetFloat("_SrcBlend"),
+                Is.EqualTo((float)expectedState.sourceBlend)
+            );
+            Assert.That(
+                material.GetFloat("_DstBlend"),
+                Is.EqualTo((float)expectedState.destinationBlend)
+            );
             Assert.That(material.GetFloat("_ZWrite"), Is.EqualTo((float)expectedState.depthWrite));
-            Assert.That(material.GetFloat("_AddSrcBlend"), Is.EqualTo((float)expectedState.additiveSourceBlend));
-            Assert.That(material.GetFloat("_AddDstBlend"), Is.EqualTo((float)expectedState.additiveDestinationBlend));
+            Assert.That(
+                material.GetFloat("_AddSrcBlend"),
+                Is.EqualTo((float)expectedState.additiveSourceBlend)
+            );
+            Assert.That(
+                material.GetFloat("_AddDstBlend"),
+                Is.EqualTo((float)expectedState.additiveDestinationBlend)
+            );
             Assert.That(material.GetTag("RenderType", false), Is.EqualTo(expectedState.renderType));
             Assert.That(material.renderQueue, Is.EqualTo(expectedState.renderQueue));
-            Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[0]), Is.EqualTo(expectedState.opaqueKeyword));
-            Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[1]), Is.EqualTo(expectedState.transparentKeyword));
-            Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.EqualTo(expectedState.contributionPasses));
-            Assert.That(material.GetShaderPassEnabled("Meta"), Is.EqualTo(expectedState.contributionPasses));
+            Assert.That(
+                material.IsKeywordEnabled(RenderingModeKeywords[0]),
+                Is.EqualTo(expectedState.opaqueKeyword)
+            );
+            Assert.That(
+                material.IsKeywordEnabled(RenderingModeKeywords[1]),
+                Is.EqualTo(expectedState.transparentKeyword)
+            );
+            Assert.That(
+                material.GetShaderPassEnabled("ShadowCaster"),
+                Is.EqualTo(expectedState.contributionPasses)
+            );
+            Assert.That(
+                material.GetShaderPassEnabled("Meta"),
+                Is.EqualTo(expectedState.contributionPasses)
+            );
         }
 
         /// <summary>Requires invalid public mode values to leave all derived state from the prior valid mode unchanged.</summary>
         /// <param name="material">The reusable transient material.</param>
         /// <param name="shaderName">The material's public shader name.</param>
         /// <param name="invalidMode">The unsupported public mode value.</param>
-        private static void AssertInvalidModeIsAtomic(Material material, string shaderName, int invalidMode)
+        private static void AssertInvalidModeIsAtomic(
+            Material material,
+            string shaderName,
+            int invalidMode
+        )
         {
             material.SetInteger("_RenderingMode", 0);
             PureBaseMaterialRenderingMode.Apply(material);
             material.SetInteger("_RenderingMode", invalidMode);
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => PureBaseMaterialRenderingMode.Apply(material)
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                PureBaseMaterialRenderingMode.Apply(material)
             );
             Assert.That(material.GetInteger("_RenderingMode"), Is.EqualTo(invalidMode));
             Assert.That(material.GetFloat("_SrcBlend"), Is.EqualTo((float)BlendMode.One));
@@ -399,7 +471,11 @@ namespace PureBase.Release.Consumer.Tests
             Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[0]), Is.True);
             Assert.That(material.IsKeywordEnabled(RenderingModeKeywords[1]), Is.False);
             Assert.That(material.GetShaderPassEnabled("ShadowCaster"), Is.True);
-            Assert.That(material.GetShaderPassEnabled("Meta"), Is.True, shaderName + " invalid mode must not disable Meta.");
+            Assert.That(
+                material.GetShaderPassEnabled("Meta"),
+                Is.True,
+                shaderName + " invalid mode must not disable Meta."
+            );
         }
     }
 }

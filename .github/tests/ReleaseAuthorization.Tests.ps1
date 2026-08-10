@@ -82,9 +82,9 @@ Describe 'Release authorization workflow contract' {
         $predicateScript | Should -Match '(?m)^\[CmdletBinding\(\)\]$'
         $predicateScript | Should -Match '(?m)^\s*\[Parameter\(Mandatory\)\]\[string\]\$ReleaseArtifactRoot,$'
         $predicateScript | Should -Match 'Get-FileHash -LiteralPath \$subjectPath -Algorithm SHA256'
-        $predicateScript | Should -Match 'commitSha = \[string\]\$state\.commitSha'
-        $predicateScript | Should -Match 'sha = \$WorkflowSha'
-        $predicateScript | Should -Match 'runAttempt = \$RunAttempt'
+        $predicateScript | Should -Match '(?m)^        commitSha[ \t]*=[ \t]*\[string\]\$state\.commitSha$'
+        $predicateScript | Should -Match '(?m)^        sha[ \t]*=[ \t]*\$WorkflowSha$'
+        $predicateScript | Should -Match '(?m)^        runAttempt[ \t]*=[ \t]*\$RunAttempt$'
     }
 
     It 'rejects malformed release state with an explicit parse error' {
@@ -108,11 +108,11 @@ Describe 'Release authorization workflow contract' {
         [IO.File]::WriteAllBytes($assetPath, [byte[]](1, 2, 3, 4))
         $sha256 = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $state = [ordered]@{
-            phase = 'completed'
-            commitSha = 'b' * 40
-            releaseUrl = 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.1.0'
+            phase         = 'completed'
+            commitSha     = 'b' * 40
+            releaseUrl    = 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.1.0'
             vpmRepository = 'Penguin-Repository/Pure-Base-Repository'
-            sha256 = $sha256
+            sha256        = $sha256
         }
         [IO.File]::WriteAllText(
             (Join-Path $artifactRoot 'release-state.json'),
@@ -133,10 +133,11 @@ Describe 'Release authorization workflow contract' {
     }
 
     It 'uses a pinned custom attestation and preserves its evidence bundle' {
-        $workflow | Should -Match 'uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4'
+        $workflow | Should -Match 'uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4'
         $workflow | Should -Match 'predicate-type: https://github\.com/Penguin-Repository/Pure-Base/attestations/release-authorization/v1'
         $workflow | Should -Match 'predicate-path: \$\{\{ steps\.release-authorization\.outputs\.predicate_path \}\}'
         $workflow | Should -Match 'release-authorization\.attestation\.json'
         ([regex]::Matches($workflow, '(?m)^        if: inputs\.preflight_only == false$')).Count | Should -Be 3
     }
 }
+

@@ -319,3 +319,4 @@ $dispatchPayload = New-PureBaseDispatchPayload -PackageName $packageName -Reposi
 Invoke-Api POST "$apiRoot/repos/$VpmRepository/dispatches" $dispatchToken $dispatchPayload | Out-Null
 Write-State 'completed' @{ commitSha = $releaseTargetSha; validationRunId = [long]$run.id; validationRunAttempt = [int]$run.run_attempt; releaseUrl = [string]$release.html_url; vpmRepository = $VpmRepository; sha256 = $artifact.Sha256; mode = $releaseMode.Mode }
 Write-Output "Release completed: $($release.html_url)"
+

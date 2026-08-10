@@ -264,3 +264,4 @@ function Install-VerifiedShaderCoreRelease {
 if ($MyInvocation.InvocationName -ne '.') {
     Install-VerifiedShaderCoreRelease @PSBoundParameters
 }
+
