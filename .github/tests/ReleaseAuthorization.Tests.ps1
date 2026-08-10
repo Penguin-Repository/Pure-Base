@@ -108,11 +108,11 @@ Describe 'Release authorization workflow contract' {
         [IO.File]::WriteAllBytes($assetPath, [byte[]](1, 2, 3, 4))
         $sha256 = (Get-FileHash -LiteralPath $assetPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $state = [ordered]@{
-            phase = 'completed'
-            commitSha = 'b' * 40
-            releaseUrl = 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.1.0'
+            phase         = 'completed'
+            commitSha     = 'b' * 40
+            releaseUrl    = 'https://github.com/Penguin-Repository/Pure-Base/releases/tag/0.1.0'
             vpmRepository = 'Penguin-Repository/Pure-Base-Repository'
-            sha256 = $sha256
+            sha256        = $sha256
         }
         [IO.File]::WriteAllText(
             (Join-Path $artifactRoot 'release-state.json'),
@@ -140,3 +140,4 @@ Describe 'Release authorization workflow contract' {
         ([regex]::Matches($workflow, '(?m)^        if: inputs\.preflight_only == false$')).Count | Should -Be 3
     }
 }
+

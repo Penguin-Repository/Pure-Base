@@ -193,3 +193,4 @@ exit /b %ERRORLEVEL%
 Write-Host "Unity watchdog proxy: $proxyCommandPath"
 Write-Host "Unity watchdog target: $normalizedPath"
 Write-Output $proxyCommandPath
+

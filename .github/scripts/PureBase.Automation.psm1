@@ -38,12 +38,12 @@ function ConvertTo-PureBaseSemVer {
     }
 
     return [pscustomobject][ordered]@{
-        original    = $Value
-        major       = $major
-        minor       = $minor
-        patch       = $patch
-        prerelease  = $prerelease
-        isPrerelease = $prerelease.Count -ne 0
+        original       = $Value
+        major          = $major
+        minor          = $minor
+        patch          = $patch
+        prerelease     = $prerelease
+        isPrerelease   = $prerelease.Count -ne 0
         prereleaseKind = if ($prerelease.Count -eq 0) { '' } else { $prerelease[0] }
     }
 }
@@ -505,7 +505,7 @@ function Resolve-PureBasePublishedArtifact {
         throw 'GitHub did not report the published release as immutable.'
     }
 
-    $assets = @($Release.assets | Where-Object name -eq $AssetName)
+    $assets = @($Release.assets | Where-Object name -EQ $AssetName)
     if ($assets.Count -ne 1) {
         throw "Published release must contain exactly one asset named '$AssetName'."
     }
@@ -548,9 +548,9 @@ function Select-PureBaseReleaseValidationRun {
             try { $runWorkflowPath = ConvertTo-PureBaseReleaseValidationWorkflowPath -Value ([string]$_.path) }
             catch { return $false }
             return $runWorkflowPath -ceq $expectedWorkflowPath -and
-                [string]::Equals([string]$_.head_sha, $HeadSha, [StringComparison]::OrdinalIgnoreCase) -and
-                [string]$_.head_branch -ceq $Branch -and [string]$_.event -ceq 'workflow_dispatch' -and
-                [int]$_.run_number -gt 0 -and [int]$_.run_attempt -gt 0
+            [string]::Equals([string]$_.head_sha, $HeadSha, [StringComparison]::OrdinalIgnoreCase) -and
+            [string]$_.head_branch -ceq $Branch -and [string]$_.event -ceq 'workflow_dispatch' -and
+            [int]$_.run_number -gt 0 -and [int]$_.run_attempt -gt 0
         })
     if ($candidates.Count -eq 0) { throw 'No matching validation run was found for the exact workflow, branch, and commit.' }
     $latest = @($candidates | Sort-Object @{ Expression = { [int]$_.run_number }; Descending = $true }, @{ Expression = { [int]$_.run_attempt }; Descending = $true })[0]
@@ -843,3 +843,4 @@ Export-ModuleMember -Function @(
     'Read-PureBaseVpmYankPolicy',
     'Invoke-PureBaseYankDispatch'
 )
+

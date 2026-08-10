@@ -80,7 +80,7 @@ function Invoke-RepositoryGitBytes {
             }
             throw "$diagnostic)."
         }
-        return ,$stdout.ToArray()
+        return , $stdout.ToArray()
     }
     finally {
         $process.Dispose()
@@ -124,7 +124,7 @@ function Add-RepositoryViolation {
     )
 
     $Violations.Add([pscustomobject]@{
-            Path = $Path
+            Path   = $Path
             Reason = $Reason
         })
 }
@@ -143,7 +143,7 @@ function Read-RepositoryIndexBlobs {
 
     $blobs = [Collections.Generic.Dictionary[string, byte[]]]::new([StringComparer]::OrdinalIgnoreCase)
     if ($ObjectIds.Count -eq 0) {
-        return ,$blobs
+        return , $blobs
     }
     $batchInput = [Text.Encoding]::ASCII.GetBytes((($ObjectIds -join "`n") + "`n"))
     $output = Invoke-RepositoryGitBytes -Root $Root -Arguments @('cat-file', '--batch') -StandardInputBytes $batchInput

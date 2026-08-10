@@ -86,8 +86,9 @@ Set-Alias -Name New-PureBaseReleasePublicationBody -Value ConvertTo-PureBaseRele
 
 Export-ModuleMember `
     -Function @(
-        'ConvertTo-PureBaseReleasePublicationBody',
-        'Assert-PureBasePublishedReleaseIdentity',
-        'Invoke-PureBaseReleaseLookupWithRetry'
-    ) `
+    'ConvertTo-PureBaseReleasePublicationBody',
+    'Assert-PureBasePublishedReleaseIdentity',
+    'Invoke-PureBaseReleaseLookupWithRetry'
+) `
     -Alias 'New-PureBaseReleasePublicationBody'
+

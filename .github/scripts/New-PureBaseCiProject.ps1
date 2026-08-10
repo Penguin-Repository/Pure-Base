@@ -14,8 +14,8 @@
 
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory = $true)]
-  [string]$ProjectRoot
+    [Parameter(Mandatory = $true)]
+    [string]$ProjectRoot
 )
 
 Set-StrictMode -Version Latest
@@ -26,54 +26,54 @@ $packageRoot = Join-Path $projectRootFullPath 'Packages/jp.penguin.purebase'
 $shaderCoreRoot = Join-Path $projectRootFullPath 'Packages/jp.lilxyzw.shadercore'
 
 foreach ($requiredPath in @($packageRoot, $shaderCoreRoot)) {
-  if (-not (Test-Path -LiteralPath $requiredPath -PathType Container)) {
-    throw "Required package checkout is missing: '$requiredPath'."
-  }
+    if (-not (Test-Path -LiteralPath $requiredPath -PathType Container)) {
+        throw "Required package checkout is missing: '$requiredPath'."
+    }
 }
 
 $packageJson = Get-Content -LiteralPath (Join-Path $packageRoot 'package.json') -Raw | ConvertFrom-Json
 if ([string]$packageJson.name -ne 'jp.penguin.purebase') {
-  throw "Unexpected Pure-Base package identity '$($packageJson.name)'."
+    throw "Unexpected Pure-Base package identity '$($packageJson.name)'."
 }
 
 $shaderCoreJson = Get-Content -LiteralPath (Join-Path $shaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
 if ([string]$shaderCoreJson.name -ne 'jp.lilxyzw.shadercore' -or [string]$shaderCoreJson.version -ne '0.1.9') {
-  throw "The CI workspace requires jp.lilxyzw.shadercore exactly 0.1.9."
+    throw "The CI workspace requires jp.lilxyzw.shadercore exactly 0.1.9."
 }
 
 $ownerLightingDataRelativePath = 'Tests/Fixtures/Scenes/PureBaseValidation/OwnerLightingData.asset'
 $ownerLightingDataAssetPath = Join-Path $packageRoot $ownerLightingDataRelativePath
 if (-not (Test-Path -LiteralPath $ownerLightingDataAssetPath -PathType Leaf)) {
-  throw "Owner LightingData fixture is missing: '$ownerLightingDataRelativePath'."
+    throw "Owner LightingData fixture is missing: '$ownerLightingDataRelativePath'."
 }
 
 $ownerLightingDataMetaRelativePath = "$ownerLightingDataRelativePath.meta"
 $ownerLightingDataMetaPath = Join-Path $packageRoot $ownerLightingDataMetaRelativePath
 if (-not (Test-Path -LiteralPath $ownerLightingDataMetaPath -PathType Leaf)) {
-  throw "Owner LightingData metadata is missing: '$ownerLightingDataMetaRelativePath'."
+    throw "Owner LightingData metadata is missing: '$ownerLightingDataMetaRelativePath'."
 }
 
 $ownerLightingDataGuidLines = @([regex]::Matches((Get-Content -LiteralPath $ownerLightingDataMetaPath -Raw), '(?m)^guid:\s*(\S+)\s*$'))
 if ($ownerLightingDataGuidLines.Count -ne 1) {
-  throw "Owner LightingData metadata must contain exactly one GUID: '$ownerLightingDataMetaRelativePath'."
+    throw "Owner LightingData metadata must contain exactly one GUID: '$ownerLightingDataMetaRelativePath'."
 }
 
 $ownerLightingDataGuid = $ownerLightingDataGuidLines[0].Groups[1].Value
 if ($ownerLightingDataGuid -notmatch '^[0-9a-fA-F]{32}$') {
-  throw "Owner LightingData metadata contains a malformed GUID: '$ownerLightingDataMetaRelativePath'."
+    throw "Owner LightingData metadata contains a malformed GUID: '$ownerLightingDataMetaRelativePath'."
 }
 
 $assetsRoot = Join-Path $projectRootFullPath 'Assets'
 $projectSettingsRoot = Join-Path $projectRootFullPath 'ProjectSettings'
 $packagesRoot = Join-Path $projectRootFullPath 'Packages'
 foreach ($directory in @($assetsRoot, $projectSettingsRoot, $packagesRoot)) {
-  New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
 }
 
 $consumerProjectSettingsRoot = Join-Path $packageRoot 'Tests/Release/ConsumerProject/ProjectSettings'
 $projectVersionSource = Join-Path $consumerProjectSettingsRoot 'ProjectVersion.txt'
 if (-not (Test-Path -LiteralPath $projectVersionSource -PathType Leaf)) {
-  throw "Pinned Unity ProjectVersion source is missing: '$projectVersionSource'."
+    throw "Pinned Unity ProjectVersion source is missing: '$projectVersionSource'."
 }
 Copy-Item -LiteralPath $projectVersionSource -Destination (Join-Path $projectSettingsRoot 'ProjectVersion.txt') -Force
 
@@ -85,20 +85,20 @@ Copy-Item -LiteralPath $projectVersionSource -Destination (Join-Path $projectSet
 # Recompare and refresh this fixture whenever the VRChat SDK or its Project Setup changes.
 $qualitySettingsSource = Join-Path $consumerProjectSettingsRoot 'QualitySettings.asset'
 if (-not (Test-Path -LiteralPath $qualitySettingsSource -PathType Leaf)) {
-  throw "Reviewed VRChat-project QualitySettings snapshot is missing: '$qualitySettingsSource'."
+    throw "Reviewed VRChat-project QualitySettings snapshot is missing: '$qualitySettingsSource'."
 }
 Copy-Item -LiteralPath $qualitySettingsSource -Destination (Join-Path $projectSettingsRoot 'QualitySettings.asset') -Force
 
 $manifest = [ordered]@{
-  dependencies = [ordered]@{
-    'com.unity.test-framework' = '1.1.33'
-  }
+    dependencies = [ordered]@{
+        'com.unity.test-framework' = '1.1.33'
+    }
 }
 $manifestText = ($manifest | ConvertTo-Json -Depth 4) + "`n"
 [System.IO.File]::WriteAllText(
-  (Join-Path $packagesRoot 'manifest.json'),
-  $manifestText,
-  [System.Text.UTF8Encoding]::new($false)
+    (Join-Path $packagesRoot 'manifest.json'),
+    $manifestText,
+    [System.Text.UTF8Encoding]::new($false)
 )
 
 $ownerSceneText = @"
@@ -233,9 +233,9 @@ SceneRoots:
   m_Roots: []
 "@
 [System.IO.File]::WriteAllText(
-  (Join-Path $assetsRoot 'Pure-Base.unity'),
-  $ownerSceneText.Replace("`r`n", "`n") + "`n",
-  [System.Text.UTF8Encoding]::new($false)
+    (Join-Path $assetsRoot 'Pure-Base.unity'),
+    $ownerSceneText.Replace("`r`n", "`n") + "`n",
+    [System.Text.UTF8Encoding]::new($false)
 )
 
 Write-Output "Prepared Pure-Base CI Unity project: $projectRootFullPath"
@@ -246,3 +246,4 @@ Write-Output "VRChat SDK packages installed in generated CI project: none"
 
 # Normalize only an accepted native-command status when the caller has one.
 if ((Test-Path Variable:LASTEXITCODE) -and $LASTEXITCODE -lt 8) { $global:LASTEXITCODE = 0 }
+

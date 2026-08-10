@@ -38,7 +38,7 @@ Describe 'Pure-Base CI Unity project generation' {
         $ownerLightingDataAssetPath = Join-Path $ownerLightingDataDirectory 'OwnerLightingData.asset'
         $ownerLightingDataMetaPath = "$ownerLightingDataAssetPath.meta"
         $ownerLightingDataGuid = [guid]::NewGuid().ToString('N')
-        New-Item -ItemType Directory -Path $pureBaseRoot,$shaderCoreRoot,$consumerSettings,$ownerLightingDataDirectory -Force | Out-Null
+        New-Item -ItemType Directory -Path $pureBaseRoot, $shaderCoreRoot, $consumerSettings, $ownerLightingDataDirectory -Force | Out-Null
         [IO.File]::WriteAllText(
             (Join-Path $pureBaseRoot 'package.json'),
             '{"name":"jp.penguin.purebase","version":"0.1.0"}',
@@ -178,3 +178,4 @@ QualitySettings:
         Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*malformed GUID*') -Message 'The CI project builder accepted malformed owner LightingData metadata.'
     }
 }
+

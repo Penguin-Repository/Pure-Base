@@ -568,10 +568,10 @@ function Get-ExpectedFirstBootstrapChangedPaths {
 
 function Get-FirstBootstrapGeneratedMetaProfile {
     return [ordered]@{
-        'Assets/ReleaseConsumer/Fixtures.meta'                 = [ordered]@{ relatedPath = 'Assets/ReleaseConsumer/Fixtures'; itemType = 'Directory' }
-        'Assets/ReleaseModules.meta'                           = [ordered]@{ relatedPath = 'Assets/ReleaseModules'; itemType = 'Directory' }
-        'Assets/Resources.meta'                                = [ordered]@{ relatedPath = 'Assets/Resources'; itemType = 'Directory' }
-        'Assets/Resources/BillingMode.json.meta'               = [ordered]@{ relatedPath = 'Assets/Resources/BillingMode.json'; itemType = 'Leaf' }
+        'Assets/ReleaseConsumer/Fixtures.meta'   = [ordered]@{ relatedPath = 'Assets/ReleaseConsumer/Fixtures'; itemType = 'Directory' }
+        'Assets/ReleaseModules.meta'             = [ordered]@{ relatedPath = 'Assets/ReleaseModules'; itemType = 'Directory' }
+        'Assets/Resources.meta'                  = [ordered]@{ relatedPath = 'Assets/Resources'; itemType = 'Directory' }
+        'Assets/Resources/BillingMode.json.meta' = [ordered]@{ relatedPath = 'Assets/Resources/BillingMode.json'; itemType = 'Leaf' }
     }
 }
 
@@ -903,8 +903,8 @@ function Get-FirstBootstrapMetaValidationFailures {
     $generatedMetaProfile = Get-FirstBootstrapGeneratedMetaProfile
     $allMetaPaths = @(
         Get-ChildItem -LiteralPath $ConsumerRoot -File -Recurse -Force |
-        ForEach-Object { Get-NormalizedRelativePath -Path $_.FullName.Substring($ConsumerRoot.Length).TrimStart('\', '/') } |
-        Where-Object { $_.EndsWith('.meta', [System.StringComparison]::Ordinal) -and ($_.StartsWith('Assets/', [System.StringComparison]::Ordinal) -or $_.StartsWith('Packages/', [System.StringComparison]::Ordinal) -or $_.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal) -or $_.StartsWith('_LocalPackages/', [System.StringComparison]::Ordinal)) }
+            ForEach-Object { Get-NormalizedRelativePath -Path $_.FullName.Substring($ConsumerRoot.Length).TrimStart('\', '/') } |
+            Where-Object { $_.EndsWith('.meta', [System.StringComparison]::Ordinal) -and ($_.StartsWith('Assets/', [System.StringComparison]::Ordinal) -or $_.StartsWith('Packages/', [System.StringComparison]::Ordinal) -or $_.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal) -or $_.StartsWith('_LocalPackages/', [System.StringComparison]::Ordinal)) }
     )
     $allMetaPaths = Get-OrdinalSortedStrings -Values $allMetaPaths
     foreach ($path in $allMetaPaths) {
@@ -2707,3 +2707,4 @@ if ($consumerCreated -ne 1 -or ((-not $KeepConsumer) -and $consumerRemoved -ne 1
 }
 
 Write-Host "Pure-Base release consumer validation passed. Artifacts: '$runRoot'."
+
