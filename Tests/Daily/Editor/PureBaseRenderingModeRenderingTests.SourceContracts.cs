@@ -32,13 +32,21 @@ namespace PureBase.Tests.Daily
         private const string BirpHostPath =
             "Packages/jp.penguin.purebase/Shaders/Common/birp_host.hlsl";
 
-        /// <summary>Identifies the Toon model source whose pre-change direct and continuous-SH contracts are diagnosed.</summary>
+        /// <summary>Identifies the Toon model source whose direct and environment callback ownership is diagnosed.</summary>
         private const string ToonModelPath =
             "Packages/jp.penguin.purebase/Shaders/Models/toon.hlsl";
 
         /// <summary>Identifies the Toon-only helper that owns dominant-direction and two-band SH evaluation.</summary>
         private const string ToonLightingHelperPath =
             "Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl";
+
+        /// <summary>Identifies the PBR model that must not consume Toon lighting direction or environment bands.</summary>
+        private const string PbrModelPath =
+            "Packages/jp.penguin.purebase/Shaders/Models/pbr.hlsl";
+
+        /// <summary>Identifies the Hybrid model wrapper that must retain PBR lighting ownership.</summary>
+        private const string HybridModelPath =
+            "Packages/jp.penguin.purebase/Shaders/Models/hybrid.hlsl";
 
         /// <summary>Identifies the shared PBR BRDF source that retains Hybrid's inline binary diffuse factor.</summary>
         private const string PbrBrdfPath =
@@ -152,43 +160,76 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("sd.col.a = half(0.25)", File.ReadAllText(PostPixelProbePath));
         }
 
-        /// <summary>Records the current direct, continuous-SH, lightmap, and ForwardAdd ownership before the Toon model changes.</summary>
+        /// <summary>Requires Toon-owned binary direct and two-band environment lighting with Shader-Core lightmap and ForwardAdd isolation.</summary>
         [Test]
-        public void CurrentToonLightingOwnershipKeepsBinaryDirectContinuousShShaderCoreLightmapsAndForwardAddIsolation()
+        public void ToonLightingOwnershipKeepsBinaryDirectTwoBandShaderCoreLightmapsAndForwardAddIsolation()
         {
             string toon = File.ReadAllText(ToonModelPath);
+            string helper = File.ReadAllText(ToonLightingHelperPath);
             string host = File.ReadAllText(BirpHostPath);
             string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
+            string pbr = File.ReadAllText(PbrModelPath);
             string pbrBrdf = File.ReadAllText(PbrBrdfPath);
+            string hybrid = File.ReadAllText(HybridModelPath);
 
             StringAssert.Contains(
-                "return step(0, dot(shadingData.N, light.direction));",
-                toon,
-                "Toon direct lighting must retain its post-light binary diffuse response until the model-owned direction change."
+                "return step(0, dot(surfaceNormal, lightDirection));",
+                helper,
+                "The Toon helper must own the stable binary direct-light response."
             );
             StringAssert.Contains(
-                "half4 normal = half4(shadingData.N, 1);",
+                "return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction);",
                 toon,
-                "Pre-change Toon SH must remain explicitly diagnosed as continuous normal evaluation."
+                "The Toon model must delegate direct-light evaluation to its binary helper."
+            );
+            StringAssert.Contains(
+                "float3 PureBaseToonComputeLightDirection",
+                helper,
+                "The Toon helper must own the stable direct and SH aggregate direction."
+            );
+            StringAssert.Contains(
+                "float3 PureBaseToonEvaluateTwoBandSh",
+                helper,
+                "The Toon helper must own fixed bright and dark environment band interpretation."
+            );
+            StringAssert.Contains(
+                "return lerp(dark, bright, step(0, dot(surfaceNormal, L)));",
+                helper,
+                "The Toon helper must select the environment from fixed bright and dark bands."
+            );
+            StringAssert.Contains(
+                "#include \"Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl\"",
+                toon,
+                "The Toon model must include its lighting helper as the sole Toon-specific lighting source."
             );
             StringAssert.Contains("SCModelEvaluateAmbient", toon);
             StringAssert.Contains("SCModelSelectEnvironmentLighting", toon);
-            StringAssert.Contains("SCCalculateAllLights", host);
+            StringAssert.Contains("SCCalculateAllLights", host, "The BIRP host must own the aggregate light flow.");
             StringAssert.Contains("env = SCModelSelectEnvironmentLighting(env);", host);
             StringAssert.Contains("sd.lightColor = lightSum.color + env;", host);
             StringAssert.Contains("sd.lightColor = lightSum.color;", host);
             Assert.That(
                 RequireIndex(host, "#if defined(UNITY_PASS_FORWARDADD)"),
-                Is.GreaterThan(RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);")),
-                "ForwardAdd must select only the direct aggregate after the shared Base environment calculation boundary."
+                Is.LessThan(RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);")),
+                "ForwardAdd must select only the direct aggregate before the Base environment calculation branch."
             );
             StringAssert.Contains("LIGHTMAP_ON", shaderCoreLighting);
             StringAssert.Contains("unity_Lightmap", shaderCoreLighting);
             StringAssert.Contains("__SC_PHASE_customlight__", shaderCoreLighting);
+            StringAssert.DoesNotContain(
+                "toon_lighting.hlsl",
+                pbr,
+                "PBR must retain its own environment and aggregate-direction ownership."
+            );
             StringAssert.Contains(
                 "half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;",
                 pbrBrdf,
                 "Hybrid must retain the existing inline PBR binary diffuse equation."
+            );
+            StringAssert.DoesNotContain(
+                "toon_lighting.hlsl",
+                hybrid,
+                "Hybrid must retain PBR lighting ownership without consuming Toon SH direction."
             );
 
             int allLights = RequireIndex(host, "SCCalculateAllLights");
@@ -206,7 +247,7 @@ namespace PureBase.Tests.Daily
             Assert.That(add, Is.LessThan(postPixel));
         }
 
-        /// <summary>Requires the future Toon-only dominant-direction and bright/dark SH helper without changing PBR or Hybrid ownership.</summary>
+        /// <summary>Requires the Toon-only dominant-direction and bright/dark SH helper without changing PBR or Hybrid ownership.</summary>
         [Test]
         public void ToonLightingRequiresFixedTwoBandHelperFallbackAndModelCallbackSeparation()
         {

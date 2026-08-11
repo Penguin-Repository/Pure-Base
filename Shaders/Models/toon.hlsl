@@ -19,6 +19,8 @@
 #ifndef PUREBASE_TOON_MODEL_INCLUDED
 #define PUREBASE_TOON_MODEL_INCLUDED
 
+#include "Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl"
+
 /// <summary>Stores deterministic host-owned data for Shader-Core lighting callbacks.</summary>
 struct SCCustomData
 {
@@ -42,7 +44,7 @@ void SCModelInitializeTangentNormal(inout SCShadingData shadingData)
 /// <summary>Returns the quantized per-light Toon response after the Shader-Core light phase.</summary>
 half SCModelEvaluateDirectFactor(SCShadingData shadingData, SCLightData light)
 {
-    return step(0, dot(shadingData.N, light.direction));
+    return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction);
 }
 
 /// <summary>Retains Shader-Core's light color because the Toon wrapper does not isolate Unity Standard declarations.</summary>
@@ -57,15 +59,10 @@ half3 SCModelSelectMainLightDirection(SCVertexData vertex, half3 lightDirection)
     return lightDirection;
 }
 
-/// <summary>Evaluates the supplied Unity spherical-harmonics coefficients with the model world normal.</summary>
+/// <summary>Evaluates the supplied Unity spherical-harmonics coefficients as fixed bright and dark Toon bands.</summary>
 half3 SCModelEvaluateAmbient(SCShadingData shadingData, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
-    half4 normal = half4(shadingData.N, 1);
-    half3 ambient = half3(dot(shAr, normal), dot(shAg, normal), dot(shAb, normal));
-    half4 quadratic = normal.xyzz * normal.yzzx;
-    ambient += half3(dot(shBr, quadratic), dot(shBg, quadratic), dot(shBb, quadratic));
-    ambient += shC.rgb * (normal.x * normal.x - normal.y * normal.y);
-    return max(ambient, half3(0, 0, 0));
+    return PureBaseToonEvaluateTwoBandSh(shadingData.N, shadingData.L, shAr, shAg, shAb, shBr, shBg, shBb, shC);
 }
 
 /// <summary>Suppresses Shader-Core's continuous vertex-light aggregate for the Toon model.</summary>
@@ -91,5 +88,7 @@ half4 SCModelAddSurfaceColor(SCShadingData shadingData, SCCustomData customData,
 {
     return half4(shadingData.albedoAlpha.rgb * shadingData.lightColor, 1);
 }
+
+#define SCModelSelectAggregateLightDirection(directAggregateDirection, shAr, shAg, shAb) PureBaseToonComputeLightDirection(directAggregateDirection, shAr, shAg, shAb)
 
 #endif

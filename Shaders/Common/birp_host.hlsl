@@ -21,6 +21,10 @@
 
 #include "Packages/jp.penguin.purebase/Shaders/Common/rendering_mode.hlsl"
 
+#ifndef SCModelSelectAggregateLightDirection
+    #define SCModelSelectAggregateLightDirection(directAggregateDirection, shAr, shAg, shAb) (dot(directAggregateDirection, directAggregateDirection) == 0 ? half3(0, 0, 0) : normalize(directAggregateDirection))
+#endif
+
 /// <summary>Accumulates a BIRP light after the Shader-Core per-light phase.</summary>
 void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, SCLightData light)
 {
@@ -38,8 +42,17 @@ void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout 
 /// <summary>Publishes the aggregate light direction and applies the selected model's ambient SH response.</summary>
 void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 env, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
-    sd.L = dot(lightSum.direction, lightSum.direction) == 0 ? half3(0, 0, 0) : normalize(lightSum.direction);
-    env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);
+    #if defined(PUREBASE_TOON_MODEL_INCLUDED) && !defined(LIGHTMAP_ON)
+    sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, unity_SHAr, unity_SHAg, unity_SHAb);
+        #if !defined(UNITY_PASS_FORWARDADD)
+        env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHAb, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);
+        #endif
+    #else
+    sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, shAr, shAg, shAb);
+        #if !defined(UNITY_PASS_FORWARDADD)
+        env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);
+        #endif
+    #endif
 }
 
 #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp_lighting.hlsl"
@@ -68,11 +81,11 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
     cd.mainLightAttenuation = saturate(mainLightAttenuation);
     cd.mainLightDirection = half3(0, 0, 0);
     SCCalculateAllLights(lightSum, env, sd, cd, vertex, input, SCModelSelectVertexLighting(SCVertexLighting(vertex.position)));
-    env = SCModelSelectEnvironmentLighting(env);
 
     #if defined(UNITY_PASS_FORWARDADD)
     sd.lightColor = lightSum.color;
     #else
+    env = SCModelSelectEnvironmentLighting(env);
     sd.lightColor = lightSum.color + env;
     #endif
 
