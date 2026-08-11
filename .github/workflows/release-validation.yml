@@ -296,6 +296,10 @@ jobs:
           path: |
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\validated-package
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\repository-state.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\runtime-readbacks.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\library-reset.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\*summary.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\*.log
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

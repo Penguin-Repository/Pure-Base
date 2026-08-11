@@ -1254,3 +1254,29 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
     }
 }
 
+Describe 'Release validation workflow evidence export contracts' {
+    It 'uploads runner evidence while preserving the package and repository-state export' {
+        $packageRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $workflowPath = Join-Path $packageRoot '.github/workflows/release-validation.yml'
+        $workflowSource = Get-Content -LiteralPath $workflowPath -Raw
+        $uploadStepMatch = [regex]::Match($workflowSource, '(?ms)^\s*- name: Upload release validation evidence\s*\r?\n.*?(?=^\s*- name:|\z)')
+        $artifactRoot = '${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}'
+        $expectedArtifactPaths = @(
+            ($artifactRoot + '\validated-package'),
+            ($artifactRoot + '\repository-state.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\runtime-readbacks.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\library-reset.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\*summary.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\*.log')
+        )
+
+        $uploadStepMatch.Success | Should -BeTrue -Because 'the Release workflow must have a dedicated evidence upload step'
+        $uploadStep = $uploadStepMatch.Value
+        $uploadStep | Should -Match '(?m)^\s*if: always\(\)\s*$' -Because 'failed Release validation must upload evidence'
+        $uploadStep | Should -Match 'actions/upload-artifact@' -Because 'the existing evidence artifact must remain an uploaded artifact'
+        foreach ($expectedArtifactPath in $expectedArtifactPaths) {
+            $uploadStep | Should -Match ([regex]::Escape($expectedArtifactPath)) -Because "the evidence artifact must include '$expectedArtifactPath'"
+        }
+    }
+}
+
