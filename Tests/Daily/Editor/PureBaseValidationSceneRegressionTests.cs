@@ -1467,23 +1467,15 @@ namespace PureBase.Tests.Daily
         public void CanonicalToonStaticLightmapProducesFiniteNonzeroTransientCloneDelta()
         {
             EditorStateSnapshot state = EditorStateSnapshot.Capture();
+            var fixtureScope = new ControlledFixtureSceneScope(ScenePath);
             Scene validationScene = default;
-            bool sceneWasLoaded = false;
-            bool sceneWasDirty = false;
+            Scene originalValidationScene = SceneManager.GetSceneByPath(ScenePath);
+            bool sceneWasLoaded = originalValidationScene.isLoaded;
+            bool sceneWasDirty = originalValidationScene.isDirty;
             try
             {
-                validationScene = SceneManager.GetSceneByPath(ScenePath);
-                sceneWasLoaded = validationScene.isLoaded;
-                if (!sceneWasLoaded)
-                {
-                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
-                }
-                sceneWasDirty = validationScene.isDirty;
-                Assert.That(
-                    SceneManager.SetActiveScene(validationScene),
-                    Is.True,
-                    "The canonical validation scene could not become active for static-lightmap observation."
-                );
+                validationScene = fixtureScope.GetLoadedFixture(ScenePath);
+                fixtureScope.SetActiveFixture(validationScene);
                 ValidateFixture(validationScene);
                 MeshRenderer toonRenderer = FindAssignedToonStaticRenderer(validationScene);
                 StaticLightmapReadback assigned = CaptureTransientToonStaticLightmapReadback(
@@ -1508,7 +1500,14 @@ namespace PureBase.Tests.Daily
             }
             finally
             {
-                state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
+                try
+                {
+                    state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
+                }
+                finally
+                {
+                    fixtureScope.Dispose();
+                }
             }
         }
 
