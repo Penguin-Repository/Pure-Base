@@ -85,6 +85,9 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the float CPU readback texture.</summary>
             private readonly Texture2D readback;
 
+            /// <summary>Stores the controlled linear normal texture used by every explicit product draw.</summary>
+            private readonly Texture2D normalMap;
+
             /// <summary>Stores the command buffer that injects globals immediately before every draw.</summary>
             private readonly CommandBuffer commandBuffer;
 
@@ -128,6 +131,7 @@ namespace PureBase.Tests.Daily
                 {
                     hideFlags = HideFlags.HideAndDontSave,
                 };
+                normalMap = CreateNeutralNormalTexture();
                 mesh = CreateNormalControlledQuad(Vector3.forward);
                 commandBuffer = new CommandBuffer { name = "PureBase Toon Lighting Contract Draw" };
                 camera.enabled = false;
@@ -314,6 +318,11 @@ namespace PureBase.Tests.Daily
                     UnityEngine.Object.DestroyImmediate(readback);
                 }
 
+                if (normalMap != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(normalMap);
+                }
+
                 if (target != null)
                 {
                     target.Release();
@@ -380,17 +389,32 @@ namespace PureBase.Tests.Daily
             /// <summary>Configures a white opaque product material with no texture-specific lighting variation.</summary>
             /// <param name="material">The transient product material.</param>
             /// <param name="metallic">The metallic value for PBR and Hybrid observations.</param>
-            private static void ConfigureMaterial(Material material, float metallic)
+            private void ConfigureMaterial(Material material, float metallic)
             {
                 material.SetTexture("_BaseTexture", Texture2D.whiteTexture);
                 material.SetColor("_BaseColor", Color.white);
-                material.SetTexture("_NormalMap", Texture2D.normalTexture);
+                material.SetTexture("_NormalMap", normalMap);
                 material.SetFloat("_NormalScale", 1.0f);
                 if (material.HasProperty("_Metallic"))
                 {
                     material.SetFloat("_Metallic", metallic);
                     material.SetFloat("_Roughness", 0.25f);
                 }
+            }
+
+            /// <summary>Creates a linear normal-map texel that unpacks to the tangent-space forward vector in both Shader-Core branches.</summary>
+            /// <returns>The fixture-owned nonpersistent normal texture.</returns>
+            private static Texture2D CreateNeutralNormalTexture()
+            {
+                var texture = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true)
+                {
+                    hideFlags = HideFlags.HideAndDontSave,
+                    filterMode = FilterMode.Point,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+                texture.SetPixel(0, 0, new Color(0.5f, 0.5f, 1.0f, 1.0f));
+                texture.Apply(false, true);
+                return texture;
             }
 
             /// <summary>Updates the uniform quad normal and tangent basis without reallocating the transient mesh.</summary>
