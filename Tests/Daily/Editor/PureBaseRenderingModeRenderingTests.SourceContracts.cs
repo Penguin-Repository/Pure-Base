@@ -172,6 +172,17 @@ namespace PureBase.Tests.Daily
             string pbrBrdf = File.ReadAllText(PbrBrdfPath);
             string hybrid = File.ReadAllText(HybridModelPath);
 
+            AssertToonHelperAndModelContracts(toon, helper);
+            AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
+            AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
+            AssertLightingPhaseOrder(host);
+        }
+
+        /// <summary>Asserts that Toon alone owns its binary direct response and two-band environment interpretation.</summary>
+        /// <param name="toon">The Toon model source.</param>
+        /// <param name="helper">The Toon lighting helper source.</param>
+        private static void AssertToonHelperAndModelContracts(string toon, string helper)
+        {
             StringAssert.Contains(
                 "return step(0, dot(surfaceNormal, lightDirection));",
                 helper,
@@ -204,6 +215,13 @@ namespace PureBase.Tests.Daily
             );
             StringAssert.Contains("SCModelEvaluateAmbient", toon);
             StringAssert.Contains("SCModelSelectEnvironmentLighting", toon);
+        }
+
+        /// <summary>Asserts the BIRP host controls ForwardAdd selection and Shader-Core retains lightmap ownership.</summary>
+        /// <param name="host">The common BIRP fragment host source.</param>
+        /// <param name="shaderCoreLighting">The Shader-Core BIRP lighting source.</param>
+        private static void AssertBirpHostForwardAddAndLightmapContracts(string host, string shaderCoreLighting)
+        {
             StringAssert.Contains("SCCalculateAllLights", host, "The BIRP host must own the aggregate light flow.");
             StringAssert.Contains("env = SCModelSelectEnvironmentLighting(env);", host);
             StringAssert.Contains("sd.lightColor = lightSum.color + env;", host);
@@ -216,6 +234,14 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("LIGHTMAP_ON", shaderCoreLighting);
             StringAssert.Contains("unity_Lightmap", shaderCoreLighting);
             StringAssert.Contains("__SC_PHASE_customlight__", shaderCoreLighting);
+        }
+
+        /// <summary>Asserts PBR and Hybrid retain their independent PBR lighting and binary-diffuse ownership.</summary>
+        /// <param name="pbr">The PBR model source.</param>
+        /// <param name="pbrBrdf">The shared PBR BRDF source.</param>
+        /// <param name="hybrid">The Hybrid model source.</param>
+        private static void AssertPbrAndHybridLightingOwnership(string pbr, string pbrBrdf, string hybrid)
+        {
             StringAssert.DoesNotContain(
                 "toon_lighting.hlsl",
                 pbr,
@@ -231,7 +257,12 @@ namespace PureBase.Tests.Daily
                 hybrid,
                 "Hybrid must retain PBR lighting ownership without consuming Toon SH direction."
             );
+            }
 
+            /// <summary>Asserts the required aggregate-light, environment, and fragment-phase execution order.</summary>
+            /// <param name="host">The common BIRP fragment host source.</param>
+            private static void AssertLightingPhaseOrder(string host)
+            {
             int allLights = RequireIndex(host, "SCCalculateAllLights");
             int environmentSelection = RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);");
             int modifyLight = RequireIndex(host, "__SC_PHASE_modifylight__");

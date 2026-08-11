@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -28,7 +29,7 @@ using UnityEngine.SceneManagement;
 namespace PureBase.Tests.Daily
 {
     /// <summary>Defines fixed Toon lighting contracts independently of product HLSL implementation details.</summary>
-    public sealed class PureBaseToonLightingContractTests
+    public sealed partial class PureBaseToonLightingContractTests
     {
         /// <summary>Defines the tolerance for fixed half/float-compatible lighting reference values.</summary>
         private const float OracleTolerance = 0.0002f;
@@ -301,79 +302,51 @@ namespace PureBase.Tests.Daily
             Vector4 directionalPosition = new Vector4(0.0f, 0.0f, 1.0f, 0.0f);
             using (var capture = new ToonLightingCaptureScope())
             {
-                Color pbr = capture.Render(
-                    "PureBase/PBR",
-                    "ForwardBase",
-                    Vector3.forward,
-                    directLight,
-                    directionalPosition,
-                    ShCoefficients.Zero,
-                    false,
-                    1.0f
-                );
-                Color hybridWithoutSh = capture.Render(
-                    "PureBase/Hybrid",
-                    "ForwardBase",
-                    Vector3.forward,
-                    directLight,
-                    directionalPosition,
-                    ShCoefficients.Zero,
-                    false,
-                    1.0f
-                );
-                Color hybridWithSh = capture.Render(
-                    "PureBase/Hybrid",
-                    "ForwardBase",
-                    Vector3.forward,
-                    directLight,
-                    directionalPosition,
-                    ShCoefficients.FixedOracle,
-                    false,
-                    1.0f
-                );
-                Color hybridBackFace = capture.Render(
-                    "PureBase/Hybrid",
-                    "ForwardBase",
-                    Vector3.back,
-                    directLight,
-                    directionalPosition,
-                    ShCoefficients.Zero,
-                    false,
-                    0.0f
-                );
-                Color hybridFrontFace = capture.Render(
-                    "PureBase/Hybrid",
-                    "ForwardBase",
-                    Vector3.forward,
-                    directLight,
-                    directionalPosition,
-                    ShCoefficients.Zero,
-                    false,
-                    0.0f
-                );
+                Color pbr = RenderDirectObservation(capture, "PureBase/PBR", Vector3.forward, directLight, directionalPosition, ShCoefficients.Zero, 1.0f);
+                Color hybridWithoutSh = RenderDirectObservation(capture, "PureBase/Hybrid", Vector3.forward, directLight, directionalPosition, ShCoefficients.Zero, 1.0f);
+                Color hybridWithSh = RenderDirectObservation(capture, "PureBase/Hybrid", Vector3.forward, directLight, directionalPosition, ShCoefficients.FixedOracle, 1.0f);
+                Color hybridBackFace = RenderDirectObservation(capture, "PureBase/Hybrid", Vector3.back, directLight, directionalPosition, ShCoefficients.Zero, 0.0f);
+                Color hybridFrontFace = RenderDirectObservation(capture, "PureBase/Hybrid", Vector3.forward, directLight, directionalPosition, ShCoefficients.Zero, 0.0f);
 
                 AssertFinite(pbr, "PBR metallic-one direct-specular readback");
                 AssertFinite(hybridWithoutSh, "Hybrid metallic-one direct-specular readback");
                 AssertFinite(hybridWithSh, "Hybrid metallic-one SH-injected readback");
-                Assert.That(
-                    MaximumRgbDifference(pbr, hybridWithoutSh),
-                    Is.LessThanOrEqualTo(0.01f),
-                    "PBR and Hybrid metallic-one direct GGX must remain equivalent."
-                );
-                Assert.That(
-                    MaximumRgbDifference(hybridWithoutSh, hybridWithSh),
-                    Is.LessThanOrEqualTo(0.01f),
-                    "Injected Toon SH must not enter Hybrid direct GGX."
-                );
-                Assert.That(
-                    RgbMagnitude(hybridFrontFace),
-                    Is.GreaterThan(RgbMagnitude(hybridBackFace) + 0.01f),
-                    "Nonmetallic Hybrid must retain the binary direct-diffuse response."
-                );
+                AssertMetallicOneDirectEquivalence(pbr, hybridWithoutSh);
+                AssertInjectedShIsolation(hybridWithoutSh, hybridWithSh);
+                AssertNonmetallicBinaryDirectResponse(hybridBackFace, hybridFrontFace);
             }
         }
 
+        /// <summary>Renders one controlled ForwardBase direct-light observation.</summary>
+        private static Color RenderDirectObservation(ToonLightingCaptureScope capture, string shaderName, Vector3 normal, Vector4 lightColor, Vector4 lightPosition, ShCoefficients coefficients, float metallic)
+        {
+            return capture.Render(shaderName, "ForwardBase", normal, lightColor, lightPosition, coefficients, false, metallic);
+        }
+
+        /// <summary>Asserts metallic-one Hybrid direct GGX remains equivalent to PBR.</summary>
+        private static void AssertMetallicOneDirectEquivalence(Color pbr, Color hybrid)
+        {
+            Assert.That(MaximumRgbDifference(pbr, hybrid), Is.LessThanOrEqualTo(0.01f), "PBR and Hybrid metallic-one direct GGX must remain equivalent.");
+        }
+
+        /// <summary>Asserts injected Toon SH does not contribute to Hybrid direct GGX.</summary>
+        private static void AssertInjectedShIsolation(Color withoutSh, Color withSh)
+        {
+            Assert.That(MaximumRgbDifference(withoutSh, withSh), Is.LessThanOrEqualTo(0.01f), "Injected Toon SH must not enter Hybrid direct GGX.");
+        }
+
+        /// <summary>Asserts nonmetallic Hybrid retains its binary direct-diffuse response.</summary>
+        private static void AssertNonmetallicBinaryDirectResponse(Color backFace, Color frontFace)
+        {
+            Assert.That(RgbMagnitude(frontFace), Is.GreaterThan(RgbMagnitude(backFace) + 0.01f), "Nonmetallic Hybrid must retain the binary direct-diffuse response.");
+        }
+
         /// <summary>Stores the seven Unity SH global vectors injected immediately before each explicit draw.</summary>
+        [SuppressMessage(
+            "Major Code Smell",
+            "S3898:Implement this method because it is defined in 'ValueType'.",
+            Justification = "This private immutable Unity-global input carrier is never compared or used as a hash key."
+        )]
         private readonly struct ShCoefficients
         {
             /// <summary>Initializes the complete Unity SH global vector set.</summary>
@@ -447,333 +420,9 @@ namespace PureBase.Tests.Daily
             );
         }
 
-        /// <summary>Owns one isolated explicit-draw fixture and restores every Unity global it changes.</summary>
-        private sealed class ToonLightingCaptureScope : IDisposable
+        /// <summary>Owns one isolated explicit-draw fixture, restores every Unity global it changes, and preserves the established capture type while the runtime implementation resides in a partial source file.</summary>
+        private sealed class ToonLightingCaptureScope : ToonLightingCaptureRuntimeScope
         {
-            /// <summary>Lists the injected global property names in draw-order ownership order.</summary>
-            private static readonly string[] GlobalNames =
-            {
-                "_LightColor0",
-                "_WorldSpaceLightPos0",
-                "unity_SHAr",
-                "unity_SHAg",
-                "unity_SHAb",
-                "unity_SHBr",
-                "unity_SHBg",
-                "unity_SHBb",
-                "unity_SHC",
-            };
-
-            /// <summary>Stores the caller's POINT keyword state before this fixture can issue a point-light draw.</summary>
-            private readonly bool pointKeywordEnabled;
-
-            /// <summary>Stores the global vectors captured before the fixture writes any explicit lighting input.</summary>
-            private readonly Dictionary<string, Vector4> globals = new Dictionary<string, Vector4>();
-
-            /// <summary>Stores caller-owned temporary material instances.</summary>
-            private readonly List<Material> materials = new List<Material>();
-
-            /// <summary>Stores the active render target before CPU readback changes it.</summary>
-            private readonly RenderTexture activeRenderTexture;
-
-            /// <summary>Stores the active scene before the Preview Scene becomes the capture context.</summary>
-            private readonly Scene activeScene;
-
-            /// <summary>Stores the original loaded scene count for restoration diagnostics.</summary>
-            private readonly int sceneCount;
-
-            /// <summary>Stores the original pixel-light budget.</summary>
-            private readonly int pixelLightCount;
-
-            /// <summary>Stores the original fog setting for the formerly active scene.</summary>
-            private readonly bool fogEnabled;
-
-            /// <summary>Stores the disposable Preview Scene that owns all generated GameObjects.</summary>
-            private readonly Scene scene;
-
-            /// <summary>Stores the explicit-draw camera.</summary>
-            private readonly Camera camera;
-
-            /// <summary>Stores the mesh whose world normals are controlled by each contract.</summary>
-            private readonly Mesh mesh;
-
-            /// <summary>Stores the linear float render target.</summary>
-            private readonly RenderTexture target;
-
-            /// <summary>Stores the float CPU readback texture.</summary>
-            private readonly Texture2D readback;
-
-            /// <summary>Stores the command buffer that injects globals immediately before every draw.</summary>
-            private readonly CommandBuffer commandBuffer;
-
-            /// <summary>Tracks whether this scope has already released its resources.</summary>
-            private bool disposed;
-
-            /// <summary>Creates an isolated linear render fixture with no fog or reflection probes.</summary>
-            public ToonLightingCaptureScope()
-            {
-                activeRenderTexture = RenderTexture.active;
-                activeScene = SceneManager.GetActiveScene();
-                sceneCount = SceneManager.sceneCount;
-                pixelLightCount = QualitySettings.pixelLightCount;
-                fogEnabled = RenderSettings.fog;
-                pointKeywordEnabled = Shader.IsKeywordEnabled(PointKeyword);
-                foreach (string globalName in GlobalNames)
-                {
-                    globals.Add(globalName, Shader.GetGlobalVector(globalName));
-                }
-
-                scene = EditorSceneManager.NewPreviewScene();
-                RenderSettings.fog = false;
-                QualitySettings.pixelLightCount = Mathf.Max(2, pixelLightCount);
-
-                GameObject cameraObject = EditorUtility.CreateGameObjectWithHideFlags(
-                    "PureBase Toon Lighting Contract Camera",
-                    HideFlags.HideAndDontSave,
-                    typeof(Camera)
-                );
-                SceneManager.MoveGameObjectToScene(cameraObject, scene);
-                camera = cameraObject.GetComponent<Camera>();
-                target = new RenderTexture(
-                    64,
-                    64,
-                    24,
-                    RenderTextureFormat.ARGBFloat,
-                    RenderTextureReadWrite.Linear
-                ) { hideFlags = HideFlags.HideAndDontSave };
-                target.Create();
-                readback = new Texture2D(64, 64, TextureFormat.RGBAFloat, false, true)
-                {
-                    hideFlags = HideFlags.HideAndDontSave,
-                };
-                mesh = CreateNormalControlledQuad(Vector3.forward);
-                commandBuffer = new CommandBuffer { name = "PureBase Toon Lighting Contract Draw" };
-                camera.enabled = false;
-                camera.cullingMask = 0;
-                camera.orthographic = true;
-                camera.orthographicSize = 1.0f;
-                camera.nearClipPlane = 0.1f;
-                camera.farClipPlane = 10.0f;
-                camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = new Color(0.0f, 0.0f, 0.0f, 0.37f);
-                camera.renderingPath = RenderingPath.Forward;
-                camera.targetTexture = target;
-                camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, commandBuffer);
-            }
-
-            /// <summary>Draws one product pass after installing the exact lighting globals for the current test case.</summary>
-            /// <param name="shaderName">The required product shader name.</param>
-            /// <param name="passName">The required explicit pass name.</param>
-            /// <param name="normal">The uniform mesh world normal.</param>
-            /// <param name="lightColor">The explicitly injected main or additional light color.</param>
-            /// <param name="lightPosition">The explicitly injected directional or point light vector.</param>
-            /// <param name="coefficients">The seven SH globals injected immediately before the draw.</param>
-            /// <param name="pointLight">Whether the ForwardAdd draw selects the point-light shader variant.</param>
-            /// <param name="metallic">The material metallic value.</param>
-            /// <returns>The center linear float readback color.</returns>
-            public Color Render(
-                string shaderName,
-                string passName,
-                Vector3 normal,
-                Vector4 lightColor,
-                Vector4 lightPosition,
-                ShCoefficients coefficients,
-                bool pointLight = false,
-                float metallic = 0.0f
-            )
-            {
-                bool pointKeywordWasEnabled = Shader.IsKeywordEnabled(PointKeyword);
-                try
-                {
-                    Shader shader = Shader.Find(shaderName);
-                    Assert.That(shader, Is.Not.Null, "Product shader '" + shaderName + "' is unavailable.");
-                    Assert.That(
-                        ShaderUtil.ShaderHasError(shader),
-                        Is.False,
-                        "Product shader '" + shaderName + "' has compiler errors."
-                    );
-                    var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-                    materials.Add(material);
-                    ConfigureMaterial(material, metallic);
-                    int pass = material.FindPass(passName);
-                    Assert.That(pass, Is.GreaterThanOrEqualTo(0), shaderName + " requires " + passName + ".");
-                    SetMeshNormal(normal);
-
-                    commandBuffer.Clear();
-                    commandBuffer.SetGlobalVector("_LightColor0", lightColor);
-                    commandBuffer.SetGlobalVector("_WorldSpaceLightPos0", lightPosition);
-                    commandBuffer.SetGlobalVector("unity_SHAr", coefficients.ar);
-                    commandBuffer.SetGlobalVector("unity_SHAg", coefficients.ag);
-                    commandBuffer.SetGlobalVector("unity_SHAb", coefficients.ab);
-                    commandBuffer.SetGlobalVector("unity_SHBr", coefficients.br);
-                    commandBuffer.SetGlobalVector("unity_SHBg", coefficients.bg);
-                    commandBuffer.SetGlobalVector("unity_SHBb", coefficients.bb);
-                    commandBuffer.SetGlobalVector("unity_SHC", coefficients.c);
-                    if (pointLight)
-                    {
-                        commandBuffer.EnableShaderKeyword(PointKeyword);
-                    }
-                    commandBuffer.DrawMesh(mesh, Matrix4x4.identity, material, 0, pass);
-                    if (pointLight)
-                    {
-                        SetCommandBufferPointKeywordState(pointKeywordWasEnabled);
-                    }
-
-                    camera.Render();
-                    return ReadCenterPixel();
-                }
-                finally
-                {
-                    RestorePointKeywordState(pointKeywordWasEnabled);
-                }
-            }
-
-            /// <summary>Releases generated objects and restores global, render-target, quality, fog, and active-scene state.</summary>
-            public void Dispose()
-            {
-                if (disposed)
-                {
-                    return;
-                }
-
-                disposed = true;
-                try
-                {
-                    if (camera != null && commandBuffer != null)
-                    {
-                        camera.RemoveCommandBuffer(CameraEvent.BeforeForwardOpaque, commandBuffer);
-                    }
-                    if (commandBuffer != null)
-                    {
-                        commandBuffer.Release();
-                    }
-                    foreach (Material material in materials)
-                    {
-                        UnityEngine.Object.DestroyImmediate(material);
-                    }
-                    if (readback != null)
-                    {
-                        UnityEngine.Object.DestroyImmediate(readback);
-                    }
-                    if (target != null)
-                    {
-                        target.Release();
-                        UnityEngine.Object.DestroyImmediate(target);
-                    }
-                    if (mesh != null)
-                    {
-                        UnityEngine.Object.DestroyImmediate(mesh);
-                    }
-                    if (scene.IsValid() && scene.isLoaded)
-                    {
-                        EditorSceneManager.ClosePreviewScene(scene);
-                    }
-                }
-                finally
-                {
-                    RestorePointKeywordState(pointKeywordEnabled);
-                    foreach (KeyValuePair<string, Vector4> global in globals)
-                    {
-                        Shader.SetGlobalVector(global.Key, global.Value);
-                    }
-                    RenderTexture.active = activeRenderTexture;
-                    QualitySettings.pixelLightCount = pixelLightCount;
-                    if (activeScene.IsValid() && activeScene.isLoaded)
-                    {
-                        SceneManager.SetActiveScene(activeScene);
-                        RenderSettings.fog = fogEnabled;
-                    }
-                    Assert.That(
-                        SceneManager.sceneCount,
-                        Is.EqualTo(sceneCount),
-                        "The Toon lighting capture scope must restore the original loaded scene count."
-                    );
-                }
-            }
-
-            /// <summary>Queues restoration of the POINT keyword state after the explicit point-light draw.</summary>
-            /// <param name="enabled">Whether POINT must remain enabled after the draw.</param>
-            private void SetCommandBufferPointKeywordState(bool enabled)
-            {
-                if (enabled)
-                {
-                    commandBuffer.EnableShaderKeyword(PointKeyword);
-                }
-                else
-                {
-                    commandBuffer.DisableShaderKeyword(PointKeyword);
-                }
-            }
-
-            /// <summary>Configures a white opaque product material with no texture-specific lighting variation.</summary>
-            /// <param name="material">The transient product material.</param>
-            /// <param name="metallic">The metallic value for PBR and Hybrid observations.</param>
-            private static void ConfigureMaterial(Material material, float metallic)
-            {
-                material.SetTexture("_BaseTexture", Texture2D.whiteTexture);
-                material.SetColor("_BaseColor", Color.white);
-                material.SetTexture("_NormalMap", Texture2D.normalTexture);
-                material.SetFloat("_NormalScale", 1.0f);
-                if (material.HasProperty("_Metallic"))
-                {
-                    material.SetFloat("_Metallic", metallic);
-                    material.SetFloat("_Roughness", 0.25f);
-                }
-            }
-
-            /// <summary>Updates the uniform quad normal and tangent basis without reallocating the transient mesh.</summary>
-            /// <param name="normal">The required normalized world-space normal.</param>
-            private void SetMeshNormal(Vector3 normal)
-            {
-                Vector3 normalized = normal.normalized;
-                mesh.normals = new[] { normalized, normalized, normalized, normalized };
-                mesh.tangents = new[]
-                {
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                };
-            }
-
-            /// <summary>Creates the full-frame mesh used by explicit pass draws.</summary>
-            /// <param name="normal">The initial uniform mesh normal.</param>
-            /// <returns>The caller-owned transient mesh.</returns>
-            private static Mesh CreateNormalControlledQuad(Vector3 normal)
-            {
-                var result = new Mesh { hideFlags = HideFlags.HideAndDontSave };
-                result.vertices = new[]
-                {
-                    new Vector3(-1.0f, -1.0f, 0.0f),
-                    new Vector3(-1.0f, 1.0f, 0.0f),
-                    new Vector3(1.0f, 1.0f, 0.0f),
-                    new Vector3(1.0f, -1.0f, 0.0f),
-                };
-                result.uv = new[] { Vector2.zero, Vector2.up, Vector2.one, Vector2.right };
-                result.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-                result.RecalculateBounds();
-                result.normals = new[] { normal, normal, normal, normal };
-                return result;
-            }
-
-            /// <summary>Reads the center pixel while restoring the caller's active render target.</summary>
-            /// <returns>The center linear color.</returns>
-            private Color ReadCenterPixel()
-            {
-                RenderTexture previous = RenderTexture.active;
-                try
-                {
-                    RenderTexture.active = target;
-                    readback.ReadPixels(new Rect(31.0f, 31.0f, 1.0f, 1.0f), 0, 0);
-                    readback.Apply(false, false);
-                    return readback.GetPixel(0, 0);
-                }
-                finally
-                {
-                    RenderTexture.active = previous;
-                }
-            }
         }
 
         /// <summary>Evaluates the fixed direct-plus-SH dominant direction with the required degenerate fallback.</summary>
