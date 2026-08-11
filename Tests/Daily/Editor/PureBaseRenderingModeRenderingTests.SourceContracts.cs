@@ -32,6 +32,22 @@ namespace PureBase.Tests.Daily
         private const string BirpHostPath =
             "Packages/jp.penguin.purebase/Shaders/Common/birp_host.hlsl";
 
+        /// <summary>Identifies the Toon model source whose pre-change direct and continuous-SH contracts are diagnosed.</summary>
+        private const string ToonModelPath =
+            "Packages/jp.penguin.purebase/Shaders/Models/toon.hlsl";
+
+        /// <summary>Identifies the Toon-only helper that owns dominant-direction and two-band SH evaluation.</summary>
+        private const string ToonLightingHelperPath =
+            "Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl";
+
+        /// <summary>Identifies the shared PBR BRDF source that retains Hybrid's inline binary diffuse factor.</summary>
+        private const string PbrBrdfPath =
+            "Packages/jp.penguin.purebase/Shaders/Common/pbr_brdf.hlsl";
+
+        /// <summary>Identifies the Shader-Core BIRP light acquisition boundary that retains lightmap ownership.</summary>
+        private const string ShaderCoreBirpLightingPath =
+            "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp_lighting.hlsl";
+
         /// <summary>Identifies the shared rendering-mode helper that owns mode clip and output-alpha semantics.</summary>
         private const string RenderingModeHelperPath =
             "Packages/jp.penguin.purebase/Shaders/Common/rendering_mode.hlsl";
@@ -134,6 +150,105 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("Blend [_AddSrcBlend] [_AddDstBlend]", generatedProductSource);
             StringAssert.Contains("ColorMask RGB", generatedProductSource);
             StringAssert.Contains("sd.col.a = half(0.25)", File.ReadAllText(PostPixelProbePath));
+        }
+
+        /// <summary>Records the current direct, continuous-SH, lightmap, and ForwardAdd ownership before the Toon model changes.</summary>
+        [Test]
+        public void CurrentToonLightingOwnershipKeepsBinaryDirectContinuousShShaderCoreLightmapsAndForwardAddIsolation()
+        {
+            string toon = File.ReadAllText(ToonModelPath);
+            string host = File.ReadAllText(BirpHostPath);
+            string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
+            string pbrBrdf = File.ReadAllText(PbrBrdfPath);
+
+            StringAssert.Contains(
+                "return step(0, dot(shadingData.N, light.direction));",
+                toon,
+                "Toon direct lighting must retain its post-light binary diffuse response until the model-owned direction change."
+            );
+            StringAssert.Contains(
+                "half4 normal = half4(shadingData.N, 1);",
+                toon,
+                "Pre-change Toon SH must remain explicitly diagnosed as continuous normal evaluation."
+            );
+            StringAssert.Contains("SCModelEvaluateAmbient", toon);
+            StringAssert.Contains("SCModelSelectEnvironmentLighting", toon);
+            StringAssert.Contains("SCCalculateAllLights", host);
+            StringAssert.Contains("env = SCModelSelectEnvironmentLighting(env);", host);
+            StringAssert.Contains("sd.lightColor = lightSum.color + env;", host);
+            StringAssert.Contains("sd.lightColor = lightSum.color;", host);
+            Assert.That(
+                RequireIndex(host, "#if defined(UNITY_PASS_FORWARDADD)"),
+                Is.GreaterThan(RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);")),
+                "ForwardAdd must select only the direct aggregate after the shared Base environment calculation boundary."
+            );
+            StringAssert.Contains("LIGHTMAP_ON", shaderCoreLighting);
+            StringAssert.Contains("unity_Lightmap", shaderCoreLighting);
+            StringAssert.Contains("__SC_PHASE_customlight__", shaderCoreLighting);
+            StringAssert.Contains(
+                "half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;",
+                pbrBrdf,
+                "Hybrid must retain the existing inline PBR binary diffuse equation."
+            );
+
+            int allLights = RequireIndex(host, "SCCalculateAllLights");
+            int environmentSelection = RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);");
+            int modifyLight = RequireIndex(host, "__SC_PHASE_modifylight__");
+            int shade = RequireIndex(host, "__SC_PHASE_shade__");
+            int reflection = RequireIndex(host, "__SC_PHASE_reflection__");
+            int add = RequireIndex(host, "__SC_PHASE_add__");
+            int postPixel = RequireIndex(host, "__SC_PHASE_postpixel__");
+            Assert.That(allLights, Is.LessThan(environmentSelection));
+            Assert.That(environmentSelection, Is.LessThan(modifyLight));
+            Assert.That(modifyLight, Is.LessThan(shade));
+            Assert.That(shade, Is.LessThan(reflection));
+            Assert.That(reflection, Is.LessThan(add));
+            Assert.That(add, Is.LessThan(postPixel));
+        }
+
+        /// <summary>Requires the future Toon-only dominant-direction and bright/dark SH helper without changing PBR or Hybrid ownership.</summary>
+        [Test]
+        public void ToonLightingRequiresFixedTwoBandHelperFallbackAndModelCallbackSeparation()
+        {
+            string toon = File.ReadAllText(ToonModelPath);
+            Assert.That(
+                File.Exists(ToonLightingHelperPath),
+                Is.True,
+                "The Toon-only dominant-direction and two-band SH helper must exist."
+            );
+            string helper = File.ReadAllText(ToonLightingHelperPath);
+            string host = File.ReadAllText(BirpHostPath);
+            string pbrBrdf = File.ReadAllText(PbrBrdfPath);
+
+            StringAssert.Contains(
+                "#include \"Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl\"",
+                toon,
+                "The two-band SH helper must be included only by the Toon model."
+            );
+            StringAssert.Contains("SCModelEvaluateDirectFactor", toon);
+            StringAssert.Contains("SCModelEvaluateAmbient", toon);
+            StringAssert.Contains("SCModelSelectEnvironmentLighting", toon);
+            StringAssert.Contains(
+                "float3 shDirection = (shAr.xyz + shAg.xyz + shAb.xyz) / 3",
+                helper
+            );
+            StringAssert.Contains(
+                "float3(shDirection.x, abs(shDirection.y), shDirection.z)",
+                helper
+            );
+            StringAssert.Contains("<= 0.000001", helper);
+            StringAssert.Contains("float3(0.001, 0.002, 0.001)", helper);
+            StringAssert.Contains("E = L * 0.666666", helper);
+            StringAssert.Contains("base + linear", helper);
+            StringAssert.Contains("base - linear", helper);
+            StringAssert.Contains("step(0, dot(surfaceNormal, L))", helper);
+            StringAssert.DoesNotContain("toon_lighting.hlsl", host);
+            StringAssert.DoesNotContain("toon_lighting.hlsl", pbrBrdf);
+            StringAssert.Contains(
+                "half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;",
+                pbrBrdf,
+                "The Toon helper must not replace Hybrid's inline binary direct-diffuse branch."
+            );
         }
 
         /// <summary>Requires pass-bounded Stencil policy while preserving the existing pass and rendering-mode keyword ABI.</summary>

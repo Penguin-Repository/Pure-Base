@@ -1462,6 +1462,56 @@ namespace PureBase.Tests.Daily
             }
         }
 
+        /// <summary>Requires the committed Toon static lightmap to produce a finite observable baked delta without rebaking the fixture.</summary>
+        [Test]
+        public void CanonicalToonStaticLightmapProducesFiniteNonzeroTransientCloneDelta()
+        {
+            EditorStateSnapshot state = EditorStateSnapshot.Capture();
+            Scene validationScene = default;
+            bool sceneWasLoaded = false;
+            bool sceneWasDirty = false;
+            try
+            {
+                validationScene = SceneManager.GetSceneByPath(ScenePath);
+                sceneWasLoaded = validationScene.isLoaded;
+                if (!sceneWasLoaded)
+                {
+                    validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+                }
+                sceneWasDirty = validationScene.isDirty;
+                Assert.That(
+                    SceneManager.SetActiveScene(validationScene),
+                    Is.True,
+                    "The canonical validation scene could not become active for static-lightmap observation."
+                );
+                ValidateFixture(validationScene);
+                MeshRenderer toonRenderer = FindAssignedToonStaticRenderer(validationScene);
+                StaticLightmapReadback assigned = CaptureTransientToonStaticLightmapReadback(
+                    validationScene,
+                    toonRenderer,
+                    false
+                );
+                StaticLightmapReadback disabled = CaptureTransientToonStaticLightmapReadback(
+                    validationScene,
+                    toonRenderer,
+                    true
+                );
+
+                Assert.That(assigned.finitePixelCount, Is.EqualTo(RenderSize * RenderSize));
+                Assert.That(disabled.finitePixelCount, Is.EqualTo(RenderSize * RenderSize));
+                Assert.That(
+                    MaximumAbsoluteRgbDifference(assigned.pixels, disabled.pixels),
+                    Is.GreaterThan(0.001f),
+                    "The committed Toon static-lightmap assignment must contribute a finite nonzero baked readback delta. Dynamic lightmaps remain outside this deterministic numeric contract."
+                );
+                Assert.That(toonRenderer.lightmapIndex, Is.GreaterThanOrEqualTo(0));
+            }
+            finally
+            {
+                state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
+            }
+        }
+
         /// <summary>Validates the persistent scene, materials, and lighting settings without modifying them.</summary>
         /// <param name="scene">The canonical validation scene.</param>
         private static void ValidateFixture(Scene scene)
@@ -1567,6 +1617,190 @@ namespace PureBase.Tests.Daily
             }
 
             return string.Join(", ", paths);
+        }
+
+        /// <summary>Finds the committed static Toon renderer with a valid baked lightmap assignment.</summary>
+        /// <param name="scene">The canonical validation scene.</param>
+        /// <returns>The Toon renderer whose assigned lightmap is observed through a transient clone.</returns>
+        private static MeshRenderer FindAssignedToonStaticRenderer(Scene scene)
+        {
+            foreach (MeshRenderer renderer in GetStaticRenderers(scene))
+            {
+                if (
+                    renderer.sharedMaterial != null
+                    && renderer.sharedMaterial.shader != null
+                    && renderer.sharedMaterial.shader.name == "PureBase/Toon"
+                    && renderer.lightmapIndex >= 0
+                )
+                {
+                    return renderer;
+                }
+            }
+
+            throw new AssertionException(
+                "The canonical validation scene has no static PureBase/Toon renderer assigned to a baked lightmap."
+            );
+        }
+
+        /// <summary>Stores one complete linear static-lightmap clone readback without retaining native resources.</summary>
+        private sealed class StaticLightmapReadback
+        {
+            /// <summary>Initializes the managed pixels and finite-sample count for one clone capture.</summary>
+            /// <param name="pixels">The complete linear pixel array.</param>
+            /// <param name="finitePixelCount">The number of finite RGB samples.</param>
+            public StaticLightmapReadback(Color[] pixels, int finitePixelCount)
+            {
+                this.pixels = pixels;
+                this.finitePixelCount = finitePixelCount;
+            }
+
+            /// <summary>Gets the complete linear pixel array.</summary>
+            public Color[] pixels { get; }
+
+            /// <summary>Gets the number of finite RGB samples.</summary>
+            public int finitePixelCount { get; }
+        }
+
+        /// <summary>Renders a transient canonical Toon clone with its assigned static lightmap enabled or disabled.</summary>
+        /// <param name="sourceScene">The canonical scene that owns the source renderer.</param>
+        /// <param name="sourceRenderer">The persistent Toon renderer whose assignment is copied without mutation.</param>
+        /// <param name="disableStaticLightmap">Whether the transient clone clears only its static lightmap assignment.</param>
+        /// <returns>The complete linear float capture.</returns>
+        private static StaticLightmapReadback CaptureTransientToonStaticLightmapReadback(
+            Scene sourceScene,
+            MeshRenderer sourceRenderer,
+            bool disableStaticLightmap
+        )
+        {
+            Camera sourceCamera = FindSceneCamera(sourceScene);
+            int captureLayer = FindUnusedCaptureLayer();
+            GameObject clone = EditorUtility.CreateGameObjectWithHideFlags(
+                "PureBase Toon Static Lightmap Clone",
+                HideFlags.HideAndDontSave,
+                typeof(MeshFilter),
+                typeof(MeshRenderer)
+            );
+            GameObject cameraObject = EditorUtility.CreateGameObjectWithHideFlags(
+                "PureBase Toon Static Lightmap Readback Camera",
+                HideFlags.HideAndDontSave,
+                typeof(Camera)
+            );
+            RenderTexture target = new RenderTexture(
+                RenderSize,
+                RenderSize,
+                24,
+                RenderTextureFormat.ARGBFloat,
+                RenderTextureReadWrite.Linear
+            );
+            Texture2D readback = new Texture2D(
+                RenderSize,
+                RenderSize,
+                TextureFormat.RGBAFloat,
+                false,
+                true
+            );
+            try
+            {
+                SceneManager.MoveGameObjectToScene(clone, sourceScene);
+                SceneManager.MoveGameObjectToScene(cameraObject, sourceScene);
+                MeshFilter sourceFilter = sourceRenderer.GetComponent<MeshFilter>();
+                Assert.That(sourceFilter, Is.Not.Null, "The canonical Toon renderer requires a MeshFilter.");
+                clone.GetComponent<MeshFilter>().sharedMesh = sourceFilter.sharedMesh;
+                MeshRenderer cloneRenderer = clone.GetComponent<MeshRenderer>();
+                cloneRenderer.sharedMaterial = sourceRenderer.sharedMaterial;
+                clone.transform.SetPositionAndRotation(
+                    sourceRenderer.transform.position,
+                    sourceRenderer.transform.rotation
+                );
+                clone.transform.localScale = sourceRenderer.transform.lossyScale;
+                clone.layer = captureLayer;
+                cloneRenderer.lightmapScaleOffset = sourceRenderer.lightmapScaleOffset;
+                cloneRenderer.lightmapIndex = disableStaticLightmap
+                    ? -1
+                    : sourceRenderer.lightmapIndex;
+
+                Camera camera = cameraObject.GetComponent<Camera>();
+                camera.CopyFrom(sourceCamera);
+                camera.enabled = false;
+                camera.cullingMask = 1 << captureLayer;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.clear;
+                target.Create();
+                camera.targetTexture = target;
+                camera.Render();
+                Color[] pixels = ReadPixels(target, readback);
+                return new StaticLightmapReadback(pixels, CountFinitePixels(pixels));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(readback);
+                target.Release();
+                UnityEngine.Object.DestroyImmediate(target);
+                UnityEngine.Object.DestroyImmediate(cameraObject);
+                UnityEngine.Object.DestroyImmediate(clone);
+            }
+        }
+
+        /// <summary>Finds an unused user layer so transient canonical clone capture cannot include persistent renderers.</summary>
+        /// <returns>An unused user-layer index.</returns>
+        private static int FindUnusedCaptureLayer()
+        {
+            for (int layer = 31; layer >= 8; layer--)
+            {
+                bool used = false;
+                for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount && !used; sceneIndex++)
+                {
+                    Scene scene = SceneManager.GetSceneAt(sceneIndex);
+                    if (!scene.isLoaded)
+                    {
+                        continue;
+                    }
+                    foreach (GameObject root in scene.GetRootGameObjects())
+                    {
+                        foreach (Transform transform in root.GetComponentsInChildren<Transform>(true))
+                        {
+                            if (transform.gameObject.layer == layer)
+                            {
+                                used = true;
+                                break;
+                            }
+                        }
+                        if (used)
+                        {
+                            break;
+                        }
+                    }
+                }
+                if (!used)
+                {
+                    return layer;
+                }
+            }
+
+            throw new AssertionException(
+                "The static-lightmap capture requires an unused user layer to isolate transient clone rendering."
+            );
+        }
+
+        /// <summary>Returns the largest absolute RGB difference between two same-sized captures.</summary>
+        /// <param name="left">The first complete linear capture.</param>
+        /// <param name="right">The second complete linear capture.</param>
+        /// <returns>The largest RGB channel difference.</returns>
+        private static float MaximumAbsoluteRgbDifference(Color[] left, Color[] right)
+        {
+            Assert.That(left, Has.Length.EqualTo(right.Length));
+            float maximum = 0.0f;
+            for (int index = 0; index < left.Length; index++)
+            {
+                maximum = Mathf.Max(
+                    maximum,
+                    Mathf.Abs(left[index].r - right[index].r),
+                    Mathf.Abs(left[index].g - right[index].g),
+                    Mathf.Abs(left[index].b - right[index].b)
+                );
+            }
+
+            return maximum;
         }
 
         /// <summary>Renders the scene through a temporary camera without changing the persisted camera target.</summary>
