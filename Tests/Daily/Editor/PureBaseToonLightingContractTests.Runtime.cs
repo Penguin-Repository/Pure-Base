@@ -29,14 +29,15 @@ namespace PureBase.Tests.Daily
 {
     public sealed partial class PureBaseToonLightingContractTests
     {
-        /// <summary>Owns one isolated explicit-draw fixture and restores every Unity global it changes.</summary>
+        /// <summary>Owns one isolated regular-render fixture and restores every Unity global it changes.</summary>
         private class ToonLightingCaptureRuntimeScope : IDisposable
         {
-            /// <summary>Lists the injected global property names in draw-order ownership order.</summary>
+            /// <summary>Stores the dedicated layer used by the preview-scene renderer and lights.</summary>
+            private const int FixtureLayer = 31;
+
+            /// <summary>Lists the spherical-harmonic globals injected immediately before each render.</summary>
             private static readonly string[] GlobalNames =
             {
-                "_LightColor0",
-                "_WorldSpaceLightPos0",
                 "unity_SHAr",
                 "unity_SHAg",
                 "unity_SHAb",
@@ -46,10 +47,7 @@ namespace PureBase.Tests.Daily
                 "unity_SHC",
             };
 
-            /// <summary>Stores the caller's POINT keyword state before this fixture can issue a point-light draw.</summary>
-            private readonly bool pointKeywordEnabled;
-
-            /// <summary>Stores the global vectors captured before the fixture writes any explicit lighting input.</summary>
+            /// <summary>Stores the global vectors captured before the fixture writes spherical-harmonic input.</summary>
             private readonly Dictionary<string, Vector4> globals = new Dictionary<string, Vector4>();
 
             /// <summary>Stores caller-owned temporary material instances.</summary>
@@ -73,11 +71,20 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the disposable Preview Scene that owns all generated GameObjects.</summary>
             private readonly Scene scene;
 
-            /// <summary>Stores the explicit-draw camera.</summary>
+            /// <summary>Stores the isolated Forward-rendering camera.</summary>
             private readonly Camera camera;
 
-            /// <summary>Tracks completed render meshes for deterministic scope cleanup.</summary>
+            /// <summary>Stores the renderer used for every regular product-material render.</summary>
+            private readonly MeshRenderer renderer;
+
+            /// <summary>Stores the mesh filter used for controlled-normal render meshes.</summary>
+            private readonly MeshFilter meshFilter;
+
+            /// <summary>Tracks completed renderer meshes for deterministic scope cleanup.</summary>
             private readonly List<Mesh> meshes = new List<Mesh>();
+
+            /// <summary>Tracks camera and renderer GameObjects for deterministic preview-scene cleanup.</summary>
+            private readonly List<GameObject> gameObjects = new List<GameObject>();
 
             /// <summary>Stores the linear float render target.</summary>
             private readonly RenderTexture target;
@@ -85,11 +92,14 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the float CPU readback texture.</summary>
             private readonly Texture2D readback;
 
-            /// <summary>Stores the controlled linear normal texture used by every explicit product draw.</summary>
+            /// <summary>Stores the controlled linear normal texture used by every product-material render.</summary>
             private readonly Texture2D normalMap;
 
-            /// <summary>Stores the command buffer that injects globals immediately before every draw.</summary>
+            /// <summary>Stores the command buffer that injects only SH globals immediately before every render.</summary>
             private readonly CommandBuffer commandBuffer;
+
+            /// <summary>Stores the renderer-local SH override that wins over Unity's per-object probe setup.</summary>
+            private readonly MaterialPropertyBlock shProperties;
 
             /// <summary>Tracks whether this scope has already released its resources.</summary>
             private bool disposed;
@@ -102,59 +112,70 @@ namespace PureBase.Tests.Daily
                 sceneCount = SceneManager.sceneCount;
                 pixelLightCount = QualitySettings.pixelLightCount;
                 fogEnabled = RenderSettings.fog;
-                pointKeywordEnabled = Shader.IsKeywordEnabled(PointKeyword);
                 foreach (string globalName in GlobalNames)
                 {
                     globals.Add(globalName, Shader.GetGlobalVector(globalName));
                 }
 
-                scene = EditorSceneManager.NewPreviewScene();
-                RenderSettings.fog = false;
-                QualitySettings.pixelLightCount = Mathf.Max(2, pixelLightCount);
-
-                GameObject cameraObject = EditorUtility.CreateGameObjectWithHideFlags(
-                    "PureBase Toon Lighting Contract Camera",
-                    HideFlags.HideAndDontSave,
-                    typeof(Camera)
-                );
-                SceneManager.MoveGameObjectToScene(cameraObject, scene);
-                camera = cameraObject.GetComponent<Camera>();
-                target = new RenderTexture(
-                    64,
-                    64,
-                    24,
-                    RenderTextureFormat.ARGBFloat,
-                    RenderTextureReadWrite.Linear
-                ) { hideFlags = HideFlags.HideAndDontSave };
-                target.Create();
-                readback = new Texture2D(64, 64, TextureFormat.RGBAFloat, false, true)
+                try
                 {
-                    hideFlags = HideFlags.HideAndDontSave,
-                };
-                normalMap = CreateNeutralNormalTexture();
-                commandBuffer = new CommandBuffer { name = "PureBase Toon Lighting Contract Draw" };
-                camera.enabled = false;
-                camera.cullingMask = 0;
-                camera.orthographic = true;
-                camera.orthographicSize = 1.0f;
-                camera.nearClipPlane = 0.1f;
-                camera.farClipPlane = 10.0f;
-                camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = new Color(0.0f, 0.0f, 0.0f, 0.37f);
-                camera.renderingPath = RenderingPath.Forward;
-                camera.targetTexture = target;
-                camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, commandBuffer);
+                    scene = EditorSceneManager.NewPreviewScene();
+                    RenderSettings.fog = false;
+                    QualitySettings.pixelLightCount = Mathf.Max(2, pixelLightCount);
+
+                    GameObject cameraObject = CreateHiddenObject("PureBase Toon Lighting Contract Camera");
+                    camera = cameraObject.AddComponent<Camera>();
+                    GameObject quadObject = CreateHiddenObject("PureBase Toon Lighting Contract Renderer");
+                    meshFilter = quadObject.AddComponent<MeshFilter>();
+                    renderer = quadObject.AddComponent<MeshRenderer>();
+                    renderer.enabled = false;
+                    renderer.lightProbeUsage = LightProbeUsage.Off;
+                    target = new RenderTexture(
+                        64,
+                        64,
+                        24,
+                        RenderTextureFormat.ARGBFloat,
+                        RenderTextureReadWrite.Linear
+                    ) { hideFlags = HideFlags.HideAndDontSave };
+                    target.Create();
+                    readback = new Texture2D(64, 64, TextureFormat.RGBAFloat, false, true)
+                    {
+                        hideFlags = HideFlags.HideAndDontSave,
+                    };
+                    normalMap = CreateNeutralNormalTexture();
+                    commandBuffer = new CommandBuffer { name = "PureBase Toon Lighting Contract SH" };
+                    shProperties = new MaterialPropertyBlock();
+                    camera.enabled = false;
+                    camera.cullingMask = 1 << FixtureLayer;
+                    camera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(scene);
+                    camera.orthographic = true;
+                    camera.orthographicSize = 1.0f;
+                    camera.nearClipPlane = 0.1f;
+                    camera.farClipPlane = 10.0f;
+                    camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
+                    camera.clearFlags = CameraClearFlags.SolidColor;
+                    camera.backgroundColor = new Color(0.0f, 0.0f, 0.0f, 0.37f);
+                    camera.renderingPath = RenderingPath.Forward;
+                    camera.targetTexture = target;
+                    camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, commandBuffer);
+                }
+                catch
+                {
+                    ReleaseRenderResources();
+                    ClosePreviewScene();
+                    RestoreCallerState();
+                    throw;
+                }
             }
 
-            /// <summary>Draws one product pass after installing the exact lighting globals for the current test case.</summary>
+            /// <summary>Renders one product material through BIRP after installing the exact SH globals for the current test case.</summary>
             /// <param name="shaderName">The required product shader name.</param>
-            /// <param name="passName">The required explicit pass name.</param>
+            /// <param name="passName">The required product pass name.</param>
             /// <param name="normal">The uniform mesh world normal.</param>
-            /// <param name="lightColor">The explicitly injected main or additional light color.</param>
-            /// <param name="lightPosition">The explicitly injected directional or point light vector.</param>
-            /// <param name="coefficients">The seven SH globals injected immediately before the draw.</param>
-            /// <param name="pointLight">Whether the ForwardAdd draw selects the point-light shader variant.</param>
+            /// <param name="lightColor">The real main or additional light color.</param>
+            /// <param name="lightPosition">The real directional or point light vector.</param>
+            /// <param name="coefficients">The seven SH globals injected immediately before the render.</param>
+            /// <param name="pointLight">Whether to isolate a Point ForwardAdd contribution with one- versus two-light rendering.</param>
             /// <param name="metallic">The material metallic value.</param>
             /// <returns>The center linear float readback color.</returns>
             public Color Render(
@@ -168,29 +189,44 @@ namespace PureBase.Tests.Daily
                 float metallic = 0.0f
             )
             {
-                bool pointKeywordWasEnabled = Shader.IsKeywordEnabled(PointKeyword);
-                try
+                Material material = CreateProductMaterial(shaderName, passName, metallic);
+                if (pointLight)
                 {
-                    int pass;
-                    Material material = CreateProductMaterial(shaderName, passName, metallic, out pass);
-                    Mesh renderMesh = CreateNormalControlledQuad(normal);
-                    QueueDraw(
-                        renderMesh,
+                    Color oneLight = RenderWithLights(
                         material,
-                        pass,
+                        normal,
                         lightColor,
                         lightPosition,
                         coefficients,
-                        pointLight,
-                        pointKeywordWasEnabled
+                        true,
+                        1
                     );
-                    camera.Render();
-                    return ReadCenterPixel();
+                    Color twoLights = RenderWithLights(
+                        material,
+                        normal,
+                        lightColor,
+                        lightPosition,
+                        coefficients,
+                        true,
+                        2
+                    );
+                    return new Color(
+                        twoLights.r - oneLight.r,
+                        twoLights.g - oneLight.g,
+                        twoLights.b - oneLight.b,
+                        twoLights.a
+                    );
                 }
-                finally
-                {
-                    RestorePointKeywordState(pointKeywordWasEnabled);
-                }
+
+                return RenderWithLights(
+                    material,
+                    normal,
+                    lightColor,
+                    lightPosition,
+                    coefficients,
+                    false,
+                    lightColor == Vector4.zero ? 0 : 1
+                );
             }
 
             /// <summary>Releases generated objects and restores global, render-target, quality, fog, and active-scene state.</summary>
@@ -214,17 +250,15 @@ namespace PureBase.Tests.Daily
                 }
             }
 
-            /// <summary>Creates and configures one transient product material for the explicit named pass.</summary>
+            /// <summary>Creates and configures one transient product material for the required named pass.</summary>
             /// <param name="shaderName">The required product shader name.</param>
             /// <param name="passName">The required explicit pass name.</param>
             /// <param name="metallic">The material metallic value.</param>
-            /// <param name="pass">Receives the required pass index.</param>
             /// <returns>The registered transient material.</returns>
             private Material CreateProductMaterial(
                 string shaderName,
                 string passName,
-                float metallic,
-                out int pass
+                float metallic
             )
             {
                 Shader shader = Shader.Find(shaderName);
@@ -237,57 +271,60 @@ namespace PureBase.Tests.Daily
                 var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
                 materials.Add(material);
                 ConfigureMaterial(material, metallic);
-                pass = material.FindPass(passName);
+                int pass = material.FindPass(passName);
                 Assert.That(pass, Is.GreaterThanOrEqualTo(0), shaderName + " requires " + passName + ".");
                 return material;
             }
 
-            /// <summary>Queues one draw after installing the explicit direct-light and SH globals.</summary>
-            /// <param name="renderMesh">The completed render-scoped mesh.</param>
+            /// <summary>Renders a controlled mesh with the requested real Unity light setup.</summary>
             /// <param name="material">The configured transient material.</param>
-            /// <param name="pass">The required material pass.</param>
-            /// <param name="lightColor">The explicit main or additional light color.</param>
-            /// <param name="lightPosition">The explicit directional or point light vector.</param>
-            /// <param name="coefficients">The seven SH globals for the draw.</param>
-            /// <param name="pointLight">Whether to select the point-light shader variant.</param>
-            /// <param name="pointKeywordWasEnabled">The caller-owned POINT state to queue after the draw.</param>
-            private void QueueDraw(
-                Mesh renderMesh,
+            /// <param name="normal">The uniform mesh world normal.</param>
+            /// <param name="lightColor">The real main or additional light color.</param>
+            /// <param name="lightPosition">The real directional or point light vector.</param>
+            /// <param name="coefficients">The seven SH globals for the render.</param>
+            /// <param name="pointLight">Whether the setup uses Point lights.</param>
+            /// <param name="lightCount">The number of ForcePixel lights to create.</param>
+            /// <returns>The center linear float readback color.</returns>
+            private Color RenderWithLights(
                 Material material,
-                int pass,
+                Vector3 normal,
                 Vector4 lightColor,
                 Vector4 lightPosition,
                 ShCoefficients coefficients,
                 bool pointLight,
-                bool pointKeywordWasEnabled
+                int lightCount
             )
             {
-                commandBuffer.Clear();
-                InjectLightingGlobals(lightColor, lightPosition, coefficients);
-                if (pointLight)
+                var lightObjects = new List<GameObject>();
+                try
                 {
-                    commandBuffer.EnableShaderKeyword(PointKeyword);
+                    InjectShGlobals(coefficients);
+                    ApplyShProperties(coefficients);
+                    meshFilter.sharedMesh = CreateNormalControlledQuad(normal);
+                    renderer.sharedMaterial = material;
+                    renderer.enabled = true;
+                    CreateLights(lightObjects, lightColor, lightPosition, pointLight, lightCount);
+                    camera.Render();
+                    Assert.That(
+                        camera.actualRenderingPath,
+                        Is.EqualTo(RenderingPath.Forward),
+                        "The Toon lighting capture scope must actually use the BIRP Forward camera path."
+                    );
+                    return ReadCenterPixel();
                 }
-
-                commandBuffer.DrawMesh(renderMesh, Matrix4x4.identity, material, 0, pass);
-                if (pointLight)
+                finally
                 {
-                    SetCommandBufferPointKeywordState(pointKeywordWasEnabled);
+                    renderer.enabled = false;
+                    renderer.SetPropertyBlock(null);
+                    DestroyGameObjects(lightObjects);
                 }
             }
 
-            /// <summary>Injects all direct-light and spherical-harmonic globals immediately before the draw.</summary>
-            /// <param name="lightColor">The explicit main or additional light color.</param>
-            /// <param name="lightPosition">The explicit directional or point light vector.</param>
-            /// <param name="coefficients">The seven SH globals for the draw.</param>
-            private void InjectLightingGlobals(
-                Vector4 lightColor,
-                Vector4 lightPosition,
-                ShCoefficients coefficients
-            )
+            /// <summary>Injects only the test-owned spherical-harmonic globals immediately before the render.</summary>
+            /// <param name="coefficients">The seven SH globals for the render.</param>
+            private void InjectShGlobals(ShCoefficients coefficients)
             {
-                commandBuffer.SetGlobalVector("_LightColor0", lightColor);
-                commandBuffer.SetGlobalVector("_WorldSpaceLightPos0", lightPosition);
+                commandBuffer.Clear();
                 commandBuffer.SetGlobalVector("unity_SHAr", coefficients.ar);
                 commandBuffer.SetGlobalVector("unity_SHAg", coefficients.ag);
                 commandBuffer.SetGlobalVector("unity_SHAb", coefficients.ab);
@@ -297,7 +334,97 @@ namespace PureBase.Tests.Daily
                 commandBuffer.SetGlobalVector("unity_SHC", coefficients.c);
             }
 
-            /// <summary>Releases command-buffer, material, texture, target, and render-mesh resources in allocation order.</summary>
+            /// <summary>Applies the test-owned SH vectors after Unity prepares renderer-local probe data.</summary>
+            /// <param name="coefficients">The seven SH vectors for the render.</param>
+            private void ApplyShProperties(ShCoefficients coefficients)
+            {
+                shProperties.Clear();
+                shProperties.SetVector("unity_SHAr", coefficients.ar);
+                shProperties.SetVector("unity_SHAg", coefficients.ag);
+                shProperties.SetVector("unity_SHAb", coefficients.ab);
+                shProperties.SetVector("unity_SHBr", coefficients.br);
+                shProperties.SetVector("unity_SHBg", coefficients.bg);
+                shProperties.SetVector("unity_SHBb", coefficients.bb);
+                shProperties.SetVector("unity_SHC", coefficients.c);
+                renderer.SetPropertyBlock(shProperties);
+            }
+
+            /// <summary>Creates real ForcePixel lights on the isolated preview-scene layer.</summary>
+            /// <param name="lightObjects">Receives the caller-owned light GameObjects immediately after allocation.</param>
+            /// <param name="lightColor">The real main or additional light color.</param>
+            /// <param name="lightPosition">The directional or point light vector.</param>
+            /// <param name="pointLight">Whether the setup uses Point lights.</param>
+            /// <param name="lightCount">The number of ForcePixel lights to create.</param>
+            private void CreateLights(
+                List<GameObject> lightObjects,
+                Vector4 lightColor,
+                Vector4 lightPosition,
+                bool pointLight,
+                int lightCount
+            )
+            {
+                for (int index = 0; index < lightCount; index++)
+                {
+                    GameObject lightObject = CreateHiddenObject(
+                        "PureBase Toon Lighting Contract Light " + index,
+                        lightObjects
+                    );
+                    Light light = lightObject.AddComponent<Light>();
+                    light.renderMode = LightRenderMode.ForcePixel;
+                    light.color = new Color(lightColor.x, lightColor.y, lightColor.z, 1.0f).gamma;
+                    light.intensity = 1.0f;
+                    light.cullingMask = 1 << FixtureLayer;
+                    if (pointLight)
+                    {
+                        light.type = LightType.Point;
+                        light.range = 4.0f;
+                        lightObject.transform.position = new Vector3(
+                            lightPosition.x,
+                            lightPosition.y,
+                            lightPosition.z
+                        );
+                    }
+                    else
+                    {
+                        light.type = LightType.Directional;
+                        Vector3 direction = new Vector3(
+                            lightPosition.x,
+                            lightPosition.y,
+                            lightPosition.z
+                        ).normalized;
+                        Assert.That(
+                            direction,
+                            Is.Not.EqualTo(Vector3.zero),
+                            "Directional lighting requires a nonzero direction."
+                        );
+                        lightObject.transform.rotation = Quaternion.LookRotation(-direction, Vector3.up);
+                    }
+                }
+            }
+
+            /// <summary>Creates one hidden preview-scene GameObject and registers it immediately for cleanup.</summary>
+            /// <param name="name">The diagnostic object name.</param>
+            /// <returns>The caller-owned hidden preview-scene GameObject.</returns>
+            private GameObject CreateHiddenObject(string name)
+            {
+                return CreateHiddenObject(name, gameObjects);
+            }
+
+            /// <summary>Creates one hidden preview-scene GameObject in the supplied cleanup collection.</summary>
+            /// <param name="name">The diagnostic object name.</param>
+            /// <param name="objects">The cleanup collection that receives the object immediately after allocation.</param>
+            /// <returns>The caller-owned hidden preview-scene GameObject.</returns>
+            private GameObject CreateHiddenObject(string name, List<GameObject> objects)
+            {
+                var gameObject = new GameObject(name);
+                objects.Add(gameObject);
+                gameObject.hideFlags = HideFlags.HideAndDontSave;
+                gameObject.layer = FixtureLayer;
+                SceneManager.MoveGameObjectToScene(gameObject, scene);
+                return gameObject;
+            }
+
+            /// <summary>Releases command-buffer, temporary objects, material, texture, target, and render-mesh resources.</summary>
             private void ReleaseRenderResources()
             {
                 if (camera != null && commandBuffer != null)
@@ -309,6 +436,8 @@ namespace PureBase.Tests.Daily
                 {
                     commandBuffer.Release();
                 }
+
+                DestroyGameObjects(gameObjects);
 
                 foreach (Material material in materials)
                 {
@@ -337,6 +466,18 @@ namespace PureBase.Tests.Daily
                 }
             }
 
+            /// <summary>Destroys the supplied temporary GameObjects in reverse creation order.</summary>
+            /// <param name="objects">The caller-owned GameObjects to destroy.</param>
+            private static void DestroyGameObjects(List<GameObject> objects)
+            {
+                for (int index = objects.Count - 1; index >= 0; index--)
+                {
+                    UnityEngine.Object.DestroyImmediate(objects[index]);
+                }
+
+                objects.Clear();
+            }
+
             /// <summary>Closes the generated Preview Scene after all generated resources have been released.</summary>
             private void ClosePreviewScene()
             {
@@ -349,7 +490,6 @@ namespace PureBase.Tests.Daily
             /// <summary>Restores every caller-owned global, render target, quality, and scene setting.</summary>
             private void RestoreCallerState()
             {
-                RestorePointKeywordState(pointKeywordEnabled);
                 foreach (KeyValuePair<string, Vector4> global in globals)
                 {
                     Shader.SetGlobalVector(global.Key, global.Value);
@@ -372,20 +512,6 @@ namespace PureBase.Tests.Daily
                     Is.EqualTo(sceneCount),
                     "The Toon lighting capture scope must restore the original loaded scene count."
                 );
-            }
-
-            /// <summary>Queues restoration of the POINT keyword state after the explicit point-light draw.</summary>
-            /// <param name="enabled">Whether POINT must remain enabled after the draw.</param>
-            private void SetCommandBufferPointKeywordState(bool enabled)
-            {
-                if (enabled)
-                {
-                    commandBuffer.EnableShaderKeyword(PointKeyword);
-                }
-                else
-                {
-                    commandBuffer.DisableShaderKeyword(PointKeyword);
-                }
             }
 
             /// <summary>Configures a white opaque product material with no texture-specific lighting variation.</summary>
@@ -419,7 +545,7 @@ namespace PureBase.Tests.Daily
                 return texture;
             }
 
-            /// <summary>Creates the full-frame mesh used by explicit pass draws.</summary>
+            /// <summary>Creates the full-frame mesh used by regular renderer draws.</summary>
             /// <param name="normal">The required uniform world-space normal.</param>
             /// <returns>The caller-owned transient mesh.</returns>
             private Mesh CreateNormalControlledQuad(Vector3 normal)
