@@ -729,9 +729,15 @@ Describe 'Hosted Unity review contracts' {
                 ForEach-Object { $_.Trim() }
         )
         $artifactRoot = '${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}'
-        $pathLines.Count | Should -Be 2
-        $pathLines | Should -Contain "$artifactRoot\validated-package"
-        $pathLines | Should -Contain "$artifactRoot\repository-state.json"
+        $expectedPathLines = @(
+            "$artifactRoot\validated-package"
+            "$artifactRoot\repository-state.json"
+            "$artifactRoot\ReleaseConsumer-*\**\runtime-readbacks.json"
+            "$artifactRoot\ReleaseConsumer-*\**\library-reset.json"
+            "$artifactRoot\ReleaseConsumer-*\**\*summary.json"
+            "$artifactRoot\ReleaseConsumer-*\**\*.log"
+        )
+        $pathLines | Should -Be $expectedPathLines
         ($pathLines -join "`n") | Should -Not -Match '\.\.'
     }
 

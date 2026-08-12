@@ -36,7 +36,7 @@ Pure Base is a minimal Shader-Core host. It is not intended to become a feature-
 | Shader path | Lighting model |
 | --- | --- |
 | `PureBase/Unlit` | Base color output without host lighting |
-| `PureBase/Toon` | Binary direct diffuse with ambient and lightmap support |
+| `PureBase/Toon` | Binary direct diffuse with a stable direct-plus-SH direction, bright/dark SH bands, and Shader-Core lightmap support |
 | `PureBase/PBR` | Continuous metallic BRDF with Unity Standard indirect GI and reflection probes |
 | `PureBase/Hybrid` | Toon-style binary direct diffuse with the PBR specular and IBL path |
 
@@ -111,11 +111,21 @@ The shared standard phase ABI is executed in this order:
 
 Optional visual features belong in separate Shader-Core modules. Pure Base does not include rim lighting, MatCap, decals, detail textures, emission, dissolve, distance fade, parallax, hair or anisotropic specular, clear coat, glitter, or platform-specific integrations.
 
+## Toon lighting boundary and material compatibility
+
+The module-free Toon host owns a binary direct-diffuse response, a stable scene-light direction formed from the direct aggregate and SH, bright/dark SH bands, Shader-Core lightmap input, and the existing `ForwardBase`/`ForwardAdd` separation. Shader-Core modules own configurable shadow bands, colors, and masks; direction overrides; lighting limits; monochrome and as-unlit controls; and other optional artistic controls.
+
+SRP or platform integrations, APV/LPPV, light volumes, LTCGI, and unrelated lilToon effects are outside the Pure Base host scope. Toon uses the existing Shader-Core lightmap aggregate and does not add a second baked-light contribution. `ForwardAdd` remains additional direct light only.
+
+Hybrid retains its unchanged binary direct-diffuse equation inside the PBR path. Toon SH banding never supplies Hybrid's lighting direction. Hybrid continues to use Unity Standard indirect GI, reflection probes, its PBR direct-light direction, and direct GGX specular.
+
+This fixed host behavior adds no public property, keyword, pass, variant, or dependency. The public property ABI is unchanged, so existing materials need no migration and receive the behavior automatically.
+
 ## Release preparation and publication
 
 `package.json` is the sole release identity and version declaration.
 
-The current package release is `0.2.0-beta.1`.
+The current package release is `0.2.0-beta.2`.
 
 The `version` input of the manual `Release` workflow verifies the exact version already present in the checked-out package. It does not write or commit a version.
 

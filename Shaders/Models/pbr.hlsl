@@ -59,6 +59,12 @@ half3 SCModelSelectMainLightDirection(SCVertexData vertex, half3 lightDirection)
     return PureBasePbrSafeNormalize(UnityWorldSpaceLightDir(vertex.position));
 }
 
+/// <summary>Preserves the existing normalized direct-light aggregate for PBR and Hybrid BRDF evaluation.</summary>
+half3 PureBasePbrSelectAggregateLightDirection(half3 directAggregateDirection, half4 shAr, half4 shAg, half4 shAb)
+{
+    return dot(directAggregateDirection, directAggregateDirection) == 0 ? half3(0, 0, 0) : normalize(directAggregateDirection);
+}
+
 /// <summary>Disables Shader-Core ambient SH because Unity Standard GI owns ambient and lightmap evaluation.</summary>
 half3 SCModelEvaluateAmbient(SCShadingData shadingData, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
@@ -181,5 +187,7 @@ half4 SCModelAddSurfaceColor(SCShadingData shadingData, SCCustomData customData,
 {
     return half4(SCModelEvaluateDirectLighting(shadingData, vertex), 1);
 }
+
+#define SCModelSelectAggregateLightDirection(directAggregateDirection, shAr, shAg, shAb) PureBasePbrSelectAggregateLightDirection(directAggregateDirection, shAr, shAg, shAb)
 
 #endif

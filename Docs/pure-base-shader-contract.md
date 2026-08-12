@@ -34,7 +34,7 @@ The package publishes exactly these shader paths:
 | Shader path | Contracted model |
 | --- | --- |
 | `PureBase/Unlit` | Ignores host direct and indirect lighting in the final output, except for module effects. |
-| `PureBase/Toon` | Uses binary direct diffuse response with ambient and lightmap lighting. |
+| `PureBase/Toon` | Uses binary direct diffuse with a stable direct-plus-SH direction, bright/dark SH bands, and Shader-Core lightmap input. |
 | `PureBase/PBR` | Uses a continuous direct metallic BRDF with Unity Standard indirect GI and reflection probes. |
 | `PureBase/Hybrid` | Replaces only the PBR direct diffuse response with Toon-style binary diffuse while sharing PBR specular and IBL. |
 
@@ -149,7 +149,7 @@ Unlit returns the base surface without host direct, baked, ambient, or environme
 
 ### Toon
 
-Toon evaluates a binary direct diffuse response from the surface normal and light direction. `ForwardBase` combines the direct result with ambient and baked lightmap lighting. `ForwardAdd` contributes direct light only.
+Toon evaluates a binary direct diffuse response from the surface normal and light direction. Its `ForwardBase` direction combines the Shader-Core direct aggregate with the first-order SH direction, and its ambient result selects a fixed bright or dark SH band from that direction. Shader-Core continues to provide the lightmap input; when Shader-Core supplies the lightmap aggregate, Toon does not synthesize an additional baked-light contribution. `ForwardAdd` contributes direct light only.
 
 ### PBR
 
@@ -157,7 +157,19 @@ PBR evaluates a continuous metallic BRDF for direct lighting. Its `ForwardBase` 
 
 ### Hybrid
 
-Hybrid uses the PBR metallic, specular, and indirect IBL implementation, but replaces only its direct diffuse response with the Toon-style binary response. It retains the PBR `ForwardBase` and `ForwardAdd` ownership rules.
+Hybrid preserves the mathematically identical binary direct-diffuse equation in its existing PBR path, but does not use Toon SH banding. Toon SH never feeds Hybrid's lighting direction. Hybrid retains Unity Standard indirect GI, reflection probes, the PBR direct-light direction, and direct GGX specular, together with the PBR `ForwardBase` and `ForwardAdd` ownership rules.
+
+## Toon Lighting Classification and Compatibility
+
+The following boundary is fixed for the module-free Toon host:
+
+| Classification | Lighting concepts |
+| --- | --- |
+| Host-essential | Binary diffuse, stable direct-plus-SH scene direction, bright/dark SH bands, Shader-Core lightmap input, and `ForwardBase`/`ForwardAdd` separation. |
+| Shader-Core module-owned | Configurable shadow bands, colors, and masks; direction overrides; lighting limits; monochrome and as-unlit controls; and other optional artistic controls. |
+| Out of scope | SRP or platform integrations, APV/LPPV, light volumes, LTCGI, and unrelated lilToon effects. |
+
+The fixed host behavior adds no public property, keyword, pass, variant, or dependency. The public property ABI is unchanged, so existing materials require no migration and receive the fixed Toon host behavior automatically.
 
 ## Module Boundary
 
