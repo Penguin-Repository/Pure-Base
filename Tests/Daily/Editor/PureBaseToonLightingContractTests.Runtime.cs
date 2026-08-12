@@ -76,8 +76,8 @@ namespace PureBase.Tests.Daily
             /// <summary>Stores the explicit-draw camera.</summary>
             private readonly Camera camera;
 
-            /// <summary>Stores the mesh whose world normals are controlled by each contract.</summary>
-            private readonly Mesh mesh;
+            /// <summary>Tracks completed render meshes for deterministic scope cleanup.</summary>
+            private readonly List<Mesh> meshes = new List<Mesh>();
 
             /// <summary>Stores the linear float render target.</summary>
             private readonly RenderTexture target;
@@ -132,7 +132,6 @@ namespace PureBase.Tests.Daily
                     hideFlags = HideFlags.HideAndDontSave,
                 };
                 normalMap = CreateNeutralNormalTexture();
-                mesh = CreateNormalControlledQuad(Vector3.forward);
                 commandBuffer = new CommandBuffer { name = "PureBase Toon Lighting Contract Draw" };
                 camera.enabled = false;
                 camera.cullingMask = 0;
@@ -174,8 +173,9 @@ namespace PureBase.Tests.Daily
                 {
                     int pass;
                     Material material = CreateProductMaterial(shaderName, passName, metallic, out pass);
-                    SetMeshNormal(normal);
+                    Mesh renderMesh = CreateNormalControlledQuad(normal);
                     QueueDraw(
+                        renderMesh,
                         material,
                         pass,
                         lightColor,
@@ -243,6 +243,7 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Queues one draw after installing the explicit direct-light and SH globals.</summary>
+            /// <param name="renderMesh">The completed render-scoped mesh.</param>
             /// <param name="material">The configured transient material.</param>
             /// <param name="pass">The required material pass.</param>
             /// <param name="lightColor">The explicit main or additional light color.</param>
@@ -251,6 +252,7 @@ namespace PureBase.Tests.Daily
             /// <param name="pointLight">Whether to select the point-light shader variant.</param>
             /// <param name="pointKeywordWasEnabled">The caller-owned POINT state to queue after the draw.</param>
             private void QueueDraw(
+                Mesh renderMesh,
                 Material material,
                 int pass,
                 Vector4 lightColor,
@@ -267,7 +269,7 @@ namespace PureBase.Tests.Daily
                     commandBuffer.EnableShaderKeyword(PointKeyword);
                 }
 
-                commandBuffer.DrawMesh(mesh, Matrix4x4.identity, material, 0, pass);
+                commandBuffer.DrawMesh(renderMesh, Matrix4x4.identity, material, 0, pass);
                 if (pointLight)
                 {
                     SetCommandBufferPointKeywordState(pointKeywordWasEnabled);
@@ -295,7 +297,7 @@ namespace PureBase.Tests.Daily
                 commandBuffer.SetGlobalVector("unity_SHC", coefficients.c);
             }
 
-            /// <summary>Releases command-buffer, material, texture, target, and mesh resources in allocation order.</summary>
+            /// <summary>Releases command-buffer, material, texture, target, and render-mesh resources in allocation order.</summary>
             private void ReleaseRenderResources()
             {
                 if (camera != null && commandBuffer != null)
@@ -329,7 +331,7 @@ namespace PureBase.Tests.Daily
                     UnityEngine.Object.DestroyImmediate(target);
                 }
 
-                if (mesh != null)
+                foreach (Mesh mesh in meshes)
                 {
                     UnityEngine.Object.DestroyImmediate(mesh);
                 }
@@ -417,27 +419,14 @@ namespace PureBase.Tests.Daily
                 return texture;
             }
 
-            /// <summary>Updates the uniform quad normal and tangent basis without reallocating the transient mesh.</summary>
-            /// <param name="normal">The required normalized world-space normal.</param>
-            private void SetMeshNormal(Vector3 normal)
-            {
-                Vector3 normalized = normal.normalized;
-                mesh.normals = new[] { normalized, normalized, normalized, normalized };
-                mesh.tangents = new[]
-                {
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
-                };
-            }
-
             /// <summary>Creates the full-frame mesh used by explicit pass draws.</summary>
-            /// <param name="normal">The initial uniform mesh normal.</param>
+            /// <param name="normal">The required uniform world-space normal.</param>
             /// <returns>The caller-owned transient mesh.</returns>
-            private static Mesh CreateNormalControlledQuad(Vector3 normal)
+            private Mesh CreateNormalControlledQuad(Vector3 normal)
             {
                 var result = new Mesh { hideFlags = HideFlags.HideAndDontSave };
+                meshes.Add(result);
+                Vector3 normalized = normal.normalized;
                 result.vertices = new[]
                 {
                     new Vector3(-1.0f, -1.0f, 0.0f),
@@ -448,7 +437,14 @@ namespace PureBase.Tests.Daily
                 result.uv = new[] { Vector2.zero, Vector2.up, Vector2.one, Vector2.right };
                 result.triangles = new[] { 0, 1, 2, 0, 2, 3 };
                 result.RecalculateBounds();
-                result.normals = new[] { normal, normal, normal, normal };
+                result.normals = new[] { normalized, normalized, normalized, normalized };
+                result.tangents = new[]
+                {
+                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+                    new Vector4(1.0f, 0.0f, 0.0f, 1.0f),
+                };
                 return result;
             }
 
