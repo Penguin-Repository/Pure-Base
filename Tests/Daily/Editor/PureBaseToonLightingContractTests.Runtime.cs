@@ -72,13 +72,13 @@ namespace PureBase.Tests.Daily
             private readonly Scene scene;
 
             /// <summary>Stores the isolated Forward-rendering camera.</summary>
-            private readonly Camera camera;
+            private Camera camera;
 
             /// <summary>Stores the renderer used for every regular product-material render.</summary>
-            private readonly MeshRenderer renderer;
+            private MeshRenderer renderer;
 
             /// <summary>Stores the mesh filter used for controlled-normal render meshes.</summary>
-            private readonly MeshFilter meshFilter;
+            private MeshFilter meshFilter;
 
             /// <summary>Tracks completed renderer meshes for deterministic scope cleanup.</summary>
             private readonly List<Mesh> meshes = new List<Mesh>();
@@ -87,19 +87,19 @@ namespace PureBase.Tests.Daily
             private readonly List<GameObject> gameObjects = new List<GameObject>();
 
             /// <summary>Stores the linear float render target.</summary>
-            private readonly RenderTexture target;
+            private RenderTexture target;
 
             /// <summary>Stores the float CPU readback texture.</summary>
-            private readonly Texture2D readback;
+            private Texture2D readback;
 
             /// <summary>Stores the controlled linear normal texture used by every product-material render.</summary>
-            private readonly Texture2D normalMap;
+            private Texture2D normalMap;
 
             /// <summary>Stores the command buffer that injects only SH globals immediately before every render.</summary>
-            private readonly CommandBuffer commandBuffer;
+            private CommandBuffer commandBuffer;
 
             /// <summary>Stores the renderer-local SH override that wins over Unity's per-object probe setup.</summary>
-            private readonly MaterialPropertyBlock shProperties;
+            private MaterialPropertyBlock shProperties;
 
             /// <summary>Tracks whether this scope has already released its resources.</summary>
             private bool disposed;
@@ -123,6 +123,20 @@ namespace PureBase.Tests.Daily
                     RenderSettings.fog = false;
                     QualitySettings.pixelLightCount = Mathf.Max(2, pixelLightCount);
 
+                    InitializeRenderResources();
+                }
+                catch
+                {
+                    ReleaseRenderResources();
+                    ClosePreviewScene();
+                    RestoreCallerState();
+                    throw;
+                }
+            }
+
+            /// <summary>Creates the hidden preview-scene objects, transient render resources, and camera configuration.</summary>
+            private void InitializeRenderResources()
+            {
                     GameObject cameraObject = CreateHiddenObject("PureBase Toon Lighting Contract Camera");
                     camera = cameraObject.AddComponent<Camera>();
                     GameObject quadObject = CreateHiddenObject("PureBase Toon Lighting Contract Renderer");
@@ -158,14 +172,6 @@ namespace PureBase.Tests.Daily
                     camera.renderingPath = RenderingPath.Forward;
                     camera.targetTexture = target;
                     camera.AddCommandBuffer(CameraEvent.BeforeForwardOpaque, commandBuffer);
-                }
-                catch
-                {
-                    ReleaseRenderResources();
-                    ClosePreviewScene();
-                    RestoreCallerState();
-                    throw;
-                }
             }
 
             /// <summary>Renders one product material through BIRP after installing the exact SH globals for the current test case.</summary>
