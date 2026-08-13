@@ -40,6 +40,14 @@ namespace PureBase.Tests.Daily
         private const string ToonLightingHelperPath =
             "Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl";
 
+        /// <summary>Identifies the future Pure Base-owned helper for non-shadow BIRP attenuation.</summary>
+        private const string BirpLightAttenuationHelperPath =
+            "Packages/jp.penguin.purebase/Shaders/Common/birp_light_attenuation.hlsl";
+
+        /// <summary>Identifies the Unlit model that must retain its existing light and shadow ownership.</summary>
+        private const string UnlitModelPath =
+            "Packages/jp.penguin.purebase/Shaders/Models/unlit.hlsl";
+
         /// <summary>Identifies the PBR model that must not consume Toon lighting direction or environment bands.</summary>
         private const string PbrModelPath =
             "Packages/jp.penguin.purebase/Shaders/Models/pbr.hlsl";
@@ -176,6 +184,110 @@ namespace PureBase.Tests.Daily
             AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
             AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
             AssertLightingPhaseOrder(host);
+        }
+
+        /// <summary>Requires Toon to separate non-shadow attenuation from Unity effective visibility before Shader-Core light phases.</summary>
+        [Test]
+        public void ToonShadowSeparationRequiresSplitInputsModelPreparationAndUnchangedNonToonOwnership()
+        {
+            Assert.That(
+                File.Exists(BirpLightAttenuationHelperPath),
+                Is.True,
+                "Pure Base must own a dedicated non-shadow BIRP attenuation helper."
+            );
+
+            string helper = File.ReadAllText(BirpLightAttenuationHelperPath);
+            string host = File.ReadAllText(BirpHostPath);
+            string toon = File.ReadAllText(ToonModelPath);
+            string pbr = File.ReadAllText(PbrModelPath);
+            string unlit = File.ReadAllText(UnlitModelPath);
+            string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
+
+            foreach (string lightKind in new[] { "DIRECTIONAL", "POINT", "SPOT", "POINT_COOKIE", "DIRECTIONAL_COOKIE" })
+            {
+                StringAssert.Contains(lightKind, helper, "The non-shadow helper must preserve Unity's " + lightKind + " branch.");
+            }
+
+            StringAssert.Contains("PureBaseEvaluateNonShadowLightAttenuation", helper);
+            Assert.That(
+                Regex.IsMatch(helper, @"/\s*(?:[A-Za-z0-9_]*[Ss]hadow|[Ss]hadow[A-Za-z0-9_]*)"),
+                Is.False,
+                "The non-shadow helper must not reconstruct attenuation by dividing through visibility."
+            );
+            StringAssert.Contains("UNITY_SHADOW_ATTENUATION", host);
+            StringAssert.Contains("mainLightNonShadowAttenuation", host);
+            StringAssert.Contains("mainLightShadowVisibility", host);
+            StringAssert.Contains("SCModelPrepareMainLight", host);
+            StringAssert.Contains("SCModelPrepareMainLight", toon);
+            StringAssert.Contains("sd.shadow", toon);
+            StringAssert.Contains("mainLightAttenuation", pbr);
+            StringAssert.Contains("SCModelPrepareMainLight", unlit);
+            StringAssert.Contains("LIGHTMAP_SHADOW_MIXING", shaderCoreLighting);
+            StringAssert.DoesNotContain("LIGHTMAP_SHADOW_MIXING", host);
+            Assert.That(
+                Regex.IsMatch(
+                    pbr,
+                    @"void\s+SCModelInitializeGiInput\s*\(\s*out\s+UnityGIInput\s+input\s*,\s*SCCustomData\s+customData\s*,\s*SCVertexData\s+vertex\s*\)\s*\{[^}]*\binput\.atten\s*=\s*customData\.mainLightAttenuation\s*;",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "PBR and Hybrid must preserve UnityGIInput.atten ownership through the shared PBR model."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    unlit,
+                    @"void\s+SCModelPrepareMainLight\s*\([^)]*\)\s*\{\s*\}",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "Unlit must retain an explicit no-op main-light preparation callback."
+            );
+
+            int surfaceInitialization = RequireIndex(host, "SCShadingData sd");
+            int shadowCapture = RequireIndex(host, "UNITY_SHADOW_ATTENUATION");
+            int allLights = RequireIndex(host, "SCCalculateAllLights");
+            int lightPhase = RequireIndex(host, "__SC_PHASE_light__");
+            int aggregateDirection = RequireIndex(host, "lightSum.direction +=");
+            int aggregateColor = RequireIndex(host, "lightSum.color +=");
+            int modifyLightPhase = RequireIndex(host, "__SC_PHASE_modifylight__");
+            int surfaceColor = RequireIndex(host, "SCModelBaseSurfaceColor");
+            int shadePhase = RequireIndex(host, "__SC_PHASE_shade__");
+            Assert.That(surfaceInitialization, Is.LessThan(shadowCapture));
+            Assert.That(shadowCapture, Is.LessThan(allLights));
+            Assert.That(lightPhase, Is.LessThan(aggregateDirection));
+            Assert.That(aggregateDirection, Is.LessThan(aggregateColor));
+            Assert.That(allLights, Is.LessThan(modifyLightPhase));
+            Assert.That(modifyLightPhase, Is.LessThan(shadePhase));
+            Assert.That(surfaceColor, Is.LessThan(shadePhase));
+            Assert.That(
+                Regex.IsMatch(
+                    host,
+                    @"void\s+SCCalculateLight\s*\([^)]*\)\s*\{[^}]*SCModelSelectMainLightDirection\s*\([^;]*\)\s*;[^}]*SCModelPrepareMainLight\s*\([^;]*\)\s*;[^}]*__SC_PHASE_light__[^}]*lightSum\.direction\s*\+=",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "SCCalculateLight must select the main-light direction, prepare model data, expose the light phase, and only then aggregate the light."
+            );
+            Assert.That(
+                Regex.IsMatch(host, @"lightSum\.(?:color|direction)\s*\*?=\s*[^;]*sd\.shadow"),
+                Is.False
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    host,
+                    @"lightSum\.(?:color|direction)[^;]*mainLightShadowVisibility"
+                ),
+                Is.False,
+                "Directional visibility must be published through sd.shadow, not folded into the direct color or aggregate direction."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    toon,
+                    @"sd\.shadow\s*=\s*mainLightShadowVisibility\s*;"
+                ),
+                Is.True,
+                "The Toon callback must publish the captured directional visibility as the phase-local sd.shadow value."
+            );
         }
 
         /// <summary>Asserts that Toon alone owns its binary direct response and two-band environment interpretation.</summary>

@@ -302,6 +302,51 @@
       }
     },
     {
+      "shaderName": "PureBase/Tests/ShaderCore/ToonShadow",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.toonshadow",
+      "expectedSentinels": [
+        "PUREBASE_TEST_TOON_SHADOW_SENTINEL_LIGHT",
+        "PUREBASE_TEST_TOON_SHADOW_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_TOON_SHADOW_SENTINEL_SHADE"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "runtimeEvidence": {
+        "phaseChannels": {
+          "light": "red",
+          "modifylight": "green",
+          "shade": "blue"
+        },
+        "shadowModes": [
+          "None",
+          "Hard",
+          "Soft"
+        ],
+        "unshadowedValue": 1.0,
+        "hardShadowMaximum": 0.95,
+        "softShadowMinimum": 0.05,
+        "softShadowMaximum": 0.95,
+        "requireFinite": true,
+        "requireChannelAgreement": true
+      }
+    },
+    {
       "shaderName": "PureBase/Tests/ShaderCore/ModuleOrder",
       "moduleUniqueIds": [
         "jp.penguin.purebase.tests.shadercore.moduleorder.zeta",

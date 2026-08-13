@@ -68,14 +68,14 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Ensures every fixed host has one non-empty shader name and module selection.</summary>
         [Test]
-        public void ManifestContainsElevenUniqueFixedHostSelections()
+        public void ManifestContainsTwelveUniqueFixedHostSelections()
         {
             var manifest = JsonUtility.FromJson<HostManifest>(File.ReadAllText(GetManifestPath()));
 
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
             Assert.That(manifest.hosts, Is.Not.Null);
-            Assert.That(manifest.hosts.Length, Is.EqualTo(11));
+            Assert.That(manifest.hosts.Length, Is.EqualTo(12));
 
             var shaderNames = new System.Collections.Generic.HashSet<string>(
                 StringComparer.Ordinal
@@ -118,6 +118,11 @@ namespace PureBase.Tests.Daily
                 manifest.hosts.Count(HasConfiguredModuleOrder),
                 Is.EqualTo(1),
                 "Only the module-order host must declare one valid module-order contract."
+            );
+            Assert.That(
+                manifest.hosts.Count(HasConfiguredRuntimeEvidence),
+                Is.EqualTo(1),
+                "Only the Toon shadow host must declare one valid phase-shadow runtime contract."
             );
         }
 
@@ -250,7 +255,7 @@ namespace PureBase.Tests.Daily
             );
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
-            Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(11));
+            Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(12));
             return manifest;
         }
 
@@ -271,6 +276,28 @@ namespace PureBase.Tests.Daily
             return moduleOrder != null
                 && !string.IsNullOrEmpty(moduleOrder.firstSentinel)
                 && !string.IsNullOrEmpty(moduleOrder.secondSentinel);
+        }
+
+        /// <summary>Returns whether a host declares the complete three-phase shadow-visibility runtime contract.</summary>
+        private static bool HasConfiguredRuntimeEvidence(HostManifestEntry host)
+        {
+            RuntimeEvidence runtimeEvidence = host.runtimeEvidence;
+            if (runtimeEvidence == null || runtimeEvidence.phaseChannels == null)
+            {
+                return false;
+            }
+
+            return string.Equals(runtimeEvidence.phaseChannels.light, "red", StringComparison.Ordinal)
+                && string.Equals(runtimeEvidence.phaseChannels.modifylight, "green", StringComparison.Ordinal)
+                && string.Equals(runtimeEvidence.phaseChannels.shade, "blue", StringComparison.Ordinal)
+                && runtimeEvidence.shadowModes != null
+                && runtimeEvidence.shadowModes.SequenceEqual(new[] { "None", "Hard", "Soft" })
+                && runtimeEvidence.unshadowedValue > 0.0f
+                && runtimeEvidence.hardShadowMaximum < runtimeEvidence.unshadowedValue
+                && runtimeEvidence.softShadowMinimum > 0.0f
+                && runtimeEvidence.softShadowMaximum < runtimeEvidence.unshadowedValue
+                && runtimeEvidence.requireFinite
+                && runtimeEvidence.requireChannelAgreement;
         }
 
         /// <summary>Finds a Shader-Core asset by imported shader name in one read-only asset search root.</summary>
@@ -700,6 +727,9 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets configured generated-source order expectations for the two-module host.</summary>
             public ModuleOrder moduleOrder;
+
+            /// <summary>Gets the Toon phase-shadow runtime evidence requirements.</summary>
+            public RuntimeEvidence runtimeEvidence;
         }
 
         /// <summary>Stores selected sentinel counts for every generated ShaderLab pass.</summary>
@@ -742,6 +772,49 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets the second expected generated source sentinel.</summary>
             public string secondSentinel;
+        }
+
+        /// <summary>Stores the fixed Toon phase-shadow render requirements.</summary>
+        [Serializable]
+        private sealed class RuntimeEvidence
+        {
+            /// <summary>Gets the phase-to-RGB-channel map.</summary>
+            public PhaseChannels phaseChannels;
+
+            /// <summary>Gets the ordered directional-shadow modes.</summary>
+            public string[] shadowModes;
+
+            /// <summary>Gets the expected unshadowed diagnostic value.</summary>
+            public float unshadowedValue;
+
+            /// <summary>Gets the highest accepted hard-shadow diagnostic value.</summary>
+            public float hardShadowMaximum;
+
+            /// <summary>Gets the lowest accepted fractional soft-shadow diagnostic value.</summary>
+            public float softShadowMinimum;
+
+            /// <summary>Gets the highest accepted fractional soft-shadow diagnostic value.</summary>
+            public float softShadowMaximum;
+
+            /// <summary>Gets whether every diagnostic channel must remain finite.</summary>
+            public bool requireFinite;
+
+            /// <summary>Gets whether phase channels must agree on one visibility value.</summary>
+            public bool requireChannelAgreement;
+        }
+
+        /// <summary>Stores the RGB channel published by every selected Toon phase.</summary>
+        [Serializable]
+        private sealed class PhaseChannels
+        {
+            /// <summary>Gets the light-phase output channel.</summary>
+            public string light;
+
+            /// <summary>Gets the modifylight-phase output channel.</summary>
+            public string modifylight;
+
+            /// <summary>Gets the shade-phase output channel.</summary>
+            public string shade;
         }
 
         /// <summary>Stores one gate-state measurement from the transient host renderer.</summary>
