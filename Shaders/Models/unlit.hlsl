@@ -30,7 +30,7 @@ struct SCCustomData
     half mainLightAttenuation;
     /// <summary>Stores the Unity wrapper's distance and cookie main-light attenuation without visibility.</summary>
     half mainLightNonShadowAttenuation;
-    /// <summary>Stores Unity's effective directional visibility for the main light.</summary>
+    /// <summary>Stores Unity's effective visibility for the current light, including realtime shadow, mixed or baked occlusion, and fade.</summary>
     half mainLightShadowVisibility;
     /// <summary>Stores the normalized main-light direction before Shader-Core light-phase modifications.</summary>
     half3 mainLightDirection;

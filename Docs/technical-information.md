@@ -121,6 +121,18 @@ Hybrid retains its unchanged binary direct-diffuse equation inside the PBR path.
 
 This fixed host behavior adds no public property, keyword, pass, variant, or dependency. The public property ABI is unchanged, so existing materials need no migration and receive the behavior automatically.
 
+### Toon direct-light visibility contract
+
+For `PureBase/Toon`, `light.color` in the `light` phase is the scene/direct light color multiplied by non-shadow distance, spot, and cookie attenuation. Unity effective per-light visibility is exposed independently through `sd.shadow` before `light`, `modifylight`, and `shade`. The same split is used for the supported directional, point, spot, point-cookie, and directional-cookie light branches.
+
+`sd.shadow` represents Unity effective visibility, including realtime shadows, baked occlusion and Shadowmask mixing, and shadow-distance fade where enabled. It is not a raw realtime-only sample. Existing Toon light modules that assumed `light.color` was already pre-shadowed must read `sd.shadow` instead.
+
+The host does not automatically apply `sd.shadow` to `lightSum.color` or `lightSum.direction`. Explicit module-authored changes that use `sd.shadow` to change those values remain module-owned. `customlight` owns the visibility of its own lights after main-light aggregation; the host does not add an implicit visibility factor for that phase.
+
+For Mixed Lighting and Shadowmask, the effective visibility is intended to be consumed once by future Toon Shade logic. For `LIGHTMAP_ON && LIGHTMAP_SHADOW_MIXING && !SHADOWS_SHADOWMASK && SHADOWS_SCREEN`, Shader-Core suppresses the main-light callback, leaves `sd.shadow` at its initialized value `1`, and applies Subtractive shadowing exactly once. Lightmap and SH environment lighting remain separate from direct visibility. `ShadowCaster` remains casting-only and unchanged; this receiving-side contract does not change the material ABI, render modes, or pass declarations.
+
+This change is limited to Toon. PBR and Hybrid retain full attenuation and Unity Standard GI ownership, while Unlit remains unchanged. Issue #59 can consume `sd.shadow` directly without dividing or reconstructing attenuation, but must not reinsert it into direct color or host aggregate direction. The later `Use Toon Shade = Off` behavior belongs to future Toon Shade work and is not implemented here.
+
 ## Release preparation and publication
 
 `package.json` is the sole release identity and version declaration.
