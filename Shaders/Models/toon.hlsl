@@ -28,8 +28,12 @@ struct SCCustomData
     half reserved;
     /// <summary>Stores the Unity wrapper's unattenuated main-light color.</summary>
     half3 mainLightColor;
-    /// <summary>Stores the Unity wrapper's main-light attenuation and shadow factor.</summary>
+    /// <summary>Stores the Unity wrapper's full main-light attenuation.</summary>
     half mainLightAttenuation;
+    /// <summary>Stores the Unity wrapper's distance and cookie main-light attenuation without visibility.</summary>
+    half mainLightNonShadowAttenuation;
+    /// <summary>Stores Unity's effective directional visibility for the main light.</summary>
+    half mainLightShadowVisibility;
     /// <summary>Stores the normalized main-light direction before Shader-Core light-phase modifications.</summary>
     half3 mainLightDirection;
 };
@@ -47,10 +51,11 @@ half SCModelEvaluateDirectFactor(SCShadingData shadingData, SCLightData light)
     return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction);
 }
 
-/// <summary>Retains Shader-Core's light color because the Toon wrapper does not isolate Unity Standard declarations.</summary>
-bool SCModelUsesIsolatedMainLightColor()
+/// <summary>Prepares the Toon main light so direct radiance remains independent from directional visibility.</summary>
+void SCModelPrepareMainLight(inout SCLightData light, inout SCShadingData sd, half3 mainLightColor, half mainLightAttenuation, half mainLightNonShadowAttenuation, half mainLightShadowVisibility)
 {
-    return false;
+    light.color = mainLightColor * mainLightNonShadowAttenuation;
+    sd.shadow = mainLightShadowVisibility;
 }
 
 /// <summary>Preserves the Shader-Core light direction for the Toon quantization response.</summary>

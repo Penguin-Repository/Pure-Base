@@ -30,8 +30,13 @@ void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout 
 {
     light.direction = SCModelSelectMainLightDirection(vertex, light.direction);
     cd.mainLightDirection = light.direction;
-    if (SCModelUsesIsolatedMainLightColor())
-    light.color = cd.mainLightColor * cd.mainLightAttenuation;
+    SCModelPrepareMainLight(
+        light,
+        sd,
+        cd.mainLightColor,
+        cd.mainLightAttenuation,
+        cd.mainLightNonShadowAttenuation,
+        cd.mainLightShadowVisibility);
 
     __SC_PHASE_light__
 
@@ -56,6 +61,7 @@ void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 env, in
 }
 
 #include "Packages/jp.lilxyzw.shadercore/ShaderLibrary/birp_lighting.hlsl"
+#include "Packages/jp.penguin.purebase/Shaders/Common/birp_light_attenuation.hlsl"
 
 /// <summary>Evaluates the selected model's ForwardBase or ForwardAdd result with all standard pixel phase insertion points.</summary>
 half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
@@ -76,9 +82,12 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 
     SCLightData lightSum = (SCLightData)0;
     half3 env = half3(0, 0, 0);
-    UNITY_LIGHT_ATTENUATION(mainLightAttenuation, input, vertex.position);
+    half mainLightShadowVisibility = UNITY_SHADOW_ATTENUATION(input, vertex.position);
+    half mainLightNonShadowAttenuation = PureBaseEvaluateNonShadowLightAttenuation(input, vertex.position);
     cd.mainLightColor = _LightColor0.rgb;
-    cd.mainLightAttenuation = saturate(mainLightAttenuation);
+    cd.mainLightShadowVisibility = saturate(mainLightShadowVisibility);
+    cd.mainLightNonShadowAttenuation = saturate(mainLightNonShadowAttenuation);
+    cd.mainLightAttenuation = cd.mainLightNonShadowAttenuation * cd.mainLightShadowVisibility;
     cd.mainLightDirection = half3(0, 0, 0);
     SCCalculateAllLights(lightSum, env, sd, cd, vertex, input, SCModelSelectVertexLighting(SCVertexLighting(vertex.position)));
 

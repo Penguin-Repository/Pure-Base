@@ -714,10 +714,10 @@ namespace PureBase.Tests.Daily
                     light.color = new Color(lightColor.x, lightColor.y, lightColor.z, 1.0f).gamma;
                     light.intensity = 1.0f;
                     light.cullingMask = 1 << FixtureLayer;
+                    light.type = lightType;
                     light.cookie = cookie;
                     if (lightType == LightType.Directional)
                     {
-                        light.type = LightType.Directional;
                         Vector3 direction = new Vector3(
                             lightPosition.x,
                             lightPosition.y,
@@ -732,7 +732,6 @@ namespace PureBase.Tests.Daily
                     }
                     else
                     {
-                        light.type = lightType;
                         light.range = range;
                         light.spotAngle = spotAngle;
                         lightObject.transform.position = new Vector3(

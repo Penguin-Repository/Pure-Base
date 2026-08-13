@@ -28,8 +28,12 @@ struct SCCustomData
     half reserved;
     /// <summary>Stores the Unity wrapper's unattenuated main-light color.</summary>
     half3 mainLightColor;
-    /// <summary>Stores the Unity wrapper's main-light attenuation and shadow factor.</summary>
+    /// <summary>Stores the Unity wrapper's full main-light attenuation.</summary>
     half mainLightAttenuation;
+    /// <summary>Stores the Unity wrapper's distance and cookie main-light attenuation without visibility.</summary>
+    half mainLightNonShadowAttenuation;
+    /// <summary>Stores Unity's effective directional visibility for the main light.</summary>
+    half mainLightShadowVisibility;
     /// <summary>Stores the normalized main-light direction before Shader-Core light-phase modifications.</summary>
     half3 mainLightDirection;
 };
@@ -47,10 +51,10 @@ half SCModelEvaluateDirectFactor(SCShadingData shadingData, SCLightData light)
     return 1;
 }
 
-/// <summary>Requests main-light color replacement because Unity Standard owns the public _LightColor0 declaration.</summary>
-bool SCModelUsesIsolatedMainLightColor()
+/// <summary>Prepares the Unity Standard main light while keeping Shader-Core visibility neutral.</summary>
+void SCModelPrepareMainLight(inout SCLightData light, inout SCShadingData sd, half3 mainLightColor, half mainLightAttenuation, half mainLightNonShadowAttenuation, half mainLightShadowVisibility)
 {
-    return true;
+    light.color = mainLightColor * mainLightAttenuation;
 }
 
 /// <summary>Selects a normalized per-pixel Unity main-light direction before Shader-Core's light phase.</summary>
