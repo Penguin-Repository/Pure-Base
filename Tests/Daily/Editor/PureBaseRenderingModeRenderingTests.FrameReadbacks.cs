@@ -42,6 +42,8 @@ namespace PureBase.Tests.Daily
                 2,
                 new Color(0.8f, 0.2f, 0.1f, 0.25f)
             );
+            GameObject contaminant = CreateActiveSceneOpaqueReadbackContaminant();
+            try
             {
                 RequireRenderingModeProperty(opaque);
                 Color opaquePixel = RenderCenterPixel(opaque, Color.clear);
@@ -66,6 +68,10 @@ namespace PureBase.Tests.Daily
                     "Transparent source alpha 0.25 over clear destination alpha 0 must use standard alpha blending: 0.25 * 0.25."
                 );
             }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(contaminant);
+            }
         }
 
         /// <summary>Requires Transparent material sorting to produce the expected finite back-to-front two-layer readback without depth writes.</summary>
@@ -75,6 +81,8 @@ namespace PureBase.Tests.Daily
             Shader shader = RequireProductShader("PureBase/Unlit");
             var red = CreateConfiguredMaterial(shader, 2, new Color(1.0f, 0.0f, 0.0f, 0.25f));
             var blue = CreateConfiguredMaterial(shader, 2, new Color(0.0f, 0.0f, 1.0f, 0.25f));
+            GameObject contaminant = CreateActiveSceneOpaqueReadbackContaminant();
+            try
             {
                 Color redInFront = RenderLayeredCenterPixel(red, blue);
                 Color blueInFront = RenderLayeredCenterPixel(blue, red);
@@ -86,6 +94,10 @@ namespace PureBase.Tests.Daily
                 Assert.That(blueInFront.r, Is.EqualTo(0.1875f).Within(0.05f));
                 Assert.That(redInFront.r, Is.GreaterThan(redInFront.b + 0.02f));
                 Assert.That(blueInFront.b, Is.GreaterThan(blueInFront.r + 0.02f));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(contaminant);
             }
         }
 
