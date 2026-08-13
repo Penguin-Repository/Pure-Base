@@ -67,6 +67,15 @@ namespace PureBase.Tests.Daily
         /// <summary>Identifies the persisted scene used when an isolated restoration test needs a non-canonical owner.</summary>
         private const string TestOwnerScenePath = "Assets/Pure-Base.unity";
 
+        /// <summary>Identifies the root camera used by the reviewed BIRP baseline.</summary>
+        private const string LegacyBaselineCameraName = "Validation Camera";
+
+        /// <summary>Defines the reviewed baseline camera world position.</summary>
+        private static readonly Vector3 LegacyBaselineCameraPosition = new Vector3(0.0f, 4.0f, -16.0f);
+
+        /// <summary>Defines the reviewed baseline camera vertical field of view.</summary>
+        private const float LegacyBaselineCameraFieldOfView = 50.0f;
+
         /// <summary>Lists the product shaders expected in the canonical scene.</summary>
         private static readonly string[] ProductShaderNames =
         {
@@ -112,6 +121,9 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Reports whether the latest transient capture disposed every tracked native resource.</summary>
         private static bool lastCaptureResourcesReleased;
+
+        /// <summary>Stores the latest canonical scene readback state for mismatch diagnostics.</summary>
+        private static string lastSceneReadbackState;
 
         /// <summary>Ensures a missing baseline fails before Daily opens or changes the canonical scene.</summary>
         [Test]
@@ -1117,38 +1129,77 @@ namespace PureBase.Tests.Daily
         [Test]
         public void CanonicalSceneMatchesCommittedBirpBaseline()
         {
-            SceneRegressionBaseline baseline = LoadBaseline();
-            EditorStateSnapshot state = EditorStateSnapshot.Capture();
-            Scene validationScene = default;
-            bool sceneWasLoaded = false;
-            bool sceneWasDirty = false;
-
-            try
+            if (!Application.isBatchMode)
             {
-                ValidateRuntimeConfiguration();
-                validationScene = SceneManager.GetSceneByPath(ScenePath);
-                sceneWasLoaded = validationScene.isLoaded;
-                if (!sceneWasLoaded)
+                Assert.Ignore(
+                    "The strict BIRP baseline requires clean batchmode isolation and cannot run in an interactive Editor."
+                );
+            }
+
+            SceneRegressionBaseline baseline = LoadBaseline();
+            ValidateRuntimeConfiguration();
+            Scene validationScene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+            Assert.That(validationScene.IsValid(), Is.True, "The canonical validation scene is invalid.");
+            Assert.That(validationScene.isLoaded, Is.True, "The canonical validation scene is not loaded.");
+            Assert.That(
+                validationScene.path,
+                Is.EqualTo(ScenePath),
+                "The canonical validation scene was loaded from an unexpected path."
+            );
+            Assert.That(
+                SceneManager.SetActiveScene(validationScene),
+                Is.True,
+                "The canonical validation scene could not become active for strict baseline capture."
+            );
+            Assert.That(
+                SceneManager.GetActiveScene(),
+                Is.EqualTo(validationScene),
+                "The canonical validation scene must be active for strict baseline capture."
+            );
+
+            var loadedScenes = new List<Scene>(SceneManager.sceneCount);
+            for (int index = 0; index < SceneManager.sceneCount; index++)
+            {
+                loadedScenes.Add(SceneManager.GetSceneAt(index));
+            }
+
+            foreach (Scene scene in loadedScenes)
+            {
+                if (scene != validationScene)
                 {
-                    validationScene = EditorSceneManager.OpenScene(
-                        ScenePath,
-                        OpenSceneMode.Additive
+                    Assert.That(
+                        EditorSceneManager.CloseScene(scene, true),
+                        Is.True,
+                        $"The non-canonical scene '{scene.path}' could not be closed before strict baseline capture."
                     );
                 }
+            }
 
-                sceneWasDirty = validationScene.isDirty;
-                Assert.That(
-                    SceneManager.SetActiveScene(validationScene),
-                    Is.True,
-                    "The canonical validation scene could not become active."
-                );
-                SceneRegressionObservation observation = CaptureObservation(validationScene);
-                AssertObservationMatchesBaseline(observation, baseline);
-            }
-            finally
-            {
-                state.Restore(validationScene, sceneWasLoaded, sceneWasDirty);
-            }
+            Assert.That(validationScene.IsValid(), Is.True, "The canonical validation scene became invalid.");
+            Assert.That(validationScene.isLoaded, Is.True, "The canonical validation scene became unloaded.");
+            Assert.That(
+                SceneManager.GetActiveScene(),
+                Is.EqualTo(validationScene),
+                "The canonical validation scene must remain active after strict capture isolation."
+            );
+            Assert.That(
+                SceneManager.sceneCount,
+                Is.EqualTo(1),
+                $"Strict baseline capture requires only the canonical scene to be loaded; loaded scenes: {DescribeLoadedScenePaths()}."
+            );
+            Assert.That(
+                SceneManager.GetSceneAt(0).path,
+                Is.EqualTo(ScenePath),
+                "Strict baseline capture loaded an unexpected scene."
+            );
+            Assert.That(
+                SceneManager.GetSceneAt(0).handle,
+                Is.EqualTo(validationScene.handle),
+                "Strict baseline capture retained an unexpected scene handle."
+            );
+
+            SceneRegressionObservation observation = CaptureObservation(validationScene);
+            AssertObservationMatchesBaseline(observation, baseline);
         }
 
         /// <summary>Loads the reviewed baseline without creating or updating it.</summary>
@@ -1361,7 +1412,7 @@ namespace PureBase.Tests.Daily
             AssertRange(
                 observation.sceneVisiblePixelCount,
                 baseline.sceneVisiblePixelCount,
-                "scene visible pixel count"
+                $"scene visible pixel count ({lastSceneReadbackState})"
             );
             Assert.That(observation.metaAlbedo, Has.Length.EqualTo(baseline.metaAlbedo.Length));
             for (int index = 0; index < baseline.metaAlbedo.Length; index++)
@@ -1835,7 +1886,10 @@ namespace PureBase.Tests.Daily
                 try
                 {
                     camera.CopyFrom(sourceCamera);
+                    camera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(scene);
                     camera.enabled = false;
+                    lastSceneReadbackState =
+                        $"scene='{scene.path}', camera='{sourceCamera.name}', position={sourceCamera.transform.position}, fov={sourceCamera.fieldOfView}, cullingMask={camera.overrideSceneCullingMask}, loadedScenes={DescribeLoadedScenePaths()}";
                     target.Create();
                     camera.targetTexture = target;
                     camera.Render();
@@ -2255,21 +2309,72 @@ namespace PureBase.Tests.Daily
             return warmedCount;
         }
 
-        /// <summary>Finds the enabled canonical scene camera.</summary>
+        /// <summary>Finds the enabled root camera used by the reviewed BIRP baseline.</summary>
         /// <param name="scene">The scene to search.</param>
-        /// <returns>The enabled camera.</returns>
+        /// <returns>The enabled reviewed baseline camera.</returns>
         private static Camera FindSceneCamera(Scene scene)
         {
+            GameObject baselineCameraRoot = null;
             foreach (GameObject root in scene.GetRootGameObjects())
             {
-                foreach (Camera camera in root.GetComponentsInChildren<Camera>(true))
+                if (!string.Equals(root.name, LegacyBaselineCameraName, StringComparison.Ordinal))
+                    continue;
+
+                if (baselineCameraRoot != null)
                 {
-                    if (camera.enabled)
-                        return camera;
+                    throw new AssertionException(
+                        $"The canonical validation scene contains multiple root '{LegacyBaselineCameraName}' cameras."
+                    );
                 }
+
+                baselineCameraRoot = root;
             }
 
-            throw new AssertionException("The canonical validation scene has no enabled camera.");
+            if (baselineCameraRoot == null)
+            {
+                throw new AssertionException(
+                    $"The canonical validation scene has no root '{LegacyBaselineCameraName}' camera."
+                );
+            }
+
+            Camera baselineCamera = baselineCameraRoot.GetComponent<Camera>();
+            if (baselineCamera == null)
+            {
+                throw new AssertionException(
+                    $"The root '{LegacyBaselineCameraName}' object has no Camera component."
+                );
+            }
+
+            Assert.That(
+                baselineCameraRoot.GetComponents<Camera>(),
+                Has.Length.EqualTo(1),
+                $"The root baseline camera '{LegacyBaselineCameraName}' must have exactly one Camera component."
+            );
+
+            Assert.That(
+                baselineCamera.enabled,
+                Is.True,
+                $"The root baseline camera '{LegacyBaselineCameraName}' is disabled."
+            );
+            Assert.That(
+                baselineCamera.transform.position,
+                Is.EqualTo(LegacyBaselineCameraPosition),
+                $"The root baseline camera '{LegacyBaselineCameraName}' has an unexpected position."
+            );
+            Assert.That(
+                baselineCamera.fieldOfView,
+                Is.EqualTo(LegacyBaselineCameraFieldOfView).Within(0.0001f),
+                $"The root baseline camera '{LegacyBaselineCameraName}' has an unexpected field of view."
+            );
+
+            if (baselineCamera.transform.parent != null)
+            {
+                throw new AssertionException(
+                    $"The reviewed baseline camera '{LegacyBaselineCameraName}' must be scene-root owned."
+                );
+            }
+
+            return baselineCamera;
         }
 
         /// <summary>Gets the four committed product materials in fixed shader order.</summary>
@@ -2951,11 +3056,14 @@ namespace PureBase.Tests.Daily
             {
                 Scene ownerScene = GetOrOpenPersistedOwnerScene();
                 string ownerScenePath = ownerScene.path;
-                Assert.That(
-                    SceneManager.SetActiveScene(ownerScene),
-                    Is.True,
-                    "The persisted owner scene could not become active before the canonical scene state is prepared."
-                );
+                if (!SceneManager.GetActiveScene().Equals(ownerScene))
+                {
+                    Assert.That(
+                        SceneManager.SetActiveScene(ownerScene),
+                        Is.True,
+                        "The persisted owner scene could not become active before the canonical scene state is prepared."
+                    );
+                }
                 if (canonicalPreloaded && !validationScene.isLoaded)
                 {
                     validationScene = EditorSceneManager.OpenScene(
@@ -3099,22 +3207,38 @@ namespace PureBase.Tests.Daily
             }
         }
 
-        /// <summary>Gets a loaded saved scene that can own active-scene settings during an isolated restoration test.</summary>
-        /// <returns>A loaded non-canonical scene.</returns>
+        /// <summary>Gets the loaded persisted owner scene that can own active-scene settings during an isolated restoration test.</summary>
+        /// <returns>The valid loaded persisted owner scene.</returns>
         private static Scene GetOrOpenPersistedOwnerScene()
         {
-            for (int sceneIndex = 0; sceneIndex < SceneManager.sceneCount; sceneIndex++)
+            Scene ownerScene = SceneManager.GetSceneByPath(TestOwnerScenePath);
+            if (ownerScene.IsValid() && ownerScene.isLoaded)
             {
-                Scene scene = SceneManager.GetSceneAt(sceneIndex);
-                if (
-                    scene.isLoaded
-                    && !string.IsNullOrEmpty(scene.path)
-                    && !string.Equals(scene.path, ScenePath, StringComparison.Ordinal)
-                )
-                    return scene;
+                return ownerScene;
             }
 
-            return EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
+            if (ownerScene.IsValid())
+            {
+                Assert.That(
+                    EditorSceneManager.CloseScene(ownerScene, true),
+                    Is.True,
+                    $"The existing unloaded owner scene entry '{TestOwnerScenePath}' could not be removed before reopening."
+                );
+            }
+
+            EditorSceneManager.OpenScene(TestOwnerScenePath, OpenSceneMode.Additive);
+            ownerScene = SceneManager.GetSceneByPath(TestOwnerScenePath);
+            Assert.That(
+                ownerScene.IsValid(),
+                Is.True,
+                $"The persisted owner scene '{TestOwnerScenePath}' was invalid after reopening."
+            );
+            Assert.That(
+                ownerScene.isLoaded,
+                Is.True,
+                $"The persisted owner scene '{TestOwnerScenePath}' was not loaded after reopening."
+            );
+            return ownerScene;
         }
 
         /// <summary>Loads controlled fixtures defensively and restores only their original scene-manager entries.</summary>
