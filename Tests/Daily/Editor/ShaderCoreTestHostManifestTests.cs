@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -68,56 +69,85 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Ensures every fixed host has one non-empty shader name and module selection.</summary>
         [Test]
-        public void ManifestContainsElevenUniqueFixedHostSelections()
+        public void ManifestContainsTwelveUniqueFixedHostSelections()
         {
             var manifest = JsonUtility.FromJson<HostManifest>(File.ReadAllText(GetManifestPath()));
 
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
             Assert.That(manifest.hosts, Is.Not.Null);
-            Assert.That(manifest.hosts.Length, Is.EqualTo(11));
+            Assert.That(manifest.hosts.Length, Is.EqualTo(12));
 
+            AssertHostSelections(manifest.hosts);
+            AssertManifestRuntimeContracts(manifest.hosts);
+        }
+
+        /// <summary>Asserts unique shader names and required module and sentinel configuration for every host entry.</summary>
+        /// <param name="hosts">The manifest host entries to inspect.</param>
+        private static void AssertHostSelections(HostManifestEntry[] hosts)
+        {
             var shaderNames = new System.Collections.Generic.HashSet<string>(
                 StringComparer.Ordinal
             );
-            foreach (HostManifestEntry host in manifest.hosts)
+            foreach (HostManifestEntry host in hosts)
             {
-                Assert.That(host.shaderName, Is.Not.Empty);
-                Assert.That(
-                    shaderNames.Add(host.shaderName),
-                    Is.True,
-                    $"Duplicate fixed host shader '{host.shaderName}'."
-                );
-
-                var moduleCount = string.IsNullOrEmpty(host.moduleUniqueId)
-                    ? host.moduleUniqueIds?.Length ?? 0
-                    : 1;
-                Assert.That(
-                    moduleCount,
-                    Is.GreaterThan(0),
-                    $"Host '{host.shaderName}' has no fixed module selection."
-                );
-                Assert.That(
-                    host.expectedSentinels,
-                    Is.Not.Null.And.Not.Empty,
-                    $"Host '{host.shaderName}' has no expected sentinels."
-                );
-                Assert.That(
-                    host.expectedPassSentinelCounts,
-                    Is.Not.Null,
-                    $"Host '{host.shaderName}' has no expected pass counts."
-                );
+                AssertHostSelection(host, shaderNames);
             }
+        }
 
+        /// <summary>Asserts the expected aggregate runtime contract counts across all fixed hosts.</summary>
+        /// <param name="hosts">The manifest host entries to inspect.</param>
+        private static void AssertManifestRuntimeContracts(HostManifestEntry[] hosts)
+        {
             Assert.That(
-                manifest.hosts.Count(HasConfiguredRuntimeDelta),
+                hosts.Count(HasConfiguredRuntimeDelta),
                 Is.EqualTo(10),
                 "Each phase host must declare one valid runtime delta and the module-order host must not."
             );
             Assert.That(
-                manifest.hosts.Count(HasConfiguredModuleOrder),
+                hosts.Count(HasConfiguredModuleOrder),
                 Is.EqualTo(1),
                 "Only the module-order host must declare one valid module-order contract."
+            );
+            Assert.That(
+                hosts.Count(HasConfiguredRuntimeEvidence),
+                Is.EqualTo(1),
+                "Only the Toon shadow host must declare one valid phase-shadow runtime contract."
+            );
+        }
+
+        /// <summary>Asserts that one host has required unique module and sentinel configuration.</summary>
+        /// <param name="host">The host entry to inspect.</param>
+        /// <param name="shaderNames">The set used to detect duplicate shader names.</param>
+        private static void AssertHostSelection(
+            HostManifestEntry host,
+            System.Collections.Generic.HashSet<string> shaderNames
+        )
+        {
+            Assert.That(host.shaderName, Is.Not.Empty);
+            Assert.That(
+                shaderNames.Add(host.shaderName),
+                Is.True,
+                $"Duplicate fixed host shader '{host.shaderName}'."
+            );
+
+            var moduleCount = string.IsNullOrEmpty(host.moduleUniqueId)
+                ? host.moduleUniqueIds?.Length ?? 0
+                : 1;
+            Assert.That(
+                moduleCount,
+                Is.GreaterThan(0),
+                $"Host '{host.shaderName}' has no fixed module selection."
+            );
+            Assert.That(
+                host.expectedSentinels,
+                Is.Not.Null.And.Not.Empty,
+                $"Host '{host.shaderName}' has no expected sentinels."
+            );
+            Assert.That(
+                host.expectedPassSentinelCounts,
+                Is.Not.Null,
+                $"Host '{host.shaderName}' has no expected pass counts."
             );
         }
 
@@ -250,7 +280,7 @@ namespace PureBase.Tests.Daily
             );
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
-            Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(11));
+            Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(12));
             return manifest;
         }
 
@@ -271,6 +301,82 @@ namespace PureBase.Tests.Daily
             return moduleOrder != null
                 && !string.IsNullOrEmpty(moduleOrder.firstSentinel)
                 && !string.IsNullOrEmpty(moduleOrder.secondSentinel);
+        }
+
+        /// <summary>Returns whether a host declares the complete three-phase shadow-visibility runtime contract.</summary>
+        private static bool HasConfiguredRuntimeEvidence(HostManifestEntry host)
+        {
+            RuntimeEvidence runtimeEvidence = host.runtimeEvidence;
+            if (runtimeEvidence == null || runtimeEvidence.phaseChannels == null)
+            {
+                return false;
+            }
+
+            if (!HasConfiguredPhaseChannels(runtimeEvidence.phaseChannels))
+            {
+                return false;
+            }
+
+            if (!HasConfiguredShadowModes(runtimeEvidence.shadowModes))
+            {
+                return false;
+            }
+
+            if (!HasValidShadowEvidenceRange(runtimeEvidence))
+            {
+                return false;
+            }
+
+            return runtimeEvidence.requireFinite && runtimeEvidence.requireChannelAgreement;
+        }
+
+        /// <summary>Returns whether the manifest declares the required red, green, and blue phase channels.</summary>
+        /// <param name="phaseChannels">The phase-channel declaration to inspect.</param>
+        /// <returns>Whether every phase channel has its expected semantic color.</returns>
+        private static bool HasConfiguredPhaseChannels(PhaseChannels phaseChannels)
+        {
+            if (!string.Equals(phaseChannels.light, "red", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!string.Equals(phaseChannels.modifylight, "green", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return string.Equals(phaseChannels.shade, "blue", StringComparison.Ordinal);
+        }
+
+        /// <summary>Returns whether the manifest declares the expected ordered shadow modes.</summary>
+        /// <param name="shadowModes">The optional shadow-mode declaration to inspect.</param>
+        /// <returns>Whether the declaration exactly lists None, Hard, and Soft modes.</returns>
+        private static bool HasConfiguredShadowModes(string[] shadowModes)
+        {
+            return shadowModes != null && shadowModes.SequenceEqual(new[] { "None", "Hard", "Soft" });
+        }
+
+        /// <summary>Returns whether the configured shadow numeric bounds are internally valid.</summary>
+        /// <param name="runtimeEvidence">The runtime evidence declaration to inspect.</param>
+        /// <returns>Whether all unshadowed, Hard-shadow, and Soft-shadow bounds are valid.</returns>
+        private static bool HasValidShadowEvidenceRange(RuntimeEvidence runtimeEvidence)
+        {
+            if (runtimeEvidence.unshadowedValue <= 0.0f)
+            {
+                return false;
+            }
+
+            if (runtimeEvidence.hardShadowMaximum >= runtimeEvidence.unshadowedValue)
+            {
+                return false;
+            }
+
+            if (runtimeEvidence.softShadowMinimum <= 0.0f)
+            {
+                return false;
+            }
+
+            return runtimeEvidence.softShadowMaximum < runtimeEvidence.unshadowedValue;
         }
 
         /// <summary>Finds a Shader-Core asset by imported shader name in one read-only asset search root.</summary>
@@ -664,6 +770,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Represents the read-only top-level host manifest.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class HostManifest
         {
             /// <summary>Gets the manifest format version.</summary>
@@ -675,6 +782,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Represents one fixed host's selected modules.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class HostManifestEntry
         {
             /// <summary>Gets the Shader-Core shader name.</summary>
@@ -700,10 +808,14 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets configured generated-source order expectations for the two-module host.</summary>
             public ModuleOrder moduleOrder;
+
+            /// <summary>Gets the Toon phase-shadow runtime evidence requirements.</summary>
+            public RuntimeEvidence runtimeEvidence;
         }
 
         /// <summary>Stores selected sentinel counts for every generated ShaderLab pass.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class PassSentinelCounts
         {
             /// <summary>Gets the expected ForwardBase sentinel count.</summary>
@@ -721,6 +833,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores a phase host's gate-on versus gate-off runtime measurement contract.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class RuntimeDelta
         {
             /// <summary>Gets the measured runtime observation field.</summary>
@@ -735,6 +848,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores generated source ordering expectations for the selected same-phase modules.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class ModuleOrder
         {
             /// <summary>Gets the first expected generated source sentinel.</summary>
@@ -742,6 +856,51 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets the second expected generated source sentinel.</summary>
             public string secondSentinel;
+        }
+
+        /// <summary>Stores the fixed Toon phase-shadow render requirements.</summary>
+        [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
+        private sealed class RuntimeEvidence
+        {
+            /// <summary>Gets the phase-to-RGB-channel map.</summary>
+            public PhaseChannels phaseChannels;
+
+            /// <summary>Gets the ordered directional-shadow modes.</summary>
+            public string[] shadowModes;
+
+            /// <summary>Gets the expected unshadowed diagnostic value.</summary>
+            public float unshadowedValue;
+
+            /// <summary>Gets the highest accepted hard-shadow diagnostic value.</summary>
+            public float hardShadowMaximum;
+
+            /// <summary>Gets the lowest accepted fractional soft-shadow diagnostic value.</summary>
+            public float softShadowMinimum;
+
+            /// <summary>Gets the highest accepted fractional soft-shadow diagnostic value.</summary>
+            public float softShadowMaximum;
+
+            /// <summary>Gets whether every diagnostic channel must remain finite.</summary>
+            public bool requireFinite;
+
+            /// <summary>Gets whether phase channels must agree on one visibility value.</summary>
+            public bool requireChannelAgreement;
+        }
+
+        /// <summary>Stores the RGB channel published by every selected Toon phase.</summary>
+        [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
+        private sealed class PhaseChannels
+        {
+            /// <summary>Gets the light-phase output channel.</summary>
+            public string light;
+
+            /// <summary>Gets the modifylight-phase output channel.</summary>
+            public string modifylight;
+
+            /// <summary>Gets the shade-phase output channel.</summary>
+            public string shade;
         }
 
         /// <summary>Stores one gate-state measurement from the transient host renderer.</summary>

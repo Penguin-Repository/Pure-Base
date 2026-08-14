@@ -36,6 +36,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Defines the small readback dimension used by transient numeric observations.</summary>
         private const int RenderSize = 64;
 
+        /// <summary>Defines the dedicated layer used by isolated quad readback fixtures.</summary>
+        private const int QuadReadbackFixtureLayer = 30;
+
         /// <summary>Defines the largest per-channel readback difference treated as directional-shadow noise.</summary>
         private const float ShadowPixelNoiseThreshold = 0.002f;
 
@@ -453,6 +456,7 @@ namespace PureBase.Tests.Daily
         /// <returns>The center readback pixel.</returns>
         private static Color RenderCenterPixel(Material material, Color background)
         {
+            Scene scene = default;
             GameObject cameraObject = null;
             GameObject quadObject = null;
             RenderTexture renderTexture = null;
@@ -460,6 +464,7 @@ namespace PureBase.Tests.Daily
             Camera camera = null;
             try
             {
+                scene = EditorSceneManager.NewPreviewScene();
                 cameraObject = new GameObject("PureBaseRenderingModeCamera");
                 quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 renderTexture = new RenderTexture(
@@ -476,7 +481,11 @@ namespace PureBase.Tests.Daily
                     true
                 );
                 camera = cameraObject.AddComponent<Camera>();
-                ConfigureCenterPixelCamera(camera, renderTexture, background);
+                SceneManager.MoveGameObjectToScene(cameraObject, scene);
+                SceneManager.MoveGameObjectToScene(quadObject, scene);
+                cameraObject.layer = QuadReadbackFixtureLayer;
+                quadObject.layer = QuadReadbackFixtureLayer;
+                ConfigureCenterPixelCamera(camera, renderTexture, background, scene);
                 quadObject.GetComponent<Renderer>().sharedMaterial = material;
                 camera.Render();
                 return ReadCenterPixel(renderTexture, texture);
@@ -490,16 +499,43 @@ namespace PureBase.Tests.Daily
                     renderTexture,
                     texture
                 );
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    EditorSceneManager.ClosePreviewScene(scene);
+                }
             }
+        }
+
+        /// <summary>Creates an active-scene opaque quad that must not affect isolated readback observations.</summary>
+        /// <returns>The caller-owned active-scene renderer.</returns>
+        private GameObject CreateActiveSceneOpaqueReadbackContaminant()
+        {
+            Shader shader = Shader.Find("Unlit/Color");
+            Assert.That(
+                shader,
+                Is.Not.Null,
+                "The Built-in Unlit/Color shader is unavailable for the readback isolation probe."
+            );
+            Material material = CreateMaterial(shader);
+            material.SetColor("_Color", Color.white);
+            GameObject quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            quadObject.name = "PureBaseRenderingModeActiveSceneContaminant";
+            quadObject.transform.position = new Vector3(0.0f, 0.0f, 1.0f);
+            quadObject.GetComponent<Renderer>().sharedMaterial = material;
+            return quadObject;
         }
 
         /// <summary>Configures the temporary camera used for one center-pixel readback.</summary>
         private static void ConfigureCenterPixelCamera(
             Camera camera,
             RenderTexture renderTexture,
-            Color background
+            Color background,
+            Scene scene
         )
         {
+            camera.enabled = false;
+            camera.cullingMask = 1 << QuadReadbackFixtureLayer;
+            camera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(scene);
             camera.orthographic = true;
             camera.orthographicSize = 0.5f;
             camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
@@ -538,6 +574,7 @@ namespace PureBase.Tests.Daily
         /// <returns>The sorted layered center readback.</returns>
         private static Color RenderLayeredCenterPixel(Material frontMaterial, Material rearMaterial)
         {
+            Scene scene = default;
             GameObject cameraObject = null;
             GameObject frontObject = null;
             GameObject rearObject = null;
@@ -545,6 +582,7 @@ namespace PureBase.Tests.Daily
             Texture2D texture = null;
             try
             {
+                scene = EditorSceneManager.NewPreviewScene();
                 cameraObject = new GameObject("PureBaseRenderingModeDepthCamera");
                 frontObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 rearObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -562,12 +600,13 @@ namespace PureBase.Tests.Daily
                     true
                 );
                 Camera camera = cameraObject.AddComponent<Camera>();
-                camera.orthographic = true;
-                camera.orthographicSize = 0.5f;
-                camera.transform.position = new Vector3(0.0f, 0.0f, -2.0f);
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = Color.clear;
-                camera.targetTexture = renderTexture;
+                SceneManager.MoveGameObjectToScene(cameraObject, scene);
+                SceneManager.MoveGameObjectToScene(frontObject, scene);
+                SceneManager.MoveGameObjectToScene(rearObject, scene);
+                cameraObject.layer = QuadReadbackFixtureLayer;
+                frontObject.layer = QuadReadbackFixtureLayer;
+                rearObject.layer = QuadReadbackFixtureLayer;
+                ConfigureCenterPixelCamera(camera, renderTexture, Color.clear, scene);
                 frontObject.transform.position = Vector3.zero;
                 rearObject.transform.position = new Vector3(0.0f, 0.0f, 0.1f);
                 frontObject.GetComponent<Renderer>().sharedMaterial = frontMaterial;
@@ -593,6 +632,10 @@ namespace PureBase.Tests.Daily
                     UnityEngine.Object.DestroyImmediate(frontObject);
                 if (cameraObject != null)
                     UnityEngine.Object.DestroyImmediate(cameraObject);
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    EditorSceneManager.ClosePreviewScene(scene);
+                }
             }
         }
 
@@ -916,7 +959,9 @@ namespace PureBase.Tests.Daily
             {
                 Type type = assembly.GetType(fullName, false);
                 if (type != null)
+                {
                     return type;
+                }
             }
 
             return null;

@@ -72,6 +72,20 @@ namespace PureBase.Tests.Regeneration
         private const string FixtureRootName = "PureBase Validation Fixture";
 
         /// <summary>
+        /// Stores the enabled camera name reserved for generated validation fixture content.
+        /// </summary>
+        private const string FixtureCameraName = "PureBase Validation Camera";
+
+        /// <summary>Stores the root camera name used by the reviewed BIRP baseline.</summary>
+        private const string LegacyBaselineCameraName = "Validation Camera";
+
+        /// <summary>Stores the reviewed baseline camera world position.</summary>
+        private static readonly Vector3 LegacyBaselineCameraPosition = new Vector3(0.0f, 4.0f, -16.0f);
+
+        /// <summary>Stores the reviewed baseline camera vertical field of view.</summary>
+        private const float LegacyBaselineCameraFieldOfView = 50.0f;
+
+        /// <summary>
         /// Stores the fixed product shader names used by the persisted validation materials.
         /// </summary>
         private static readonly string[] ProductShaderNames =
@@ -512,7 +526,7 @@ namespace PureBase.Tests.Regeneration
         /// <param name="parent">The generated fixture root transform.</param>
         private static void CreateSceneCamera(Transform parent)
         {
-            GameObject cameraObject = new GameObject("PureBase Validation Camera");
+            GameObject cameraObject = new GameObject(FixtureCameraName);
             cameraObject.transform.SetParent(parent, false);
             cameraObject.transform.position = new Vector3(0.0f, 4.8f, -12.0f);
             cameraObject.transform.LookAt(new Vector3(0.0f, 0.8f, 0.0f));
@@ -627,16 +641,65 @@ namespace PureBase.Tests.Regeneration
                 }
             }
 
-            bool hasCamera = false;
+            GameObject baselineCameraRoot = null;
+            foreach (GameObject root in validationScene.GetRootGameObjects())
+            {
+                if (!string.Equals(root.name, LegacyBaselineCameraName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (baselineCameraRoot != null)
+                {
+                    throw new InvalidOperationException(
+                        $"The validation scene contains multiple root '{LegacyBaselineCameraName}' cameras."
+                    );
+                }
+
+                baselineCameraRoot = root;
+            }
+
+            if (baselineCameraRoot == null)
+            {
+                throw new InvalidOperationException(
+                    $"The validation scene is missing the root '{LegacyBaselineCameraName}' camera."
+                );
+            }
+
+            Camera baselineCamera = baselineCameraRoot.GetComponent<Camera>();
+            if (baselineCamera == null)
+            {
+                throw new InvalidOperationException(
+                    $"The root '{LegacyBaselineCameraName}' object has no Camera component."
+                );
+            }
+
+            if (baselineCameraRoot.GetComponents<Camera>().Length != 1)
+            {
+                throw new InvalidOperationException(
+                    $"The root baseline camera '{LegacyBaselineCameraName}' must have exactly one Camera component."
+                );
+            }
+
+            if (
+                !baselineCamera.enabled
+                || baselineCamera.transform.parent != null
+                || baselineCamera.transform.position != LegacyBaselineCameraPosition
+                || !Mathf.Approximately(
+                    baselineCamera.fieldOfView,
+                    LegacyBaselineCameraFieldOfView
+                )
+            )
+            {
+                throw new InvalidOperationException(
+                    $"The root baseline camera '{LegacyBaselineCameraName}' does not match the reviewed BIRP baseline contract."
+                );
+            }
+
             bool hasBakedDirectionalLight = false;
             bool hasStaticRenderer = false;
             foreach (GameObject root in validationScene.GetRootGameObjects())
             {
-                foreach (Camera camera in root.GetComponentsInChildren<Camera>(true))
-                {
-                    hasCamera |= camera.enabled;
-                }
-
                 foreach (Light light in root.GetComponentsInChildren<Light>(true))
                 {
                     hasBakedDirectionalLight |=
@@ -654,10 +717,10 @@ namespace PureBase.Tests.Regeneration
                 }
             }
 
-            if (!hasCamera || !hasBakedDirectionalLight || !hasStaticRenderer)
+            if (!hasBakedDirectionalLight || !hasStaticRenderer)
             {
                 throw new InvalidOperationException(
-                    "The validation scene is missing its enabled camera, baked directional light, or static renderers."
+                    "The validation scene is missing its baked directional light or static renderers."
                 );
             }
 
@@ -753,7 +816,9 @@ namespace PureBase.Tests.Regeneration
             public void Dispose()
             {
                 if (disposed)
+                {
                     return;
+                }
                 testGenerationDependencies = previousDependencies;
                 disposed = true;
             }

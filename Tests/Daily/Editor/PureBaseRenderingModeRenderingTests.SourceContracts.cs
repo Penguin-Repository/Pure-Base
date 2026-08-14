@@ -36,9 +36,21 @@ namespace PureBase.Tests.Daily
         private const string ToonModelPath =
             "Packages/jp.penguin.purebase/Shaders/Models/toon.hlsl";
 
+        /// <summary>Identifies the fixed Toon shadow host whose importer-valid source layout is part of the test contract.</summary>
+        private const string ToonShadowFixturePath =
+            "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts/ToonShadow/PureBaseTestToonShadow.scshader";
+
         /// <summary>Identifies the Toon-only helper that owns dominant-direction and two-band SH evaluation.</summary>
         private const string ToonLightingHelperPath =
             "Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl";
+
+        /// <summary>Identifies the future Pure Base-owned helper for non-shadow BIRP attenuation.</summary>
+        private const string BirpLightAttenuationHelperPath =
+            "Packages/jp.penguin.purebase/Shaders/Common/birp_light_attenuation.hlsl";
+
+        /// <summary>Identifies the Unlit model that must retain its existing light and shadow ownership.</summary>
+        private const string UnlitModelPath =
+            "Packages/jp.penguin.purebase/Shaders/Models/unlit.hlsl";
 
         /// <summary>Identifies the PBR model that must not consume Toon lighting direction or environment bands.</summary>
         private const string PbrModelPath =
@@ -178,6 +190,269 @@ namespace PureBase.Tests.Daily
             AssertLightingPhaseOrder(host);
         }
 
+        /// <summary>Requires Toon to separate non-shadow attenuation from Unity effective visibility before Shader-Core light phases.</summary>
+        [Test]
+        public void ToonShadowSeparationRequiresSplitInputsModelPreparationAndUnchangedNonToonOwnership()
+        {
+            Assert.That(
+                File.Exists(BirpLightAttenuationHelperPath),
+                Is.True,
+                "Pure Base must own a dedicated non-shadow BIRP attenuation helper."
+            );
+
+            ToonShadowSourceSet sources = ToonShadowSourceSet.Load();
+            AssertNonShadowAttenuationHelperContract(sources.helper);
+            AssertRequiredToonAndNonToonSourceTokens(sources);
+            AssertModelPreparationOwnership(sources);
+            AssertToonShadowPhaseOrder(sources.host);
+            AssertDirectionalVisibilityOwnership(sources.host, sources.toon);
+            AssertToonShadowFixtureSourceContracts();
+        }
+
+        /// <summary>Stores the source texts participating in the Toon directional-shadow ownership contract.</summary>
+        private sealed class ToonShadowSourceSet
+        {
+            /// <summary>Gets the dedicated non-shadow attenuation helper source.</summary>
+            public string helper { get; private set; }
+
+            /// <summary>Gets the Pure Base BIRP host source.</summary>
+            public string host { get; private set; }
+
+            /// <summary>Gets the Toon model source.</summary>
+            public string toon { get; private set; }
+
+            /// <summary>Gets the PBR model source.</summary>
+            public string pbr { get; private set; }
+
+            /// <summary>Gets the Unlit model source.</summary>
+            public string unlit { get; private set; }
+
+            /// <summary>Gets the Shader-Core BIRP lighting source.</summary>
+            public string shaderCoreLighting { get; private set; }
+
+            /// <summary>Loads all source texts participating in the shadow ownership contract.</summary>
+            /// <returns>The loaded source-text set.</returns>
+            public static ToonShadowSourceSet Load()
+            {
+                return new ToonShadowSourceSet
+                {
+                    helper = File.ReadAllText(BirpLightAttenuationHelperPath),
+                    host = File.ReadAllText(BirpHostPath),
+                    toon = File.ReadAllText(ToonModelPath),
+                    pbr = File.ReadAllText(PbrModelPath),
+                    unlit = File.ReadAllText(UnlitModelPath),
+                    shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath),
+                };
+            }
+        }
+
+        /// <summary>Asserts that the dedicated attenuation helper preserves Unity branches without reconstructing visibility.</summary>
+        /// <param name="helper">The non-shadow attenuation helper source.</param>
+        private static void AssertNonShadowAttenuationHelperContract(string helper)
+        {
+            foreach (string lightKind in new[] { "DIRECTIONAL", "POINT", "SPOT", "POINT_COOKIE", "DIRECTIONAL_COOKIE" })
+            {
+                StringAssert.Contains(lightKind, helper, "The non-shadow helper must preserve Unity's " + lightKind + " branch.");
+            }
+
+            StringAssert.Contains("PureBaseEvaluateNonShadowLightAttenuation", helper);
+            Assert.That(
+                Regex.IsMatch(helper, @"/\s*(?:[A-Za-z0-9_]*[Ss]hadow|[Ss]hadow[A-Za-z0-9_]*)"),
+                Is.False,
+                "The non-shadow helper must not reconstruct attenuation by dividing through visibility."
+            );
+        }
+
+        /// <summary>Asserts the tokens that separate Toon visibility ownership from shared and non-Toon lighting sources.</summary>
+        /// <param name="sources">The loaded source texts to inspect.</param>
+        private static void AssertRequiredToonAndNonToonSourceTokens(ToonShadowSourceSet sources)
+        {
+            StringAssert.Contains("UNITY_SHADOW_ATTENUATION", sources.host);
+            StringAssert.Contains("mainLightNonShadowAttenuation", sources.host);
+            StringAssert.Contains("mainLightShadowVisibility", sources.host);
+            StringAssert.Contains("SCModelPrepareMainLight", sources.host);
+            StringAssert.Contains("SCModelPrepareMainLight", sources.toon);
+            StringAssert.Contains("sd.shadow", sources.toon);
+            StringAssert.Contains("mainLightAttenuation", sources.pbr);
+            StringAssert.Contains("SCModelPrepareMainLight", sources.unlit);
+            StringAssert.Contains("LIGHTMAP_SHADOW_MIXING", sources.shaderCoreLighting);
+            StringAssert.DoesNotContain("LIGHTMAP_SHADOW_MIXING", sources.host);
+        }
+
+        /// <summary>Asserts PBR attenuation preservation and Unlit's explicit no-op main-light callback.</summary>
+        /// <param name="sources">The loaded source texts to inspect.</param>
+        private static void AssertModelPreparationOwnership(ToonShadowSourceSet sources)
+        {
+            Assert.That(
+                Regex.IsMatch(
+                    sources.toon,
+                    @"void\s+SCModelPrepareMainLight\s*\([^)]*\)\s*\{\s*light\.color\s*=\s*mainLightColor\s*\*\s*mainLightNonShadowAttenuation\s*;\s*sd\.shadow\s*=\s*mainLightShadowVisibility\s*;\s*\}",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "Toon must publish non-shadow direct color and independent effective visibility before Shader-Core light phases."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    sources.pbr,
+                    @"void\s+SCModelInitializeGiInput\s*\(\s*out\s+UnityGIInput\s+input\s*,\s*SCCustomData\s+customData\s*,\s*SCVertexData\s+vertex\s*\)\s*\{[^}]*\binput\.atten\s*=\s*customData\.mainLightAttenuation\s*;",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "PBR and Hybrid must preserve UnityGIInput.atten ownership through the shared PBR model."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    sources.unlit,
+                    @"void\s+SCModelPrepareMainLight\s*\([^)]*\)\s*\{\s*\}",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "Unlit must retain an explicit no-op main-light preparation callback."
+            );
+            }
+
+            /// <summary>Asserts that BIRP captures shadow visibility and orders Shader-Core light phases before aggregation.</summary>
+            /// <param name="host">The Pure Base BIRP host source.</param>
+            private static void AssertToonShadowPhaseOrder(string host)
+            {
+            int surfaceInitialization = RequireIndex(host, "SCShadingData sd");
+            int shadowCapture = RequireIndex(host, "UNITY_SHADOW_ATTENUATION");
+            int allLights = RequireIndex(host, "SCCalculateAllLights");
+            int lightPhase = RequireIndex(host, "__SC_PHASE_light__");
+            int aggregateDirection = RequireIndex(host, "lightSum.direction +=");
+            int aggregateColor = RequireIndex(host, "lightSum.color +=");
+            int modifyLightPhase = RequireIndex(host, "__SC_PHASE_modifylight__");
+            int surfaceColor = RequireIndex(host, "SCModelBaseSurfaceColor");
+            int shadePhase = RequireIndex(host, "__SC_PHASE_shade__");
+            Assert.That(surfaceInitialization, Is.LessThan(shadowCapture));
+            Assert.That(shadowCapture, Is.LessThan(allLights));
+            Assert.That(lightPhase, Is.LessThan(aggregateDirection));
+            Assert.That(aggregateDirection, Is.LessThan(aggregateColor));
+            Assert.That(allLights, Is.LessThan(modifyLightPhase));
+            Assert.That(modifyLightPhase, Is.LessThan(shadePhase));
+            Assert.That(surfaceColor, Is.LessThan(shadePhase));
+            Assert.That(
+                Regex.IsMatch(
+                    host,
+                    @"void\s+SCCalculateLight\s*\([^)]*\)\s*\{[^}]*SCModelSelectMainLightDirection\s*\([^;]*\)\s*;[^}]*SCModelPrepareMainLight\s*\([^;]*\)\s*;[^}]*__SC_PHASE_light__[^}]*lightSum\.direction\s*\+=",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "SCCalculateLight must select the main-light direction, prepare model data, expose the light phase, and only then aggregate the light."
+            );
+        }
+
+        /// <summary>Asserts that Toon consumes directional visibility once in direct radiance without shadowing aggregate direction.</summary>
+        /// <param name="host">The Pure Base BIRP host source.</param>
+        /// <param name="toon">The Toon model source.</param>
+        private static void AssertDirectionalVisibilityOwnership(string host, string toon)
+        {
+            Assert.That(
+                Regex.IsMatch(host, @"lightSum\.(?:color|direction)\s*\*?=\s*[^;]*sd\.shadow"),
+                Is.False
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    host,
+                    @"lightSum\.(?:color|direction)[^;]*mainLightShadowVisibility"
+                ),
+                Is.False,
+                "Directional visibility must be published through sd.shadow, not folded into the direct color or aggregate direction."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    host,
+                    @"lightSum\.direction\s*\+=\s*[^;]*(?:sd\.shadow|mainLightShadowVisibility)"
+                ),
+                Is.False,
+                "Directional visibility must not enter Toon aggregate light direction."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    toon,
+                    @"sd\.shadow\s*=\s*mainLightShadowVisibility\s*;"
+                ),
+                Is.True,
+                "The Toon callback must publish the captured directional visibility as the phase-local sd.shadow value."
+            );
+            AssertToonDirectFactorConsumesVisibilityOnce(toon);
+        }
+
+        /// <summary>Asserts that Toon direct-factor evaluation consumes the published visibility exactly once.</summary>
+        /// <param name="toon">The Toon model source.</param>
+        private static void AssertToonDirectFactorConsumesVisibilityOnce(string toon)
+        {
+            Match directFactor = Regex.Match(
+                toon,
+                @"half\s+SCModelEvaluateDirectFactor\s*\(\s*SCShadingData\s+shadingData\s*,\s*SCLightData\s+light\s*\)\s*\{(?<body>[^}]*)\}",
+                RegexOptions.Singleline
+            );
+            Assert.That(directFactor.Success, Is.True, "The Toon model must define its direct-factor callback.");
+            MatchCollection shadowUses = Regex.Matches(toon, @"\bshadingData\.shadow\b");
+            Assert.That(
+                shadowUses.Count,
+                Is.EqualTo(1),
+                "The Toon model source must consume effective visibility through shadingData.shadow exactly once."
+            );
+            string body = directFactor.Groups["body"].Value;
+            Assert.That(
+                Regex.IsMatch(
+                    body,
+                    @"\breturn\s+PureBaseToonEvaluateDirectFactor\s*\(\s*shadingData\.N\s*,\s*light\.direction\s*\)\s*\*\s*shadingData\.shadow\s*;"
+                ),
+                Is.True,
+                "Toon must apply the quantized direct response to effective visibility in its direct-factor callback."
+            );
+            Assert.That(
+                shadowUses[0].Index,
+                Is.GreaterThanOrEqualTo(directFactor.Groups["body"].Index)
+                    .And.LessThan(directFactor.Groups["body"].Index + body.Length),
+                "The Toon model's sole shadingData.shadow consumption must remain within SCModelEvaluateDirectFactor."
+            );
+        }
+
+        /// <summary>Asserts the fixed Toon host keeps its read-only ForwardAdd stencil state and properties-header license placement.</summary>
+        private static void AssertToonShadowFixtureSourceContracts()
+        {
+            string fixture = File.ReadAllText(ToonShadowFixturePath);
+            Match forwardAddStencil = Regex.Match(
+                fixture,
+                @"Name\s+""ForwardAdd""[\s\S]*?Stencil\s*\{(?<body>[\s\S]*?)\}",
+                RegexOptions.Singleline
+            );
+            Assert.That(forwardAddStencil.Success, Is.True, "The fixed Toon host must retain a ForwardAdd Stencil block.");
+            string stencilBody = forwardAddStencil.Groups["body"].Value;
+            MatchCollection writeMaskDirectives = Regex.Matches(
+                stencilBody,
+                @"\bWriteMask\s+(?<value>[^\s}]+)"
+            );
+            Assert.That(
+                writeMaskDirectives.Count,
+                Is.EqualTo(1),
+                "The fixed Toon host ForwardAdd Stencil block must contain exactly one read-only WriteMask 0 directive."
+            );
+            Assert.That(
+                writeMaskDirectives[0].Groups["value"].Value,
+                Is.EqualTo("0"),
+                "The fixed Toon host ForwardAdd Stencil block must use 0 as its only WriteMask value."
+            );
+            StringAssert.DoesNotContain(
+                "_StencilWriteMask",
+                stencilBody,
+                "The fixed Toon host ForwardAdd Stencil block must not restore the dynamic write mask."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    fixture,
+                    @"Properties\s*\{\s*/\*.*?Copyright 2026 Penguin.*?Licensed under the Apache License, Version 2\.0.*?WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.*?\*/\s*__SC_SHADERLAB_properties__",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "The fixed Toon host must retain its Apache notice in the importer-valid location before properties expansion."
+            );
+        }
+
         /// <summary>Asserts that Toon alone owns its binary direct response and two-band environment interpretation.</summary>
         /// <param name="toon">The Toon model source.</param>
         /// <param name="helper">The Toon lighting helper source.</param>
@@ -188,9 +463,12 @@ namespace PureBase.Tests.Daily
                 helper,
                 "The Toon helper must own the stable binary direct-light response."
             );
-            StringAssert.Contains(
-                "return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction);",
-                toon,
+            Assert.That(
+                Regex.IsMatch(
+                    toon,
+                    @"\breturn\s+PureBaseToonEvaluateDirectFactor\s*\(\s*shadingData\.N\s*,\s*light\.direction\s*\)\s*\*\s*shadingData\.shadow\s*;"
+                ),
+                Is.True,
                 "The Toon model must delegate direct-light evaluation to its binary helper."
             );
             StringAssert.Contains(

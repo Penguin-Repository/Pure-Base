@@ -26,6 +26,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $DailyTestAssembly = 'PureBase.Tests.Daily'
+$StrictDailyBaselineTestCase = 'PureBase.Tests.Daily.PureBaseValidationSceneRegressionTests.CanonicalSceneMatchesCommittedBirpBaseline'
 $InitializerExecutionMethod = 'PureBase.Tests.Regeneration.ShaderCoreTestStateInitializer.InitializeForBatchMode'
 $ProjectSettingsRelativePath = 'ProjectSettings/jp.lilxyzw.shadercore.asset'
 
@@ -294,6 +295,16 @@ function Test-NUnitResult {
         throw "Daily NUnit evidence must contain only '$DailyTestAssembly'. Found: $($assemblyNames -join ', ')."
     }
 
+    $strictTestCases = @($results.SelectNodes("//test-case[@fullname='$StrictDailyBaselineTestCase']"))
+    if ($strictTestCases.Count -ne 1) {
+        throw "Daily NUnit evidence must contain exactly one strict baseline testcase '$StrictDailyBaselineTestCase'. Found: $($strictTestCases.Count)."
+    }
+
+    $strictTestResult = $strictTestCases[0].GetAttribute('result')
+    if ($strictTestResult -ne 'Passed') {
+        throw "Daily NUnit evidence must report strict baseline testcase '$StrictDailyBaselineTestCase' as Passed. Found result: '$strictTestResult'."
+    }
+
     Write-Host "Daily NUnit summary: assembly=$($assemblyNames[0]) total=$total passed=$($testRun.GetAttribute('passed')) failed=$($testRun.GetAttribute('failed')) skipped=$($testRun.GetAttribute('skipped')) inconclusive=$($testRun.GetAttribute('inconclusive'))"
     return $testRun.GetAttribute('result') -eq 'Passed' -and $total -gt 0
 }
@@ -421,6 +432,44 @@ function Assert-SmokeContract {
         }
         if (-not $invalidNUnitResultRejected) {
             throw 'NUnit result validation must reject evidence containing an unexpected assembly suite.'
+        }
+
+        $strictNUnitEvidence = @(
+            [pscustomobject]@{ Name = 'Passed'; TestCases = "<test-case fullname=`"$StrictDailyBaselineTestCase`" result=`"Passed`" />"; Accepted = $true }
+            [pscustomobject]@{ Name = 'Missing'; TestCases = ''; Accepted = $false }
+            [pscustomobject]@{ Name = 'Duplicated'; TestCases = "<test-case fullname=`"$StrictDailyBaselineTestCase`" result=`"Passed`" /><test-case fullname=`"$StrictDailyBaselineTestCase`" result=`"Passed`" />"; Accepted = $false }
+            [pscustomobject]@{ Name = 'Skipped'; TestCases = "<test-case fullname=`"$StrictDailyBaselineTestCase`" result=`"Skipped`" />"; Accepted = $false }
+            [pscustomobject]@{ Name = 'Inconclusive'; TestCases = "<test-case fullname=`"$StrictDailyBaselineTestCase`" result=`"Inconclusive`" />"; Accepted = $false }
+            [pscustomobject]@{ Name = 'Failed'; TestCases = "<test-case fullname=`"$StrictDailyBaselineTestCase`" result=`"Failed`" />"; Accepted = $false }
+        )
+        foreach ($strictNUnitEvidenceCase in $strictNUnitEvidence) {
+            $strictNUnitResultPath = Join-Path $artifactRoot ("Smoke.Strict$($strictNUnitEvidenceCase.Name)-$PID-$([guid]::NewGuid().ToString('N')).NUnit.xml")
+            try {
+                [System.IO.File]::WriteAllText($strictNUnitResultPath, @"
+<test-run total="1" passed="1" failed="0" skipped="0" inconclusive="0" result="Passed">
+  <test-suite type="Assembly" name="$DailyTestAssembly">
+    $($strictNUnitEvidenceCase.TestCases)
+  </test-suite>
+</test-run>
+"@)
+
+                $strictNUnitResultAccepted = $false
+                try {
+                    $strictNUnitResultAccepted = Test-NUnitResult -ResultsPath $strictNUnitResultPath
+                }
+                catch {
+                    $strictNUnitResultAccepted = $false
+                }
+
+                if ($strictNUnitResultAccepted -ne $strictNUnitEvidenceCase.Accepted) {
+                    throw "NUnit result validation acceptance mismatch for strict testcase evidence '$($strictNUnitEvidenceCase.Name)'."
+                }
+            }
+            finally {
+                if (Test-Path -LiteralPath $strictNUnitResultPath -PathType Leaf) {
+                    [System.IO.File]::Delete($strictNUnitResultPath)
+                }
+            }
         }
     }
     finally {

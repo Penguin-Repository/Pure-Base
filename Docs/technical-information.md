@@ -121,6 +121,16 @@ Hybrid retains its unchanged binary direct-diffuse equation inside the PBR path.
 
 This fixed host behavior adds no public property, keyword, pass, variant, or dependency. The public property ABI is unchanged, so existing materials need no migration and receive the behavior automatically.
 
+### Toon direct-light visibility contract
+
+For `PureBase/Toon`, `light.color` in the `light` phase is the scene/direct light color multiplied by non-shadow distance, spot, and cookie attenuation. Unity effective per-light visibility is exposed independently through `sd.shadow` before `light`, `modifylight`, and `shade`. The same split is used for the supported directional, point, spot, point-cookie, and directional-cookie light branches.
+
+`sd.shadow` represents Unity effective visibility, including realtime shadows, baked occlusion and Shadowmask mixing, and shadow-distance fade where enabled. It is not a raw realtime-only sample. Existing Toon light modules that assumed `light.color` was already pre-shadowed must read `sd.shadow` instead.
+
+After the `light` phase, the Toon host consumes `sd.shadow` exactly once while accumulating host-managed direct radiance into `lightSum.color`. It does not apply visibility to aggregate light direction, SH, lightmap, or environment lighting, and it does not consume the value again after that direct-radiance evaluation. This Toon-only ownership adds no second `sd.shadow` consumption to PBR, Hybrid, or Unlit. A module may observe `sd.shadow` for classification or use it for an independent module-owned effect, but it must not multiply host-managed Toon direct radiance or color by `sd.shadow` again. `customlight` owns the visibility of its own lights after main-light aggregation; the host does not add an implicit visibility factor for that phase.
+
+For `LIGHTMAP_ON && LIGHTMAP_SHADOW_MIXING && !SHADOWS_SHADOWMASK && SHADOWS_SCREEN`, Shader-Core suppresses the main-light callback, leaves `sd.shadow` at its initialized value `1`, and applies Subtractive shadowing exactly once. This Shader-Core Mixed/Subtractive handling does not add a second Toon visibility consumption. Lightmap and SH environment lighting remain separate from direct visibility. `ShadowCaster` remains casting-only and unchanged; this receiving-side contract does not change the material ABI, render modes, or pass declarations.
+
 ## Release preparation and publication
 
 `package.json` is the sole release identity and version declaration.

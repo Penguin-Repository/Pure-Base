@@ -151,6 +151,16 @@ Unlit returns the base surface without host direct, baked, ambient, or environme
 
 Toon evaluates a binary direct diffuse response from the surface normal and light direction. Its `ForwardBase` direction combines the Shader-Core direct aggregate with the first-order SH direction, and its ambient result selects a fixed bright or dark SH band from that direction. Shader-Core continues to provide the lightmap input; when Shader-Core supplies the lightmap aggregate, Toon does not synthesize an additional baked-light contribution. `ForwardAdd` contributes direct light only.
 
+### Toon direct-light visibility contract
+
+For `PureBase/Toon`, the per-light `light.color` exposed to the `light` phase is the scene/direct light color multiplied by non-shadow distance, spot, and cookie attenuation. Unity effective visibility is published separately as `sd.shadow` before the `light` phase, so the same value is available to the `modifylight` and `shade` phases. This contract applies across the supported Unity light-kind branches, including directional, point, spot, point-cookie, and directional-cookie inputs.
+
+`sd.shadow` is Unity effective per-light visibility: it includes realtime shadowing, baked occlusion and Shadowmask mixing, and shadow-distance fade wherever Unity enables those behaviors. It is not a raw realtime-only shadow sample. Existing Toon light modules that assumed Shader-Core had already multiplied shadow visibility into `light.color` must migrate to `sd.shadow`.
+
+After the `light` phase, the Toon host consumes `sd.shadow` exactly once while accumulating host-managed direct radiance into `lightSum.color`. It does not apply visibility to aggregate light direction, SH, lightmap, or environment lighting, and it does not consume the value again after that direct-radiance evaluation. This Toon-only ownership adds no second `sd.shadow` consumption to PBR, Hybrid, or Unlit. A module may observe `sd.shadow` for classification or use it for an independent module-owned effect, but it must not multiply host-managed Toon direct radiance or color by `sd.shadow` again. `customlight` remains responsible for the visibility of lights it authors or changes after main-light aggregation; the Toon host does not infer or add that visibility for it.
+
+In the exact `LIGHTMAP_ON && LIGHTMAP_SHADOW_MIXING && !SHADOWS_SHADOWMASK && SHADOWS_SCREEN` case, Shader-Core suppresses the main-light callback, `sd.shadow` remains at its initialized value `1`, and Shader-Core owns Subtractive application exactly once. This Shader-Core Mixed/Subtractive handling does not add a second Toon visibility consumption. Lightmap and SH environment lighting remain separate from direct-light visibility. `ShadowCaster` controls casting only and is unchanged by this receiving-side split; there is no material ABI, render-mode, or pass change.
+
 ### PBR
 
 PBR evaluates a continuous metallic BRDF for direct lighting. Its `ForwardBase` also evaluates Unity Standard indirect GI and reflection probes. Its `ForwardAdd` evaluates only the additional direct BRDF contribution.
