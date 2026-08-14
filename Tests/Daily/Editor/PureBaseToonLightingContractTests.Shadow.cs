@@ -368,7 +368,7 @@ namespace PureBase.Tests.Daily
             /// <returns>The complete light capture request.</returns>
             public LightCaptureRequest CreateRequest(Texture cookie)
             {
-                return new LightCaptureRequest
+                return new LightCaptureRequest(cookie)
                 {
                     normal = normal,
                     lightColor = lightColor,
@@ -376,7 +376,6 @@ namespace PureBase.Tests.Daily
                     coefficients = ShCoefficients.Zero,
                     lightType = lightType,
                     lightCount = 1,
-                    cookie = cookie,
                 };
             }
         }
@@ -403,7 +402,7 @@ namespace PureBase.Tests.Daily
             Color near = capture.RenderLightWithCookie(
                 "PureBase/Toon",
                 "ForwardAdd",
-                new LightCaptureRequest
+                new LightCaptureRequest(whiteCookie)
                 {
                     normal = Vector3.back,
                     lightColor = color,
@@ -412,13 +411,12 @@ namespace PureBase.Tests.Daily
                     lightType = LightType.Point,
                     lightCount = 1,
                     range = 4.0f,
-                    cookie = whiteCookie,
                 }
             );
             Color edge = capture.RenderLightWithCookie(
                 "PureBase/Toon",
                 "ForwardAdd",
-                new LightCaptureRequest
+                new LightCaptureRequest(whiteCookie)
                 {
                     normal = Vector3.back,
                     lightColor = color,
@@ -427,7 +425,6 @@ namespace PureBase.Tests.Daily
                     lightType = LightType.Point,
                     lightCount = 1,
                     range = 4.0f,
-                    cookie = whiteCookie,
                 }
             );
             AssertFinite(near, "Point white-cookie near readback");

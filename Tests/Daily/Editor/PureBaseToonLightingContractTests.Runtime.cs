@@ -114,6 +114,13 @@ namespace PureBase.Tests.Daily
         /// <summary>Groups the inputs for one isolated Unity light readback.</summary>
         private sealed class LightCaptureRequest
         {
+            /// <summary>Initializes one light capture request with an optional caller-owned transient cookie.</summary>
+            /// <param name="cookie">The caller-owned cookie to apply to transient Unity lights, if any.</param>
+            public LightCaptureRequest(Texture cookie = null)
+            {
+                this.cookie = cookie;
+            }
+
             /// <summary>Gets or sets the uniform mesh world normal.</summary>
             public Vector3 normal { get; set; }
 
@@ -138,8 +145,8 @@ namespace PureBase.Tests.Daily
             /// <summary>Gets or sets the Spot outer angle.</summary>
             public float spotAngle { get; set; } = 30.0f;
 
-            /// <summary>Gets or sets the optional caller-owned transient cookie.</summary>
-            public Texture cookie { get; set; }
+            /// <summary>Gets the optional caller-owned transient cookie.</summary>
+            public Texture cookie { get; }
         }
 
         /// <summary>Owns one isolated regular-render fixture and restores every Unity global it changes.</summary>
@@ -1567,7 +1574,7 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Stores one multi-module name and count without retaining SerializedProperty state.</summary>
-            private readonly struct MultiModuleSetting
+            private readonly struct MultiModuleSetting : IEquatable<MultiModuleSetting>
             {
                 /// <summary>Initializes one multi-module selection.</summary>
                 public MultiModuleSetting(string name, int count)
@@ -1587,10 +1594,25 @@ namespace PureBase.Tests.Daily
                 {
                     return name == other.name && count == other.count;
                 }
+
+                /// <inheritdoc />
+                public override bool Equals(object obj)
+                {
+                    return obj is MultiModuleSetting other && Equals(other);
+                }
+
+                /// <inheritdoc />
+                public override int GetHashCode()
+                {
+                    unchecked
+                    {
+                        return ((name == null ? 0 : name.GetHashCode()) * 31) + count;
+                    }
+                }
             }
 
             /// <summary>Stores only the captured ToonShadow row presence and exact module collections.</summary>
-            private readonly struct ToonShadowSettingsRow
+            private readonly struct ToonShadowSettingsRow : IEquatable<ToonShadowSettingsRow>
             {
                 /// <summary>Initializes one captured ToonShadow selection row.</summary>
                 public ToonShadowSettingsRow(
@@ -1623,17 +1645,35 @@ namespace PureBase.Tests.Daily
                 /// <summary>Compares one captured ToonShadow row semantically and in selection order.</summary>
                 public bool Equals(ToonShadowSettingsRow other)
                 {
-                    if (present != other.present || modules.Length != other.modules.Length || multiModules.Length != other.multiModules.Length)
+                    if (present != other.present)
                     {
                         return false;
                     }
 
-                    for (var index = 0; index < modules.Length; index++)
+                    if (!ReferenceEquals(modules, other.modules))
                     {
-                        if (modules[index] != other.modules[index])
+                        if (modules == null || other.modules == null || modules.Length != other.modules.Length)
                         {
                             return false;
                         }
+
+                        for (var index = 0; index < modules.Length; index++)
+                        {
+                            if (modules[index] != other.modules[index])
+                            {
+                                return false;
+                            }
+                        }
+                    }
+
+                    if (ReferenceEquals(multiModules, other.multiModules))
+                    {
+                        return true;
+                    }
+
+                    if (multiModules == null || other.multiModules == null || multiModules.Length != other.multiModules.Length)
+                    {
+                        return false;
                     }
 
                     for (var index = 0; index < multiModules.Length; index++)
@@ -1645,6 +1685,42 @@ namespace PureBase.Tests.Daily
                     }
 
                     return true;
+                }
+
+                /// <inheritdoc />
+                public override bool Equals(object obj)
+                {
+                    return obj is ToonShadowSettingsRow other && Equals(other);
+                }
+
+                /// <inheritdoc />
+                public override int GetHashCode()
+                {
+                    unchecked
+                    {
+                        var hash = present ? 1 : 0;
+                        hash = (hash * 31) + (modules == null ? 0 : 1);
+                        if (modules != null)
+                        {
+                            hash = (hash * 31) + modules.Length;
+                            foreach (string module in modules)
+                            {
+                                hash = (hash * 31) + (module == null ? 0 : module.GetHashCode());
+                            }
+                        }
+
+                        hash = (hash * 31) + (multiModules == null ? 0 : 1);
+                        if (multiModules != null)
+                        {
+                            hash = (hash * 31) + multiModules.Length;
+                            foreach (MultiModuleSetting multiModule in multiModules)
+                            {
+                                hash = (hash * 31) + multiModule.GetHashCode();
+                            }
+                        }
+
+                        return hash;
+                    }
                 }
             }
         }
