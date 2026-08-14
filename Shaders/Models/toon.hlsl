@@ -45,10 +45,10 @@ void SCModelInitializeTangentNormal(inout SCShadingData shadingData)
     shadingData.N_detail = shadingData.N;
 }
 
-/// <summary>Returns the quantized per-light Toon response after the Shader-Core light phase.</summary>
+/// <summary>Returns the quantized per-light Toon response with Unity effective visibility applied once after the Shader-Core light phase.</summary>
 half SCModelEvaluateDirectFactor(SCShadingData shadingData, SCLightData light)
 {
-    return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction);
+    return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction) * shadingData.shadow;
 }
 
 /// <summary>Prepares the Toon main light so direct radiance remains independent from directional visibility.</summary>
