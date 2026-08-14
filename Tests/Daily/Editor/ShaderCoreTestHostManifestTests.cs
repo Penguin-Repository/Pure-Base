@@ -78,52 +78,76 @@ namespace PureBase.Tests.Daily
             Assert.That(manifest.hosts, Is.Not.Null);
             Assert.That(manifest.hosts.Length, Is.EqualTo(12));
 
+            AssertHostSelections(manifest.hosts);
+            AssertManifestRuntimeContracts(manifest.hosts);
+        }
+
+        /// <summary>Asserts unique shader names and required module and sentinel configuration for every host entry.</summary>
+        /// <param name="hosts">The manifest host entries to inspect.</param>
+        private static void AssertHostSelections(HostManifestEntry[] hosts)
+        {
             var shaderNames = new System.Collections.Generic.HashSet<string>(
                 StringComparer.Ordinal
             );
-            foreach (HostManifestEntry host in manifest.hosts)
+            foreach (HostManifestEntry host in hosts)
             {
-                Assert.That(host.shaderName, Is.Not.Empty);
-                Assert.That(
-                    shaderNames.Add(host.shaderName),
-                    Is.True,
-                    $"Duplicate fixed host shader '{host.shaderName}'."
-                );
-
-                var moduleCount = string.IsNullOrEmpty(host.moduleUniqueId)
-                    ? host.moduleUniqueIds?.Length ?? 0
-                    : 1;
-                Assert.That(
-                    moduleCount,
-                    Is.GreaterThan(0),
-                    $"Host '{host.shaderName}' has no fixed module selection."
-                );
-                Assert.That(
-                    host.expectedSentinels,
-                    Is.Not.Null.And.Not.Empty,
-                    $"Host '{host.shaderName}' has no expected sentinels."
-                );
-                Assert.That(
-                    host.expectedPassSentinelCounts,
-                    Is.Not.Null,
-                    $"Host '{host.shaderName}' has no expected pass counts."
-                );
+                AssertHostSelection(host, shaderNames);
             }
+        }
 
+        /// <summary>Asserts the expected aggregate runtime contract counts across all fixed hosts.</summary>
+        /// <param name="hosts">The manifest host entries to inspect.</param>
+        private static void AssertManifestRuntimeContracts(HostManifestEntry[] hosts)
+        {
             Assert.That(
-                manifest.hosts.Count(HasConfiguredRuntimeDelta),
+                hosts.Count(HasConfiguredRuntimeDelta),
                 Is.EqualTo(10),
                 "Each phase host must declare one valid runtime delta and the module-order host must not."
             );
             Assert.That(
-                manifest.hosts.Count(HasConfiguredModuleOrder),
+                hosts.Count(HasConfiguredModuleOrder),
                 Is.EqualTo(1),
                 "Only the module-order host must declare one valid module-order contract."
             );
             Assert.That(
-                manifest.hosts.Count(HasConfiguredRuntimeEvidence),
+                hosts.Count(HasConfiguredRuntimeEvidence),
                 Is.EqualTo(1),
                 "Only the Toon shadow host must declare one valid phase-shadow runtime contract."
+            );
+        }
+
+        /// <summary>Asserts that one host has required unique module and sentinel configuration.</summary>
+        /// <param name="host">The host entry to inspect.</param>
+        /// <param name="shaderNames">The set used to detect duplicate shader names.</param>
+        private static void AssertHostSelection(
+            HostManifestEntry host,
+            System.Collections.Generic.HashSet<string> shaderNames
+        )
+        {
+            Assert.That(host.shaderName, Is.Not.Empty);
+            Assert.That(
+                shaderNames.Add(host.shaderName),
+                Is.True,
+                $"Duplicate fixed host shader '{host.shaderName}'."
+            );
+
+            var moduleCount = string.IsNullOrEmpty(host.moduleUniqueId)
+                ? host.moduleUniqueIds?.Length ?? 0
+                : 1;
+            Assert.That(
+                moduleCount,
+                Is.GreaterThan(0),
+                $"Host '{host.shaderName}' has no fixed module selection."
+            );
+            Assert.That(
+                host.expectedSentinels,
+                Is.Not.Null.And.Not.Empty,
+                $"Host '{host.shaderName}' has no expected sentinels."
+            );
+            Assert.That(
+                host.expectedPassSentinelCounts,
+                Is.Not.Null,
+                $"Host '{host.shaderName}' has no expected pass counts."
             );
         }
 
@@ -288,17 +312,71 @@ namespace PureBase.Tests.Daily
                 return false;
             }
 
-            return string.Equals(runtimeEvidence.phaseChannels.light, "red", StringComparison.Ordinal)
-                && string.Equals(runtimeEvidence.phaseChannels.modifylight, "green", StringComparison.Ordinal)
-                && string.Equals(runtimeEvidence.phaseChannels.shade, "blue", StringComparison.Ordinal)
-                && runtimeEvidence.shadowModes != null
-                && runtimeEvidence.shadowModes.SequenceEqual(new[] { "None", "Hard", "Soft" })
-                && runtimeEvidence.unshadowedValue > 0.0f
-                && runtimeEvidence.hardShadowMaximum < runtimeEvidence.unshadowedValue
-                && runtimeEvidence.softShadowMinimum > 0.0f
-                && runtimeEvidence.softShadowMaximum < runtimeEvidence.unshadowedValue
-                && runtimeEvidence.requireFinite
-                && runtimeEvidence.requireChannelAgreement;
+            if (!HasConfiguredPhaseChannels(runtimeEvidence.phaseChannels))
+            {
+                return false;
+            }
+
+            if (!HasConfiguredShadowModes(runtimeEvidence.shadowModes))
+            {
+                return false;
+            }
+
+            if (!HasValidShadowEvidenceRange(runtimeEvidence))
+            {
+                return false;
+            }
+
+            return runtimeEvidence.requireFinite && runtimeEvidence.requireChannelAgreement;
+        }
+
+        /// <summary>Returns whether the manifest declares the required red, green, and blue phase channels.</summary>
+        /// <param name="phaseChannels">The phase-channel declaration to inspect.</param>
+        /// <returns>Whether every phase channel has its expected semantic color.</returns>
+        private static bool HasConfiguredPhaseChannels(PhaseChannels phaseChannels)
+        {
+            if (!string.Equals(phaseChannels.light, "red", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!string.Equals(phaseChannels.modifylight, "green", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return string.Equals(phaseChannels.shade, "blue", StringComparison.Ordinal);
+        }
+
+        /// <summary>Returns whether the manifest declares the expected ordered shadow modes.</summary>
+        /// <param name="shadowModes">The optional shadow-mode declaration to inspect.</param>
+        /// <returns>Whether the declaration exactly lists None, Hard, and Soft modes.</returns>
+        private static bool HasConfiguredShadowModes(string[] shadowModes)
+        {
+            return shadowModes != null && shadowModes.SequenceEqual(new[] { "None", "Hard", "Soft" });
+        }
+
+        /// <summary>Returns whether the configured shadow numeric bounds are internally valid.</summary>
+        /// <param name="runtimeEvidence">The runtime evidence declaration to inspect.</param>
+        /// <returns>Whether all unshadowed, Hard-shadow, and Soft-shadow bounds are valid.</returns>
+        private static bool HasValidShadowEvidenceRange(RuntimeEvidence runtimeEvidence)
+        {
+            if (runtimeEvidence.unshadowedValue <= 0.0f)
+            {
+                return false;
+            }
+
+            if (runtimeEvidence.hardShadowMaximum >= runtimeEvidence.unshadowedValue)
+            {
+                return false;
+            }
+
+            if (runtimeEvidence.softShadowMinimum <= 0.0f)
+            {
+                return false;
+            }
+
+            return runtimeEvidence.softShadowMaximum < runtimeEvidence.unshadowedValue;
         }
 
         /// <summary>Finds a Shader-Core asset by imported shader name in one read-only asset search root.</summary>

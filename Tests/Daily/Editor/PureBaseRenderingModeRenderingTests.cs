@@ -500,7 +500,9 @@ namespace PureBase.Tests.Daily
                     texture
                 );
                 if (scene.IsValid() && scene.isLoaded)
+                {
                     EditorSceneManager.ClosePreviewScene(scene);
+                }
             }
         }
 
@@ -631,7 +633,9 @@ namespace PureBase.Tests.Daily
                 if (cameraObject != null)
                     UnityEngine.Object.DestroyImmediate(cameraObject);
                 if (scene.IsValid() && scene.isLoaded)
+                {
                     EditorSceneManager.ClosePreviewScene(scene);
+                }
             }
         }
 
@@ -955,7 +959,9 @@ namespace PureBase.Tests.Daily
             {
                 Type type = assembly.GetType(fullName, false);
                 if (type != null)
+                {
                     return type;
+                }
             }
 
             return null;

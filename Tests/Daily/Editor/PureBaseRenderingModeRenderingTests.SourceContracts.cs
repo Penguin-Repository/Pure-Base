@@ -196,13 +196,55 @@ namespace PureBase.Tests.Daily
                 "Pure Base must own a dedicated non-shadow BIRP attenuation helper."
             );
 
-            string helper = File.ReadAllText(BirpLightAttenuationHelperPath);
-            string host = File.ReadAllText(BirpHostPath);
-            string toon = File.ReadAllText(ToonModelPath);
-            string pbr = File.ReadAllText(PbrModelPath);
-            string unlit = File.ReadAllText(UnlitModelPath);
-            string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
+            ToonShadowSourceSet sources = ToonShadowSourceSet.Load();
+            AssertNonShadowAttenuationHelperContract(sources.helper);
+            AssertRequiredToonAndNonToonSourceTokens(sources);
+            AssertModelPreparationOwnership(sources);
+            AssertToonShadowPhaseOrder(sources.host);
+            AssertDirectionalVisibilityOwnership(sources.host, sources.toon);
+        }
 
+        /// <summary>Stores the source texts participating in the Toon directional-shadow ownership contract.</summary>
+        private sealed class ToonShadowSourceSet
+        {
+            /// <summary>Gets the dedicated non-shadow attenuation helper source.</summary>
+            public string helper { get; private set; }
+
+            /// <summary>Gets the Pure Base BIRP host source.</summary>
+            public string host { get; private set; }
+
+            /// <summary>Gets the Toon model source.</summary>
+            public string toon { get; private set; }
+
+            /// <summary>Gets the PBR model source.</summary>
+            public string pbr { get; private set; }
+
+            /// <summary>Gets the Unlit model source.</summary>
+            public string unlit { get; private set; }
+
+            /// <summary>Gets the Shader-Core BIRP lighting source.</summary>
+            public string shaderCoreLighting { get; private set; }
+
+            /// <summary>Loads all source texts participating in the shadow ownership contract.</summary>
+            /// <returns>The loaded source-text set.</returns>
+            public static ToonShadowSourceSet Load()
+            {
+                return new ToonShadowSourceSet
+                {
+                    helper = File.ReadAllText(BirpLightAttenuationHelperPath),
+                    host = File.ReadAllText(BirpHostPath),
+                    toon = File.ReadAllText(ToonModelPath),
+                    pbr = File.ReadAllText(PbrModelPath),
+                    unlit = File.ReadAllText(UnlitModelPath),
+                    shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath),
+                };
+            }
+        }
+
+        /// <summary>Asserts that the dedicated attenuation helper preserves Unity branches without reconstructing visibility.</summary>
+        /// <param name="helper">The non-shadow attenuation helper source.</param>
+        private static void AssertNonShadowAttenuationHelperContract(string helper)
+        {
             foreach (string lightKind in new[] { "DIRECTIONAL", "POINT", "SPOT", "POINT_COOKIE", "DIRECTIONAL_COOKIE" })
             {
                 StringAssert.Contains(lightKind, helper, "The non-shadow helper must preserve Unity's " + lightKind + " branch.");
@@ -214,19 +256,31 @@ namespace PureBase.Tests.Daily
                 Is.False,
                 "The non-shadow helper must not reconstruct attenuation by dividing through visibility."
             );
-            StringAssert.Contains("UNITY_SHADOW_ATTENUATION", host);
-            StringAssert.Contains("mainLightNonShadowAttenuation", host);
-            StringAssert.Contains("mainLightShadowVisibility", host);
-            StringAssert.Contains("SCModelPrepareMainLight", host);
-            StringAssert.Contains("SCModelPrepareMainLight", toon);
-            StringAssert.Contains("sd.shadow", toon);
-            StringAssert.Contains("mainLightAttenuation", pbr);
-            StringAssert.Contains("SCModelPrepareMainLight", unlit);
-            StringAssert.Contains("LIGHTMAP_SHADOW_MIXING", shaderCoreLighting);
-            StringAssert.DoesNotContain("LIGHTMAP_SHADOW_MIXING", host);
+        }
+
+        /// <summary>Asserts the tokens that separate Toon visibility ownership from shared and non-Toon lighting sources.</summary>
+        /// <param name="sources">The loaded source texts to inspect.</param>
+        private static void AssertRequiredToonAndNonToonSourceTokens(ToonShadowSourceSet sources)
+        {
+            StringAssert.Contains("UNITY_SHADOW_ATTENUATION", sources.host);
+            StringAssert.Contains("mainLightNonShadowAttenuation", sources.host);
+            StringAssert.Contains("mainLightShadowVisibility", sources.host);
+            StringAssert.Contains("SCModelPrepareMainLight", sources.host);
+            StringAssert.Contains("SCModelPrepareMainLight", sources.toon);
+            StringAssert.Contains("sd.shadow", sources.toon);
+            StringAssert.Contains("mainLightAttenuation", sources.pbr);
+            StringAssert.Contains("SCModelPrepareMainLight", sources.unlit);
+            StringAssert.Contains("LIGHTMAP_SHADOW_MIXING", sources.shaderCoreLighting);
+            StringAssert.DoesNotContain("LIGHTMAP_SHADOW_MIXING", sources.host);
+        }
+
+        /// <summary>Asserts PBR attenuation preservation and Unlit's explicit no-op main-light callback.</summary>
+        /// <param name="sources">The loaded source texts to inspect.</param>
+        private static void AssertModelPreparationOwnership(ToonShadowSourceSet sources)
+        {
             Assert.That(
                 Regex.IsMatch(
-                    pbr,
+                    sources.pbr,
                     @"void\s+SCModelInitializeGiInput\s*\(\s*out\s+UnityGIInput\s+input\s*,\s*SCCustomData\s+customData\s*,\s*SCVertexData\s+vertex\s*\)\s*\{[^}]*\binput\.atten\s*=\s*customData\.mainLightAttenuation\s*;",
                     RegexOptions.Singleline
                 ),
@@ -235,14 +289,19 @@ namespace PureBase.Tests.Daily
             );
             Assert.That(
                 Regex.IsMatch(
-                    unlit,
+                    sources.unlit,
                     @"void\s+SCModelPrepareMainLight\s*\([^)]*\)\s*\{\s*\}",
                     RegexOptions.Singleline
                 ),
                 Is.True,
                 "Unlit must retain an explicit no-op main-light preparation callback."
             );
+            }
 
+            /// <summary>Asserts that BIRP captures shadow visibility and orders Shader-Core light phases before aggregation.</summary>
+            /// <param name="host">The Pure Base BIRP host source.</param>
+            private static void AssertToonShadowPhaseOrder(string host)
+            {
             int surfaceInitialization = RequireIndex(host, "SCShadingData sd");
             int shadowCapture = RequireIndex(host, "UNITY_SHADOW_ATTENUATION");
             int allLights = RequireIndex(host, "SCCalculateAllLights");
@@ -268,6 +327,13 @@ namespace PureBase.Tests.Daily
                 Is.True,
                 "SCCalculateLight must select the main-light direction, prepare model data, expose the light phase, and only then aggregate the light."
             );
+        }
+
+        /// <summary>Asserts that directional visibility is published only through Toon phase-local shadow data.</summary>
+        /// <param name="host">The Pure Base BIRP host source.</param>
+        /// <param name="toon">The Toon model source.</param>
+        private static void AssertDirectionalVisibilityOwnership(string host, string toon)
+        {
             Assert.That(
                 Regex.IsMatch(host, @"lightSum\.(?:color|direction)\s*\*?=\s*[^;]*sd\.shadow"),
                 Is.False

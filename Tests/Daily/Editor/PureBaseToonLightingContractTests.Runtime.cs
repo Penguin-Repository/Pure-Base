@@ -111,11 +111,67 @@ namespace PureBase.Tests.Daily
             public string[] keywords { get; }
         }
 
+        /// <summary>Groups the inputs for one isolated Unity light readback.</summary>
+        private sealed class LightCaptureRequest
+        {
+            /// <summary>Gets or sets the uniform mesh world normal.</summary>
+            public Vector3 normal { get; set; }
+
+            /// <summary>Gets or sets the real main or additional light color.</summary>
+            public Vector4 lightColor { get; set; }
+
+            /// <summary>Gets or sets the real directional or local-light position.</summary>
+            public Vector4 lightPosition { get; set; }
+
+            /// <summary>Gets or sets the spherical-harmonic globals for the render.</summary>
+            public ShCoefficients coefficients { get; set; }
+
+            /// <summary>Gets or sets the real Unity light type.</summary>
+            public LightType lightType { get; set; }
+
+            /// <summary>Gets or sets the number of ForcePixel lights to create.</summary>
+            public int lightCount { get; set; }
+
+            /// <summary>Gets or sets the Point or Spot light range.</summary>
+            public float range { get; set; } = 4.0f;
+
+            /// <summary>Gets or sets the Spot outer angle.</summary>
+            public float spotAngle { get; set; } = 30.0f;
+
+            /// <summary>Gets or sets the optional caller-owned transient cookie.</summary>
+            public Texture cookie { get; set; }
+        }
+
         /// <summary>Owns one isolated regular-render fixture and restores every Unity global it changes.</summary>
         private class ToonLightingCaptureRuntimeScope : IDisposable
         {
             /// <summary>Stores the dedicated layer used by the preview-scene renderer and lights.</summary>
             private const int FixtureLayer = 31;
+
+            /// <summary>Owns transient objects and readback resources for one directional shadow receiver capture.</summary>
+            private sealed class ShadowReceiverCapture
+            {
+                /// <summary>Stores the transient diagnostic camera object.</summary>
+                public GameObject cameraObject;
+
+                /// <summary>Stores the transient receiver object.</summary>
+                public GameObject receiver;
+
+                /// <summary>Stores the transient shadow caster object.</summary>
+                public GameObject caster;
+
+                /// <summary>Stores the transient directional-light object.</summary>
+                public GameObject lightObject;
+
+                /// <summary>Stores the transient linear receiver render target.</summary>
+                public RenderTexture target;
+
+                /// <summary>Stores the transient CPU receiver readback texture.</summary>
+                public Texture2D readback;
+
+                /// <summary>Stores the configured diagnostic camera.</summary>
+                public Camera camera;
+            }
 
             /// <summary>Lists the spherical-harmonic globals injected immediately before each render.</summary>
             private static readonly string[] GlobalNames =
@@ -290,78 +346,40 @@ namespace PureBase.Tests.Daily
                 Material material = CreateProductMaterial(shaderName, passName, metallic);
                 if (pointLight)
                 {
-                    Color oneLight = RenderWithLights(
+                    return RenderLightDifference(
                         material,
-                        normal,
-                        lightColor,
-                        lightPosition,
-                        coefficients,
-                        LightType.Point,
-                        1
-                    );
-                    Color twoLights = RenderWithLights(
-                        material,
-                        normal,
-                        lightColor,
-                        lightPosition,
-                        coefficients,
-                        LightType.Point,
-                        2
-                    );
-                    return new Color(
-                        twoLights.r - oneLight.r,
-                        twoLights.g - oneLight.g,
-                        twoLights.b - oneLight.b,
-                        twoLights.a
+                        CreateLightCaptureRequest(
+                            normal,
+                            lightColor,
+                            lightPosition,
+                            coefficients,
+                            LightType.Point
+                        )
                     );
                 }
 
                 return RenderWithLights(
                     material,
-                    normal,
-                    lightColor,
-                    lightPosition,
-                    coefficients,
-                    LightType.Directional,
-                    lightColor == Vector4.zero ? 0 : 1
+                    CreateDirectionalLightCaptureRequest(
+                        normal,
+                        lightColor,
+                        lightPosition,
+                        coefficients
+                    )
                 );
             }
 
             /// <summary>Renders one direct or additional light with an optional transient Unity cookie.</summary>
             /// <param name="shaderName">The required product shader name.</param>
             /// <param name="passName">The product pass that receives the light.</param>
-            /// <param name="normal">The uniform mesh world normal.</param>
-            /// <param name="lightColor">The light color.</param>
-            /// <param name="lightPosition">The directional vector or local-light position.</param>
-            /// <param name="lightType">The real Unity light type.</param>
-            /// <param name="cookie">The optional caller-owned transient cookie.</param>
-            /// <param name="range">The transient Point or Spot range.</param>
-            /// <param name="spotAngle">The transient Spot outer angle.</param>
+            /// <param name="request">The coherent light and cookie input for the capture.</param>
             /// <returns>The center linear readback.</returns>
-            public Color RenderLightWithCookie(
-                string shaderName,
-                string passName,
-                Vector3 normal,
-                Vector4 lightColor,
-                Vector4 lightPosition,
-                LightType lightType,
-                Texture cookie,
-                float range = 4.0f,
-                float spotAngle = 30.0f
-            )
+            public Color RenderLightWithCookie(string shaderName, string passName, LightCaptureRequest request)
             {
                 Material material = CreateProductMaterial(shaderName, passName, 0.0f);
                 return RenderWithLights(
                     material,
-                    normal,
-                    lightColor,
-                    lightPosition,
-                    ShCoefficients.Zero,
-                    lightType,
-                    1,
-                    range,
-                    spotAngle,
-                    cookie
+                    request
                 );
             }
 
@@ -372,8 +390,27 @@ namespace PureBase.Tests.Daily
             public ShadowReceiverObservation RenderDirectionalShadowReceiver(string shaderName, LightShadows shadows)
             {
                 Material material = CreateProductMaterial(shaderName, "ForwardBase", 0.0f);
+                Scene receiverScene = GetShadowReceiverScene(out bool receiverSceneWasLoaded);
+                var capture = new ShadowReceiverCapture();
+                try
+                {
+                    ConfigureShadowReceiverCapture(capture, receiverScene, material, shadows);
+                    return ReadShadowReceiverObservation(capture);
+                }
+                finally
+                {
+                    DestroyShadowReceiverCapture(capture);
+                    RestoreShadowReceiverScene(receiverScene, receiverSceneWasLoaded);
+                }
+            }
+
+            /// <summary>Gets the existing shadow-owner scene or opens it additively for one capture.</summary>
+            /// <param name="receiverSceneWasLoaded">Receives whether the owner scene was already loaded.</param>
+            /// <returns>The shadow-owner scene.</returns>
+            private static Scene GetShadowReceiverScene(out bool receiverSceneWasLoaded)
+            {
                 Scene receiverScene = SceneManager.GetSceneByPath(ShadowCaptureOwnerScenePath);
-                bool receiverSceneWasLoaded = receiverScene.isLoaded;
+                receiverSceneWasLoaded = receiverScene.isLoaded;
                 if (!receiverSceneWasLoaded)
                 {
                     receiverScene = EditorSceneManager.OpenScene(
@@ -385,97 +422,172 @@ namespace PureBase.Tests.Daily
                         EditorSceneManager.CalculateAvailableSceneCullingMask()
                     );
                 }
-                GameObject cameraObject = null;
-                GameObject receiver = null;
-                GameObject caster = null;
-                GameObject lightObject = null;
-                RenderTexture receiverTarget = null;
-                Texture2D receiverReadback = null;
-                try
+
+                return receiverScene;
+            }
+
+            /// <summary>Allocates and configures the complete directional shadow receiver capture.</summary>
+            /// <param name="capture">Owns every allocated capture resource from its first allocation.</param>
+            /// <param name="receiverScene">The scene that owns all generated capture objects.</param>
+            /// <param name="material">The registered product material applied to the receiver.</param>
+            /// <param name="shadows">The requested Unity directional shadow mode.</param>
+            private void ConfigureShadowReceiverCapture(
+                ShadowReceiverCapture capture,
+                Scene receiverScene,
+                Material material,
+                LightShadows shadows
+            )
+            {
+                CreateShadowReceiverResources(capture, receiverScene);
+                ConfigureShadowReceiverCamera(capture, receiverScene);
+                ConfigureShadowReceiverGeometry(capture, material);
+                ConfigureShadowReceiverLight(capture, shadows);
+            }
+
+            /// <summary>Allocates and immediately registers all transient objects and readback resources for a receiver capture.</summary>
+            /// <param name="capture">The capture that owns every allocated resource.</param>
+            /// <param name="receiverScene">The scene that owns all generated capture objects.</param>
+            private static void CreateShadowReceiverResources(
+                ShadowReceiverCapture capture,
+                Scene receiverScene
+            )
+            {
+                capture.cameraObject = CreateShadowSceneObject(
+                    receiverScene,
+                    "PureBase Toon Shadow Diagnostic Camera"
+                );
+                capture.receiver = CreateShadowSceneObject(
+                    receiverScene,
+                    "PureBase Toon Shadow Diagnostic Receiver"
+                );
+                capture.caster = CreateShadowSceneObject(
+                    receiverScene,
+                    "PureBase Toon Shadow Diagnostic Caster"
+                );
+                capture.lightObject = CreateShadowSceneObject(
+                    receiverScene,
+                    "PureBase Toon Shadow Diagnostic Light"
+                );
+                capture.target = new RenderTexture(
+                    64,
+                    64,
+                    24,
+                    RenderTextureFormat.ARGBFloat,
+                    RenderTextureReadWrite.Linear
+                ) { hideFlags = HideFlags.HideAndDontSave };
+                capture.target.Create();
+                capture.readback = new Texture2D(64, 64, TextureFormat.RGBAFloat, false, true)
                 {
-                    cameraObject = CreateShadowSceneObject(
-                        receiverScene,
-                        "PureBase Toon Shadow Diagnostic Camera"
-                    );
-                    receiver = CreateShadowSceneObject(
-                        receiverScene,
-                        "PureBase Toon Shadow Diagnostic Receiver"
-                    );
-                    caster = CreateShadowSceneObject(
-                        receiverScene,
-                        "PureBase Toon Shadow Diagnostic Caster"
-                    );
-                    lightObject = CreateShadowSceneObject(
-                        receiverScene,
-                        "PureBase Toon Shadow Diagnostic Light"
-                    );
-                    receiverTarget = new RenderTexture(
-                        64,
-                        64,
-                        24,
-                        RenderTextureFormat.ARGBFloat,
-                        RenderTextureReadWrite.Linear
-                    ) { hideFlags = HideFlags.HideAndDontSave };
-                    receiverTarget.Create();
-                    receiverReadback = new Texture2D(64, 64, TextureFormat.RGBAFloat, false, true)
-                    {
-                        hideFlags = HideFlags.HideAndDontSave,
-                    };
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
+            }
 
-                    Camera receiverCamera = cameraObject.AddComponent<Camera>();
-                    receiverCamera.enabled = false;
-                    receiverCamera.cullingMask = 1 << FixtureLayer;
-                    receiverCamera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(
-                        receiverScene
-                    );
-                    receiverCamera.clearFlags = CameraClearFlags.SolidColor;
-                    receiverCamera.backgroundColor = new Color(0.0f, 0.0f, 0.0f, 0.0f);
-                    receiverCamera.fieldOfView = 42.0f;
-                    receiverCamera.nearClipPlane = 0.1f;
-                    receiverCamera.farClipPlane = 20.0f;
-                    receiverCamera.transform.position = new Vector3(0.0f, 3.6f, -5.0f);
-                    receiverCamera.transform.LookAt(Vector3.zero);
-                    receiverCamera.targetTexture = receiverTarget;
+            /// <summary>Configures the receiver camera after its target and readback resources are registered.</summary>
+            /// <param name="capture">The capture whose diagnostic camera is configured.</param>
+            /// <param name="receiverScene">The scene isolated by the camera culling mask.</param>
+            private static void ConfigureShadowReceiverCamera(
+                ShadowReceiverCapture capture,
+                Scene receiverScene
+            )
+            {
+                capture.camera = capture.cameraObject.AddComponent<Camera>();
+                capture.camera.enabled = false;
+                capture.camera.cullingMask = 1 << FixtureLayer;
+                capture.camera.overrideSceneCullingMask = EditorSceneManager.GetSceneCullingMask(
+                    receiverScene
+                );
+                capture.camera.clearFlags = CameraClearFlags.SolidColor;
+                capture.camera.backgroundColor = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+                capture.camera.fieldOfView = 42.0f;
+                capture.camera.nearClipPlane = 0.1f;
+                capture.camera.farClipPlane = 20.0f;
+                capture.camera.transform.position = new Vector3(0.0f, 3.6f, -5.0f);
+                capture.camera.transform.LookAt(Vector3.zero);
+                capture.camera.targetTexture = capture.target;
+            }
 
-                    MeshRenderer receiverRenderer = receiver.AddComponent<MeshRenderer>();
-                    receiver.AddComponent<MeshFilter>().sharedMesh = CreateShadowReceiverMesh();
-                    receiverRenderer.sharedMaterial = material;
-                    receiverRenderer.receiveShadows = true;
-                    caster.transform.position = new Vector3(0.0f, 1.0f, 0.0f);
-                    caster.transform.localScale = new Vector3(1.1f, 1.8f, 1.1f);
-                    MeshRenderer casterRenderer = caster.AddComponent<MeshRenderer>();
-                    caster.AddComponent<MeshFilter>().sharedMesh = CreateShadowCasterMesh();
-                    casterRenderer.sharedMaterial = CreateStandardShadowCasterMaterial();
-                    casterRenderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-                    casterRenderer.receiveShadows = false;
-                    Light light = lightObject.AddComponent<Light>();
-                    light.type = LightType.Directional;
-                    light.renderMode = LightRenderMode.ForcePixel;
-                    light.color = Color.white;
-                    light.intensity = 1.0f;
-                    light.cullingMask = 1 << FixtureLayer;
-                    light.shadows = shadows;
-                    lightObject.transform.rotation = Quaternion.Euler(55.0f, -35.0f, 0.0f);
-                    receiverCamera.Render();
-                    return MeasureReceiverRegion(ReadPixels(receiverTarget, receiverReadback));
+            /// <summary>Configures the receiver and caster geometry for one directional shadow capture.</summary>
+            /// <param name="capture">The capture whose receiver and caster are configured.</param>
+            /// <param name="material">The registered product material applied to the receiver.</param>
+            private void ConfigureShadowReceiverGeometry(
+                ShadowReceiverCapture capture,
+                Material material
+            )
+            {
+                MeshRenderer receiverRenderer = capture.receiver.AddComponent<MeshRenderer>();
+                capture.receiver.AddComponent<MeshFilter>().sharedMesh = CreateShadowReceiverMesh();
+                receiverRenderer.sharedMaterial = material;
+                receiverRenderer.receiveShadows = true;
+                capture.caster.transform.position = new Vector3(0.0f, 1.0f, 0.0f);
+                capture.caster.transform.localScale = new Vector3(1.1f, 1.8f, 1.1f);
+                MeshRenderer casterRenderer = capture.caster.AddComponent<MeshRenderer>();
+                capture.caster.AddComponent<MeshFilter>().sharedMesh = CreateShadowCasterMesh();
+                casterRenderer.sharedMaterial = CreateStandardShadowCasterMaterial();
+                casterRenderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+                casterRenderer.receiveShadows = false;
+            }
+
+            /// <summary>Configures the directional shadow-casting light for one receiver capture.</summary>
+            /// <param name="capture">The capture whose directional light is configured.</param>
+            /// <param name="shadows">The requested Unity directional shadow mode.</param>
+            private static void ConfigureShadowReceiverLight(
+                ShadowReceiverCapture capture,
+                LightShadows shadows
+            )
+            {
+                Light light = capture.lightObject.AddComponent<Light>();
+                light.type = LightType.Directional;
+                light.renderMode = LightRenderMode.ForcePixel;
+                light.color = Color.white;
+                light.intensity = 1.0f;
+                light.cullingMask = 1 << FixtureLayer;
+                light.shadows = shadows;
+                capture.lightObject.transform.rotation = Quaternion.Euler(55.0f, -35.0f, 0.0f);
+            }
+
+            /// <summary>Renders a configured receiver capture and returns its visible-region observation.</summary>
+            /// <param name="capture">The configured receiver capture.</param>
+            /// <returns>The visible receiver-region measurement.</returns>
+            private ShadowReceiverObservation ReadShadowReceiverObservation(ShadowReceiverCapture capture)
+            {
+                capture.camera.Render();
+                return MeasureReceiverRegion(ReadPixels(capture.target, capture.readback));
+            }
+
+            /// <summary>Releases one receiver capture in the established render-target and object destruction order.</summary>
+            /// <param name="capture">The capture whose owned transient resources are released.</param>
+            private static void DestroyShadowReceiverCapture(ShadowReceiverCapture capture)
+            {
+                if (capture.readback != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(capture.readback);
                 }
-                finally
+
+                if (capture.target != null)
                 {
-                    if (receiverReadback != null)
-                        UnityEngine.Object.DestroyImmediate(receiverReadback);
-                    if (receiverTarget != null)
-                    {
-                        receiverTarget.Release();
-                        UnityEngine.Object.DestroyImmediate(receiverTarget);
-                    }
-                    DestroyShadowSceneObject(lightObject);
-                    DestroyShadowSceneObject(caster);
-                    DestroyShadowSceneObject(receiver);
-                    DestroyShadowSceneObject(cameraObject);
-                    if (!receiverSceneWasLoaded && receiverScene.IsValid() && receiverScene.isLoaded)
-                        EditorSceneManager.CloseScene(receiverScene, true);
-                    if (activeScene.IsValid() && activeScene.isLoaded)
-                        SceneManager.SetActiveScene(activeScene);
+                    capture.target.Release();
+                    UnityEngine.Object.DestroyImmediate(capture.target);
+                }
+
+                DestroyShadowSceneObject(capture.lightObject);
+                DestroyShadowSceneObject(capture.caster);
+                DestroyShadowSceneObject(capture.receiver);
+                DestroyShadowSceneObject(capture.cameraObject);
+            }
+
+            /// <summary>Restores the owner-scene load and active-scene state after a shadow receiver capture.</summary>
+            /// <param name="receiverScene">The capture owner scene.</param>
+            /// <param name="receiverSceneWasLoaded">Whether the owner scene preceded the capture.</param>
+            private void RestoreShadowReceiverScene(Scene receiverScene, bool receiverSceneWasLoaded)
+            {
+                if (!receiverSceneWasLoaded && receiverScene.IsValid() && receiverScene.isLoaded)
+                {
+                    EditorSceneManager.CloseScene(receiverScene, true);
+                }
+
+                if (activeScene.IsValid() && activeScene.isLoaded)
+                {
+                    SceneManager.SetActiveScene(activeScene);
                 }
             }
 
@@ -537,14 +649,85 @@ namespace PureBase.Tests.Daily
                     "The additional-light capture supports only Point and Spot lights."
                 );
                 Material material = CreateProductMaterial(shaderName, "ForwardAdd", 0.0f);
-                Color oneLight = RenderWithLights(
-                    material, normal, lightColor, lightPosition, coefficients,
-                    lightType, 1, range, spotAngle
+                return RenderLightDifference(
+                    material,
+                    CreateLightCaptureRequest(
+                        normal,
+                        lightColor,
+                        lightPosition,
+                        coefficients,
+                        lightType,
+                        range,
+                        spotAngle
+                    )
                 );
-                Color twoLights = RenderWithLights(
-                    material, normal, lightColor, lightPosition, coefficients,
-                    lightType, 2, range, spotAngle
+            }
+
+            /// <summary>Creates one Point, Spot, or cookie-capable light capture request with no lights enabled yet.</summary>
+            /// <param name="normal">The uniform mesh world normal.</param>
+            /// <param name="lightColor">The light color.</param>
+            /// <param name="lightPosition">The directional vector or local-light position.</param>
+            /// <param name="coefficients">The spherical-harmonic globals for the render.</param>
+            /// <param name="lightType">The Unity light type.</param>
+            /// <param name="range">The Point or Spot light range.</param>
+            /// <param name="spotAngle">The Spot outer angle.</param>
+            /// <returns>The coherent light capture request.</returns>
+            private static LightCaptureRequest CreateLightCaptureRequest(
+                Vector3 normal,
+                Vector4 lightColor,
+                Vector4 lightPosition,
+                ShCoefficients coefficients,
+                LightType lightType,
+                float range = 4.0f,
+                float spotAngle = 30.0f
+            )
+            {
+                return new LightCaptureRequest
+                {
+                    normal = normal,
+                    lightColor = lightColor,
+                    lightPosition = lightPosition,
+                    coefficients = coefficients,
+                    lightType = lightType,
+                    range = range,
+                    spotAngle = spotAngle,
+                };
+            }
+
+            /// <summary>Creates one Directional light capture request with the established zero-light color control.</summary>
+            /// <param name="normal">The uniform mesh world normal.</param>
+            /// <param name="lightColor">The directional light color.</param>
+            /// <param name="lightPosition">The directional light vector.</param>
+            /// <param name="coefficients">The spherical-harmonic globals for the render.</param>
+            /// <returns>The configured directional light capture request.</returns>
+            private static LightCaptureRequest CreateDirectionalLightCaptureRequest(
+                Vector3 normal,
+                Vector4 lightColor,
+                Vector4 lightPosition,
+                ShCoefficients coefficients
+            )
+            {
+                LightCaptureRequest request = CreateLightCaptureRequest(
+                    normal,
+                    lightColor,
+                    lightPosition,
+                    coefficients,
+                    LightType.Directional
                 );
+                request.lightCount = lightColor == Vector4.zero ? 0 : 1;
+                return request;
+            }
+
+            /// <summary>Renders one and two equivalent lights, returning only the isolated second-light contribution.</summary>
+            /// <param name="material">The configured transient material.</param>
+            /// <param name="request">The light capture request reused for one- and two-light rendering.</param>
+            /// <returns>The isolated second-light contribution.</returns>
+            private Color RenderLightDifference(Material material, LightCaptureRequest request)
+            {
+                request.lightCount = 1;
+                Color oneLight = RenderWithLights(material, request);
+                request.lightCount = 2;
+                Color twoLights = RenderWithLights(material, request);
                 return new Color(
                     twoLights.r - oneLight.r,
                     twoLights.g - oneLight.g,
@@ -613,35 +796,22 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Renders a controlled mesh with the requested real Unity light setup.</summary>
             /// <param name="material">The configured transient material.</param>
-            /// <param name="normal">The uniform mesh world normal.</param>
-            /// <param name="lightColor">The real main or additional light color.</param>
-            /// <param name="lightPosition">The real directional or point light vector.</param>
-            /// <param name="coefficients">The seven SH globals for the render.</param>
-            /// <param name="pointLight">Whether the setup uses Point lights.</param>
-            /// <param name="lightCount">The number of ForcePixel lights to create.</param>
+            /// <param name="request">The coherent light and spherical-harmonic input for one render.</param>
             /// <returns>The center linear float readback color.</returns>
             private Color RenderWithLights(
                 Material material,
-                Vector3 normal,
-                Vector4 lightColor,
-                Vector4 lightPosition,
-                ShCoefficients coefficients,
-                LightType lightType,
-                int lightCount,
-                float range = 4.0f,
-                float spotAngle = 30.0f,
-                Texture cookie = null
+                LightCaptureRequest request
             )
             {
                 var lightObjects = new List<GameObject>();
                 try
                 {
-                    InjectShGlobals(coefficients);
-                    ApplyShProperties(coefficients);
-                    meshFilter.sharedMesh = CreateNormalControlledQuad(normal);
+                    InjectShGlobals(request.coefficients);
+                    ApplyShProperties(request.coefficients);
+                    meshFilter.sharedMesh = CreateNormalControlledQuad(request.normal);
                     renderer.sharedMaterial = material;
                     renderer.enabled = true;
-                    CreateLights(lightObjects, lightColor, lightPosition, lightType, lightCount, range, spotAngle, cookie);
+                    CreateLights(lightObjects, request);
                     camera.Render();
                     Assert.That(
                         camera.actualRenderingPath,
@@ -689,22 +859,13 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Creates real ForcePixel lights on the isolated preview-scene layer.</summary>
             /// <param name="lightObjects">Receives the caller-owned light GameObjects immediately after allocation.</param>
-            /// <param name="lightColor">The real main or additional light color.</param>
-            /// <param name="lightPosition">The directional or point light vector.</param>
-            /// <param name="pointLight">Whether the setup uses Point lights.</param>
-            /// <param name="lightCount">The number of ForcePixel lights to create.</param>
+            /// <param name="request">The coherent light input for every generated light.</param>
             private void CreateLights(
                 List<GameObject> lightObjects,
-                Vector4 lightColor,
-                Vector4 lightPosition,
-                LightType lightType,
-                int lightCount,
-                float range,
-                float spotAngle,
-                Texture cookie = null
+                LightCaptureRequest request
             )
             {
-                for (int index = 0; index < lightCount; index++)
+                for (int index = 0; index < request.lightCount; index++)
                 {
                     GameObject lightObject = CreateHiddenObject(
                         "PureBase Toon Lighting Contract Light " + index,
@@ -712,17 +873,17 @@ namespace PureBase.Tests.Daily
                     );
                     Light light = lightObject.AddComponent<Light>();
                     light.renderMode = LightRenderMode.ForcePixel;
-                    light.color = new Color(lightColor.x, lightColor.y, lightColor.z, 1.0f).gamma;
+                    light.color = new Color(request.lightColor.x, request.lightColor.y, request.lightColor.z, 1.0f).gamma;
                     light.intensity = 1.0f;
                     light.cullingMask = 1 << FixtureLayer;
-                    light.type = lightType;
-                    light.cookie = cookie;
-                    if (lightType == LightType.Directional)
+                    light.type = request.lightType;
+                    light.cookie = request.cookie;
+                    if (request.lightType == LightType.Directional)
                     {
                         Vector3 direction = new Vector3(
-                            lightPosition.x,
-                            lightPosition.y,
-                            lightPosition.z
+                            request.lightPosition.x,
+                            request.lightPosition.y,
+                            request.lightPosition.z
                         ).normalized;
                         Assert.That(
                             direction,
@@ -733,14 +894,14 @@ namespace PureBase.Tests.Daily
                     }
                     else
                     {
-                        light.range = range;
-                        light.spotAngle = spotAngle;
+                        light.range = request.range;
+                        light.spotAngle = request.spotAngle;
                         lightObject.transform.position = new Vector3(
-                            lightPosition.x,
-                            lightPosition.y,
-                            lightPosition.z
+                            request.lightPosition.x,
+                            request.lightPosition.y,
+                            request.lightPosition.z
                         );
-                        if (lightType == LightType.Spot)
+                        if (request.lightType == LightType.Spot)
                         {
                             lightObject.transform.rotation = Quaternion.LookRotation(Vector3.forward, Vector3.up);
                         }
@@ -790,7 +951,9 @@ namespace PureBase.Tests.Daily
             private static void DestroyShadowSceneObject(GameObject gameObject)
             {
                 if (gameObject != null)
+                {
                     UnityEngine.Object.DestroyImmediate(gameObject);
+                }
             }
 
             /// <summary>Releases command-buffer, temporary objects, material, texture, target, and render-mesh resources.</summary>

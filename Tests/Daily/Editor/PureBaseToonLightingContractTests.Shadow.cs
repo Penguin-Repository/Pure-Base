@@ -236,15 +236,17 @@ namespace PureBase.Tests.Daily
                 {
                     AssertCookieSemanticReadback(
                         capture,
-                        "ForwardBase",
-                        Vector3.forward,
-                        new Vector4(0.45f, 0.35f, 0.25f, 1.0f),
-                        new Vector4(0.0f, 0.0f, 1.0f, 0.0f),
-                        LightType.Directional,
-                        null,
-                        whiteDirectionalCookie,
-                        blackDirectionalCookie,
-                        "Directional"
+                        new CookieReadbackCase
+                        {
+                            passName = "ForwardBase",
+                            normal = Vector3.forward,
+                            lightColor = new Vector4(0.45f, 0.35f, 0.25f, 1.0f),
+                            lightPosition = new Vector4(0.0f, 0.0f, 1.0f, 0.0f),
+                            lightType = LightType.Directional,
+                            whiteCookie = whiteDirectionalCookie,
+                            blackCookie = blackDirectionalCookie,
+                            label = "Directional",
+                        }
                     );
                 }
             }
@@ -267,15 +269,17 @@ namespace PureBase.Tests.Daily
                 {
                     AssertCookieSemanticReadback(
                         capture,
-                        "ForwardAdd",
-                        Vector3.back,
-                        new Vector4(0.45f, 0.35f, 0.25f, 1.0f),
-                        new Vector4(0.0f, 0.0f, -2.0f, 1.0f),
-                        LightType.Point,
-                        null,
-                        whitePointCookie,
-                        blackPointCookie,
-                        "Point"
+                        new CookieReadbackCase
+                        {
+                            passName = "ForwardAdd",
+                            normal = Vector3.back,
+                            lightColor = new Vector4(0.45f, 0.35f, 0.25f, 1.0f),
+                            lightPosition = new Vector4(0.0f, 0.0f, -2.0f, 1.0f),
+                            lightType = LightType.Point,
+                            whiteCookie = whitePointCookie,
+                            blackCookie = blackPointCookie,
+                            label = "Point",
+                        }
                     );
                     AssertPointWhiteCookieRetainsRangeAttenuation(capture, whitePointCookie);
                 }
@@ -332,38 +336,100 @@ namespace PureBase.Tests.Daily
             Assert.That(soft.meanColor.r, Is.LessThan(none.meanColor.r - 0.02f));
         }
 
-        /// <summary>Asserts semantic no-cookie, white-cookie, and black-cookie readbacks for one Unity light kind.</summary>
-        private static void AssertCookieSemanticReadback(
-            ToonLightingCaptureScope capture,
-            string passName,
-            Vector3 normal,
-            Vector4 lightColor,
-            Vector4 lightPosition,
-            LightType lightType,
-            Texture noCookie,
-            Texture whiteCookie,
-            Texture blackCookie,
-            string label
-        )
+        /// <summary>Stores the fixed light and texture inputs for one semantic cookie readback.</summary>
+        private sealed class CookieReadbackCase
         {
-            Color noCookieReadback = capture.RenderLightWithCookie("PureBase/Toon", passName, normal, lightColor, lightPosition, lightType, noCookie);
-            Color whiteCookieReadback = capture.RenderLightWithCookie("PureBase/Toon", passName, normal, lightColor, lightPosition, lightType, whiteCookie);
-            Color blackCookieReadback = capture.RenderLightWithCookie("PureBase/Toon", passName, normal, lightColor, lightPosition, lightType, blackCookie);
-            AssertFinite(noCookieReadback, label + " no-cookie readback");
-            AssertFinite(whiteCookieReadback, label + " white-cookie readback");
-            AssertFinite(blackCookieReadback, label + " black-cookie readback");
-            Assert.That(MaximumRgbDifference(noCookieReadback, whiteCookieReadback), Is.LessThanOrEqualTo(0.02f), label + " white cookie must preserve the no-cookie contribution.");
-            Assert.That(RgbMagnitude(blackCookieReadback), Is.LessThan(RgbMagnitude(whiteCookieReadback) - 0.02f), label + " black cookie must suppress the light contribution.");
-            Assert.That(whiteCookieReadback.a, Is.EqualTo(noCookieReadback.a).Within(0.002f), label + " white cookie must preserve destination alpha.");
-            Assert.That(blackCookieReadback.a, Is.EqualTo(noCookieReadback.a).Within(0.002f), label + " black cookie must preserve destination alpha.");
+            /// <summary>Gets or sets the product pass that receives the light.</summary>
+            public string passName { get; set; }
+
+            /// <summary>Gets or sets the uniform mesh world normal.</summary>
+            public Vector3 normal { get; set; }
+
+            /// <summary>Gets or sets the light color.</summary>
+            public Vector4 lightColor { get; set; }
+
+            /// <summary>Gets or sets the directional vector or local-light position.</summary>
+            public Vector4 lightPosition { get; set; }
+
+            /// <summary>Gets or sets the real Unity light type.</summary>
+            public LightType lightType { get; set; }
+
+            /// <summary>Gets or sets the caller-owned white transmission cookie.</summary>
+            public Texture whiteCookie { get; set; }
+
+            /// <summary>Gets or sets the caller-owned black transmission cookie.</summary>
+            public Texture blackCookie { get; set; }
+
+            /// <summary>Gets or sets the assertion label.</summary>
+            public string label { get; set; }
+
+            /// <summary>Creates one readback request for the supplied caller-owned cookie.</summary>
+            /// <param name="cookie">The cookie to apply to the transient Unity light.</param>
+            /// <returns>The complete light capture request.</returns>
+            public LightCaptureRequest CreateRequest(Texture cookie)
+            {
+                return new LightCaptureRequest
+                {
+                    normal = normal,
+                    lightColor = lightColor,
+                    lightPosition = lightPosition,
+                    coefficients = ShCoefficients.Zero,
+                    lightType = lightType,
+                    lightCount = 1,
+                    cookie = cookie,
+                };
+            }
+        }
+
+        /// <summary>Asserts semantic no-cookie, white-cookie, and black-cookie readbacks for one Unity light kind.</summary>
+        private static void AssertCookieSemanticReadback(ToonLightingCaptureScope capture, CookieReadbackCase readbackCase)
+        {
+            Color noCookieReadback = capture.RenderLightWithCookie("PureBase/Toon", readbackCase.passName, readbackCase.CreateRequest(null));
+            Color whiteCookieReadback = capture.RenderLightWithCookie("PureBase/Toon", readbackCase.passName, readbackCase.CreateRequest(readbackCase.whiteCookie));
+            Color blackCookieReadback = capture.RenderLightWithCookie("PureBase/Toon", readbackCase.passName, readbackCase.CreateRequest(readbackCase.blackCookie));
+            AssertFinite(noCookieReadback, readbackCase.label + " no-cookie readback");
+            AssertFinite(whiteCookieReadback, readbackCase.label + " white-cookie readback");
+            AssertFinite(blackCookieReadback, readbackCase.label + " black-cookie readback");
+            Assert.That(MaximumRgbDifference(noCookieReadback, whiteCookieReadback), Is.LessThanOrEqualTo(0.02f), readbackCase.label + " white cookie must preserve the no-cookie contribution.");
+            Assert.That(RgbMagnitude(blackCookieReadback), Is.LessThan(RgbMagnitude(whiteCookieReadback) - 0.02f), readbackCase.label + " black cookie must suppress the light contribution.");
+            Assert.That(whiteCookieReadback.a, Is.EqualTo(noCookieReadback.a).Within(0.002f), readbackCase.label + " white cookie must preserve destination alpha.");
+            Assert.That(blackCookieReadback.a, Is.EqualTo(noCookieReadback.a).Within(0.002f), readbackCase.label + " black cookie must preserve destination alpha.");
         }
 
         /// <summary>Requires a white Point cubemap cookie to preserve the ordinary finite range falloff.</summary>
         private static void AssertPointWhiteCookieRetainsRangeAttenuation(ToonLightingCaptureScope capture, Cubemap whiteCookie)
         {
             Vector4 color = new Vector4(0.45f, 0.35f, 0.25f, 1.0f);
-            Color near = capture.RenderLightWithCookie("PureBase/Toon", "ForwardAdd", Vector3.back, color, new Vector4(0.0f, 0.0f, -2.0f, 1.0f), LightType.Point, whiteCookie, 4.0f);
-            Color edge = capture.RenderLightWithCookie("PureBase/Toon", "ForwardAdd", Vector3.back, color, new Vector4(0.0f, 0.0f, -3.8f, 1.0f), LightType.Point, whiteCookie, 4.0f);
+            Color near = capture.RenderLightWithCookie(
+                "PureBase/Toon",
+                "ForwardAdd",
+                new LightCaptureRequest
+                {
+                    normal = Vector3.back,
+                    lightColor = color,
+                    lightPosition = new Vector4(0.0f, 0.0f, -2.0f, 1.0f),
+                    coefficients = ShCoefficients.Zero,
+                    lightType = LightType.Point,
+                    lightCount = 1,
+                    range = 4.0f,
+                    cookie = whiteCookie,
+                }
+            );
+            Color edge = capture.RenderLightWithCookie(
+                "PureBase/Toon",
+                "ForwardAdd",
+                new LightCaptureRequest
+                {
+                    normal = Vector3.back,
+                    lightColor = color,
+                    lightPosition = new Vector4(0.0f, 0.0f, -3.8f, 1.0f),
+                    coefficients = ShCoefficients.Zero,
+                    lightType = LightType.Point,
+                    lightCount = 1,
+                    range = 4.0f,
+                    cookie = whiteCookie,
+                }
+            );
             AssertFinite(near, "Point white-cookie near readback");
             AssertFinite(edge, "Point white-cookie range-edge readback");
             Assert.That(RgbMagnitude(edge), Is.LessThan(RgbMagnitude(near) - 0.02f));

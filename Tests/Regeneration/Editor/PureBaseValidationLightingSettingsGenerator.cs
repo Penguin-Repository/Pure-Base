@@ -645,7 +645,9 @@ namespace PureBase.Tests.Regeneration
             foreach (GameObject root in validationScene.GetRootGameObjects())
             {
                 if (!string.Equals(root.name, LegacyBaselineCameraName, StringComparison.Ordinal))
+                {
                     continue;
+                }
 
                 if (baselineCameraRoot != null)
                 {
@@ -814,7 +816,9 @@ namespace PureBase.Tests.Regeneration
             public void Dispose()
             {
                 if (disposed)
+                {
                     return;
+                }
                 testGenerationDependencies = previousDependencies;
                 disposed = true;
             }
