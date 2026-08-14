@@ -55,7 +55,7 @@ Do not add optional visual features such as:
 
 These features belong in separate Shader-Core module packages.
 
-Do not add optional `.scmodule` files to this repository without explicit approval.
+Do not add optional product or release `.scmodule` files to this repository without explicit approval. Test-only `.scmodule` files used under the repository's test infrastructure may be added without separate approval, provided they are not included in the released package or otherwise exposed as product modules.
 
 NonToon may be used as an implementation reference, but Pure-Base must not inherit its feature scope.
 
@@ -81,6 +81,9 @@ When modifying the project:
 
 ## Static-analysis policy
 
+* Keep each source file under 500 lines. Codacy reports files with 500 or more lines as `medium` and files with 1000 or more lines as `critical`; split files before reaching the first threshold.
+* Keep each function under 50 lines. Codacy reports functions with 50 or more lines as `medium` and functions with 100 or more lines as `critical`; extract focused helpers before reaching the first threshold.
+* Keep each function's cyclomatic complexity below 20. Codacy reports cyclomatic complexity of 20 or more as `critical`; simplify control flow or split responsibilities before reaching that threshold.
 * Do not add `IEquatable<T>`, `Equals`, or `GetHashCode` to private value types solely to silence static analysis.
 * Add value equality only when it is an intentional contract or the type is used by comparison or hash-based APIs.
 * When an analyzer finding is not applicable, record a concrete rationale showing that the type has no equality or hash-based use instead of disabling the rule globally.
