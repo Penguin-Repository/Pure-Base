@@ -16,6 +16,7 @@
 
 // Defines numerical and additional-light contracts for Toon shadow attenuation separation.
 
+using System.Diagnostics.CodeAnalysis;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine.Rendering;
@@ -24,6 +25,7 @@ using UnityEngine;
 namespace PureBase.Tests.Daily
 {
     /// <summary>Defines numerical and additional-light contracts for Toon shadow attenuation separation.</summary>
+    [SuppressMessage("SonarAnalyzer.CSharp", "S2333", Justification = "This declaration must remain partial because the test fixture is split between its base, runtime capture, and shadow oracle source files.")]
     public sealed partial class PureBaseToonLightingContractTests
     {
         /// <summary>Requires effective visibility to remain independent from Toon direct radiance and direction weighting.</summary>
@@ -435,6 +437,7 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Separates the inputs that the Toon host must retain for direct lighting and future shade phases.</summary>
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3898", Justification = "Field assertions are the only intended contract for this private test carrier; it has no equality or hash-based use.")]
         private readonly struct ToonShadowInputs
         {
             /// <summary>Initializes one direct-light attenuation and visibility sample.</summary>
@@ -464,6 +467,7 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Stores one evaluated Toon split-light observation.</summary>
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3898", Justification = "Field assertions are the only intended contract for this private test carrier; it has no equality or hash-based use.")]
         private readonly struct ToonShadowObservation
         {
             /// <summary>Initializes one evaluated Toon split-light observation.</summary>

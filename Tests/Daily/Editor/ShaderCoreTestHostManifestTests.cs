@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -691,6 +692,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Represents the read-only top-level host manifest.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class HostManifest
         {
             /// <summary>Gets the manifest format version.</summary>
@@ -702,6 +704,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Represents one fixed host's selected modules.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class HostManifestEntry
         {
             /// <summary>Gets the Shader-Core shader name.</summary>
@@ -734,6 +737,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores selected sentinel counts for every generated ShaderLab pass.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class PassSentinelCounts
         {
             /// <summary>Gets the expected ForwardBase sentinel count.</summary>
@@ -751,6 +755,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores a phase host's gate-on versus gate-off runtime measurement contract.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class RuntimeDelta
         {
             /// <summary>Gets the measured runtime observation field.</summary>
@@ -765,6 +770,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores generated source ordering expectations for the selected same-phase modules.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class ModuleOrder
         {
             /// <summary>Gets the first expected generated source sentinel.</summary>
@@ -776,6 +782,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores the fixed Toon phase-shadow render requirements.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class RuntimeEvidence
         {
             /// <summary>Gets the phase-to-RGB-channel map.</summary>
@@ -805,6 +812,7 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Stores the RGB channel published by every selected Toon phase.</summary>
         [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields, and optional reference fields must remain null when their JSON sections are absent.")]
         private sealed class PhaseChannels
         {
             /// <summary>Gets the light-phase output channel.</summary>

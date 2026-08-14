@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -1073,6 +1074,7 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Stores a finite mean RGB measurement for one shadow receiver region.</summary>
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3898", Justification = "Field assertions are the only intended contract for this private test carrier; it has no equality or hash-based use.")]
         private readonly struct ShadowReceiverObservation
         {
             /// <summary>Initializes one region observation.</summary>
