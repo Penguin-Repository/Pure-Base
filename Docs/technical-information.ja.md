@@ -127,11 +127,9 @@ Hybrid は PBR の経路の中にある既存の2値化直接拡散反射の式�
 
 `sd.shadow` は、Unity が有効にする範囲で、リアルタイムの影、焼き込みの遮蔽と Shadowmask の混合、影距離によるフェードを含む Unity のライト単位の実効可視性です。リアルタイム影だけを取得した生の値ではありません。`light.color` に影の可視性がすでに乗っていると仮定していた既存の Toon ライトモジュールは、`sd.shadow` を使うように移行する必要があります。
 
-ホストは `sd.shadow` を `lightSum.color` や `lightSum.direction` に自動で乗じません。モジュールが `sd.shadow` を明示的に使ってこれらの値を変更する場合、その動作はモジュールの責務です。`customlight` はメインライトの集計後に動作するため、自身が作成または変更するライトの可視性を担当します。ホストはこの差し込み位置へ暗黙の可視性を追加しません。
+`light` フェーズ後、Toon ホストはホスト管理の直接放射輝度を `lightSum.color` に集計するときに `sd.shadow` を1回だけ消費します。集計ライト方向、SH、ライトマップ、環境光には可視性を適用せず、その直接放射輝度の評価後に同じ値を再び消費しません。この Toon 専用の責務によって、PBR、Hybrid、Unlit に `sd.shadow` を再度消費する処理は追加されません。モジュールは `sd.shadow` を分類のために参照したり、モジュール自身が担当する独立した効果へ使ったりできますが、ホスト管理の Toon 直接放射輝度または色へ `sd.shadow` をもう一度乗じてはいけません。`customlight` はメインライトの集計後に動作するため、自身が作成または変更するライトの可視性を担当します。ホストはこの差し込み位置へ暗黙の可視性を追加しません。
 
-Mixed Lighting と Shadowmask の実効可視性は、将来の Toon Shade ロジックで1回だけ消費する入力です。`LIGHTMAP_ON && LIGHTMAP_SHADOW_MIXING && !SHADOWS_SHADOWMASK && SHADOWS_SCREEN` の場合は Shader-Core がメインライトのコールバックを抑制し、`sd.shadow` は初期化値の `1` のままになり、Subtractive の適用は Shader-Core が1回だけ担当します。ライトマップと SH の環境光は、直接光の可視性とは分離されています。`ShadowCaster` は影を cast する処理だけを担当し、この受け側の分離によって変わりません。マテリアル ABI、描画モード、パス定義も変更しません。
-
-この分離は Toon に限定されます。PBR と Hybrid は完全な減衰値と Unity Standard の間接 GI の責務を維持し、Unlit の責務と中立な影の動作も変わりません。Issue #59 は減衰を割ったり再構成したりせずに `sd.shadow` を直接利用できますが、その値を直接光の色やホストの集計方向へ再び乗じてはいけません。後で `Use Toon Shade = Off` を扱う責務は将来の Toon Shade 実装に属し、ここでは実装しません。
+`LIGHTMAP_ON && LIGHTMAP_SHADOW_MIXING && !SHADOWS_SHADOWMASK && SHADOWS_SCREEN` の場合は Shader-Core がメインライトのコールバックを抑制し、`sd.shadow` は初期化値の `1` のままになり、Subtractive の適用は Shader-Core が1回だけ担当します。この Shader-Core の Mixed/Subtractive 処理によって、Toon の可視性がもう一度消費されることはありません。ライトマップと SH の環境光は、直接光の可視性とは分離されています。`ShadowCaster` は影を cast する処理だけを担当し、この受け側の分離によって変わりません。マテリアル ABI、描画モード、パス定義も変更しません。
 
 ## 公開の準備と実行
 
