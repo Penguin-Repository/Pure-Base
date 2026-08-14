@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Defines numerical and additional-light contracts for Toon shadow attenuation separation.
+// Defines numerical and additional-light contracts for Toon direct-light visibility attenuation.
 
 using System.Diagnostics.CodeAnalysis;
 using NUnit.Framework;
@@ -24,20 +24,24 @@ using UnityEngine;
 
 namespace PureBase.Tests.Daily
 {
-    /// <summary>Defines numerical and additional-light contracts for Toon shadow attenuation separation.</summary>
+    /// <summary>Defines numerical and additional-light contracts for Toon direct-light visibility attenuation.</summary>
     [SuppressMessage("SonarAnalyzer.CSharp", "S2333", Justification = "This declaration must remain partial because the test fixture is split between its base, runtime capture, and shadow oracle source files.")]
     public sealed partial class PureBaseToonLightingContractTests
     {
-        /// <summary>Requires effective visibility to remain independent from Toon direct radiance and direction weighting.</summary>
+        /// <summary>Requires effective visibility to attenuate Toon direct radiance once while leaving direction weighting independent.</summary>
         [Test]
-        public void ToonShadowSeparationOracleChangesOnlyPublishedVisibility()
+        public void ToonShadowSeparationOracleConsumesPublishedVisibilityOnlyInDirectRadiance()
         {
             ToonShadowInputs visible = new ToonShadowInputs(0.8f, 0.65f, 1.0f, 0.4f);
             ToonShadowInputs shadowed = new ToonShadowInputs(0.8f, 0.65f, 0.25f, 0.4f);
             ToonShadowObservation visibleObservation = EvaluateToonShadowContract(visible);
             ToonShadowObservation shadowedObservation = EvaluateToonShadowContract(shadowed);
 
-            Assert.That(shadowedObservation.directRadiance, Is.EqualTo(visibleObservation.directRadiance).Within(OracleTolerance));
+            Assert.That(shadowedObservation.directRadiance, Is.LessThan(visibleObservation.directRadiance - 0.02f));
+            Assert.That(
+                shadowedObservation.directRadiance,
+                Is.EqualTo(visibleObservation.directRadiance * shadowed.effectiveVisibility).Within(OracleTolerance)
+            );
             Assert.That(shadowedObservation.directionWeight, Is.EqualTo(visibleObservation.directionWeight).Within(OracleTolerance));
             Assert.That(shadowedObservation.publishedVisibility, Is.EqualTo(0.25f).Within(OracleTolerance));
             Assert.That(visibleObservation.fullAttenuation, Is.EqualTo(0.65f).Within(OracleTolerance));
@@ -157,9 +161,9 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("PUREBASE_TEST_TOON_SHADOW_SENTINEL_SHADE", generatedSource.text);
         }
 
-        /// <summary>Requires product Toon direct color and aggregate direction to remain independent from directional visibility.</summary>
+        /// <summary>Requires product Toon directional visibility to attenuate host-managed direct radiance.</summary>
         [Test]
-        public void ToonProductDirectionalShadowDoesNotContaminateDirectColorOrAggregateDirection()
+        public void ToonProductDirectionalShadowAttenuatesDirectRadiance()
         {
             using (var capture = new ToonLightingCaptureScope())
             {
@@ -180,21 +184,21 @@ namespace PureBase.Tests.Daily
                 AssertShadowReceiverFinite(hard, "Product Toon Hard");
                 AssertShadowReceiverFinite(soft, "Product Toon Soft");
                 Assert.That(
-                    MaximumRgbDifference(none.meanColor, hard.meanColor),
-                    Is.LessThanOrEqualTo(0.02f),
-                    "Hard directional visibility must not attenuate Toon direct color or its aggregate direction."
+                    RgbMagnitude(hard.meanColor),
+                    Is.LessThan(RgbMagnitude(none.meanColor) - 0.02f),
+                    "Hard directional visibility must measurably attenuate Toon host-managed direct radiance."
                 );
                 Assert.That(
-                    MaximumRgbDifference(none.meanColor, soft.meanColor),
-                    Is.LessThanOrEqualTo(0.02f),
-                    "Soft directional visibility must not attenuate Toon direct color or its aggregate direction."
+                    RgbMagnitude(soft.meanColor),
+                    Is.LessThan(RgbMagnitude(none.meanColor) - 0.02f),
+                    "Soft directional visibility must measurably attenuate Toon host-managed direct radiance."
                 );
             }
         }
 
-        /// <summary>Requires visibility to leave direct radiance intact while its shadow-weighted aggregate direction crosses the Toon SH band boundary.</summary>
+        /// <summary>Requires visibility to attenuate direct radiance without changing aggregate direction or the Toon SH band.</summary>
         [Test]
-        public void ToonShadowWeightedAggregateDirectionOracleChangesShBandWithoutChangingDirectRadiance()
+        public void ToonShadowVisibilityOracleLeavesAggregateDirectionAndShBandUnchanged()
         {
             ToonShadowInputs visibleInputs = new ToonShadowInputs(0.8f, 0.65f, 1.0f, 0.4f);
             ToonShadowInputs shadowedInputs = new ToonShadowInputs(0.8f, 0.65f, 0.1f, 0.4f);
@@ -203,13 +207,13 @@ namespace PureBase.Tests.Daily
             Vector4 shAr = new Vector4(0.3f, 0.0f, 0.0f, 0.2f);
             Vector3 normal = (Vector3.forward - 0.5f * Vector3.right).normalized;
             Vector3 visibleDirection = EvaluateDominantDirection(
-                Vector3.forward * EvaluateShadowWeightedDirectionWeight(visible),
+                Vector3.forward * visible.directionWeight,
                 shAr,
                 Vector4.zero,
                 Vector4.zero
             );
             Vector3 shadowedDirection = EvaluateDominantDirection(
-                Vector3.forward * EvaluateShadowWeightedDirectionWeight(shadowed),
+                Vector3.forward * shadowed.directionWeight,
                 shAr,
                 Vector4.zero,
                 Vector4.zero
@@ -217,11 +221,10 @@ namespace PureBase.Tests.Daily
             Color visibleBand = EvaluateTwoBandSh(normal, visibleDirection, shAr, Vector4.zero, Vector4.zero);
             Color shadowedBand = EvaluateTwoBandSh(normal, shadowedDirection, shAr, Vector4.zero, Vector4.zero);
 
-            Assert.That(shadowed.directRadiance, Is.EqualTo(visible.directRadiance).Within(OracleTolerance));
-            Assert.That(EvaluateShadowWeightedDirectionWeight(shadowed), Is.LessThan(EvaluateShadowWeightedDirectionWeight(visible) - 0.02f));
-            Assert.That(Vector3.Dot(normal, visibleDirection), Is.GreaterThan(0.0f));
-            Assert.That(Vector3.Dot(normal, shadowedDirection), Is.LessThan(0.0f));
-            Assert.That(MaximumRgbDifference(visibleBand, shadowedBand), Is.GreaterThan(0.02f));
+            Assert.That(shadowed.directRadiance, Is.LessThan(visible.directRadiance - 0.02f));
+            Assert.That(shadowed.directionWeight, Is.EqualTo(visible.directionWeight).Within(OracleTolerance));
+            Assert.That(Vector3.Distance(visibleDirection, shadowedDirection), Is.LessThanOrEqualTo(OracleTolerance));
+            Assert.That(MaximumRgbDifference(visibleBand, shadowedBand), Is.LessThanOrEqualTo(OracleTolerance));
         }
 
         /// <summary>Requires a transient Directional Texture2D cookie to preserve white and suppress black contributions without persistent assets.</summary>
@@ -491,14 +494,6 @@ namespace PureBase.Tests.Daily
             Assert.That(Mathf.Abs(value.r - value.b), Is.LessThanOrEqualTo(0.02f), label + " red and blue phase visibility disagree.");
         }
 
-        /// <summary>Returns the aggregate direct-light weight after the selected visibility scales it.</summary>
-        /// <param name="observation">The split Toon light observation.</param>
-        /// <returns>The shadow-weighted aggregate direction weight.</returns>
-        private static float EvaluateShadowWeightedDirectionWeight(ToonShadowObservation observation)
-        {
-            return observation.directionWeight * observation.publishedVisibility;
-        }
-
         /// <summary>Separates the inputs that the Toon host must retain for direct lighting and future shade phases.</summary>
         [SuppressMessage("SonarAnalyzer.CSharp", "S3898", Justification = "Field assertions are the only intended contract for this private test carrier; it has no equality or hash-based use.")]
         private readonly struct ToonShadowInputs
@@ -564,7 +559,7 @@ namespace PureBase.Tests.Daily
         /// <returns>The resulting Toon and full-attenuation observations.</returns>
         private static ToonShadowObservation EvaluateToonShadowContract(ToonShadowInputs inputs)
         {
-            float directRadiance = inputs.sceneColor * inputs.nonShadowAttenuation;
+            float directRadiance = inputs.sceneColor * inputs.nonShadowAttenuation * inputs.effectiveVisibility;
             float directionWeight = inputs.directionLuminance * inputs.nonShadowAttenuation;
             float fullAttenuation = inputs.nonShadowAttenuation * inputs.effectiveVisibility;
             return new ToonShadowObservation(

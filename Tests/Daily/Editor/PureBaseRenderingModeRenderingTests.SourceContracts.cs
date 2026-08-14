@@ -36,6 +36,10 @@ namespace PureBase.Tests.Daily
         private const string ToonModelPath =
             "Packages/jp.penguin.purebase/Shaders/Models/toon.hlsl";
 
+        /// <summary>Identifies the fixed Toon shadow host whose importer-valid source layout is part of the test contract.</summary>
+        private const string ToonShadowFixturePath =
+            "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts/ToonShadow/PureBaseTestToonShadow.scshader";
+
         /// <summary>Identifies the Toon-only helper that owns dominant-direction and two-band SH evaluation.</summary>
         private const string ToonLightingHelperPath =
             "Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl";
@@ -202,6 +206,7 @@ namespace PureBase.Tests.Daily
             AssertModelPreparationOwnership(sources);
             AssertToonShadowPhaseOrder(sources.host);
             AssertDirectionalVisibilityOwnership(sources.host, sources.toon);
+            AssertToonShadowFixtureSourceContracts();
         }
 
         /// <summary>Stores the source texts participating in the Toon directional-shadow ownership contract.</summary>
@@ -280,6 +285,15 @@ namespace PureBase.Tests.Daily
         {
             Assert.That(
                 Regex.IsMatch(
+                    sources.toon,
+                    @"void\s+SCModelPrepareMainLight\s*\([^)]*\)\s*\{\s*light\.color\s*=\s*mainLightColor\s*\*\s*mainLightNonShadowAttenuation\s*;\s*sd\.shadow\s*=\s*mainLightShadowVisibility\s*;\s*\}",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "Toon must publish non-shadow direct color and independent effective visibility before Shader-Core light phases."
+            );
+            Assert.That(
+                Regex.IsMatch(
                     sources.pbr,
                     @"void\s+SCModelInitializeGiInput\s*\(\s*out\s+UnityGIInput\s+input\s*,\s*SCCustomData\s+customData\s*,\s*SCVertexData\s+vertex\s*\)\s*\{[^}]*\binput\.atten\s*=\s*customData\.mainLightAttenuation\s*;",
                     RegexOptions.Singleline
@@ -329,7 +343,7 @@ namespace PureBase.Tests.Daily
             );
         }
 
-        /// <summary>Asserts that directional visibility is published only through Toon phase-local shadow data.</summary>
+        /// <summary>Asserts that Toon consumes directional visibility once in direct radiance without shadowing aggregate direction.</summary>
         /// <param name="host">The Pure Base BIRP host source.</param>
         /// <param name="toon">The Toon model source.</param>
         private static void AssertDirectionalVisibilityOwnership(string host, string toon)
@@ -348,11 +362,94 @@ namespace PureBase.Tests.Daily
             );
             Assert.That(
                 Regex.IsMatch(
+                    host,
+                    @"lightSum\.direction\s*\+=\s*[^;]*(?:sd\.shadow|mainLightShadowVisibility)"
+                ),
+                Is.False,
+                "Directional visibility must not enter Toon aggregate light direction."
+            );
+            Assert.That(
+                Regex.IsMatch(
                     toon,
                     @"sd\.shadow\s*=\s*mainLightShadowVisibility\s*;"
                 ),
                 Is.True,
                 "The Toon callback must publish the captured directional visibility as the phase-local sd.shadow value."
+            );
+            AssertToonDirectFactorConsumesVisibilityOnce(toon);
+        }
+
+        /// <summary>Asserts that Toon direct-factor evaluation consumes the published visibility exactly once.</summary>
+        /// <param name="toon">The Toon model source.</param>
+        private static void AssertToonDirectFactorConsumesVisibilityOnce(string toon)
+        {
+            Match directFactor = Regex.Match(
+                toon,
+                @"half\s+SCModelEvaluateDirectFactor\s*\(\s*SCShadingData\s+shadingData\s*,\s*SCLightData\s+light\s*\)\s*\{(?<body>[^}]*)\}",
+                RegexOptions.Singleline
+            );
+            Assert.That(directFactor.Success, Is.True, "The Toon model must define its direct-factor callback.");
+            MatchCollection shadowUses = Regex.Matches(toon, @"\bshadingData\.shadow\b");
+            Assert.That(
+                shadowUses.Count,
+                Is.EqualTo(1),
+                "The Toon model source must consume effective visibility through shadingData.shadow exactly once."
+            );
+            string body = directFactor.Groups["body"].Value;
+            Assert.That(
+                Regex.IsMatch(
+                    body,
+                    @"\breturn\s+PureBaseToonEvaluateDirectFactor\s*\(\s*shadingData\.N\s*,\s*light\.direction\s*\)\s*\*\s*shadingData\.shadow\s*;"
+                ),
+                Is.True,
+                "Toon must apply the quantized direct response to effective visibility in its direct-factor callback."
+            );
+            Assert.That(
+                shadowUses[0].Index,
+                Is.GreaterThanOrEqualTo(directFactor.Groups["body"].Index)
+                    .And.LessThan(directFactor.Groups["body"].Index + body.Length),
+                "The Toon model's sole shadingData.shadow consumption must remain within SCModelEvaluateDirectFactor."
+            );
+        }
+
+        /// <summary>Asserts the fixed Toon host keeps its read-only ForwardAdd stencil state and properties-header license placement.</summary>
+        private static void AssertToonShadowFixtureSourceContracts()
+        {
+            string fixture = File.ReadAllText(ToonShadowFixturePath);
+            Match forwardAddStencil = Regex.Match(
+                fixture,
+                @"Name\s+""ForwardAdd""[\s\S]*?Stencil\s*\{(?<body>[\s\S]*?)\}",
+                RegexOptions.Singleline
+            );
+            Assert.That(forwardAddStencil.Success, Is.True, "The fixed Toon host must retain a ForwardAdd Stencil block.");
+            string stencilBody = forwardAddStencil.Groups["body"].Value;
+            MatchCollection writeMaskDirectives = Regex.Matches(
+                stencilBody,
+                @"\bWriteMask\s+(?<value>[^\s}]+)"
+            );
+            Assert.That(
+                writeMaskDirectives.Count,
+                Is.EqualTo(1),
+                "The fixed Toon host ForwardAdd Stencil block must contain exactly one read-only WriteMask 0 directive."
+            );
+            Assert.That(
+                writeMaskDirectives[0].Groups["value"].Value,
+                Is.EqualTo("0"),
+                "The fixed Toon host ForwardAdd Stencil block must use 0 as its only WriteMask value."
+            );
+            StringAssert.DoesNotContain(
+                "_StencilWriteMask",
+                stencilBody,
+                "The fixed Toon host ForwardAdd Stencil block must not restore the dynamic write mask."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    fixture,
+                    @"Properties\s*\{\s*/\*.*?Copyright 2026 Penguin.*?Licensed under the Apache License, Version 2\.0.*?WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.*?\*/\s*__SC_SHADERLAB_properties__",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "The fixed Toon host must retain its Apache notice in the importer-valid location before properties expansion."
             );
         }
 
@@ -366,9 +463,12 @@ namespace PureBase.Tests.Daily
                 helper,
                 "The Toon helper must own the stable binary direct-light response."
             );
-            StringAssert.Contains(
-                "return PureBaseToonEvaluateDirectFactor(shadingData.N, light.direction);",
-                toon,
+            Assert.That(
+                Regex.IsMatch(
+                    toon,
+                    @"\breturn\s+PureBaseToonEvaluateDirectFactor\s*\(\s*shadingData\.N\s*,\s*light\.direction\s*\)\s*\*\s*shadingData\.shadow\s*;"
+                ),
+                Is.True,
                 "The Toon model must delegate direct-light evaluation to its binary helper."
             );
             StringAssert.Contains(
