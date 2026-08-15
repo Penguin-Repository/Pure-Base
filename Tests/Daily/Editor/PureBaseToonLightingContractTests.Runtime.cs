@@ -150,7 +150,7 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Owns one isolated regular-render fixture and restores every Unity global it changes.</summary>
-        private class ToonLightingCaptureRuntimeScope : IDisposable
+        private partial class ToonLightingCaptureRuntimeScope : IDisposable
         {
             /// <summary>Stores the dedicated layer used by the preview-scene renderer and lights.</summary>
             private const int FixtureLayer = 31;
@@ -1280,6 +1280,9 @@ namespace PureBase.Tests.Daily
             private const string ProjectSettingsRelativePath = "ProjectSettings/jp.lilxyzw.shadercore.asset";
 
             private readonly UnityEngine.Object settings;
+            private readonly string shaderName;
+            private readonly string moduleId;
+            private readonly string hostAssetPath;
             private readonly ToonShadowSettingsRow originalRow;
             private readonly string projectSettingsHash;
             private bool temporarySelectionApplied;
@@ -1287,7 +1290,19 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Captures the original fixed-host row, applies a temporary selection, and synchronously imports only its host.</summary>
             public ToonShadowHostSelectionScope()
+                : this(ToonShadowShaderName, ToonShadowModuleId, ToonShadowHostAssetPath)
             {
+            }
+
+            /// <summary>Captures one fixed-host row, applies its temporary selection, and synchronously imports only that host.</summary>
+            /// <param name="shaderName">The unique fixed-host shader name whose selection row is temporary.</param>
+            /// <param name="moduleId">The sole diagnostic module selected for the fixed host.</param>
+            /// <param name="hostAssetPath">The Shader-Core host asset imported after selection.</param>
+            public ToonShadowHostSelectionScope(string shaderName, string moduleId, string hostAssetPath)
+            {
+                this.shaderName = shaderName;
+                this.moduleId = moduleId;
+                this.hostAssetPath = hostAssetPath;
                 settings = GetProjectSettings();
                 projectSettingsHash = GetFileSha256(GetProjectSettingsPath());
                 try
@@ -1295,14 +1310,14 @@ namespace PureBase.Tests.Daily
                     using (var serializedSettings = new SerializedObject(settings))
                     {
                         SerializedProperty settingsProperty = GetShaderSettingsProperty(serializedSettings);
-                        originalRow = ReadToonShadowRow(settingsProperty);
-                        WriteTemporaryToonShadowRow(settingsProperty);
+                        originalRow = ReadToonShadowRow(settingsProperty, shaderName);
+                        WriteTemporaryToonShadowRow(settingsProperty, shaderName, moduleId);
                         serializedSettings.ApplyModifiedPropertiesWithoutUndo();
                         temporarySelectionApplied = true;
                     }
 
                     AssetDatabase.ImportAsset(
-                        ToonShadowHostAssetPath,
+                        hostAssetPath,
                         ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate
                     );
                 }
@@ -1338,7 +1353,7 @@ namespace PureBase.Tests.Daily
                 using (var serializedSettings = new SerializedObject(settings))
                 {
                     SerializedProperty settingsProperty = GetShaderSettingsProperty(serializedSettings);
-                    RestoreToonShadowRow(settingsProperty);
+                    RestoreToonShadowRow(settingsProperty, shaderName);
                     serializedSettings.ApplyModifiedPropertiesWithoutUndo();
                 }
 
@@ -1346,17 +1361,18 @@ namespace PureBase.Tests.Daily
                 Assert.That(
                     GetFileSha256(GetProjectSettingsPath()),
                     Is.EqualTo(projectSettingsHash),
-                    "The temporary ToonShadow host selection must not persist Shader-Core ProjectSettings."
+                    "The temporary fixed-host selection must not persist Shader-Core ProjectSettings."
                 );
                 using (var serializedSettings = new SerializedObject(settings))
                 {
                     ToonShadowSettingsRow restoredRow = ReadToonShadowRow(
-                        GetShaderSettingsProperty(serializedSettings)
+                        GetShaderSettingsProperty(serializedSettings),
+                        shaderName
                     );
                     Assert.That(
                         restoredRow.Equals(originalRow),
                         Is.True,
-                        "The temporary ToonShadow host selection must restore only its original serialized row."
+                        "The temporary fixed-host selection must restore only its original serialized row."
                     );
                 }
             }
@@ -1409,9 +1425,12 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Reads only the original ToonShadow row, rejecting duplicate target rows before mutation.</summary>
-            private static ToonShadowSettingsRow ReadToonShadowRow(SerializedProperty settingsProperty)
+            private static ToonShadowSettingsRow ReadToonShadowRow(
+                SerializedProperty settingsProperty,
+                string shaderName
+            )
             {
-                int rowIndex = FindToonShadowRowIndex(settingsProperty);
+                int rowIndex = FindToonShadowRowIndex(settingsProperty, shaderName);
                 if (rowIndex < 0)
                 {
                     return ToonShadowSettingsRow.Missing;
@@ -1426,9 +1445,13 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Upserts only the target row with its required one-module selection.</summary>
-            private static void WriteTemporaryToonShadowRow(SerializedProperty settingsProperty)
+            private static void WriteTemporaryToonShadowRow(
+                SerializedProperty settingsProperty,
+                string shaderName,
+                string moduleId
+            )
             {
-                int rowIndex = FindToonShadowRowIndex(settingsProperty);
+                int rowIndex = FindToonShadowRowIndex(settingsProperty, shaderName);
                 if (rowIndex < 0)
                 {
                     rowIndex = settingsProperty.arraySize;
@@ -1436,21 +1459,21 @@ namespace PureBase.Tests.Daily
                 }
 
                 SerializedProperty row = settingsProperty.GetArrayElementAtIndex(rowIndex);
-                row.FindPropertyRelative(ShaderNameFieldName).stringValue = ToonShadowShaderName;
-                WriteStringArray(row.FindPropertyRelative(ModulesFieldName), new[] { ToonShadowModuleId });
+                row.FindPropertyRelative(ShaderNameFieldName).stringValue = shaderName;
+                WriteStringArray(row.FindPropertyRelative(ModulesFieldName), new[] { moduleId });
                 WriteMultiModules(row.FindPropertyRelative(MultiModulesFieldName), Array.Empty<MultiModuleSetting>());
             }
 
             /// <summary>Restores only the target row to its captured presence and exact module collections.</summary>
-            private void RestoreToonShadowRow(SerializedProperty settingsProperty)
+            private void RestoreToonShadowRow(SerializedProperty settingsProperty, string shaderName)
             {
-                int rowIndex = FindToonShadowRowIndex(settingsProperty);
+                int rowIndex = FindToonShadowRowIndex(settingsProperty, shaderName);
                 if (!originalRow.present)
                 {
                     Assert.That(
                         rowIndex,
                         Is.GreaterThanOrEqualTo(0),
-                        "The temporary ToonShadow row disappeared before it could be removed."
+                        "The temporary fixed-host row disappeared before it could be removed."
                     );
                     settingsProperty.DeleteArrayElementAtIndex(rowIndex);
                     return;
@@ -1459,24 +1482,27 @@ namespace PureBase.Tests.Daily
                 Assert.That(
                     rowIndex,
                     Is.GreaterThanOrEqualTo(0),
-                    "The original ToonShadow row disappeared before it could be restored."
+                    "The original fixed-host row disappeared before it could be restored."
                 );
                 SerializedProperty row = settingsProperty.GetArrayElementAtIndex(rowIndex);
-                row.FindPropertyRelative(ShaderNameFieldName).stringValue = ToonShadowShaderName;
+                row.FindPropertyRelative(ShaderNameFieldName).stringValue = shaderName;
                 WriteStringArray(row.FindPropertyRelative(ModulesFieldName), originalRow.modules);
                 WriteMultiModules(row.FindPropertyRelative(MultiModulesFieldName), originalRow.multiModules);
             }
 
             /// <summary>Finds the sole ToonShadow row without reading or changing unrelated module-selection rows.</summary>
-            private static int FindToonShadowRowIndex(SerializedProperty settingsProperty)
+            private static int FindToonShadowRowIndex(
+                SerializedProperty settingsProperty,
+                string shaderName
+            )
             {
                 var foundIndex = -1;
                 for (var index = 0; index < settingsProperty.arraySize; index++)
                 {
-                    SerializedProperty shaderName = settingsProperty
+                    SerializedProperty shaderNameProperty = settingsProperty
                         .GetArrayElementAtIndex(index)
                         .FindPropertyRelative(ShaderNameFieldName);
-                    if (shaderName == null || shaderName.stringValue != ToonShadowShaderName)
+                    if (shaderNameProperty == null || shaderNameProperty.stringValue != shaderName)
                     {
                         continue;
                     }
@@ -1484,7 +1510,7 @@ namespace PureBase.Tests.Daily
                     Assert.That(
                         foundIndex,
                         Is.EqualTo(-1),
-                        "Shader-Core ProjectSettings contains duplicate ToonShadow rows."
+                        "Shader-Core ProjectSettings contains duplicate fixed-host rows."
                     );
                     foundIndex = index;
                 }

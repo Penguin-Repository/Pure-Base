@@ -20,11 +20,11 @@ License
 This project is licensed under the Apache-2.0 License - see the LICENSE file for details
 
 Third-Party Lighting Concept Provenance
-PureBase's minimal Toon lighting helper is a narrow adapted/reimplemented use of the identified lilToon 2.3.4/OpenLit 1.0.2 lighting concepts, including the corresponding SH bright/dark constants and operation structure. It is not a broad lilToon or OpenLit integration or a full upstream code copy. This acknowledgement does not imply endorsement, sponsorship, contributor status, or participation by lilToon or OpenLit developers.
+Pure Base's minimal Toon lighting helper is a narrow, independently written reimplementation of selected OpenLit 1.0.2 BIRP concepts inspected through lilToon 2.3.4: color-space luminance, positive-Y SH direction and fallback handling, and the bright/dark SH term structure. The Pure Base adaptation retains Shader-Core's post-light aggregation and does not copy `ComputeLights` or any upstream function body. It adds no OpenLit or lilToon dependency and is not an official lilToon or OpenLit integration. This acknowledgement does not imply endorsement, sponsorship, contributor status, or participation by lilToon or OpenLit developers.
 
 Inspected lilToon sources
 
-- `Shader/Includes/openlit_core.hlsl`: `ComputeLightDirection`, `ShadeSH9ToonDouble`, and `ComputeLights`
+- `Shader/Includes/openlit_core.hlsl`: `GetV`, `OpenLitLuminance`, `ComputeLightDirection`, `ShadeSH9ToonDouble`, `ComputeSHLightsAndDirection`, and `ComputeLights`
 - `Shader/Includes/lil_common_functions.hlsl`: SH direction and bright/dark decomposition
 - `Shader/Includes/lil_common_macro.hlsl`: ForwardAdd and lightmap ownership context
 

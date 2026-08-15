@@ -25,6 +25,10 @@
     #define SCModelSelectAggregateLightDirection(directAggregateDirection, shAr, shAg, shAb) (dot(directAggregateDirection, directAggregateDirection) == 0 ? half3(0, 0, 0) : normalize(directAggregateDirection))
 #endif
 
+#ifndef SCModelEvaluateLightDirectionWeight
+    #define SCModelEvaluateLightDirectionWeight(lightColor) dot(lightColor, half3(0.333333, 0.333333, 0.333333))
+#endif
+
 /// <summary>Accumulates a BIRP light after the Shader-Core per-light phase.</summary>
 void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, SCLightData light)
 {
@@ -40,17 +44,22 @@ void SCCalculateLight(inout SCLightData lightSum, inout SCShadingData sd, inout 
 
     __SC_PHASE_light__
 
-    lightSum.direction += light.direction * dot(light.color, half3(0.333333, 0.333333, 0.333333));
+    lightSum.direction += light.direction * SCModelEvaluateLightDirectionWeight(light.color);
     lightSum.color += light.color * SCModelEvaluateDirectFactor(sd, light);
 }
 
-/// <summary>Publishes the aggregate light direction and applies the selected model's ambient SH response.</summary>
+/// <summary>Publishes the fallback-inclusive Toon direct direction in ForwardBase and adds Toon SH only when Unity permits it.</summary>
 void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 env, inout SCShadingData sd, inout SCCustomData cd, SCVertexData vertex, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
-    #if defined(PUREBASE_TOON_MODEL_INCLUDED) && !defined(LIGHTMAP_ON)
-    sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, unity_SHAr, unity_SHAg, unity_SHAb);
-        #if !defined(UNITY_PASS_FORWARDADD)
-        env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHAb, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);
+    #if defined(PUREBASE_TOON_MODEL_INCLUDED)
+        #if defined(UNITY_PASS_FORWARDADD)
+        sd.L = dot(lightSum.direction, lightSum.direction) > 0.000001 ? normalize(lightSum.direction) : half3(0, 0, 0);
+        #else
+        sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, half4(0, 0, 0, 0), half4(0, 0, 0, 0), half4(0, 0, 0, 0));
+            #if !defined(LIGHTMAP_ON) && UNITY_SHOULD_SAMPLE_SH
+            sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, shAr, shAg, shAb);
+            env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);
+            #endif
         #endif
     #else
     sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, shAr, shAg, shAb);

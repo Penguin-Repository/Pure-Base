@@ -151,6 +151,20 @@ Unlit returns the base surface without host direct, baked, ambient, or environme
 
 Toon evaluates a binary direct diffuse response from the surface normal and light direction. Its `ForwardBase` direction combines the Shader-Core direct aggregate with the first-order SH direction, and its ambient result selects a fixed bright or dark SH band from that direction. Shader-Core continues to provide the lightmap input; when Shader-Core supplies the lightmap aggregate, Toon does not synthesize an additional baked-light contribution. `ForwardAdd` contributes direct light only.
 
+### OpenLit-derived Toon direction and SH bands
+
+The module-free Toon host uses a bounded Pure Base adaptation of selected OpenLit 1.0.2 BIRP concepts. It retains Shader-Core's post-`light` aggregation boundary rather than copying OpenLit's `ComputeLights` or replacing Shader-Core light enumeration.
+
+- The post-`light` direct aggregate weights each `light.color` with the OpenLit color-space luminance coefficients: `(0.22, 0.707, 0.071)` under `UNITY_COLORSPACE_GAMMA`, or `(0.0396819152, 0.458021790, 0.00609653955)` in Linear. Module changes made through the established `light` phase therefore remain part of the Toon aggregate.
+- The scene direction adds the positive-Y first-order SH direction to that direct aggregate. The direction vector is `directAggregate + ((shAr.rgb + shAg.rgb + shAb.rgb) / 3)` with the Y component made positive, plus the fixed fallback `(0.001, 0.002, 0.001)`. The fallback is added before normalization, including for a nonzero aggregate. Exact-zero or nonfinite direction vectors use the fallback; finite near-cancellation residuals are normalized normally.
+- In the supported normal BIRP scope, OpenLit `GetV` is the identity: the SH evaluator uses the selected scene direction without a camera or world-position dependency. Light Volumes, direction override, and other expanded OpenLit scope are not implemented.
+- The bright band evaluates the unscaled identity-BIRP `V` using the L0/L2 base plus the L1 term along `V`. The dark band reuses the same L0/L2 base and evaluates L1 along the normalized SH RGB direction `normalize(shAr.rgb + shAg.rgb + shAb.rgb)`. An exact-zero or nonfinite SH direction contributes zero dark-band L1 so the result remains finite.
+- Both bands are assembled before color-space conversion. Gamma converts both assembled bands with Unity's Linear-to-sRGB conversion; Linear leaves both assembled bands unconverted. The selected band remains the binary result of `step(0, dot(surfaceNormal, lightDirection))`.
+
+These equations are Pure Base's narrow reimplementation of inspected OpenLit 1.0.2 concepts as used by lilToon 2.3.4. They do not copy upstream function bodies, add an OpenLit dependency, or imply an official lilToon/OpenLit association.
+
+The ownership boundaries remain explicit: `ForwardAdd` publishes and uses only normalized direct aggregate direction when its squared length is greater than `0.000001`, otherwise zero; it adds no SH direction, fallback, or environment band. `LIGHTMAP_ON` and disabled Unity SH sampling preserve the direct direction but suppress Toon-generated SH bands, while Shader-Core owns lightmap decoding and Mixed/Subtractive handling. `sd.shadow` affects host-managed direct Toon radiance exactly once and never direction or SH evaluation. PBR, Hybrid, and Unlit retain their existing lighting paths and do not inherit Toon's OpenLit-derived helper.
+
 ### Toon direct-light visibility contract
 
 For `PureBase/Toon`, the per-light `light.color` exposed to the `light` phase is the scene/direct light color multiplied by non-shadow distance, spot, and cookie attenuation. Unity effective visibility is published separately as `sd.shadow` before the `light` phase, so the same value is available to the `modifylight` and `shade` phases. This contract applies across the supported Unity light-kind branches, including directional, point, spot, point-cookie, and directional-cookie inputs.

@@ -121,6 +121,18 @@ Hybrid retains its unchanged binary direct-diffuse equation inside the PBR path.
 
 This fixed host behavior adds no public property, keyword, pass, variant, or dependency. The public property ABI is unchanged, so existing materials need no migration and receive the behavior automatically.
 
+### OpenLit-derived Toon behavior and provenance
+
+Pure Base's module-free Toon lighting is a bounded adaptation of selected OpenLit 1.0.2 BIRP concepts inspected through lilToon 2.3.4. It keeps Shader-Core's post-`light` direct-light aggregation and does not copy OpenLit's `ComputeLights` or replace Shader-Core light enumeration.
+
+- Toon weights the post-`light` direct aggregate with color-space-specific OpenLit luminance: `(0.22, 0.707, 0.071)` for Gamma and `(0.0396819152, 0.458021790, 0.00609653955)` for Linear. The aggregate therefore continues to include module-authored `light` changes.
+- Its direction combines that aggregate, positive-Y first-order SH, and the fixed fallback `(0.001, 0.002, 0.001)` before normalization. The fallback is always part of the sum; exact-zero or nonfinite totals fall back to that vector, while finite near-cancellation residuals remain normalizable.
+- In normal BIRP, OpenLit `GetV` is represented by the identity direction used by the host. There is no camera/position dependency, Light Volumes behavior, direction override, or other expanded OpenLit scope.
+- The bright SH band uses unscaled `V` for the L0/L2 base and L1. The dark band reuses that L0/L2 base and uses L1 along the normalized SH RGB direction. A zero or nonfinite SH direction contributes zero dark L1 to keep the result finite.
+- Gamma applies Unity's Linear-to-sRGB conversion to both assembled bands; Linear does not convert them. Binary band selection uses the sign of the surface-normal and scene-direction dot product.
+
+`ForwardAdd` is direct-only: it uses normalized direct aggregate direction above the `0.000001` squared-length threshold and zero otherwise, without SH, fallback, or environment contribution. Lightmap decoding and Mixed/Subtractive handling remain Shader-Core-owned, and Toon-generated SH is suppressed for `LIGHTMAP_ON` or disabled Unity SH sampling. `sd.shadow` changes direct Toon radiance once, never the aggregate direction or SH. PBR, Hybrid, and Unlit are unchanged.
+
 ### Toon direct-light visibility contract
 
 For `PureBase/Toon`, `light.color` in the `light` phase is the scene/direct light color multiplied by non-shadow distance, spot, and cookie attenuation. Unity effective per-light visibility is exposed independently through `sd.shadow` before `light`, `modifylight`, and `shade`. The same split is used for the supported directional, point, spot, point-cookie, and directional-cookie light branches.

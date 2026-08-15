@@ -172,24 +172,6 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("sd.col.a = half(0.25)", File.ReadAllText(PostPixelProbePath));
         }
 
-        /// <summary>Requires Toon-owned binary direct and two-band environment lighting with Shader-Core lightmap and ForwardAdd isolation.</summary>
-        [Test]
-        public void ToonLightingOwnershipKeepsBinaryDirectTwoBandShaderCoreLightmapsAndForwardAddIsolation()
-        {
-            string toon = File.ReadAllText(ToonModelPath);
-            string helper = File.ReadAllText(ToonLightingHelperPath);
-            string host = File.ReadAllText(BirpHostPath);
-            string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
-            string pbr = File.ReadAllText(PbrModelPath);
-            string pbrBrdf = File.ReadAllText(PbrBrdfPath);
-            string hybrid = File.ReadAllText(HybridModelPath);
-
-            AssertToonHelperAndModelContracts(toon, helper);
-            AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
-            AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
-            AssertLightingPhaseOrder(host);
-        }
-
         /// <summary>Requires Toon to separate non-shadow attenuation from Unity effective visibility before Shader-Core light phases.</summary>
         [Test]
         public void ToonShadowSeparationRequiresSplitInputsModelPreparationAndUnchangedNonToonOwnership()
@@ -481,11 +463,7 @@ namespace PureBase.Tests.Daily
                 helper,
                 "The Toon helper must own fixed bright and dark environment band interpretation."
             );
-            StringAssert.Contains(
-                "return lerp(dark, bright, step(0, dot(surfaceNormal, L)));",
-                helper,
-                "The Toon helper must select the environment from fixed bright and dark bands."
-            );
+            OpenLitSourceContractAssertions.AssertOpenLitToonEquationContracts(helper);
             StringAssert.Contains(
                 "#include \"Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl\"",
                 toon,
@@ -504,6 +482,7 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("env = SCModelSelectEnvironmentLighting(env);", host);
             StringAssert.Contains("sd.lightColor = lightSum.color + env;", host);
             StringAssert.Contains("sd.lightColor = lightSum.color;", host);
+            OpenLitSourceContractAssertions.AssertOpenLitHostGateContracts(host);
             Assert.That(
                 RequireIndex(host, "#if defined(UNITY_PASS_FORWARDADD)"),
                 Is.LessThan(RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);")),
@@ -554,51 +533,6 @@ namespace PureBase.Tests.Daily
             Assert.That(shade, Is.LessThan(reflection));
             Assert.That(reflection, Is.LessThan(add));
             Assert.That(add, Is.LessThan(postPixel));
-        }
-
-        /// <summary>Requires the Toon-only dominant-direction and bright/dark SH helper without changing PBR or Hybrid ownership.</summary>
-        [Test]
-        public void ToonLightingRequiresFixedTwoBandHelperFallbackAndModelCallbackSeparation()
-        {
-            string toon = File.ReadAllText(ToonModelPath);
-            Assert.That(
-                File.Exists(ToonLightingHelperPath),
-                Is.True,
-                "The Toon-only dominant-direction and two-band SH helper must exist."
-            );
-            string helper = File.ReadAllText(ToonLightingHelperPath);
-            string host = File.ReadAllText(BirpHostPath);
-            string pbrBrdf = File.ReadAllText(PbrBrdfPath);
-
-            StringAssert.Contains(
-                "#include \"Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl\"",
-                toon,
-                "The two-band SH helper must be included only by the Toon model."
-            );
-            StringAssert.Contains("SCModelEvaluateDirectFactor", toon);
-            StringAssert.Contains("SCModelEvaluateAmbient", toon);
-            StringAssert.Contains("SCModelSelectEnvironmentLighting", toon);
-            StringAssert.Contains(
-                "float3 shDirection = (shAr.xyz + shAg.xyz + shAb.xyz) / 3",
-                helper
-            );
-            StringAssert.Contains(
-                "float3(shDirection.x, abs(shDirection.y), shDirection.z)",
-                helper
-            );
-            StringAssert.Contains("<= 0.000001", helper);
-            StringAssert.Contains("float3(0.001, 0.002, 0.001)", helper);
-            StringAssert.Contains("E = L * 0.666666", helper);
-            StringAssert.Contains("base + linear", helper);
-            StringAssert.Contains("base - linear", helper);
-            StringAssert.Contains("step(0, dot(surfaceNormal, L))", helper);
-            StringAssert.DoesNotContain("toon_lighting.hlsl", host);
-            StringAssert.DoesNotContain("toon_lighting.hlsl", pbrBrdf);
-            StringAssert.Contains(
-                "half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;",
-                pbrBrdf,
-                "The Toon helper must not replace Hybrid's inline binary direct-diffuse branch."
-            );
         }
 
         /// <summary>Requires pass-bounded Stencil policy while preserving the existing pass and rendering-mode keyword ABI.</summary>
