@@ -347,6 +347,48 @@
       }
     },
     {
+      "shaderName": "PureBase/Tests/ShaderCore/ToonOpenLitGamma",
+      "moduleUniqueId": "jp.penguin.purebase.tests.shadercore.toonopenlitgamma",
+      "expectedSentinels": [
+        "PUREBASE_TEST_TOON_OPENLIT_GAMMA_SENTINEL_SHADE"
+      ],
+      "inactiveSentinels": [
+        "PUREBASE_TEST_TOON_SHADOW_SENTINEL_LIGHT",
+        "PUREBASE_TEST_TOON_SHADOW_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_TOON_SHADOW_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_MORPH",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTVERTEX",
+        "PUREBASE_TEST_PHASE_SENTINEL_BASE",
+        "PUREBASE_TEST_PHASE_SENTINEL_LIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_CUSTOMLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_MODIFYLIGHT",
+        "PUREBASE_TEST_PHASE_SENTINEL_SHADE",
+        "PUREBASE_TEST_PHASE_SENTINEL_REFLECTION",
+        "PUREBASE_TEST_PHASE_SENTINEL_ADD",
+        "PUREBASE_TEST_PHASE_SENTINEL_POSTPIXEL"
+      ],
+      "expectedPassSentinelCounts": {
+        "ForwardBase": 1,
+        "ForwardAdd": 1,
+        "ShadowCaster": 0,
+        "Meta": 0
+      },
+      "openLitRuntimeEvidence": {
+        "gammaMacro": "UNITY_COLORSPACE_GAMMA",
+        "productModelInclude": "Packages/jp.penguin.purebase/Shaders/Models/toon.hlsl",
+        "forwardBasePass": "ForwardBase",
+        "forwardAddPass": "ForwardAdd",
+        "absentPasses": [
+          "ShadowCaster",
+          "Meta"
+        ],
+        "forwardAddSentinel": "PUREBASE_TEST_TOON_OPENLIT_GAMMA_SENTINEL_SHADE",
+        "injectedShSetCount": 2,
+        "requireGammaReadback": true,
+        "requireDirectOnlyForwardAdd": true
+      }
+    },
+    {
       "shaderName": "PureBase/Tests/ShaderCore/ModuleOrder",
       "moduleUniqueIds": [
         "jp.penguin.purebase.tests.shadercore.moduleorder.zeta",

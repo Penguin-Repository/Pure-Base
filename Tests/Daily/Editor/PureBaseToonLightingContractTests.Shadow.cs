@@ -206,20 +206,21 @@ namespace PureBase.Tests.Daily
             ToonShadowObservation shadowed = EvaluateToonShadowContract(shadowedInputs);
             Vector4 shAr = new Vector4(0.3f, 0.0f, 0.0f, 0.2f);
             Vector3 normal = (Vector3.forward - 0.5f * Vector3.right).normalized;
-            Vector3 visibleDirection = EvaluateDominantDirection(
+            Vector3 visibleDirection = EvaluateOpenLitDominantDirection(
                 Vector3.forward * visible.directionWeight,
                 shAr,
                 Vector4.zero,
                 Vector4.zero
             );
-            Vector3 shadowedDirection = EvaluateDominantDirection(
+            Vector3 shadowedDirection = EvaluateOpenLitDominantDirection(
                 Vector3.forward * shadowed.directionWeight,
                 shAr,
                 Vector4.zero,
                 Vector4.zero
             );
-            Color visibleBand = EvaluateTwoBandSh(normal, visibleDirection, shAr, Vector4.zero, Vector4.zero);
-            Color shadowedBand = EvaluateTwoBandSh(normal, shadowedDirection, shAr, Vector4.zero, Vector4.zero);
+            ShCoefficients coefficients = new ShCoefficients(shAr, Vector4.zero, Vector4.zero, Vector4.zero, Vector4.zero, Vector4.zero, Vector4.zero);
+            Color visibleBand = EvaluateOpenLitTwoBandSh(normal, visibleDirection, coefficients, false);
+            Color shadowedBand = EvaluateOpenLitTwoBandSh(normal, shadowedDirection, coefficients, false);
 
             Assert.That(shadowed.directRadiance, Is.LessThan(visible.directRadiance - 0.02f));
             Assert.That(shadowed.directionWeight, Is.EqualTo(visible.directionWeight).Within(OracleTolerance));

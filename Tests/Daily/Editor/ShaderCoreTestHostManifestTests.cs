@@ -69,17 +69,38 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Ensures every fixed host has one non-empty shader name and module selection.</summary>
         [Test]
-        public void ManifestContainsTwelveUniqueFixedHostSelections()
+        public void ManifestContainsThirteenUniqueFixedHostSelections()
         {
             var manifest = JsonUtility.FromJson<HostManifest>(File.ReadAllText(GetManifestPath()));
 
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
             Assert.That(manifest.hosts, Is.Not.Null);
-            Assert.That(manifest.hosts.Length, Is.EqualTo(12));
+            Assert.That(manifest.hosts.Length, Is.EqualTo(13));
 
             AssertHostSelections(manifest.hosts);
             AssertManifestRuntimeContracts(manifest.hosts);
+        }
+
+        /// <summary>Requires the forced-Gamma Toon host to keep its product includes and direct-only diagnostic in their intended passes.</summary>
+        [Test]
+        public void ToonOpenLitGeneratedSourcePreservesGammaPlacementAndDirectOnlyDiagnostic()
+        {
+            HostManifestEntry host = LoadManifest().hosts.Single(entry =>
+                string.Equals(
+                    entry.shaderName,
+                    "PureBase/Tests/ShaderCore/ToonOpenLitGamma",
+                    StringComparison.Ordinal
+                )
+            );
+            string assetPath = FindHostAssetPath(host.shaderName);
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+            AssertImportedShaderIsUsable(host.shaderName, shader);
+
+            string source = LoadGeneratedShaderSource(assetPath, host.shaderName);
+            AssertExpectedSentinelCounts(host, source);
+            AssertInactiveSentinelsAreAbsent(host, source);
+            AssertOpenLitGeneratedSourceContract(host, source);
         }
 
         /// <summary>Asserts unique shader names and required module and sentinel configuration for every host entry.</summary>
@@ -113,6 +134,11 @@ namespace PureBase.Tests.Daily
                 hosts.Count(HasConfiguredRuntimeEvidence),
                 Is.EqualTo(1),
                 "Only the Toon shadow host must declare one valid phase-shadow runtime contract."
+            );
+            Assert.That(
+                hosts.Count(HasConfiguredOpenLitRuntimeEvidence),
+                Is.EqualTo(1),
+                "Only the Toon OpenLit host must declare one valid Gamma and ForwardAdd runtime contract."
             );
         }
 
@@ -165,6 +191,11 @@ namespace PureBase.Tests.Daily
                 string source = LoadGeneratedShaderSource(assetPath, host.shaderName);
                 AssertExpectedSentinelCounts(host, source);
                 AssertInactiveSentinelsAreAbsent(host, source);
+
+                if (HasConfiguredOpenLitRuntimeEvidence(host))
+                {
+                    AssertOpenLitGeneratedSourceContract(host, source);
+                }
 
                 if (HasConfiguredModuleOrder(host))
                 {
@@ -280,7 +311,7 @@ namespace PureBase.Tests.Daily
             );
             Assert.That(manifest, Is.Not.Null);
             Assert.That(manifest.schemaVersion, Is.EqualTo(1));
-            Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(12));
+            Assert.That(manifest.hosts, Is.Not.Null.And.Length.EqualTo(13));
             return manifest;
         }
 
@@ -328,6 +359,30 @@ namespace PureBase.Tests.Daily
             }
 
             return runtimeEvidence.requireFinite && runtimeEvidence.requireChannelAgreement;
+        }
+
+        /// <summary>Returns whether the manifest declares the complete forced-Gamma Toon OpenLit runtime contract.</summary>
+        private static bool HasConfiguredOpenLitRuntimeEvidence(HostManifestEntry host)
+        {
+            OpenLitRuntimeEvidence runtimeEvidence = host.openLitRuntimeEvidence;
+            return runtimeEvidence != null
+                && string.Equals(runtimeEvidence.gammaMacro, "UNITY_COLORSPACE_GAMMA", StringComparison.Ordinal)
+                && string.Equals(
+                    runtimeEvidence.productModelInclude,
+                    "Packages/jp.penguin.purebase/Shaders/Models/toon.hlsl",
+                    StringComparison.Ordinal
+                )
+                && string.Equals(runtimeEvidence.forwardBasePass, "ForwardBase", StringComparison.Ordinal)
+                && string.Equals(runtimeEvidence.forwardAddPass, "ForwardAdd", StringComparison.Ordinal)
+                && runtimeEvidence.absentPasses.SequenceEqual(new[] { "ShadowCaster", "Meta" })
+                && string.Equals(
+                    runtimeEvidence.forwardAddSentinel,
+                    "PUREBASE_TEST_TOON_OPENLIT_GAMMA_SENTINEL_SHADE",
+                    StringComparison.Ordinal
+                )
+                && runtimeEvidence.injectedShSetCount == 2
+                && runtimeEvidence.requireGammaReadback
+                && runtimeEvidence.requireDirectOnlyForwardAdd;
         }
 
         /// <summary>Returns whether the manifest declares the required red, green, and blue phase channels.</summary>
@@ -503,12 +558,25 @@ namespace PureBase.Tests.Daily
             int expectedCount
         )
         {
+            if (IsConfiguredAbsentOpenLitPass(host, passName))
+            {
+                Assert.That(expectedCount, Is.Zero);
+                return;
+            }
+
             string passSource = GetPassSource(source, passName, host.shaderName);
             Assert.That(
                 CountOccurrences(passSource, sentinel),
                 Is.EqualTo(expectedCount),
                 $"Host '{host.shaderName}' pass '{passName}' emitted an unexpected count for '{sentinel}'."
             );
+        }
+
+        /// <summary>Returns whether a named generated pass is intentionally absent from the fixed Toon OpenLit host.</summary>
+        private static bool IsConfiguredAbsentOpenLitPass(HostManifestEntry host, string passName)
+        {
+            return HasConfiguredOpenLitRuntimeEvidence(host)
+                && host.openLitRuntimeEvidence.absentPasses.Contains(passName);
         }
 
         /// <summary>Checks that every inactive sentinel is absent from the entire generated source.</summary>
@@ -580,6 +648,101 @@ namespace PureBase.Tests.Daily
                 secondIndex,
                 Is.GreaterThan(firstIndex),
                 $"Host '{host.shaderName}' pass '{passName}' did not preserve module order '{host.moduleOrder.firstSentinel}' before '{host.moduleOrder.secondSentinel}'."
+            );
+        }
+
+        /// <summary>Asserts forced-Gamma macro placement and the ForwardAdd-only OpenLit direction diagnostic in generated host source.</summary>
+        private static void AssertOpenLitGeneratedSourceContract(
+            HostManifestEntry host,
+            string source
+        )
+        {
+            Assert.That(HasConfiguredOpenLitRuntimeEvidence(host), Is.True);
+            OpenLitRuntimeEvidence runtimeEvidence = host.openLitRuntimeEvidence;
+            string forwardBaseSource = GetPassSource(
+                source,
+                runtimeEvidence.forwardBasePass,
+                host.shaderName
+            );
+            string forwardAddSource = GetPassSource(
+                source,
+                runtimeEvidence.forwardAddPass,
+                host.shaderName
+            );
+            AssertGammaPrecedesProductInclude(host, forwardBaseSource);
+            AssertGammaPrecedesProductInclude(host, forwardAddSource);
+            AssertForwardAddDiagnosticIsPreprocessorGated(
+                host,
+                forwardBaseSource,
+                forwardAddSource
+            );
+            AssertConfiguredPassesAreAbsent(host, source);
+        }
+
+        /// <summary>Asserts that the fixed OpenLit host emits only the configured ForwardBase and ForwardAdd product passes.</summary>
+        private static void AssertConfiguredPassesAreAbsent(HostManifestEntry host, string source)
+        {
+            foreach (string absentPass in host.openLitRuntimeEvidence.absentPasses)
+            {
+                Assert.That(
+                    source.IndexOf($"Name \"{absentPass}\"", StringComparison.Ordinal),
+                    Is.EqualTo(-1),
+                    $"Host '{host.shaderName}' must not emit the unsupported '{absentPass}' pass."
+                );
+            }
+        }
+
+        /// <summary>Asserts that a generated pass defines forced Gamma before identifying the product Toon model include.</summary>
+        private static void AssertGammaPrecedesProductInclude(HostManifestEntry host, string passSource)
+        {
+            OpenLitRuntimeEvidence runtimeEvidence = host.openLitRuntimeEvidence;
+            Match gammaMacro = Regex.Match(
+                passSource,
+                @"#\s*define\s+UNITY_COLORSPACE_GAMMA\s+1\b",
+                RegexOptions.CultureInvariant
+            );
+            Match productModelInclude = Regex.Match(
+                passSource,
+                @"#\s*define\s+PUREBASE_MODEL_INCLUDE\s+\""Packages/jp\.penguin\.purebase/Shaders/Models/toon\.hlsl\""",
+                RegexOptions.CultureInvariant
+            );
+            Assert.That(
+                gammaMacro.Success,
+                Is.True,
+                $"Host '{host.shaderName}' must define '{runtimeEvidence.gammaMacro}' in every configured product pass."
+            );
+            Assert.That(
+                productModelInclude.Success,
+                Is.True,
+                $"Host '{host.shaderName}' must identify '{runtimeEvidence.productModelInclude}' in every configured product pass."
+            );
+            Assert.That(
+                gammaMacro.Index,
+                Is.LessThan(productModelInclude.Index),
+                $"Host '{host.shaderName}' must define '{runtimeEvidence.gammaMacro}' before the product Toon model include."
+            );
+        }
+
+        /// <summary>Asserts that generated diagnostic source remains inactive outside the compiled ForwardAdd pass.</summary>
+        private static void AssertForwardAddDiagnosticIsPreprocessorGated(
+            HostManifestEntry host,
+            string forwardBaseSource,
+            string forwardAddSource
+        )
+        {
+            OpenLitRuntimeEvidence runtimeEvidence = host.openLitRuntimeEvidence;
+            string forwardAddGuardPattern =
+                @"#\s*if\s+defined\s*\(\s*UNITY_PASS_FORWARDADD\s*\)[\s\S]*?"
+                + Regex.Escape(runtimeEvidence.forwardAddSentinel);
+            Assert.That(
+                Regex.IsMatch(forwardBaseSource, forwardAddGuardPattern, RegexOptions.CultureInvariant),
+                Is.True,
+                $"Host '{host.shaderName}' must guard '{runtimeEvidence.forwardAddSentinel}' with UNITY_PASS_FORWARDADD when the source is emitted in ForwardBase."
+            );
+            Assert.That(
+                CountOccurrences(forwardAddSource, runtimeEvidence.forwardAddSentinel),
+                Is.EqualTo(1),
+                $"Host '{host.shaderName}' must emit '{runtimeEvidence.forwardAddSentinel}' exactly once in ForwardAdd."
             );
         }
 
@@ -811,6 +974,9 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets the Toon phase-shadow runtime evidence requirements.</summary>
             public RuntimeEvidence runtimeEvidence;
+
+            /// <summary>Gets the forced-Gamma Toon OpenLit runtime evidence requirements.</summary>
+            public OpenLitRuntimeEvidence openLitRuntimeEvidence;
         }
 
         /// <summary>Stores selected sentinel counts for every generated ShaderLab pass.</summary>
@@ -886,6 +1052,39 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets whether phase channels must agree on one visibility value.</summary>
             public bool requireChannelAgreement;
+        }
+
+        /// <summary>Stores the forced-Gamma Toon OpenLit generated-source and runtime readback requirements.</summary>
+        [Serializable]
+        [SuppressMessage("SonarAnalyzer.CSharp", "S3459", Justification = "Unity JsonUtility populates these public fields from the fixed-host manifest.")]
+        private sealed class OpenLitRuntimeEvidence
+        {
+            /// <summary>Gets the forced Unity Gamma macro name.</summary>
+            public string gammaMacro;
+
+            /// <summary>Gets the product Toon model include path.</summary>
+            public string productModelInclude;
+
+            /// <summary>Gets the ForwardBase pass that must compile the Gamma branch.</summary>
+            public string forwardBasePass;
+
+            /// <summary>Gets the ForwardAdd pass that exposes the direct-only direction diagnostic.</summary>
+            public string forwardAddPass;
+
+            /// <summary>Gets generated passes intentionally excluded from the fixed two-pass host.</summary>
+            public string[] absentPasses;
+
+            /// <summary>Gets the Shade diagnostic sentinel emitted only by ForwardAdd.</summary>
+            public string forwardAddSentinel;
+
+            /// <summary>Gets the count of injected SH sets required for ForwardAdd isolation.</summary>
+            public int injectedShSetCount;
+
+            /// <summary>Gets whether the fixed host requires a Gamma readback contract.</summary>
+            public bool requireGammaReadback;
+
+            /// <summary>Gets whether the fixed host requires direct-only ForwardAdd direction evidence.</summary>
+            public bool requireDirectOnlyForwardAdd;
         }
 
         /// <summary>Stores the RGB channel published by every selected Toon phase.</summary>
