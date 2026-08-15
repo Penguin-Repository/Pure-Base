@@ -17,6 +17,7 @@
 // Defines focused source contracts for the OpenLit-derived Toon lighting integration.
 
 using System;
+using System.IO;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 
@@ -30,7 +31,7 @@ namespace PureBase.Tests.Daily
         {
             /// <summary>Requires the OpenLit-derived Toon equation and rejects the superseded scaled or inverted SH approximation.</summary>
             /// <param name="helper">The Toon-only lighting helper source.</param>
-            private static void AssertOpenLitToonEquationContracts(string helper)
+            internal static void AssertOpenLitToonEquationContracts(string helper)
             {
                 StringAssert.Contains("float3(0.22, 0.707, 0.071)", helper);
                 StringAssert.Contains("float3(0.0396819152, 0.458021790, 0.00609653955)", helper);
@@ -46,7 +47,7 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Requires the fixed fallback to enter the Toon direction sum before normalization.</summary>
             /// <param name="helper">The Toon-only lighting helper source.</param>
-            private static void AssertOpenLitFallbackPrecedesNormalization(string helper)
+            internal static void AssertOpenLitFallbackPrecedesNormalization(string helper)
             {
                 StringAssert.Contains("float3 fallbackDirection = float3(0.001, 0.002, 0.001);", helper);
                 Assert.That(
@@ -62,11 +63,11 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Requires Toon-only SH gates and direct-only ForwardAdd direction publication in the shared host.</summary>
             /// <param name="host">The common BIRP fragment host source.</param>
-            private static void AssertOpenLitHostGateContracts(string host)
+            internal static void AssertOpenLitHostGateContracts(string host)
             {
                 const string fallbackDirectDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, half4(0, 0, 0, 0), half4(0, 0, 0, 0), half4(0, 0, 0, 0));";
                 const string shDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, unity_SHAr, unity_SHAg, unity_SHAb);";
-                const string toonAmbient = "env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);";
+                const string toonAmbient = "env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHAb, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);";
                 int fallbackDirectIndex = RequireIndex(host, fallbackDirectDirection);
                 int shGateIndex = RequireIndex(host, "#if !defined(LIGHTMAP_ON) && UNITY_SHOULD_SAMPLE_SH");
                 int shDirectionIndex = RequireIndex(host, shDirection);
@@ -88,6 +89,33 @@ namespace PureBase.Tests.Daily
                 Assert.That(Regex.IsMatch(host, @"#if\s+defined\(UNITY_PASS_FORWARDADD\)[\s\S]*?sd\.L\s*=\s*dot\(lightSum\.direction\s*,\s*lightSum\.direction\)\s*>\s*0\.000001\s*\?\s*normalize\(lightSum\.direction\)\s*:\s*(?:half|float)3\(0(?:\.0+)?\s*,\s*0(?:\.0+)?\s*,\s*0(?:\.0+)?\)"), Is.True, "ForwardAdd must publish normalized direct direction or zero without SH fallback.");
                 Assert.That(Regex.Matches(host, @"\bsd\.L\s*=\s*[^;]*?(?:half|float)3\(0(?:\.0+)?\s*,\s*0(?:\.0+)?\s*,\s*0(?:\.0+)?\)").Count, Is.EqualTo(1), "Only ForwardAdd may reset sd.L to zero; lightmap and SH-disabled ForwardBase branches must retain fallback-inclusive direct direction.");
             }
+
+        }
+
+        /// <summary>Requires Toon-owned binary direct and two-band environment lighting with Shader-Core lightmap and ForwardAdd isolation.</summary>
+        [Test]
+        public void ToonLightingOwnershipKeepsBinaryDirectTwoBandShaderCoreLightmapsAndForwardAddIsolation()
+        {
+            string toon = File.ReadAllText(ToonModelPath);
+            string helper = File.ReadAllText(ToonLightingHelperPath);
+            string host = File.ReadAllText(BirpHostPath);
+            string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
+            string pbr = File.ReadAllText(PbrModelPath);
+            string pbrBrdf = File.ReadAllText(PbrBrdfPath);
+            string hybrid = File.ReadAllText(HybridModelPath);
+
+            AssertToonHelperAndModelContracts(toon, helper);
+            AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
+            AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
+            AssertLightingPhaseOrder(host);
+            OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(helper);
+        }
+
+        /// <summary>Requires the Toon direction fallback to affect nondegenerate aggregates before normalization.</summary>
+        [Test]
+        public void ToonOpenLitFallbackIsAddedBeforeDirectionNormalization()
+        {
+            OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(File.ReadAllText(ToonLightingHelperPath));
         }
     }
 }

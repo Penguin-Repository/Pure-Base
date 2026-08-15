@@ -172,32 +172,6 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("sd.col.a = half(0.25)", File.ReadAllText(PostPixelProbePath));
         }
 
-        /// <summary>Requires Toon-owned binary direct and two-band environment lighting with Shader-Core lightmap and ForwardAdd isolation.</summary>
-        [Test]
-        public void ToonLightingOwnershipKeepsBinaryDirectTwoBandShaderCoreLightmapsAndForwardAddIsolation()
-        {
-            string toon = File.ReadAllText(ToonModelPath);
-            string helper = File.ReadAllText(ToonLightingHelperPath);
-            string host = File.ReadAllText(BirpHostPath);
-            string shaderCoreLighting = File.ReadAllText(ShaderCoreBirpLightingPath);
-            string pbr = File.ReadAllText(PbrModelPath);
-            string pbrBrdf = File.ReadAllText(PbrBrdfPath);
-            string hybrid = File.ReadAllText(HybridModelPath);
-
-            AssertToonHelperAndModelContracts(toon, helper);
-            AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
-            AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
-            AssertLightingPhaseOrder(host);
-            OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(helper);
-        }
-
-        /// <summary>Requires the Toon direction fallback to affect nondegenerate aggregates before normalization.</summary>
-        [Test]
-        public void ToonOpenLitFallbackIsAddedBeforeDirectionNormalization()
-        {
-            OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(File.ReadAllText(ToonLightingHelperPath));
-        }
-
         /// <summary>Requires Toon to separate non-shadow attenuation from Unity effective visibility before Shader-Core light phases.</summary>
         [Test]
         public void ToonShadowSeparationRequiresSplitInputsModelPreparationAndUnchangedNonToonOwnership()
