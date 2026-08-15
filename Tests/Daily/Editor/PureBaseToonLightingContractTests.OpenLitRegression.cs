@@ -127,14 +127,19 @@ namespace PureBase.Tests.Daily
         {
             const string directAssignment = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, half4(0, 0, 0, 0), half4(0, 0, 0, 0), half4(0, 0, 0, 0));";
             const string toonShGate = "#if !defined(LIGHTMAP_ON) && UNITY_SHOULD_SAMPLE_SH";
-            const string toonShDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, unity_SHAr, unity_SHAg, unity_SHAb);";
-            const string toonAmbientBand = "env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHAb, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);";
+            const string toonShDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, shAr, shAg, shAb);";
+            const string toonAmbientBand = "env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);";
             int directIndex = source.IndexOf(directAssignment, StringComparison.Ordinal);
             int gateIndex = source.IndexOf(toonShGate, StringComparison.Ordinal);
             int shDirectionIndex = source.IndexOf(toonShDirection, StringComparison.Ordinal);
             int ambientBandIndex = source.IndexOf(toonAmbientBand, StringComparison.Ordinal);
 
             StringAssert.Contains(disabledFeature, toonShGate);
+            Assert.That(
+                source.IndexOf("unity_SH", StringComparison.Ordinal),
+                Is.LessThan(0),
+                "Toon SH evaluation must use supplied parameters instead of Unity SH globals."
+            );
             Assert.That(directIndex, Is.GreaterThanOrEqualTo(0), "ForwardBase must initialize sd.L from the fallback-inclusive direct aggregate.");
             Assert.That(gateIndex, Is.GreaterThan(directIndex), "Only Toon SH augmentation may be gated after the direct direction is published.");
             Assert.That(shDirectionIndex, Is.GreaterThan(gateIndex), "Toon SH direction must remain inside the SH gate.");

@@ -66,13 +66,16 @@ namespace PureBase.Tests.Daily
             internal static void AssertOpenLitHostGateContracts(string host)
             {
                 const string fallbackDirectDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, half4(0, 0, 0, 0), half4(0, 0, 0, 0), half4(0, 0, 0, 0));";
-                const string shDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, unity_SHAr, unity_SHAg, unity_SHAb);";
-                const string toonAmbient = "env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHAb, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);";
+                const string shDirection = "sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, shAr, shAg, shAb);";
+                const string toonAmbient = "env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);";
                 int fallbackDirectIndex = RequireIndex(host, fallbackDirectDirection);
                 int shGateIndex = RequireIndex(host, "#if !defined(LIGHTMAP_ON) && UNITY_SHOULD_SAMPLE_SH");
                 int shDirectionIndex = RequireIndex(host, shDirection);
                 int toonAmbientIndex = RequireIndex(host, toonAmbient);
+                Match toonBranch = Regex.Match(host, @"#if\s+defined\(PUREBASE_TOON_MODEL_INCLUDED\)[\s\S]*?#endif\s*#endif\s*#else", RegexOptions.Singleline);
 
+                Assert.That(toonBranch.Success, Is.True, "The Toon host branch must retain its ForwardAdd and no-lightmap structure.");
+                Assert.That(Regex.IsMatch(toonBranch.Value, @"\bunity_SH(?:Ar|Ag|Ab|Br|Bg|Bb|C)\b"), Is.False, "Toon SH evaluation must use supplied SCCalculateEnvironmentLight parameters instead of Unity SH globals.");
                 Assert.That(Regex.IsMatch(host, @"#if\s+defined\(PUREBASE_TOON_MODEL_INCLUDED\)\s*&&\s*!defined\(LIGHTMAP_ON\)"), Is.False, "Fallback-inclusive direct direction must not be owned by the obsolete combined Toon/lightmap gate.");
                 Assert.That(fallbackDirectIndex, Is.LessThan(shGateIndex), "ForwardBase must publish fallback-inclusive direct direction before deciding whether Toon SH is available.");
                 Assert.That(shGateIndex, Is.LessThan(shDirectionIndex), "Toon SH direction must remain inside the nested no-lightmap Unity SH gate.");
@@ -80,7 +83,7 @@ namespace PureBase.Tests.Daily
                 Assert.That(
                     Regex.IsMatch(
                         host,
-                        @"#else\s*sd\.L\s*=\s*SCModelSelectAggregateLightDirection\(lightSum\.direction,\s*half4\(0,\s*0,\s*0,\s*0\),\s*half4\(0,\s*0,\s*0,\s*0\),\s*half4\(0,\s*0,\s*0,\s*0\)\);\s*#if\s*!defined\(LIGHTMAP_ON\)\s*&&\s*UNITY_SHOULD_SAMPLE_SH\s*sd\.L\s*=\s*SCModelSelectAggregateLightDirection\(lightSum\.direction,\s*unity_SHAr,\s*unity_SHAg,\s*unity_SHAb\);\s*env\s*\+=\s*SCModelEvaluateAmbient\(sd,\s*unity_SHAr,\s*unity_SHAg,\s*unity_SHAb,\s*unity_SHBr,\s*unity_SHBg,\s*unity_SHBb,\s*unity_SHC\);\s*#endif",
+                        @"#else\s*sd\.L\s*=\s*SCModelSelectAggregateLightDirection\(lightSum\.direction,\s*half4\(0,\s*0,\s*0,\s*0\),\s*half4\(0,\s*0,\s*0,\s*0\),\s*half4\(0,\s*0,\s*0,\s*0\)\);\s*#if\s*!defined\(LIGHTMAP_ON\)\s*&&\s*UNITY_SHOULD_SAMPLE_SH\s*sd\.L\s*=\s*SCModelSelectAggregateLightDirection\(lightSum\.direction,\s*shAr,\s*shAg,\s*shAb\);\s*env\s*\+=\s*SCModelEvaluateAmbient\(sd,\s*shAr,\s*shAg,\s*shAb,\s*shBr,\s*shBg,\s*shBb,\s*shC\);\s*#endif",
                         RegexOptions.Singleline
                     ),
                     Is.True,
