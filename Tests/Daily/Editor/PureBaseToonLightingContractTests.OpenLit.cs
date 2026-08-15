@@ -278,7 +278,7 @@ namespace PureBase.Tests.Daily
                 coefficients
             );
             AssertFinite(actual, label + " readback");
-            AssertColor(expected, actual, label + " readback");
+            AssertRuntimeColor(expected, actual, label + " readback");
         }
 
         /// <summary>Creates a second full SH input set whose first-order, L2, and C vectors differ from the primary OpenLit fixture.</summary>
@@ -302,28 +302,6 @@ namespace PureBase.Tests.Daily
             Assert.That(shader, Is.Not.Null, "The temporary Toon OpenLit Gamma host import did not produce a shader.");
             Assert.That(ShaderUtil.ShaderHasError(shader), Is.False, "The temporary Toon OpenLit Gamma host import produced shader compiler errors.");
             Assert.That(shader.isSupported, Is.True, "The temporary Toon OpenLit Gamma host shader is unsupported.");
-        }
-
-        /// <summary>Renders one ForwardAdd diagnostic using the selected host without changing any persistent Shader-Core selection.</summary>
-        private static Color RenderToonOpenLitForwardAddDiagnostic(
-            ToonLightingCaptureScope capture,
-            Vector4 lightColor,
-            ShCoefficients coefficients
-        )
-        {
-            return capture.RenderLightWithCookie(
-                ToonOpenLitGammaShaderName,
-                "ForwardAdd",
-                new LightCaptureRequest
-                {
-                    normal = Vector3.forward,
-                    lightColor = lightColor,
-                    lightPosition = new Vector4(0.0f, 0.0f, 1.0f, 0.0f),
-                    coefficients = coefficients,
-                    lightType = LightType.Directional,
-                    lightCount = lightColor == Vector4.zero ? 0 : 1,
-                }
-            );
         }
 
         /// <summary>Decodes the host Shade diagnostic from its centered RGB representation.</summary>
@@ -426,9 +404,12 @@ namespace PureBase.Tests.Daily
             Vector3 shDirection = new Vector3(coefficients.ar.x, coefficients.ar.y, coefficients.ar.z)
                 + new Vector3(coefficients.ag.x, coefficients.ag.y, coefficients.ag.z)
                 + new Vector3(coefficients.ab.x, coefficients.ab.y, coefficients.ab.z);
-            return shDirection.sqrMagnitude <= 0.000001f
-                ? Vector3.zero
-                : EvaluateOpenLitL1(shDirection.normalized, coefficients);
+            if (!IsFinite(shDirection) || (shDirection.x == 0.0f && shDirection.y == 0.0f && shDirection.z == 0.0f))
+            {
+                return Vector3.zero;
+            }
+
+            return EvaluateOpenLitL1(shDirection.normalized, coefficients);
         }
 
         /// <summary>Evaluates the selected OpenLit bright or dark SH band and performs Gamma-only linear-to-sRGB conversion.</summary>

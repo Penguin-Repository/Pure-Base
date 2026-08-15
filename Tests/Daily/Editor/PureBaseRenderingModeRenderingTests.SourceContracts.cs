@@ -561,44 +561,6 @@ namespace PureBase.Tests.Daily
             Assert.That(add, Is.LessThan(postPixel));
         }
 
-        /// <summary>Requires the OpenLit-derived Toon equation and rejects the superseded scaled or inverted SH approximation.</summary>
-        /// <param name="helper">The Toon-only lighting helper source.</param>
-        private static void AssertOpenLitToonEquationContracts(string helper)
-        {
-            StringAssert.Contains("float3(0.22, 0.707, 0.071)", helper);
-            StringAssert.Contains("float3(0.0396819152, 0.458021790, 0.00609653955)", helper);
-            StringAssert.Contains("float3(0.001, 0.002, 0.001)", helper);
-            StringAssert.Contains("UNITY_COLORSPACE_GAMMA", helper);
-            Assert.That(Regex.IsMatch(helper, @"normalize\s*\(\s*shAr\.xyz\s*\+\s*shAg\.xyz\s*\+\s*shAb\.xyz\s*\)"), Is.True, "The dark L1 direction must derive from the summed SH coefficients.");
-            Assert.That(Regex.IsMatch(helper, @"float3\s+E\s*=\s*L\s*\*\s*0\.666666"), Is.False, "OpenLit bright L0/L2 and L1 must use unscaled V.");
-            Assert.That(Regex.IsMatch(helper, @"base\s*-\s*linearTerm"), Is.False, "OpenLit dark L1 must not invert the bright L1 term.");
-            Assert.That(Regex.IsMatch(helper, @"\bsd\.shadow\b"), Is.False, "Toon direction and SH evaluation must remain visibility-independent.");
-        }
-
-        /// <summary>Requires the fixed fallback to enter the Toon direction sum before normalization.</summary>
-        /// <param name="helper">The Toon-only lighting helper source.</param>
-        private static void AssertOpenLitFallbackPrecedesNormalization(string helper)
-        {
-            Assert.That(
-                Regex.IsMatch(
-                    helper,
-                    @"float3\s+directionVector\s*=\s*directAggregateDirection\s*\+\s*float3\s*\(\s*shDirection\.x\s*,\s*abs\s*\(\s*shDirection\.y\s*\)\s*,\s*shDirection\.z\s*\)\s*\+\s*float3\s*\(\s*0\.001\s*,\s*0\.002\s*,\s*0\.001\s*\)\s*;[\s\S]*?return\s+normalize\s*\(\s*directionVector\s*\)\s*;",
-                    RegexOptions.Singleline
-                ),
-                Is.True,
-                "Toon direction must add the fixed fallback to the direct and SH direction sum before normalization."
-            );
-        }
-
-        /// <summary>Requires Toon-only SH gates and direct-only ForwardAdd direction publication in the shared host.</summary>
-        /// <param name="host">The common BIRP fragment host source.</param>
-        private static void AssertOpenLitHostGateContracts(string host)
-        {
-            Assert.That(Regex.IsMatch(host, @"#if\s+defined\(PUREBASE_TOON_MODEL_INCLUDED\)\s*&&\s*!defined\(LIGHTMAP_ON\)"), Is.True, "Toon SH must remain disabled while Shader-Core owns lightmaps.");
-            Assert.That(Regex.IsMatch(host, @"#if[^\r\n]*\bUNITY_SHOULD_SAMPLE_SH\b"), Is.True, "Toon SH must obey Unity's SH sampling gate.");
-            Assert.That(Regex.IsMatch(host, @"#if\s+defined\(UNITY_PASS_FORWARDADD\)[\s\S]*?sd\.L\s*=\s*dot\(lightSum\.direction\s*,\s*lightSum\.direction\)\s*>\s*0\.000001\s*\?\s*normalize\(lightSum\.direction\)\s*:\s*(?:half|float)3\(0(?:\.0+)?\s*,\s*0(?:\.0+)?\s*,\s*0(?:\.0+)?\)"), Is.True, "ForwardAdd must publish normalized direct direction or zero without SH fallback.");
-        }
-
         /// <summary>Requires pass-bounded Stencil policy while preserving the existing pass and rendering-mode keyword ABI.</summary>
         [Test]
         public void ProductGeneratedSourcesExposeStencilPassContractsWithoutNewVariantsOrPasses()

@@ -150,7 +150,7 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Owns one isolated regular-render fixture and restores every Unity global it changes.</summary>
-        private class ToonLightingCaptureRuntimeScope : IDisposable
+        private partial class ToonLightingCaptureRuntimeScope : IDisposable
         {
             /// <summary>Stores the dedicated layer used by the preview-scene renderer and lights.</summary>
             private const int FixtureLayer = 31;

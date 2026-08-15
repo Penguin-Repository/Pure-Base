@@ -64,7 +64,7 @@ half3 SCModelSelectMainLightDirection(SCVertexData vertex, half3 lightDirection)
     return lightDirection;
 }
 
-/// <summary>Evaluates the supplied Unity spherical-harmonics coefficients as fixed bright and dark Toon bands.</summary>
+/// <summary>Evaluates the supplied Unity spherical-harmonics coefficients as OpenLit-derived bright and dark Toon bands.</summary>
 half3 SCModelEvaluateAmbient(SCShadingData shadingData, half4 shAr, half4 shAg, half4 shAb, half4 shBr, half4 shBg, half4 shBb, half4 shC)
 {
     return PureBaseToonEvaluateTwoBandSh(shadingData.N, shadingData.L, shAr, shAg, shAb, shBr, shBg, shBb, shC);
@@ -95,5 +95,6 @@ half4 SCModelAddSurfaceColor(SCShadingData shadingData, SCCustomData customData,
 }
 
 #define SCModelSelectAggregateLightDirection(directAggregateDirection, shAr, shAg, shAb) PureBaseToonComputeLightDirection(directAggregateDirection, shAr, shAg, shAb)
+#define SCModelEvaluateLightDirectionWeight(lightColor) PureBaseToonLuminance(lightColor)
 
 #endif
