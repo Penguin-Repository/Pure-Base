@@ -1,13 +1,18 @@
-2026/08/11
+2026/08/15
 Ver. 0.2.0-beta.2
 https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0-beta.2
 
-- Added the module-free Toon host's stable direct-plus-SH direction and bright/dark SH-band behavior while preserving Shader-Core lightmap input and ForwardBase/ForwardAdd ownership.
-- Documented that Hybrid retains its existing PBR path, binary direct diffuse, Unity Standard indirect GI, reflection probes, and direct GGX specular without Toon SH direction or banding.
-- Preserved the public property ABI so existing materials need no migration.
-- Added Daily lighting-contract coverage for Toon direction and SH bands, lightmaps, ForwardAdd isolation, and Hybrid PBR boundaries.
-- Added lilToon 2.3.4 MIT and OpenLit 1.0.2 CC0 concept provenance without implying endorsement or contributor participation.
-- Updated the package version and release download identity to `0.2.0-beta.2`.
+* Added module-free Toon lighting with a stable dominant light direction and bright/dark spherical-harmonics environment bands while preserving the existing binary direct-light response.
+* Aligned Toon dominant-direction weighting and two-band SH evaluation with the OpenLit 1.0.2-derived lighting contract, including Linear and Gamma color-space behavior.
+* Fixed Toon shadow handling so Unity shadow visibility is applied once to direct Toon lighting, independently from non-shadow light attenuation.
+* Preserved Shader-Core ownership of BIRP light acquisition, lightmaps, phase dispatch, and additional-light enumeration; ForwardAdd remains direct-light only without SH environment lighting.
+* Preserved the existing PBR, Hybrid, and Unlit lighting behavior, including Hybrid's PBR indirect GI, reflection probes, and direct GGX specular path.
+* Preserved the public shader property ABI, so existing materials require no migration for this release.
+* Expanded Daily regression coverage for Toon SH direction and bands, shadows, lightmaps, ForwardAdd isolation, Linear/Gamma rendering, rendering-mode isolation, and non-Toon compatibility.
+* Expanded hosted Release validation artifacts with runtime readbacks, cold-reset receipts, summaries, and logs.
+* Documented the bounded lilToon 2.3.4 and OpenLit 1.0.2 lighting provenance without implying endorsement or contributor participation.
+* Updated the package version and release download identity to `0.2.0-beta.2`.
+
 
 2026/08/11
 Ver. 0.2.0-beta.1
