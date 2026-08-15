@@ -1963,7 +1963,7 @@ namespace PureBase.Release.Consumer.Tests
         private const string ModulesFieldName = "modules";
 
         /// <summary>Defines the canonical number of configured Shader-Core hosts.</summary>
-        private const int ExpectedHostCount = 11;
+        private const int ExpectedHostCount = 13;
 
         /// <summary>Defines the product baseline order appended after canonical hosts.</summary>
         private static readonly string[] ProductShaderNames =

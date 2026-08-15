@@ -746,6 +746,8 @@ function Get-FirstBootstrapShaderCoreSettingsProfile {
         'PureBase/Tests/ShaderCore/Phase/Reflection'  = @('jp.penguin.purebase.tests.shadercore.phase.reflection')
         'PureBase/Tests/ShaderCore/ModuleOrder'       = @('jp.penguin.purebase.tests.shadercore.moduleorder.zeta', 'jp.penguin.purebase.tests.shadercore.moduleorder.alpha')
         'PureBase/Tests/ShaderCore/Phase/Shade'       = @('jp.penguin.purebase.tests.shadercore.phase.shade')
+        'PureBase/Tests/ShaderCore/ToonShadow'        = @('jp.penguin.purebase.tests.shadercore.toonshadow')
+        'PureBase/Tests/ShaderCore/ToonOpenLitGamma'  = @('jp.penguin.purebase.tests.shadercore.toonopenlitgamma')
         'PureBase/Toon'                               = @()
     }
 }
@@ -793,8 +795,8 @@ function Get-CanonicalShaderCoreSettingsProfile {
         }
         $mapping[$productShaderName] = @()
     }
-    if ($mapping.Count -ne 15) {
-        throw "Canonical Shader-Core test-host manifest must define exactly 15 fixed host and product rows; found $($mapping.Count)."
+    if ($mapping.Count -ne 17) {
+        throw "Canonical Shader-Core test-host manifest must define exactly 17 fixed host and product rows; found $($mapping.Count)."
     }
     return $mapping
 }
