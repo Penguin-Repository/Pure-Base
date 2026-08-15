@@ -300,6 +300,9 @@ jobs:
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\library-reset.json
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\*summary.json
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\*.log
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\shader-core-state-initialization-report.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\fixed-point-report.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\immutable-input-manifest-fixed-point-delta.json
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

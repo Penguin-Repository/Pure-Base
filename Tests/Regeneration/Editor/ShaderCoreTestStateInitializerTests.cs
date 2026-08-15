@@ -140,7 +140,7 @@ namespace PureBase.Tests.Regeneration
         {
             var expectedRows = ShaderCoreTestStateInitializer.LoadExpectedRows();
 
-            Assert.That(expectedRows.Count, Is.EqualTo(15));
+            Assert.That(expectedRows.Count, Is.EqualTo(17));
             Assert.That(
                 expectedRows["PureBase/Tests/ShaderCore/ModuleOrder"],
                 Is.EqualTo(
@@ -150,6 +150,14 @@ namespace PureBase.Tests.Regeneration
                         "jp.penguin.purebase.tests.shadercore.moduleorder.alpha",
                     }
                 )
+            );
+            Assert.That(
+                expectedRows["PureBase/Tests/ShaderCore/ToonShadow"],
+                Is.EqualTo(new[] { "jp.penguin.purebase.tests.shadercore.toonshadow" })
+            );
+            Assert.That(
+                expectedRows["PureBase/Tests/ShaderCore/ToonOpenLitGamma"],
+                Is.EqualTo(new[] { "jp.penguin.purebase.tests.shadercore.toonopenlitgamma" })
             );
             Assert.That(expectedRows["PureBase/Unlit"], Is.Empty);
             Assert.That(expectedRows["PureBase/Toon"], Is.Empty);
