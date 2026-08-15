@@ -188,14 +188,14 @@ namespace PureBase.Tests.Daily
             AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
             AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
             AssertLightingPhaseOrder(host);
-            AssertOpenLitFallbackPrecedesNormalization(helper);
+            OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(helper);
         }
 
         /// <summary>Requires the Toon direction fallback to affect nondegenerate aggregates before normalization.</summary>
         [Test]
         public void ToonOpenLitFallbackIsAddedBeforeDirectionNormalization()
         {
-            AssertOpenLitFallbackPrecedesNormalization(File.ReadAllText(ToonLightingHelperPath));
+            OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(File.ReadAllText(ToonLightingHelperPath));
         }
 
         /// <summary>Requires Toon to separate non-shadow attenuation from Unity effective visibility before Shader-Core light phases.</summary>
@@ -489,7 +489,7 @@ namespace PureBase.Tests.Daily
                 helper,
                 "The Toon helper must own fixed bright and dark environment band interpretation."
             );
-            AssertOpenLitToonEquationContracts(helper);
+            OpenLitSourceContractAssertions.AssertOpenLitToonEquationContracts(helper);
             StringAssert.Contains(
                 "#include \"Packages/jp.penguin.purebase/Shaders/Common/toon_lighting.hlsl\"",
                 toon,
@@ -508,7 +508,7 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("env = SCModelSelectEnvironmentLighting(env);", host);
             StringAssert.Contains("sd.lightColor = lightSum.color + env;", host);
             StringAssert.Contains("sd.lightColor = lightSum.color;", host);
-            AssertOpenLitHostGateContracts(host);
+            OpenLitSourceContractAssertions.AssertOpenLitHostGateContracts(host);
             Assert.That(
                 RequireIndex(host, "#if defined(UNITY_PASS_FORWARDADD)"),
                 Is.LessThan(RequireIndex(host, "env = SCModelSelectEnvironmentLighting(env);")),

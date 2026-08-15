@@ -703,7 +703,7 @@ namespace PureBase.Tests.Daily
             );
             Match productModelInclude = Regex.Match(
                 passSource,
-                @"#\s*define\s+PUREBASE_MODEL_INCLUDE\s+\""Packages/jp\.penguin\.purebase/Shaders/Models/toon\.hlsl\""",
+                @"#\s*define\s+PUREBASE_MODEL_INCLUDE\s+""Packages/jp\.penguin\.purebase/Shaders/Models/toon\.hlsl""",
                 RegexOptions.CultureInvariant
             );
             Assert.That(
