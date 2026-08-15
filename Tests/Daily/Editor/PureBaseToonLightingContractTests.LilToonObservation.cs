@@ -17,6 +17,7 @@
 // Records a transient lilToon 2.3.4 BIRP bright/dark classification observation for the OpenLit runtime inputs.
 
 using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
@@ -83,7 +84,15 @@ namespace PureBase.Tests.Daily
                 return false;
             }
 
-            StringAssert.Contains("\"version\": \"2.3.4\"", File.ReadAllText(manifestPath));
+            Assert.That(
+                Regex.IsMatch(
+                    File.ReadAllText(manifestPath),
+                    "\"version\"\\s*:\\s*\"2\\.3\\.4\"",
+                    RegexOptions.CultureInvariant
+                ),
+                Is.True,
+                "The installed lilToon package manifest must declare the exact version 2.3.4."
+            );
             return true;
         }
 

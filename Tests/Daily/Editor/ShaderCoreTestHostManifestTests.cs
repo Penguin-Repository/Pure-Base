@@ -93,11 +93,7 @@ namespace PureBase.Tests.Daily
                     StringComparison.Ordinal
                 )
             );
-            string assetPath = FindHostAssetPath(host.shaderName);
-            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
-            AssertImportedShaderIsUsable(host.shaderName, shader);
-
-            string source = LoadGeneratedShaderSource(assetPath, host.shaderName);
+            string source = LoadImportedHostSource(host);
             AssertExpectedSentinelCounts(host, source);
             AssertInactiveSentinelsAreAbsent(host, source);
             AssertOpenLitGeneratedSourceContract(host, source);
@@ -184,11 +180,7 @@ namespace PureBase.Tests.Daily
             HostManifest manifest = LoadManifest();
             foreach (HostManifestEntry host in manifest.hosts)
             {
-                string assetPath = FindHostAssetPath(host.shaderName);
-                Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
-                AssertImportedShaderIsUsable(host.shaderName, shader);
-
-                string source = LoadGeneratedShaderSource(assetPath, host.shaderName);
+                string source = LoadImportedHostSource(host);
                 AssertExpectedSentinelCounts(host, source);
                 AssertInactiveSentinelsAreAbsent(host, source);
 
@@ -374,6 +366,7 @@ namespace PureBase.Tests.Daily
                 )
                 && string.Equals(runtimeEvidence.forwardBasePass, "ForwardBase", StringComparison.Ordinal)
                 && string.Equals(runtimeEvidence.forwardAddPass, "ForwardAdd", StringComparison.Ordinal)
+                && runtimeEvidence.absentPasses != null
                 && runtimeEvidence.absentPasses.SequenceEqual(new[] { "ShadowCaster", "Meta" })
                 && string.Equals(
                     runtimeEvidence.forwardAddSentinel,
@@ -468,6 +461,17 @@ namespace PureBase.Tests.Daily
                 shaderName,
                 "Packages/jp.penguin.purebase/Tests/Fixtures/Hosts"
             );
+        }
+
+        /// <summary>Loads and validates one imported fixed host and returns its generated source.</summary>
+        /// <param name="host">The manifest entry for the fixed host to validate.</param>
+        /// <returns>The non-empty generated Shader Source subasset text.</returns>
+        private static string LoadImportedHostSource(HostManifestEntry host)
+        {
+            string assetPath = FindHostAssetPath(host.shaderName);
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>(assetPath);
+            AssertImportedShaderIsUsable(host.shaderName, shader);
+            return LoadGeneratedShaderSource(assetPath, host.shaderName);
         }
 
         /// <summary>Asserts that an already imported Shader-Core shader compiled and is supported.</summary>

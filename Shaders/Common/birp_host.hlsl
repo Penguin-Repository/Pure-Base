@@ -57,8 +57,8 @@ void SCCalculateEnvironmentLight(inout SCLightData lightSum, inout half3 env, in
         #else
         sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, half4(0, 0, 0, 0), half4(0, 0, 0, 0), half4(0, 0, 0, 0));
             #if !defined(LIGHTMAP_ON) && UNITY_SHOULD_SAMPLE_SH
-            sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, unity_SHAr, unity_SHAg, unity_SHAb);
-            env += SCModelEvaluateAmbient(sd, unity_SHAr, unity_SHAg, unity_SHAb, unity_SHBr, unity_SHBg, unity_SHBb, unity_SHC);
+            sd.L = SCModelSelectAggregateLightDirection(lightSum.direction, shAr, shAg, shAb);
+            env += SCModelEvaluateAmbient(sd, shAr, shAg, shAb, shBr, shBg, shBb, shC);
             #endif
         #endif
     #else
