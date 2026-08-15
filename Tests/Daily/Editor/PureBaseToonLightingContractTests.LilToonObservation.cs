@@ -24,7 +24,7 @@ using UnityEngine.Rendering;
 
 namespace PureBase.Tests.Daily
 {
-    /// <summary>Records a transient lilToon 2.3.4 BIRP bright/dark classification observation for the OpenLit runtime inputs.</summary>
+    /// <summary>Records lilToon 2.3.4 BIRP availability and, when installed, a transient bright/dark classification observation for the OpenLit runtime inputs.</summary>
     public sealed partial class PureBaseToonLightingContractTests
     {
         /// <summary>Identifies the installed lilToon BIRP shader observed by this supplemental test.</summary>
@@ -36,14 +36,17 @@ namespace PureBase.Tests.Daily
         /// <summary>Identifies the VRC Light Volumes enable global that must remain disabled for this observation.</summary>
         private const string UdonLightVolumeEnabledGlobalName = "_UdonLightVolumeEnabled";
 
-        /// <summary>Records top, side, and bottom lilToon output classifications without treating final lilToon RGB as a parity result.</summary>
+        /// <summary>Records lilToon availability and, when available, top, side, and bottom output classifications without treating final lilToon RGB as a parity result.</summary>
         [Test]
         public void LilToon234BirpObservationRecordsTopSideBottomClassificationAndTransitionOrientation()
         {
+            if (!AssertInstalledLilToon234())
+            {
+                return;
+            }
+
             Assert.That(SystemInfo.graphicsDeviceType, Is.EqualTo(GraphicsDeviceType.Direct3D11));
             Assert.That(QualitySettings.activeColorSpace, Is.EqualTo(ColorSpace.Linear));
-            AssertInstalledLilToon234();
-
             ShCoefficients coefficients = CreateOpenLitCoefficients();
             Vector3 lightDirection = EvaluateOpenLitDominantDirection(
                 Vector3.zero,
@@ -65,14 +68,23 @@ namespace PureBase.Tests.Daily
             }
         }
 
-        /// <summary>Requires the read-only comparison target to be the installed lilToon 2.3.4 package.</summary>
-        private static void AssertInstalledLilToon234()
+        /// <summary>Records optional package unavailability and requires version 2.3.4 when the package is installed.</summary>
+        /// <returns>True when the lilToon observation should run; otherwise false after recording package unavailability.</returns>
+        private static bool AssertInstalledLilToon234()
         {
             string projectRoot = Directory.GetParent(Application.dataPath).FullName;
             string manifestPath = Path.Combine(projectRoot, LilToonPackageManifestRelativePath.Replace('/', Path.DirectorySeparatorChar));
 
-            Assert.That(File.Exists(manifestPath), Is.True, "The installed lilToon package manifest is unavailable for the BIRP observation.");
+            if (!File.Exists(manifestPath))
+            {
+                TestContext.WriteLine(
+                    "The supplemental lilToon 2.3.4 BIRP observation was not run because the optional package is unavailable."
+                );
+                return false;
+            }
+
             StringAssert.Contains("\"version\": \"2.3.4\"", File.ReadAllText(manifestPath));
+            return true;
         }
 
         /// <summary>Writes the reproducible classification observation and its known non-parity RGB boundaries to the NUnit result.</summary>
