@@ -1269,7 +1269,10 @@ Describe 'Release validation workflow evidence export contracts' {
             ($artifactRoot + '\ReleaseConsumer-*\**\runtime-readbacks.json'),
             ($artifactRoot + '\ReleaseConsumer-*\**\library-reset.json'),
             ($artifactRoot + '\ReleaseConsumer-*\**\*summary.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\*.log')
+            ($artifactRoot + '\ReleaseConsumer-*\**\*.log'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\shader-core-state-initialization-report.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\fixed-point-report.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\**\immutable-input-manifest-fixed-point-delta.json')
         )
 
         $uploadStepMatch.Success | Should -BeTrue -Because 'the Release workflow must have a dedicated evidence upload step'
