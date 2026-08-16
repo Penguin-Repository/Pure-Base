@@ -77,6 +77,15 @@ namespace PureBase.Release.Consumer.Tests
         private const string UnityStandardDiffuseBrightnessPropertyLabel =
             "Unity Standard Diffuse Brightness";
 
+        /// <summary>Identifies the PBR and Hybrid roughness property.</summary>
+        private const string RoughnessPropertyName = "_Roughness";
+
+        /// <summary>Defines the exact PBR and Hybrid roughness property label.</summary>
+        private const string RoughnessPropertyLabel = "Roughness";
+
+        /// <summary>Defines the exact PBR and Hybrid roughness drawer attribute.</summary>
+        private const string RoughnessPropertyAttribute = "SCRange(0.089,1)";
+
         /// <summary>Imports all runner-configured module-free products and checks their public and generated contracts.</summary>
         [Test]
         public void ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts()
@@ -116,6 +125,7 @@ namespace PureBase.Release.Consumer.Tests
                     $"Module-free consumer run '{contract.runLabel}' changed visible property order for '{product.shaderName}'."
                 );
                 AssertStencilPropertyMetadata(contract, product, shader);
+                AssertRoughnessMetadata(contract, product, shader);
                 AssertUnityStandardDiffuseBrightnessMetadata(contract, product, shader);
                 string source = ConsumerValidationSupport.LoadGeneratedSource(
                     product,
@@ -130,6 +140,54 @@ namespace PureBase.Release.Consumer.Tests
                 AssertPassContracts(contract, product, source, false);
                 AssertInactiveSentinels(contract, source);
             }
+        }
+
+        /// <summary>Checks the imported PBR and Hybrid Roughness property metadata.</summary>
+        /// <param name="contract">The runner-provided module-free contract.</param>
+        /// <param name="product">The imported product contract.</param>
+        /// <param name="shader">The cold-imported product shader.</param>
+        private static void AssertRoughnessMetadata(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            Shader shader
+        )
+        {
+            int propertyIndex = shader.FindPropertyIndex(RoughnessPropertyName);
+            if (!IsUnityStandardDiffuseBrightnessProduct(product.shaderName))
+            {
+                Assert.That(
+                    propertyIndex,
+                    Is.EqualTo(-1),
+                    $"Consumer run '{contract.runLabel}' product '{product.shaderName}' must not expose '{RoughnessPropertyName}'."
+                );
+                return;
+            }
+
+            Assert.That(
+                propertyIndex,
+                Is.GreaterThanOrEqualTo(0),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' must expose '{RoughnessPropertyName}'."
+            );
+            Assert.That(
+                shader.GetPropertyType(propertyIndex),
+                Is.EqualTo(ShaderPropertyType.Float),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{RoughnessPropertyName}' must be a Float."
+            );
+            Assert.That(
+                shader.GetPropertyDefaultFloatValue(propertyIndex),
+                Is.EqualTo(0.5f),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{RoughnessPropertyName}' default value."
+            );
+            Assert.That(
+                shader.GetPropertyDescription(propertyIndex),
+                Is.EqualTo(RoughnessPropertyLabel),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{RoughnessPropertyName}' label."
+            );
+            CollectionAssert.AreEqual(
+                new[] { RoughnessPropertyAttribute },
+                shader.GetPropertyAttributes(propertyIndex),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{RoughnessPropertyName}' must expose exactly the SCRange attribute."
+            );
         }
 
         /// <summary>Checks the cold-imported PBR and Hybrid direct-diffuse brightness metadata.</summary>
@@ -190,7 +248,7 @@ namespace PureBase.Release.Consumer.Tests
             int propertyIndex
         )
         {
-            int roughnessIndex = shader.FindPropertyIndex("_Roughness");
+            int roughnessIndex = shader.FindPropertyIndex(RoughnessPropertyName);
             Assert.That(
                 roughnessIndex,
                 Is.GreaterThanOrEqualTo(0),

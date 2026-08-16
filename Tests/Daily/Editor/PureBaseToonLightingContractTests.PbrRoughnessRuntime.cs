@@ -33,9 +33,10 @@ namespace PureBase.Tests.Daily
                 renderer.lightProbeUsage = LightProbeUsage.Off;
                 renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 Material material = CreatePbrRoughnessMaterial(shaderName, passName, roughness);
+                Vector3 lightDirection = Vector3.Reflect(Vector3.forward, normal.normalized).normalized;
                 if (passName == "ForwardAdd")
-                    return RenderLightDifference(material, CreateLightCaptureRequest(normal, new Vector4(0.015f, 0.012f, 0.009f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f));
-                return RenderWithLights(material, CreateDirectionalLightCaptureRequest(normal, new Vector4(0.015f, 0.012f, 0.009f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 0.0f), ShCoefficients.Zero));
+                    return RenderLightDifference(material, CreateLightCaptureRequest(normal, new Vector4(0.015f, 0.012f, 0.009f, 1.0f), new Vector4(lightDirection.x, lightDirection.y, lightDirection.z, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f));
+                return RenderWithLights(material, CreateDirectionalLightCaptureRequest(normal, new Vector4(0.015f, 0.012f, 0.009f, 1.0f), new Vector4(lightDirection.x, lightDirection.y, lightDirection.z, 0.0f), ShCoefficients.Zero));
             }
 
             /// <summary>Renders direct-light-free metallic reflection from fixture-owned mip-distinct cubemap data.</summary>

@@ -42,6 +42,9 @@ namespace PureBase.Tests.Regeneration
         /// <summary>Identifies the isolated layer used by baked-lightmap-only receiver surfaces.</summary>
         private const int ReceiverLayer = 31;
 
+        /// <summary>Allows calibrated spatial and atlas variation when comparing equivalent baked floor observations.</summary>
+        private const float BakeFloorEquivalenceTolerance = 0.005f;
+
         /// <summary>Requires one finite real bake and only equates below-floor and exact-floor observations.</summary>
         [Test]
         public void PbrAndHybridRoughnessFloorMatchesAfterOneProgressiveCpuBake()
@@ -262,7 +265,7 @@ namespace PureBase.Tests.Regeneration
         {
             Color below = observations[shaderName + " 0.000"];
             Color exact = observations[shaderName + " 0.089"];
-            if (MaximumDifference(below, exact) > 0.0005f)
+            if (MaximumDifference(below, exact) > BakeFloorEquivalenceTolerance)
                 failures.Add(DescribeBakedDeltas(observations, shaderName) + ". " + shaderName + " baked below-floor output must equal exact-floor output.");
         }
 

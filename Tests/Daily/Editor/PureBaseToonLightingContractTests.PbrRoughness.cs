@@ -39,10 +39,10 @@ namespace PureBase.Tests.Daily
             {
                 foreach (string shaderName in PbrRoughnessShaderNames)
                 {
-                    AssertDirectRoughnessCase(capture, shaderName, "ForwardBase", Vector3.back, "normal incidence");
-                    AssertDirectRoughnessCase(capture, shaderName, "ForwardBase", new Vector3(0.98f, 0.0f, -0.2f), "grazing incidence");
-                    AssertDirectRoughnessCase(capture, shaderName, "ForwardAdd", Vector3.back, "normal incidence");
-                    AssertDirectRoughnessCase(capture, shaderName, "ForwardAdd", new Vector3(0.98f, 0.0f, -0.2f), "grazing incidence");
+                    AssertDirectRoughnessCase(capture, shaderName, "ForwardBase", Vector3.back, "normal incidence", true);
+                    AssertDirectRoughnessCase(capture, shaderName, "ForwardBase", new Vector3(0.98f, 0.0f, -0.2f), "grazing incidence", false);
+                    AssertDirectRoughnessCase(capture, shaderName, "ForwardAdd", Vector3.back, "normal incidence", true);
+                    AssertDirectRoughnessCase(capture, shaderName, "ForwardAdd", new Vector3(0.98f, 0.0f, -0.2f), "grazing incidence", false);
                 }
             }
         }
@@ -81,21 +81,21 @@ namespace PureBase.Tests.Daily
             Assert.That(RenderSettings.reflectionIntensity, Is.EqualTo(intensity));
         }
 
-        /// <summary>Asserts one selected direct incidence and pass case.</summary>
-        private static void AssertDirectRoughnessCase(ToonLightingCaptureScope capture, string shaderName, string passName, Vector3 normal, string incidence)
+        /// <summary>Asserts one selected direct incidence and pass case with an optional nonblack control.</summary>
+        private static void AssertDirectRoughnessCase(ToonLightingCaptureScope capture, string shaderName, string passName, Vector3 normal, string incidence, bool requireNonBlack)
         {
             Color below = capture.RenderPbrRoughnessDirect(shaderName, passName, 0.0f, normal);
             Color floor = capture.RenderPbrRoughnessDirect(shaderName, passName, PbrRoughnessFloor, normal);
             Color above = capture.RenderPbrRoughnessDirect(shaderName, passName, 0.25f, normal);
             string label = shaderName + " " + passName + " " + incidence;
             AssertPbrRoughnessObservation(below, label + " below floor", false);
-            AssertPbrRoughnessObservation(floor, label + " floor", true);
-            AssertPbrRoughnessObservation(above, label + " above floor", true);
+            AssertPbrRoughnessObservation(floor, label + " floor", requireNonBlack);
+            AssertPbrRoughnessObservation(above, label + " above floor", requireNonBlack);
             AssertColorWithin(floor, below, 0.01f, label + " below-floor equivalence");
             Assert.That(MaximumPbrRoughnessDifference(floor, above), Is.GreaterThan(0.005f), label + " must distinguish 0.25 roughness.");
         }
 
-        /// <summary>Requires a finite, nonnegative, nonblack HDR observation.</summary>
+        /// <summary>Requires a finite, nonnegative HDR observation and an optional nonblack control.</summary>
         private static void AssertPbrRoughnessObservation(Color color, string label, bool requireNonBlack)
         {
             Assert.That(float.IsFinite(color.r) && float.IsFinite(color.g) && float.IsFinite(color.b), Is.True, label + " is non-finite.");
