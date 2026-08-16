@@ -100,7 +100,7 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Restores custom-reflection state and destroys extension-owned resources after every capture scope.</summary>
-            partial void RestorePbrBrightnessCallerState()
+            private void RestorePbrBrightnessCallerState()
             {
                 RenderSettings.defaultReflectionMode = originalReflectionMode;
                 RenderSettings.customReflectionTexture = originalCustomReflection;
