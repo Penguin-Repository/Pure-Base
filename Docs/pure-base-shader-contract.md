@@ -108,10 +108,20 @@ The model-specific properties are:
 | --- | --- |
 | `PureBase/Unlit` | None |
 | `PureBase/Toon` | `_NormalMap`, `_NormalScale` |
-| `PureBase/PBR` | `_NormalMap`, `_NormalScale`, `_Metallic`, `_Roughness` |
-| `PureBase/Hybrid` | `_NormalMap`, `_NormalScale`, `_Metallic`, `_Roughness` |
+| `PureBase/PBR` | `_NormalMap`, `_NormalScale`, `_Metallic`, `_Roughness`, `_UseUnityStandardDiffuseBrightness` |
+| `PureBase/Hybrid` | `_NormalMap`, `_NormalScale`, `_Metallic`, `_Roughness`, `_UseUnityStandardDiffuseBrightness` |
 
 PBR and Hybrid use byte-identical property declarations. `_Roughness` clamps from `0.002` to `1`.
+
+### Direct diffuse brightness ABI and semantics
+
+`_UseUnityStandardDiffuseBrightness` is exposed only by `PureBase/PBR` and `PureBase/Hybrid`. It is a ShaderLab `Integer` backed by `SC_uint`, declared with `[SCToggle]`, and supports values `0` and `1` with a default of `0`. The declarations are appended after `_Roughness` and remain byte-identical between PBR and Hybrid.
+
+The default/off value `0` preserves the former direct diffuse coefficient `1/pi`. The enabled value `1` selects coefficient `1`, making the direct diffuse contribution approximately `pi` times the former contribution before later blending, tone, and saturation. This does not mean that total output is generally `pi` times brighter, because the other lighting terms are not multiplied by this setting.
+
+The setting affects PBR's continuous direct diffuse and Hybrid's binary direct diffuse through both `ForwardBase` and `ForwardAdd`. It does not affect direct GGX specular, Unity Standard indirect GI, reflection probes, lightmaps, or `Meta`. `ForwardAdd` remains an additional direct-light pass only.
+
+The term `Unity Standard-compatible` refers only to effective direct-diffuse normalization and a controlled normal-incidence comparison. It does not claim Unity Standard's Disney diffuse angular or roughness response, or full Standard BRDF or material equivalence.
 
 The forbidden release-boundary property names `_Emission`, `_Rim`, `_MatCap`, and `_ClearCoat` are not part of this ABI.
 

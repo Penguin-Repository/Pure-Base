@@ -73,7 +73,17 @@ All four shaders expose these common properties:
 
 `PureBase/Toon` additionally exposes `_NormalMap` and `_NormalScale`.
 
-`PureBase/PBR` and `PureBase/Hybrid` expose the same normal-map properties plus `_Metallic` and `_Roughness`. Their public property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
+`PureBase/PBR` and `PureBase/Hybrid` expose the same normal-map properties plus `_Metallic`, `_Roughness`, and `_UseUnityStandardDiffuseBrightness`. Their public property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
+
+### PBR and Hybrid direct-diffuse brightness
+
+`_UseUnityStandardDiffuseBrightness` is a ShaderLab `Integer` backed by `SC_uint`, uses `[SCToggle]`, supports values `0` and `1`, and defaults to `0`. It is exposed only by PBR and Hybrid and is appended after `_Roughness` in both byte-identical property declarations.
+
+With the default/off value `0`, existing and new materials use the former direct diffuse coefficient `1/pi`. With value `1`, the coefficient is `1`, so the direct diffuse contribution is approximately `pi` times the former contribution before later blending, tone, and saturation. Total output is not generally `pi` times brighter because direct GGX specular and indirect terms are unchanged.
+
+The setting affects PBR's continuous direct diffuse and Hybrid's binary direct diffuse through both `ForwardBase` and `ForwardAdd`. It does not affect direct GGX specular, Unity Standard indirect GI, reflection probes, lightmaps, or `Meta`; `ForwardAdd` remains additional direct light only.
+
+`Unity Standard-compatible` describes only effective direct-diffuse normalization and the controlled normal-incidence comparison. It does not describe Unity Standard's Disney diffuse angular or roughness response, or full Standard BRDF or material equivalence.
 
 ### Stencil ABI
 
