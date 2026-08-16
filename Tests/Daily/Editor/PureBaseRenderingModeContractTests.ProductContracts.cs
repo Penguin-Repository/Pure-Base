@@ -396,7 +396,7 @@ namespace PureBase.Tests.Daily
 
             Assert.That(propertyIndex, Is.GreaterThanOrEqualTo(0), product.shaderName + " must expose " + propertyName + ".");
             Assert.That(shader.GetPropertyType(propertyIndex), Is.EqualTo(ShaderPropertyType.Int));
-            Assert.That(shader.GetPropertyDefaultFloatValue(propertyIndex), Is.EqualTo(0.0f));
+            Assert.That(shader.GetPropertyDefaultIntValue(propertyIndex), Is.EqualTo(0));
             CollectionAssert.AreEqual(new[] { "SCToggle" }, shader.GetPropertyAttributes(propertyIndex));
             Assert.That(
                 Regex.IsMatch(File.ReadAllText(product.propertySourcePath), UnityStandardDiffuseBrightnessPropertySourcePattern),

@@ -121,7 +121,7 @@ namespace PureBase.Tests.Daily
                 Material material = CreatePbrBrightnessMaterial(shaderName, passName, metallic, enabled);
                 if (passName == "ForwardAdd")
                 {
-                    return RenderLightDifference(material, CreateLightCaptureRequest(Vector3.back, new Vector4(0.5f, 0.5f, 0.5f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f));
+                    return RenderLightDifference(material, CreateLightCaptureRequest(Vector3.back, new Vector4(1.0f, 1.0f, 1.0f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f));
                 }
 
                 return RenderWithLights(material, CreateDirectionalLightCaptureRequest(Vector3.back, new Vector4(0.5f, 0.5f, 0.5f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 0.0f), ShCoefficients.Zero));
@@ -137,12 +137,12 @@ namespace PureBase.Tests.Daily
                 var material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
                 materials.Add(material);
                 material.SetTexture("_MainTex", Texture2D.whiteTexture);
-                material.SetColor("_Color", new Color(0.04f, 0.04f, 0.04f, 1.0f));
+                material.SetColor("_Color", new Color(0.04f, 0.04f, 0.04f, 1.0f).gamma);
                 material.SetFloat("_Metallic", metallic);
                 material.SetFloat("_Glossiness", 0.75f);
                 material.DisableKeyword("_EMISSION");
                 material.SetColor("_EmissionColor", Color.black);
-                return RenderLightDifference(material, CreateLightCaptureRequest(Vector3.back, new Vector4(0.5f, 0.5f, 0.5f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f));
+                return RenderLightDifference(material, CreateLightCaptureRequest(Vector3.back, new Vector4(1.0f, 1.0f, 1.0f, 1.0f), new Vector4(0.0f, 0.0f, -1.0f, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f));
             }
 
             /// <summary>Creates a white-texture low-albedo PBR or Hybrid material and applies the requested brightness value.</summary>
@@ -150,7 +150,7 @@ namespace PureBase.Tests.Daily
             {
                 Material material = CreateProductMaterial(shaderName, passName, metallic);
                 material.SetTexture("_BaseTexture", Texture2D.whiteTexture);
-                material.SetColor("_BaseColor", new Color(0.04f, 0.04f, 0.04f, 1.0f));
+                material.SetColor("_BaseColor", new Color(0.04f, 0.04f, 0.04f, 1.0f).gamma);
                 material.SetFloat("_Roughness", 0.25f);
                 material.SetInteger("_UseUnityStandardDiffuseBrightness", enabled ? 1 : 0);
                 return material;

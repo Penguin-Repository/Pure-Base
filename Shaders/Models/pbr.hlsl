@@ -177,7 +177,8 @@ bool SCModelUsesHybridDiffuse()
 half3 SCModelEvaluateDirectLighting(SCShadingData shadingData, SCVertexData vertex)
 {
     PureBasePbrBrdfData brdf = PureBasePbrCreateBrdf(shadingData.albedoAlpha.rgb, _Metallic, _Roughness);
-    return PureBasePbrEvaluateDirect(brdf, shadingData.N, shadingData.L, vertex.V, shadingData.lightColor, SCModelUsesHybridDiffuse());
+    half diffuseNormalization = PureBasePbrSelectDiffuseNormalization(_UseUnityStandardDiffuseBrightness);
+    return PureBasePbrEvaluateDirect(brdf, shadingData.N, shadingData.L, vertex.V, shadingData.lightColor, diffuseNormalization, SCModelUsesHybridDiffuse());
 }
 
 /// <summary>Produces the PBR or Hybrid ForwardBase result from post-light direct BRDF and Unity Standard indirect lighting.</summary>

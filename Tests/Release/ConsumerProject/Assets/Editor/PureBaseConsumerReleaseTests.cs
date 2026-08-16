@@ -69,6 +69,14 @@ namespace PureBase.Release.Consumer.Tests
             ),
         };
 
+        /// <summary>Identifies the PBR and Hybrid direct-diffuse brightness property.</summary>
+        private const string UnityStandardDiffuseBrightnessPropertyName =
+            "_UseUnityStandardDiffuseBrightness";
+
+        /// <summary>Defines the exact PBR and Hybrid direct-diffuse brightness property label.</summary>
+        private const string UnityStandardDiffuseBrightnessPropertyLabel =
+            "Unity Standard Diffuse Brightness";
+
         /// <summary>Imports all runner-configured module-free products and checks their public and generated contracts.</summary>
         [Test]
         public void ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts()
@@ -108,6 +116,7 @@ namespace PureBase.Release.Consumer.Tests
                     $"Module-free consumer run '{contract.runLabel}' changed visible property order for '{product.shaderName}'."
                 );
                 AssertStencilPropertyMetadata(contract, product, shader);
+                AssertUnityStandardDiffuseBrightnessMetadata(contract, product, shader);
                 string source = ConsumerValidationSupport.LoadGeneratedSource(
                     product,
                     contract.runLabel
@@ -121,6 +130,111 @@ namespace PureBase.Release.Consumer.Tests
                 AssertPassContracts(contract, product, source, false);
                 AssertInactiveSentinels(contract, source);
             }
+        }
+
+        /// <summary>Checks the cold-imported PBR and Hybrid direct-diffuse brightness metadata.</summary>
+        /// <param name="contract">The runner-provided module-free contract.</param>
+        /// <param name="product">The imported product contract.</param>
+        /// <param name="shader">The cold-imported product shader.</param>
+        private static void AssertUnityStandardDiffuseBrightnessMetadata(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            Shader shader
+        )
+        {
+            int propertyIndex = shader.FindPropertyIndex(UnityStandardDiffuseBrightnessPropertyName);
+            if (!IsUnityStandardDiffuseBrightnessProduct(product.shaderName))
+            {
+                AssertUnityStandardDiffuseBrightnessAbsent(contract, product, propertyIndex);
+                return;
+            }
+
+            AssertUnityStandardDiffuseBrightnessOrder(contract, product, shader, propertyIndex);
+            AssertUnityStandardDiffuseBrightnessValues(contract, product, shader, propertyIndex);
+        }
+
+        /// <summary>Identifies products that expose the Unity Standard direct-diffuse brightness property.</summary>
+        /// <param name="shaderName">The imported product shader name.</param>
+        /// <returns><see langword="true"/> for PBR and Hybrid products.</returns>
+        private static bool IsUnityStandardDiffuseBrightnessProduct(string shaderName)
+        {
+            return shaderName == "PureBase/PBR" || shaderName == "PureBase/Hybrid";
+        }
+
+        /// <summary>Checks that products without the brightness feature do not expose its property.</summary>
+        /// <param name="contract">The runner-provided module-free contract.</param>
+        /// <param name="product">The imported product contract.</param>
+        /// <param name="propertyIndex">The imported brightness property index.</param>
+        private static void AssertUnityStandardDiffuseBrightnessAbsent(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            int propertyIndex
+        )
+        {
+            Assert.That(
+                propertyIndex,
+                Is.EqualTo(-1),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' must not expose '{UnityStandardDiffuseBrightnessPropertyName}'."
+            );
+        }
+
+        /// <summary>Checks that the brightness property follows the imported Roughness property.</summary>
+        /// <param name="contract">The runner-provided module-free contract.</param>
+        /// <param name="product">The imported product contract.</param>
+        /// <param name="shader">The cold-imported product shader.</param>
+        /// <param name="propertyIndex">The imported brightness property index.</param>
+        private static void AssertUnityStandardDiffuseBrightnessOrder(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            Shader shader,
+            int propertyIndex
+        )
+        {
+            int roughnessIndex = shader.FindPropertyIndex("_Roughness");
+            Assert.That(
+                roughnessIndex,
+                Is.GreaterThanOrEqualTo(0),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' must expose '_Roughness' before '{UnityStandardDiffuseBrightnessPropertyName}'."
+            );
+            Assert.That(
+                propertyIndex,
+                Is.EqualTo(roughnessIndex + 1),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' must place '{UnityStandardDiffuseBrightnessPropertyName}' immediately after '_Roughness'."
+            );
+        }
+
+        /// <summary>Checks the brightness property's imported type, default, label, and drawer metadata.</summary>
+        /// <param name="contract">The runner-provided module-free contract.</param>
+        /// <param name="product">The imported product contract.</param>
+        /// <param name="shader">The cold-imported product shader.</param>
+        /// <param name="propertyIndex">The imported brightness property index.</param>
+        private static void AssertUnityStandardDiffuseBrightnessValues(
+            ConsumerValidationContract contract,
+            ConsumerProductContract product,
+            Shader shader,
+            int propertyIndex
+        )
+        {
+            Assert.That(
+                shader.GetPropertyType(propertyIndex),
+                Is.EqualTo(ShaderPropertyType.Int),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{UnityStandardDiffuseBrightnessPropertyName}' must be an Integer."
+            );
+            Assert.That(
+                shader.GetPropertyDefaultIntValue(propertyIndex),
+                Is.EqualTo(0),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{UnityStandardDiffuseBrightnessPropertyName}' default value."
+            );
+            Assert.That(
+                shader.GetPropertyDescription(propertyIndex),
+                Is.EqualTo(UnityStandardDiffuseBrightnessPropertyLabel),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{UnityStandardDiffuseBrightnessPropertyName}' label."
+            );
+            CollectionAssert.AreEqual(
+                new[] { "SCToggle" },
+                shader.GetPropertyAttributes(propertyIndex),
+                $"Consumer run '{contract.runLabel}' product '{product.shaderName}' property '{UnityStandardDiffuseBrightnessPropertyName}' must expose exactly the SCToggle attribute."
+            );
         }
 
         /// <summary>Checks that a JsonUtility-restored module payload contains no selected-module data.</summary>
