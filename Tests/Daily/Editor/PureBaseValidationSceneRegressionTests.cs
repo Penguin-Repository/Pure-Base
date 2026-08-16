@@ -29,7 +29,7 @@ using UnityEngine.SceneManagement;
 namespace PureBase.Tests.Daily
 {
     /// <summary>Validates the committed BIRP validation scene without baking or saving persistent assets.</summary>
-    public sealed class PureBaseValidationSceneRegressionTests
+    public sealed partial class PureBaseValidationSceneRegressionTests
     {
         /// <summary>Identifies the canonical validation scene.</summary>
         public const string ScenePath =
@@ -2801,7 +2801,7 @@ namespace PureBase.Tests.Daily
                 1.0f
             );
             float saturatedMetallic = Mathf.Clamp01(metallic);
-            float perceptualRoughness = Mathf.Clamp(roughness, 0.002f, 1.0f);
+            float perceptualRoughness = Mathf.Clamp(roughness, 0.089f, 1.0f);
             float actualRoughness = squareRoughness
                 ? perceptualRoughness * perceptualRoughness
                 : perceptualRoughness;

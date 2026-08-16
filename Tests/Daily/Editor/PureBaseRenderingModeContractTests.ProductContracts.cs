@@ -61,6 +61,10 @@ namespace PureBase.Tests.Daily
         private const string UnityStandardDiffuseBrightnessPropertySourcePattern =
             @"SC_uint\s*\(\s*_UseUnityStandardDiffuseBrightness\s*,\s*0(?:\.0+)?\s*,\s*\[\s*SCToggle\s*\]\s*,\s*""Unity Standard Diffuse Brightness""\s*,\s*""""\s*\)";
 
+        /// <summary>Identifies the exact public PBR and Hybrid perceptual-roughness declaration.</summary>
+        private const string PbrRoughnessPropertySource =
+            "SC_float(_Roughness, 0.5, [SCRange(0.089,1)], \"Roughness\", \"\")";
+
         /// <summary>Lists the public product shaders and their complete visible property ABI.</summary>
         private static readonly ProductContract[] Products =
         {
@@ -377,6 +381,33 @@ namespace PureBase.Tests.Daily
             );
             AssertStencilPropertyAbi(product, shader);
             AssertUnityStandardDiffuseBrightnessAbi(product, shader);
+            AssertPbrRoughnessAbi(product, shader);
+        }
+
+        /// <summary>Requires the stable PBR and Hybrid roughness ABI and its byte-identical source mirror.</summary>
+        /// <param name="product">The product ABI under test.</param>
+        /// <param name="shader">The imported product shader.</param>
+        private static void AssertPbrRoughnessAbi(ProductContract product, Shader shader)
+        {
+            bool supportsPbrRoughness = product.shaderName == "PureBase/PBR"
+                || product.shaderName == "PureBase/Hybrid";
+            int roughnessIndex = shader.FindPropertyIndex("_Roughness");
+            if (!supportsPbrRoughness)
+            {
+                Assert.That(roughnessIndex, Is.EqualTo(-1), product.shaderName + " must not expose _Roughness.");
+                return;
+            }
+
+            Assert.That(roughnessIndex, Is.GreaterThan(shader.FindPropertyIndex("_Metallic")));
+            Assert.That(roughnessIndex, Is.LessThan(shader.FindPropertyIndex("_UseUnityStandardDiffuseBrightness")));
+            Assert.That(shader.GetPropertyType(roughnessIndex), Is.EqualTo(ShaderPropertyType.Float));
+            Assert.That(shader.GetPropertyDefaultFloatValue(roughnessIndex), Is.EqualTo(0.5f));
+            Assert.That(shader.GetPropertyDescription(roughnessIndex), Is.EqualTo("Roughness"));
+            CollectionAssert.AreEqual(new[] { "SCRange(0.089,1)" }, shader.GetPropertyAttributes(roughnessIndex));
+            StringAssert.Contains(PbrRoughnessPropertySource, File.ReadAllText(product.propertySourcePath));
+            string pbr = File.ReadAllText("Packages/jp.penguin.purebase/Shaders/PureBasePBR_properties.hlsl");
+            string hybrid = File.ReadAllText("Packages/jp.penguin.purebase/Shaders/PureBaseHybrid_properties.hlsl");
+            Assert.That(hybrid, Is.EqualTo(pbr), "PBR and Hybrid property declarations must remain byte-identical.");
         }
 
         /// <summary>Requires the PBR and Hybrid Integer toggle ABI while preserving its absence from Unlit and Toon.</summary>

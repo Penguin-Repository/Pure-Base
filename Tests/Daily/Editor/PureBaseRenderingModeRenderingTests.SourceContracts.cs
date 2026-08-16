@@ -506,6 +506,21 @@ namespace PureBase.Tests.Daily
             AssertPbrBrdfExclusionContracts(pbrBrdf);
         }
 
+        /// <summary>Requires one documented runtime roughness floor to feed direct, GI, and Meta BRDF construction.</summary>
+        /// <param name="pbr">The shared PBR model source.</param>
+        /// <param name="pbrBrdf">The shared PBR BRDF source.</param>
+        private static void AssertPbrRoughnessFloorOwnership(string pbr, string pbrBrdf)
+        {
+            Assert.That(Regex.Matches(pbrBrdf, @"(?<![0-9.])0\.089(?![0-9.])").Count, Is.EqualTo(1), "The shared PBR BRDF must define exactly one 0.089 runtime floor.");
+            Assert.That(Regex.IsMatch(pbrBrdf, @"///\s*<summary>[^\r\n]*0\.089[^\r\n]*</summary>\s*half\s+PureBasePbrClampPerceptualRoughness\s*\(\s*half\s+perceptualRoughness\s*\)", RegexOptions.Singleline), Is.True, "The 0.089 floor must be documented by the shared perceptual-roughness helper.");
+            Assert.That(Regex.IsMatch(pbrBrdf, @"PureBasePbrCreateBrdf\s*\([^)]*\)\s*\{[^}]*PureBasePbrClampPerceptualRoughness\s*\(\s*roughness\s*\)", RegexOptions.Singleline), Is.True, "PureBasePbrCreateBrdf must use the shared roughness clamp helper.");
+            Assert.That(Regex.IsMatch(pbr, @"SCModelCreateStandardSurface\s*\([^)]*\)\s*\{[^}]*PureBasePbrClampPerceptualRoughness\s*\(\s*_Roughness\s*\)", RegexOptions.Singleline), Is.True, "Unity Standard GI setup must use the shared roughness clamp helper.");
+            StringAssert.Contains("PureBasePbrCreateBrdf", File.ReadAllText("Packages/jp.penguin.purebase/Shaders/PureBasePBR.scshader"));
+            StringAssert.Contains("PureBasePbrCreateBrdf", File.ReadAllText("Packages/jp.penguin.purebase/Shaders/PureBaseHybrid.scshader"));
+            Assert.That(Regex.IsMatch(pbrBrdf, @"PureBasePbrCreateBrdf\s*\([^)]*\)\s*\{[^}]*0\.002", RegexOptions.Singleline), Is.False, "BRDF construction must not retain a local old roughness floor.");
+            Assert.That(Regex.IsMatch(pbr, @"SCModelCreateStandardSurface\s*\([^)]*\)\s*\{[^}]*0\.002", RegexOptions.Singleline), Is.False, "Unity Standard GI setup must not retain a local old roughness floor.");
+        }
+
         /// <summary>Asserts that PBR and Hybrid retain their own lighting sources instead of consuming Toon lighting.</summary>
         /// <param name="pbr">The PBR model source.</param>
         /// <param name="hybrid">The Hybrid model source.</param>

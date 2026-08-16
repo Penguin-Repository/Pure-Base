@@ -74,11 +74,18 @@ Describe 'Release validation runner contracts' {
             }
         }
         $expectedPassNames = @($expectedPassContracts.Keys)
+        $expectedSourceFragments = [ordered]@{
+            'PureBase/Unlit'  = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
+            'PureBase/Toon'   = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
+            'PureBase/PBR'    = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT', '_UseUnityStandardDiffuseBrightness', 'SC_float(_Roughness, 0.5, [SCRange(0.089,1)], "Roughness", "")')
+            'PureBase/Hybrid' = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT', '_UseUnityStandardDiffuseBrightness', 'SC_float(_Roughness, 0.5, [SCRange(0.089,1)], "Roughness", "")')
+        }
 
         foreach ($shaderName in $expectedVisibleProperties.Keys) {
             $product = New-ProductContract -ShaderName $shaderName
             $product.shaderName | Should -BeExactly $shaderName
             (@($product.expectedVisiblePropertyNames) -join "`n") | Should -BeExactly ($expectedVisibleProperties[$shaderName] -join "`n")
+            (@($product.requiredSourceFragments) -join "`n") | Should -BeExactly ($expectedSourceFragments[$shaderName] -join "`n")
             (@($product.expectedPassNames) -join "`n") | Should -BeExactly ($expectedPassNames -join "`n")
             @($product.passContracts).Count | Should -Be $expectedPassNames.Count
 
