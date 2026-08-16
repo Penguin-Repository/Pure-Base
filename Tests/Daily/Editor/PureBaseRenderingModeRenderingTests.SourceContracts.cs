@@ -511,7 +511,11 @@ namespace PureBase.Tests.Daily
         /// <param name="pbrBrdf">The shared PBR BRDF source.</param>
         private static void AssertPbrRoughnessFloorOwnership(string pbr, string pbrBrdf)
         {
-            Assert.That(Regex.Matches(pbrBrdf, @"(?<![0-9.])0\.089(?![0-9.])").Count, Is.EqualTo(1), "The shared PBR BRDF must define exactly one 0.089 runtime floor.");
+            Assert.That(
+                Regex.IsMatch(pbrBrdf, @"\bstatic\s+const\s+half\s+PureBasePbrPerceptualRoughnessFloor\s*=\s*0\.0890\s*;"),
+                Is.True,
+                "The shared PBR BRDF must define runtime constant PureBasePbrPerceptualRoughnessFloor with value 0.0890."
+            );
             Assert.That(Regex.IsMatch(pbrBrdf, @"///\s*<summary>[^\r\n]*0\.089[^\r\n]*</summary>\s*half\s+PureBasePbrClampPerceptualRoughness\s*\(\s*half\s+perceptualRoughness\s*\)", RegexOptions.Singleline), Is.True, "The 0.089 floor must be documented by the shared perceptual-roughness helper.");
             Assert.That(Regex.IsMatch(pbrBrdf, @"PureBasePbrCreateBrdf\s*\([^)]*\)\s*\{[^}]*PureBasePbrClampPerceptualRoughness\s*\(\s*roughness\s*\)", RegexOptions.Singleline), Is.True, "PureBasePbrCreateBrdf must use the shared roughness clamp helper.");
             Assert.That(Regex.IsMatch(pbr, @"SCModelCreateStandardSurface\s*\([^)]*\)\s*\{[^}]*PureBasePbrClampPerceptualRoughness\s*\(\s*_Roughness\s*\)", RegexOptions.Singleline), Is.True, "Unity Standard GI setup must use the shared roughness clamp helper.");
