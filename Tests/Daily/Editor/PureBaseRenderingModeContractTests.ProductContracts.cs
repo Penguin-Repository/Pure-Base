@@ -379,7 +379,7 @@ namespace PureBase.Tests.Daily
             AssertUnityStandardDiffuseBrightnessAbi(product, shader);
         }
 
-        /// <summary>Requires the PBR-only Integer toggle ABI while preserving its absence from Unlit and Toon.</summary>
+        /// <summary>Requires the PBR and Hybrid Integer toggle ABI while preserving its absence from Unlit and Toon.</summary>
         /// <param name="product">The product ABI under test.</param>
         /// <param name="shader">The imported product shader.</param>
         private static void AssertUnityStandardDiffuseBrightnessAbi(ProductContract product, Shader shader)

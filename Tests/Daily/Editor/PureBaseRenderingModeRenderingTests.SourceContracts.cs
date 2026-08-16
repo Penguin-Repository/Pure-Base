@@ -499,16 +499,35 @@ namespace PureBase.Tests.Daily
         /// <param name="hybrid">The Hybrid model source.</param>
         private static void AssertPbrAndHybridLightingOwnership(string pbr, string pbrBrdf, string hybrid)
         {
+            AssertPbrAndHybridModelOwnership(pbr, hybrid);
+            AssertPbrDirectLightingContracts(pbr, pbrBrdf);
+            AssertPbrIndirectLightingContracts(pbr);
+            AssertPbrBrdfDirectDiffuseContracts(pbrBrdf);
+            AssertPbrBrdfExclusionContracts(pbrBrdf);
+        }
+
+        /// <summary>Asserts that PBR and Hybrid retain their own lighting sources instead of consuming Toon lighting.</summary>
+        /// <param name="pbr">The PBR model source.</param>
+        /// <param name="hybrid">The Hybrid model source.</param>
+        private static void AssertPbrAndHybridModelOwnership(string pbr, string hybrid)
+        {
             StringAssert.DoesNotContain(
                 "toon_lighting.hlsl",
                 pbr,
                 "PBR must retain its own environment and aggregate-direction ownership."
             );
-            StringAssert.Contains(
-                "half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;",
-                pbrBrdf,
-                "Hybrid must retain the existing inline PBR binary diffuse equation."
+            StringAssert.DoesNotContain(
+                "toon_lighting.hlsl",
+                hybrid,
+                "Hybrid must retain PBR lighting ownership without consuming Toon SH direction."
             );
+        }
+
+        /// <summary>Asserts the PBR direct evaluator boundary and its direct-only property route.</summary>
+        /// <param name="pbr">The PBR model source.</param>
+        /// <param name="pbrBrdf">The shared PBR BRDF source.</param>
+        private static void AssertPbrDirectLightingContracts(string pbr, string pbrBrdf)
+        {
             Assert.That(
                 Regex.IsMatch(
                     pbr,
@@ -524,6 +543,30 @@ namespace PureBase.Tests.Daily
                 RegexOptions.Singleline
             );
             StringAssert.Contains("_UseUnityStandardDiffuseBrightness", directModel.Groups["body"].Value);
+            Assert.That(
+                Regex.IsMatch(
+                    directModel.Groups["body"].Value,
+                    @"PureBasePbrEvaluateDirect\s*\([^;]*diffuseNormalization[^;]*SCModelUsesHybridDiffuse\s*\(\s*\)[^;]*\)",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "The direct model boundary must pass an independent normalization coefficient before the existing binary Hybrid selector."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    pbrBrdf,
+                    @"half3\s+PureBasePbrEvaluateDirect\s*\([^)]*half\s+diffuseNormalization[^)]*bool\s+binaryDiffuse[^)]*\)",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "The direct evaluator must retain binaryDiffuse separately from diffuseNormalization."
+            );
+        }
+
+        /// <summary>Asserts the PBR indirect evaluator boundary and absence of the direct-only property.</summary>
+        /// <param name="pbr">The PBR model source.</param>
+        private static void AssertPbrIndirectLightingContracts(string pbr)
+        {
             Assert.That(
                 Regex.IsMatch(
                     pbr,
@@ -543,24 +586,12 @@ namespace PureBase.Tests.Daily
                 indirectModel.Groups["body"].Value,
                 "The direct-only property must not flow into the indirect evaluator."
             );
-            Assert.That(
-                Regex.IsMatch(
-                    directModel.Groups["body"].Value,
-                    @"PureBasePbrEvaluateDirect\s*\([^;]*diffuseNormalization[^;]*SCModelUsesHybridDiffuse\s*\(\s*\)[^;]*\)",
-                    RegexOptions.Singleline
-                ),
-                Is.True,
-                "The direct model boundary must pass an independent normalization coefficient before the existing binary Hybrid selector."
-            );
-            Assert.That(
-                Regex.IsMatch(
-                    pbrBrdf,
-                    @"half3\s+PureBasePbrEvaluateDirect\s*\([^)]*half\s+diffuseNormalization[^)]*bool\s+binaryDiffuse[^)]*\)",
-                    RegexOptions.Singleline
-                ),
-                Is.True,
-                "The direct evaluator must retain binaryDiffuse separately from diffuseNormalization."
-            );
+        }
+
+        /// <summary>Asserts that direct diffuse normalization reaches only the shared direct diffuse term.</summary>
+        /// <param name="pbrBrdf">The shared PBR BRDF source.</param>
+        private static void AssertPbrBrdfDirectDiffuseContracts(string pbrBrdf)
+        {
             Assert.That(
                 Regex.IsMatch(
                     pbrBrdf,
@@ -569,6 +600,17 @@ namespace PureBase.Tests.Daily
                 ),
                 Is.True,
                 "Only the direct diffuse term may consume diffuseNormalization."
+            );
+        }
+
+        /// <summary>Asserts that indirect, Meta, and shared BRDF data exclude direct diffuse normalization and its property.</summary>
+        /// <param name="pbrBrdf">The shared PBR BRDF source.</param>
+        private static void AssertPbrBrdfExclusionContracts(string pbrBrdf)
+        {
+            StringAssert.Contains(
+                "half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;",
+                pbrBrdf,
+                "Hybrid must retain the existing inline PBR binary diffuse equation."
             );
             Assert.That(
                 Regex.IsMatch(
@@ -584,12 +626,7 @@ namespace PureBase.Tests.Daily
                 pbrBrdf,
                 "The direct-only property must not enter shared indirect or Meta BRDF data."
             );
-            StringAssert.DoesNotContain(
-                "toon_lighting.hlsl",
-                hybrid,
-                "Hybrid must retain PBR lighting ownership without consuming Toon SH direction."
-            );
-            }
+        }
 
             /// <summary>Asserts the required aggregate-light, environment, and fragment-phase execution order.</summary>
             /// <param name="host">The common BIRP fragment host source.</param>
