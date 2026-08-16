@@ -52,8 +52,8 @@ Describe 'Release validation runner contracts' {
         $expectedVisibleProperties = [ordered]@{
             'PureBase/Unlit'  = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties
             'PureBase/Toon'   = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale')
-            'PureBase/PBR'    = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale', '_Metallic', '_Roughness')
-            'PureBase/Hybrid' = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale', '_Metallic', '_Roughness')
+            'PureBase/PBR'    = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale', '_Metallic', '_Roughness', '_UseUnityStandardDiffuseBrightness')
+            'PureBase/Hybrid' = @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull') + $stencilProperties + @('_NormalMap', '_NormalScale', '_Metallic', '_Roughness', '_UseUnityStandardDiffuseBrightness')
         }
         $expectedPassContracts = [ordered]@{
             'ForwardBase'  = [ordered]@{

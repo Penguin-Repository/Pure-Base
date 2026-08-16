@@ -509,6 +509,81 @@ namespace PureBase.Tests.Daily
                 pbrBrdf,
                 "Hybrid must retain the existing inline PBR binary diffuse equation."
             );
+            Assert.That(
+                Regex.IsMatch(
+                    pbr,
+                    @"half3\s+SCModelEvaluateDirectLighting\s*\([^)]*\)\s*\{(?<body>[\s\S]*?)\r?\n\s*\}\s*\r?\n\s*///\s*<summary>Produces the PBR or Hybrid ForwardBase",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "PBR must retain its direct-lighting boundary."
+            );
+            Match directModel = Regex.Match(
+                pbr,
+                @"half3\s+SCModelEvaluateDirectLighting\s*\([^)]*\)\s*\{(?<body>[\s\S]*?)\r?\n\s*\}\s*\r?\n\s*///\s*<summary>Produces the PBR or Hybrid ForwardBase",
+                RegexOptions.Singleline
+            );
+            StringAssert.Contains("_UseUnityStandardDiffuseBrightness", directModel.Groups["body"].Value);
+            Assert.That(
+                Regex.IsMatch(
+                    pbr,
+                    @"half3\s+SCModelEvaluateIndirectLighting\s*\([^)]*\)\s*\{(?<body>[\s\S]*?)\r?\n\s*\}\s*\r?\n\s*///\s*<summary>Returns whether this model uses",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "PBR must retain its indirect-lighting boundary."
+            );
+            Match indirectModel = Regex.Match(
+                pbr,
+                @"half3\s+SCModelEvaluateIndirectLighting\s*\([^)]*\)\s*\{(?<body>[\s\S]*?)\r?\n\s*\}\s*\r?\n\s*///\s*<summary>Returns whether this model uses",
+                RegexOptions.Singleline
+            );
+            StringAssert.DoesNotContain(
+                "_UseUnityStandardDiffuseBrightness",
+                indirectModel.Groups["body"].Value,
+                "The direct-only property must not flow into the indirect evaluator."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    directModel.Groups["body"].Value,
+                    @"PureBasePbrEvaluateDirect\s*\([^;]*diffuseNormalization[^;]*SCModelUsesHybridDiffuse\s*\(\s*\)[^;]*\)",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "The direct model boundary must pass an independent normalization coefficient before the existing binary Hybrid selector."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    pbrBrdf,
+                    @"half3\s+PureBasePbrEvaluateDirect\s*\([^)]*half\s+diffuseNormalization[^)]*bool\s+binaryDiffuse[^)]*\)",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "The direct evaluator must retain binaryDiffuse separately from diffuseNormalization."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    pbrBrdf,
+                    @"brdf\.diffuseColor\s*\*\s*diffuseNdotL\s*\*\s*diffuseNormalization",
+                    RegexOptions.Singleline
+                ),
+                Is.True,
+                "Only the direct diffuse term may consume diffuseNormalization."
+            );
+            Assert.That(
+                Regex.IsMatch(
+                    pbrBrdf,
+                    @"PureBasePbrEvaluateIndirect\s*\([^)]*diffuseNormalization|PureBasePbrEvaluateLightmappingAlbedo\s*\([^)]*diffuseNormalization",
+                    RegexOptions.Singleline
+                ),
+                Is.False,
+                "Indirect and Meta evaluators must not consume direct-diffuse normalization."
+            );
+            StringAssert.DoesNotContain(
+                "_UseUnityStandardDiffuseBrightness",
+                pbrBrdf,
+                "The direct-only property must not enter shared indirect or Meta BRDF data."
+            );
             StringAssert.DoesNotContain(
                 "toon_lighting.hlsl",
                 hybrid,

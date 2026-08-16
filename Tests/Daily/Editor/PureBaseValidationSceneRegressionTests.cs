@@ -233,13 +233,16 @@ namespace PureBase.Tests.Daily
                         MetaCaptureReadback actual = RenderMetaCapture(
                             sourceMaterial,
                             material =>
+                            {
                                 ConfigureMetaMaterial(
                                     material,
                                     formulaCase.albedo,
                                     formulaCase.metallic,
                                     formulaCase.roughness,
                                     0.0f
-                                ),
+                                );
+                                material.SetInteger("_UseUnityStandardDiffuseBrightness", 0);
+                            },
                             false,
                             null,
                             MetaAlbedoFragmentControl
@@ -254,6 +257,39 @@ namespace PureBase.Tests.Daily
                             actual,
                             expected,
                             $"{sourceMaterial.shader.name} {formulaCase.name}"
+                        );
+                        Assert.That(
+                            sourceMaterial.HasProperty("_UseUnityStandardDiffuseBrightness"),
+                            Is.True,
+                            sourceMaterial.shader.name + " must expose the direct-diffuse brightness toggle."
+                        );
+
+                        MetaCaptureReadback toggleEnabled = RenderMetaCapture(
+                            sourceMaterial,
+                            material =>
+                            {
+                                ConfigureMetaMaterial(
+                                    material,
+                                    formulaCase.albedo,
+                                    formulaCase.metallic,
+                                    formulaCase.roughness,
+                                    0.0f
+                                );
+                                material.SetInteger("_UseUnityStandardDiffuseBrightness", 1);
+                            },
+                            false,
+                            null,
+                            MetaAlbedoFragmentControl
+                        );
+                        AssertMetaReadback(
+                            toggleEnabled,
+                            expected,
+                            $"{sourceMaterial.shader.name} {formulaCase.name} toggle enabled"
+                        );
+                        Assert.That(
+                            MaximumAbsoluteRgbDifference(actual.meanColor, toggleEnabled.meanColor),
+                            Is.LessThanOrEqualTo(MetaCaptureTolerance),
+                            sourceMaterial.shader.name + " Meta output must not consume direct-diffuse brightness."
                         );
 
                         if (formulaCase.metallic >= 1.0f && formulaCase.roughness < 1.0f)

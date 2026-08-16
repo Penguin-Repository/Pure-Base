@@ -1029,6 +1029,7 @@ namespace PureBase.Tests.Daily
             /// <summary>Restores every caller-owned global, render target, quality, and scene setting.</summary>
             private void RestoreCallerState()
             {
+                RestorePbrBrightnessCallerState();
                 foreach (KeyValuePair<string, Vector4> global in globals)
                 {
                     Shader.SetGlobalVector(global.Key, global.Value);
@@ -1044,6 +1045,9 @@ namespace PureBase.Tests.Daily
                     RenderSettings.fog = fogEnabled;
                 }
             }
+
+            /// <summary>Restores feature-specific caller state owned by partial runtime capture extensions.</summary>
+            partial void RestorePbrBrightnessCallerState();
 
             /// <summary>Asserts that the generated Preview Scene did not leak after cleanup.</summary>
             private void AssertRestoredSceneCount()
