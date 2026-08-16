@@ -255,6 +255,9 @@ namespace PureBase.Tests.Daily
             /// <summary>Tracks whether this scope has already released its resources.</summary>
             private bool disposed;
 
+            /// <summary>Restores PBR brightness-specific caller state before the shared Unity state.</summary>
+            private readonly Action restorePbrBrightnessCallerState;
+
             /// <summary>Creates an isolated linear render fixture with no fog or reflection probes.</summary>
             public ToonLightingCaptureRuntimeScope()
             {
@@ -269,6 +272,8 @@ namespace PureBase.Tests.Daily
                 {
                     globals.Add(globalName, Shader.GetGlobalVector(globalName));
                 }
+
+                restorePbrBrightnessCallerState = RestorePbrBrightnessCallerState;
 
                 try
                 {
@@ -1029,6 +1034,7 @@ namespace PureBase.Tests.Daily
             /// <summary>Restores every caller-owned global, render target, quality, and scene setting.</summary>
             private void RestoreCallerState()
             {
+                restorePbrBrightnessCallerState();
                 foreach (KeyValuePair<string, Vector4> global in globals)
                 {
                     Shader.SetGlobalVector(global.Key, global.Value);

@@ -1682,16 +1682,20 @@ function New-ProductContract {
     $expectedVisiblePropertyNames = switch ($ShaderName) {
         'PureBase/Unlit' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail') }
         'PureBase/Toon' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale') }
-        'PureBase/PBR' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
-        'PureBase/Hybrid' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness') }
+        'PureBase/PBR' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness', '_UseUnityStandardDiffuseBrightness') }
+        'PureBase/Hybrid' { @('_BaseTexture', '_BaseColor', '_SharedMask', '_SharedGradients', '_RenderingMode', '_Cutoff', '_Cull', '_StencilRef', '_StencilReadMask', '_StencilWriteMask', '_StencilComp', '_StencilPass', '_StencilFail', '_StencilZFail', '_NormalMap', '_NormalScale', '_Metallic', '_Roughness', '_UseUnityStandardDiffuseBrightness') }
         default { throw "Unsupported PureBase product '$ShaderName'." }
+    }
+    $requiredSourceFragments = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
+    if ($ShaderName -eq 'PureBase/PBR' -or $ShaderName -eq 'PureBase/Hybrid') {
+        $requiredSourceFragments += '_UseUnityStandardDiffuseBrightness'
     }
     return [ordered]@{
         shaderName                   = $ShaderName
         shaderAssetPath              = Get-ProductShaderAssetPath -ShaderName $ShaderName
         expectedPassNames            = $ProductPasses
         expectedVisiblePropertyNames = $expectedVisiblePropertyNames
-        requiredSourceFragments      = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
+        requiredSourceFragments      = $requiredSourceFragments
         forbiddenSourceFragments     = @()
         passContracts                = $passContracts
     }

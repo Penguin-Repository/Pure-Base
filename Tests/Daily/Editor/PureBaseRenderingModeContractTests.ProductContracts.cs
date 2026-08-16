@@ -57,6 +57,10 @@ namespace PureBase.Tests.Daily
         private const string CutoffPropertySourcePattern =
             @"SC_float\s*\(\s*_Cutoff\s*,\s*0\.5(?:0+)?\s*,\s*\[\s*PureBaseCutoff\s*\]\s*\[\s*SCRange\s*\(\s*-0\.001\s*,\s*1\.001\s*\)\s*\]\s*,\s*""Cutoff""\s*,\s*""""\s*\)";
 
+        /// <summary>Matches the opt-in PBR direct-diffuse normalization declaration without accepting a Float or alternate drawer.</summary>
+        private const string UnityStandardDiffuseBrightnessPropertySourcePattern =
+            @"SC_uint\s*\(\s*_UseUnityStandardDiffuseBrightness\s*,\s*0(?:\.0+)?\s*,\s*\[\s*SCToggle\s*\]\s*,\s*""Unity Standard Diffuse Brightness""\s*,\s*""""\s*\)";
+
         /// <summary>Lists the public product shaders and their complete visible property ABI.</summary>
         private static readonly ProductContract[] Products =
         {
@@ -127,6 +131,7 @@ namespace PureBase.Tests.Daily
                     "_NormalScale",
                     "_Metallic",
                     "_Roughness",
+                    "_UseUnityStandardDiffuseBrightness",
                 }
             ),
             new ProductContract(
@@ -152,6 +157,7 @@ namespace PureBase.Tests.Daily
                     "_NormalScale",
                     "_Metallic",
                     "_Roughness",
+                    "_UseUnityStandardDiffuseBrightness",
                 }
             ),
         };
@@ -370,6 +376,36 @@ namespace PureBase.Tests.Daily
                 $"Product property source '{product.propertySourcePath}' must declare _Cutoff with the PureBaseCutoff drawer and SCRange(-0.001,1.001)."
             );
             AssertStencilPropertyAbi(product, shader);
+            AssertUnityStandardDiffuseBrightnessAbi(product, shader);
+        }
+
+        /// <summary>Requires the PBR and Hybrid Integer toggle ABI while preserving its absence from Unlit and Toon.</summary>
+        /// <param name="product">The product ABI under test.</param>
+        /// <param name="shader">The imported product shader.</param>
+        private static void AssertUnityStandardDiffuseBrightnessAbi(ProductContract product, Shader shader)
+        {
+            const string propertyName = "_UseUnityStandardDiffuseBrightness";
+            bool supportsBrightness = product.shaderName == "PureBase/PBR"
+                || product.shaderName == "PureBase/Hybrid";
+            int propertyIndex = shader.FindPropertyIndex(propertyName);
+            if (!supportsBrightness)
+            {
+                Assert.That(propertyIndex, Is.EqualTo(-1), product.shaderName + " must not expose " + propertyName + ".");
+                return;
+            }
+
+            Assert.That(propertyIndex, Is.GreaterThanOrEqualTo(0), product.shaderName + " must expose " + propertyName + ".");
+            Assert.That(shader.GetPropertyType(propertyIndex), Is.EqualTo(ShaderPropertyType.Int));
+            Assert.That(shader.GetPropertyDefaultIntValue(propertyIndex), Is.EqualTo(0));
+            CollectionAssert.AreEqual(new[] { "SCToggle" }, shader.GetPropertyAttributes(propertyIndex));
+            Assert.That(
+                Regex.IsMatch(File.ReadAllText(product.propertySourcePath), UnityStandardDiffuseBrightnessPropertySourcePattern),
+                Is.True,
+                product.propertySourcePath + " must declare the exact SC_uint SCToggle ABI."
+            );
+            string pbr = File.ReadAllText("Packages/jp.penguin.purebase/Shaders/PureBasePBR_properties.hlsl");
+            string hybrid = File.ReadAllText("Packages/jp.penguin.purebase/Shaders/PureBaseHybrid_properties.hlsl");
+            Assert.That(hybrid, Is.EqualTo(pbr), "PBR and Hybrid property declarations must remain byte-identical.");
         }
 
         /// <summary>Asserts the exact common Stencil property ABI in imported metadata and source order.</summary>

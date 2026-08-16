@@ -73,7 +73,17 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 `PureBase/Toon` は、追加で `_NormalMap` と `_NormalScale` を公開します。
 
-`PureBase/PBR` と `PureBase/Hybrid` は、法線マップ用の項目に加えて `_Metallic` と `_Roughness` を公開します。両者の公開項目定義は完全に同一です。粗さは `0.002` から `1` の範囲に制限されます。
+`PureBase/PBR` と `PureBase/Hybrid` は、法線マップ用の項目に加えて `_Metallic`、`_Roughness`、`_UseUnityStandardDiffuseBrightness` を公開します。両者の公開項目定義は完全に同一です。粗さは `0.002` から `1` の範囲に制限されます。
+
+### PBR と Hybrid の直接拡散反射の輝度
+
+`_UseUnityStandardDiffuseBrightness` は `SC_uint` を基にした ShaderLab の `Integer` で、`[SCToggle]` を使い、値 `0` と `1` に対応し、初期値は `0` です。PBR と Hybrid だけが公開し、両者の完全に同一な公開項目定義で `_Roughness` の後に追加されています。
+
+初期値またはオフの `0` では、既存のマテリアルと新しいマテリアルの両方で、従来の直接拡散反射係数 `1/pi` を使います。`1` では係数 `1` を選ぶため、後段のブレンド、トーン、彩度処理の前における直接拡散反射の寄与は従来の約 `pi` 倍になります。直接 GGX 鏡面反射や間接光など他のライティング項は変わらないため、最終出力全体が一般に `pi` 倍明るくなるという意味ではありません。
+
+この設定は、PBR の連続的な直接拡散反射と Hybrid の2値化された直接拡散反射に、`ForwardBase` と `ForwardAdd` の両方で作用します。直接 GGX 鏡面反射、Unity Standard の間接 GI、反射プローブ、ライトマップ、`Meta` には作用しません。`ForwardAdd` は追加の直接光だけを扱うパスのままです。
+
+`Unity Standard-compatible` は、実効的な直接拡散反射の正規化と、法線方向にそろえた条件での比較だけを指します。Unity Standard の Disney 拡散反射が持つ角度・粗さへの応答や、Standard と完全に同じ BRDF またはマテリアルになることは意味しません。
 
 ### ステンシル ABI
 

@@ -74,15 +74,24 @@ half3 PureBasePbrSchlickFresnel(half3 specularColor, half cosine)
     return specularColor + (1.0 - specularColor) * fresnelWeight;
 }
 
-/// <summary>Evaluates direct GGX diffuse and specular lighting with an optional binary diffuse response.</summary>
+/// <summary>Selects the direct diffuse normalization used by the material toggle.</summary>
+/// <param name="useUnityStandardDiffuseBrightness">The unsigned material toggle; every nonzero value enables Unity Standard brightness.</param>
+/// <returns>One for enabled brightness or the existing inverse-pi normalization when disabled.</returns>
+half PureBasePbrSelectDiffuseNormalization(uint useUnityStandardDiffuseBrightness)
+{
+    return useUnityStandardDiffuseBrightness != 0 ? 1.0 : 0.318309886;
+}
+
+/// <summary>Evaluates direct GGX diffuse and specular lighting with independent diffuse normalization and binary response controls.</summary>
 /// <param name="brdf">The material BRDF terms.</param>
 /// <param name="normal">The normalized world-space surface normal.</param>
 /// <param name="lightDirection">The normalized post-light-phase light direction.</param>
 /// <param name="viewDirection">The normalized world-space view direction.</param>
 /// <param name="lightColor">The post-light-phase radiance.</param>
+/// <param name="diffuseNormalization">The direct diffuse normalization coefficient.</param>
 /// <param name="binaryDiffuse">Selects the Hybrid diffuse step response.</param>
 /// <returns>The finite direct BRDF contribution.</returns>
-half3 PureBasePbrEvaluateDirect(PureBasePbrBrdfData brdf, half3 normal, half3 lightDirection, half3 viewDirection, half3 lightColor, bool binaryDiffuse)
+half3 PureBasePbrEvaluateDirect(PureBasePbrBrdfData brdf, half3 normal, half3 lightDirection, half3 viewDirection, half3 lightColor, half diffuseNormalization, bool binaryDiffuse)
 {
     half3 N = PureBasePbrSafeNormalize(normal);
     half3 L = PureBasePbrSafeNormalize(lightDirection);
@@ -101,7 +110,7 @@ half3 PureBasePbrEvaluateDirect(PureBasePbrBrdfData brdf, half3 normal, half3 li
     half visibilityL = NdotV * sqrt(max(NdotL * (NdotL - NdotL * roughnessFourth) + roughnessFourth, 0.000001));
     half visibility = 0.5 / max(visibilityV + visibilityL, 0.000001);
     half3 specular = distribution * visibility * PureBasePbrSchlickFresnel(brdf.specularColor, LdotH);
-    return max(lightColor, half3(0, 0, 0)) * (brdf.diffuseColor * (diffuseNdotL * 0.318309886) + specular * NdotL);
+    return max(lightColor, half3(0, 0, 0)) * (brdf.diffuseColor * diffuseNdotL * diffuseNormalization + specular * NdotL);
 }
 
 /// <summary>Evaluates the Unity Standard helper's decoded diffuse and reflection-probe environment terms.</summary>

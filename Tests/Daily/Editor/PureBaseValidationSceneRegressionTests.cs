@@ -196,83 +196,155 @@ namespace PureBase.Tests.Daily
         [Test]
         public void PbrAndHybridMetaAlbedoFollowsMetallicRoughnessFormula()
         {
+            MetaFormulaCase[] cases = CreateMetaFormulaCases();
             WithPbrAndHybridMaterials(materials =>
             {
-                MetaFormulaCase[] cases =
-                {
-                    new MetaFormulaCase(
-                        "dielectric minimum roughness",
-                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
-                        -0.25f,
-                        -0.5f
-                    ),
-                    new MetaFormulaCase(
-                        "metallic quarter roughness",
-                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
-                        1.25f,
-                        0.25f
-                    ),
-                    new MetaFormulaCase(
-                        "metallic three-quarter roughness",
-                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
-                        1.25f,
-                        0.75f
-                    ),
-                    new MetaFormulaCase(
-                        "metallic maximum roughness",
-                        new Color(0.8f, 0.4f, 0.2f, 1.0f),
-                        1.25f,
-                        2.0f
-                    ),
-                };
-
                 foreach (Material sourceMaterial in materials)
                 {
                     foreach (MetaFormulaCase formulaCase in cases)
                     {
-                        MetaCaptureReadback actual = RenderMetaCapture(
-                            sourceMaterial,
-                            material =>
-                                ConfigureMetaMaterial(
-                                    material,
-                                    formulaCase.albedo,
-                                    formulaCase.metallic,
-                                    formulaCase.roughness,
-                                    0.0f
-                                ),
-                            false,
-                            null,
-                            MetaAlbedoFragmentControl
-                        );
-                        Color expected = EvaluateExpectedMetaAlbedo(
-                            formulaCase.albedo,
-                            formulaCase.metallic,
-                            formulaCase.roughness,
-                            true
-                        );
-                        AssertMetaReadback(
-                            actual,
-                            expected,
-                            $"{sourceMaterial.shader.name} {formulaCase.name}"
-                        );
-
-                        if (formulaCase.metallic >= 1.0f && formulaCase.roughness < 1.0f)
-                        {
-                            Color unsquaredRoughness = EvaluateExpectedMetaAlbedo(
-                                formulaCase.albedo,
-                                formulaCase.metallic,
-                                formulaCase.roughness,
-                                false
-                            );
-                            Assert.That(
-                                MaximumAbsoluteRgbDifference(expected, unsquaredRoughness),
-                                Is.GreaterThanOrEqualTo(0.02f),
-                                $"{sourceMaterial.shader.name} {formulaCase.name} does not discriminate squared roughness."
-                            );
-                        }
+                        AssertMetaFormulaCaseReadback(sourceMaterial, formulaCase);
                     }
                 }
             });
+        }
+
+        /// <summary>Creates the metallic and roughness cases that distinguish the Meta BRDF formula.</summary>
+        /// <returns>The fixed Meta formula cases.</returns>
+        private static MetaFormulaCase[] CreateMetaFormulaCases()
+        {
+            return new[]
+            {
+                new MetaFormulaCase(
+                    "dielectric minimum roughness",
+                    new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                    -0.25f,
+                    -0.5f
+                ),
+                new MetaFormulaCase(
+                    "metallic quarter roughness",
+                    new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                    1.25f,
+                    0.25f
+                ),
+                new MetaFormulaCase(
+                    "metallic three-quarter roughness",
+                    new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                    1.25f,
+                    0.75f
+                ),
+                new MetaFormulaCase(
+                    "metallic maximum roughness",
+                    new Color(0.8f, 0.4f, 0.2f, 1.0f),
+                    1.25f,
+                    2.0f
+                ),
+            };
+        }
+
+        /// <summary>Asserts the disabled-toggle Meta formula, property ABI, enabled-toggle invariance, and roughness discriminator.</summary>
+        /// <param name="sourceMaterial">The PBR or Hybrid material under test.</param>
+        /// <param name="formulaCase">The metallic and roughness inputs.</param>
+        private static void AssertMetaFormulaCaseReadback(Material sourceMaterial, MetaFormulaCase formulaCase)
+        {
+            MetaCaptureReadback actual = RenderMetaCapture(
+                sourceMaterial,
+                material =>
+                {
+                    ConfigureMetaMaterial(
+                        material,
+                        formulaCase.albedo,
+                        formulaCase.metallic,
+                        formulaCase.roughness,
+                        0.0f
+                    );
+                    material.SetInteger("_UseUnityStandardDiffuseBrightness", 0);
+                },
+                false,
+                null,
+                MetaAlbedoFragmentControl
+            );
+            Color expected = EvaluateExpectedMetaAlbedo(
+                formulaCase.albedo,
+                formulaCase.metallic,
+                formulaCase.roughness,
+                true
+            );
+            AssertMetaReadback(actual, expected, $"{sourceMaterial.shader.name} {formulaCase.name}");
+            Assert.That(
+                sourceMaterial.HasProperty("_UseUnityStandardDiffuseBrightness"),
+                Is.True,
+                sourceMaterial.shader.name + " must expose the direct-diffuse brightness toggle."
+            );
+            AssertMetaToggleInvariance(sourceMaterial, formulaCase, actual, expected);
+            AssertSquaredRoughnessDiscriminator(sourceMaterial, formulaCase, expected);
+        }
+
+        /// <summary>Captures enabled-toggle Meta output and preserves the direct-diffuse invariance contract.</summary>
+        /// <param name="sourceMaterial">The PBR or Hybrid material under test.</param>
+        /// <param name="formulaCase">The metallic and roughness inputs.</param>
+        /// <param name="actual">The disabled-toggle Meta readback.</param>
+        /// <param name="expected">The formula oracle color.</param>
+        private static void AssertMetaToggleInvariance(
+            Material sourceMaterial,
+            MetaFormulaCase formulaCase,
+            MetaCaptureReadback actual,
+            Color expected
+        )
+        {
+            MetaCaptureReadback toggleEnabled = RenderMetaCapture(
+                sourceMaterial,
+                material =>
+                {
+                    ConfigureMetaMaterial(
+                        material,
+                        formulaCase.albedo,
+                        formulaCase.metallic,
+                        formulaCase.roughness,
+                        0.0f
+                    );
+                    material.SetInteger("_UseUnityStandardDiffuseBrightness", 1);
+                },
+                false,
+                null,
+                MetaAlbedoFragmentControl
+            );
+            AssertMetaReadback(
+                toggleEnabled,
+                expected,
+                $"{sourceMaterial.shader.name} {formulaCase.name} toggle enabled"
+            );
+            Assert.That(
+                MaximumAbsoluteRgbDifference(actual.meanColor, toggleEnabled.meanColor),
+                Is.LessThanOrEqualTo(MetaCaptureTolerance),
+                sourceMaterial.shader.name + " Meta output must not consume direct-diffuse brightness."
+            );
+        }
+
+        /// <summary>Preserves the assertion that metallic sub-one roughness is squared by the Meta formula.</summary>
+        /// <param name="sourceMaterial">The PBR or Hybrid material under test.</param>
+        /// <param name="formulaCase">The metallic and roughness inputs.</param>
+        /// <param name="expected">The squared-roughness formula oracle color.</param>
+        private static void AssertSquaredRoughnessDiscriminator(
+            Material sourceMaterial,
+            MetaFormulaCase formulaCase,
+            Color expected
+        )
+        {
+            if (formulaCase.metallic >= 1.0f && formulaCase.roughness < 1.0f)
+            {
+                Color unsquaredRoughness = EvaluateExpectedMetaAlbedo(
+                    formulaCase.albedo,
+                    formulaCase.metallic,
+                    formulaCase.roughness,
+                    false
+                );
+                Assert.That(
+                    MaximumAbsoluteRgbDifference(expected, unsquaredRoughness),
+                    Is.GreaterThanOrEqualTo(0.02f),
+                    $"{sourceMaterial.shader.name} {formulaCase.name} does not discriminate squared roughness."
+                );
+            }
         }
 
         /// <summary>Ensures editor visualization receives the metallic diffuse term rather than raw albedo.</summary>
