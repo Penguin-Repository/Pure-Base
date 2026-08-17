@@ -73,7 +73,23 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 `PureBase/Toon` は、追加で `_NormalMap` と `_NormalScale` を公開します。
 
-`PureBase/PBR` と `PureBase/Hybrid` は、法線マップ用の項目に加えて `_Metallic`、`_Roughness`、`_UseUnityStandardDiffuseBrightness` を公開します。両者の公開項目定義は完全に同一です。粗さは `0.002` から `1` の範囲に制限されます。
+`PureBase/PBR` と `PureBase/Hybrid` は、法線マップ用の項目に加えて `_Metallic`、`_Roughness`、`_UseUnityStandardDiffuseBrightness` を公開します。このメタデータを含む両者の公開項目定義は完全に同一です。`_Roughness` は `SC_float` を基にした ShaderLab の `Float` で、初期値は `0.5`、公開する知覚粗さの範囲は `[0.089, 1]`、メタデータは正確に `[SCRange(0.089,1)]` です。公開順序は `_Metallic` と `_UseUnityStandardDiffuseBrightness` の間のままです。
+
+### PBR と Hybrid の知覚粗さ下限
+
+`_Roughness` が保持するのは学術的な粗さ `p^2` ではなく、知覚粗さ `p` です。PBR と Hybrid は共通の BRDF データを作る前に、1つの共有ランタイムクランプ `clamp(p, 0.089, 1)` を使います。このクランプ後の値は、粗さに依存するすべての経路へ渡されます。
+
+- 直接 GGX は `roughnessSquared = p^2` を計算し、`ForwardBase` と `ForwardAdd` の直接評価で `roughnessFourth = p^4` まで計算します。
+- Unity Standard の GI と反射プローブの準備では、同じクランプ後の値から `Smoothness = 1 - p` を作って `LightingStandard_GI` に渡します。その後の間接光評価も同じ BRDF データを使います。
+- PBR と Hybrid の `Meta` フラグメントは同じ BRDF データを作るため、Meta/ライトマップも二乗粗さの規則を通じて同じ下限を使います。
+
+下限を `0.089` とするのは、直接評価の4乗項を IEEE-754 binary16 の最小正規化正数より大きく保つためです。具体的には、$0.089^4 = 0.000062742241 > 2^{-14} = 0.00006103515625$ です。Unity URP も [`BRDF.hlsl`](https://github.com/Unity-Technologies/Graphics/blob/e6595ee2d83c8b02dab6e58abba0ff285c0c80ed/Packages/com.unity.render-pipelines.universal/ShaderLibrary/BRDF.hlsl) で関連する FP16 保護を使っており、BRDF 初期化時に二乗粗さを `HALF_MIN_SQRT`、その値の二乗を `HALF_MIN` で保護します。Unity Core の [`CommonMaterial.hlsl`](https://github.com/Unity-Technologies/Graphics/blob/cdc941e1378729b1ca1fafb175151ac3d781ebb0/Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl) も、粗さがゼロまたは過度に小さい分析ライト用粗さは無効またはエイリアシングの原因になると説明しています。これは関連する数値保護を示すものであり、URP を対応対象にすることや、Pure Base が URP の BRDF を実装することを意味しません。
+
+Built-in Standard 内部の `0.002` クランプは、別のパラメーター化です。これは知覚粗さを二乗した後の学術的な粗さに対して適用されます。一方、Pure Base の公開 `_Roughness` は知覚粗さ `p` です。そのため、インストール済み Unity `2022.3.22f1` の Built-in Standard ソースにある値は Pure Base の公開下限を定義せず、同じ数値でも表している量が異なります。
+
+マテリアル移行コマンドや、保存値を一括書き換えする処理は追加しません。`0.089` 未満の保存値は、ユーザーが明示的に編集または別の方法でマテリアルを書き換えるまで、そのまま保存されます。ただし実行時には、直接光、Unity Standard の GI/反射、Meta/ライトマップのすべてで `0.089` として評価されます。`0.089` 以上の保存値は公開順序と粗さの意味を維持し、公開初期値も `0.5` のままです。
+
+この変更には Issue #13 の可視性近似、Issue #14 の多重散乱補償、スペキュラアンチエイリアシング、Unity Standard との完全な BRDF 一致は含まれません。`_UseUnityStandardDiffuseBrightness` の所有範囲、配置、動作も変更しません。
 
 ### PBR と Hybrid の直接拡散反射の輝度
 

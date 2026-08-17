@@ -73,7 +73,23 @@ All four shaders expose these common properties:
 
 `PureBase/Toon` additionally exposes `_NormalMap` and `_NormalScale`.
 
-`PureBase/PBR` and `PureBase/Hybrid` expose the same normal-map properties plus `_Metallic`, `_Roughness`, and `_UseUnityStandardDiffuseBrightness`. Their public property declarations are byte-identical. Roughness is clamped from `0.002` to `1`.
+`PureBase/PBR` and `PureBase/Hybrid` expose the same normal-map properties plus `_Metallic`, `_Roughness`, and `_UseUnityStandardDiffuseBrightness`. Their public property declarations, including this metadata, are byte-identical. `_Roughness` is a ShaderLab `Float` backed by `SC_float`, with default `0.5`, public perceptual range `[0.089, 1]`, and exact `[SCRange(0.089,1)]` metadata. It remains ordered between `_Metallic` and `_UseUnityStandardDiffuseBrightness`.
+
+### PBR and Hybrid perceptual roughness floor
+
+`_Roughness` stores perceptual roughness `p`, not academic roughness `p^2`. PBR and Hybrid use one shared runtime clamp, `clamp(p, 0.089, 1)`, before creating their shared BRDF data. The clamped value feeds every roughness-sensitive path:
+
+- Direct GGX evaluates `roughnessSquared = p^2` and then reaches `roughnessFourth = p^4` in the direct evaluator for both `ForwardBase` and `ForwardAdd`.
+- Unity Standard GI and reflection-probe setup derive `Smoothness = 1 - p` from the same clamped value before `LightingStandard_GI`; the resulting indirect contribution uses the same shared BRDF data.
+- PBR and Hybrid `Meta` fragments create the same shared BRDF data, so Meta/lightmapping uses the same floor through its squared-roughness rule.
+
+The floor is `0.089` because the direct evaluator's fourth-power term must remain above the IEEE-754 binary16 minimum positive normal. Specifically, $0.089^4 = 0.000062742241 > 2^{-14} = 0.00006103515625$. Unity URP uses related FP16 protections in its [`BRDF.hlsl`](https://github.com/Unity-Technologies/Graphics/blob/e6595ee2d83c8b02dab6e58abba0ff285c0c80ed/Packages/com.unity.render-pipelines.universal/ShaderLibrary/BRDF.hlsl): its BRDF initialization protects squared roughness with `HALF_MIN_SQRT` and the square of that value with `HALF_MIN`. Unity Core's [`CommonMaterial.hlsl`](https://github.com/Unity-Technologies/Graphics/blob/cdc941e1378729b1ca1fafb175151ac3d781ebb0/Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl) also documents that zero or excessively small analytical-light roughness is invalid or can alias. These are related numerical protections, not a claim that URP is supported or that Pure Base implements the URP BRDF.
+
+Built-in Standard's internal `0.002` clamp is a different parameterization. It clamps academic roughness after perceptual roughness has been squared, whereas Pure Base's public `_Roughness` is perceptual `p`. The installed Unity `2022.3.22f1` Built-in Standard source therefore does not define Pure Base's public floor; the same numeral represents a different quantity.
+
+No material migration command or bulk serialized rewrite is added. A stored value below `0.089` remains stored as-is until a user explicitly edits or otherwise rewrites the material, but it evaluates as `0.089` at runtime in direct lighting, Unity Standard GI/reflection, and Meta/lightmapping. Stored values at or above `0.089` retain their public ordering and roughness meaning, and the public default remains `0.5`.
+
+This change does not implement the Issue #13 visibility approximation, Issue #14 multiple-scattering compensation, specular anti-aliasing, or full Unity Standard BRDF parity. It does not change the ownership, placement, or behavior of `_UseUnityStandardDiffuseBrightness`.
 
 ### PBR and Hybrid direct-diffuse brightness
 

@@ -32,6 +32,15 @@ struct PureBasePbrBrdfData
     half roughnessSquared;
 };
 
+/// <summary>Defines the shared rounded-up perceptual-roughness floor as a compile-time half value.</summary>
+static const half PureBasePbrPerceptualRoughnessFloor = 0.0890;
+
+/// <summary>Clamps perceptual roughness to 0.089; the rounded-up floor protects p^4 above the IEEE binary16 minimum normal and aligns with Unity URP HALF_MIN_SQRT/HALF_MIN initialization.</summary>
+half PureBasePbrClampPerceptualRoughness(half perceptualRoughness)
+{
+    return clamp(perceptualRoughness, PureBasePbrPerceptualRoughnessFloor, 1.0);
+}
+
 /// <summary>Returns a finite unit direction and maps zero-length directions to zero.</summary>
 /// <param name="direction">The direction to normalize.</param>
 /// <returns>A finite unit direction or zero.</returns>
@@ -49,7 +58,7 @@ PureBasePbrBrdfData PureBasePbrCreateBrdf(half3 albedo, half metallic, half roug
 {
     PureBasePbrBrdfData brdf;
     half clampedMetallic = saturate(metallic);
-    brdf.roughness = clamp(roughness, 0.002, 1.0);
+    brdf.roughness = PureBasePbrClampPerceptualRoughness(roughness);
     brdf.roughnessSquared = brdf.roughness * brdf.roughness;
     brdf.diffuseColor = saturate(albedo) * (1.0 - clampedMetallic);
     brdf.specularColor = lerp(half3(0.04, 0.04, 0.04), saturate(albedo), clampedMetallic);

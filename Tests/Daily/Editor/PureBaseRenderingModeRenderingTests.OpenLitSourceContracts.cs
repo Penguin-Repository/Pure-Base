@@ -110,6 +110,7 @@ namespace PureBase.Tests.Daily
             AssertToonHelperAndModelContracts(toon, helper);
             AssertBirpHostForwardAddAndLightmapContracts(host, shaderCoreLighting);
             AssertPbrAndHybridLightingOwnership(pbr, pbrBrdf, hybrid);
+            AssertPbrRoughnessFloorOwnership(pbr, pbrBrdf);
             AssertLightingPhaseOrder(host);
             OpenLitSourceContractAssertions.AssertOpenLitFallbackPrecedesNormalization(helper);
         }

@@ -137,7 +137,8 @@ SurfaceOutputStandard SCModelCreateStandardSurface(SCShadingData shadingData)
     surface.Normal = PureBasePbrSafeNormalize(shadingData.N);
     surface.Emission = 0;
     surface.Metallic = saturate(_Metallic);
-    surface.Smoothness = 1.0 - clamp(_Roughness, 0.002, 1.0);
+    half clampedPerceptualRoughness = PureBasePbrClampPerceptualRoughness(_Roughness);
+    surface.Smoothness = 1.0 - clampedPerceptualRoughness;
     surface.Occlusion = 1;
     surface.Alpha = 1;
     return surface;
