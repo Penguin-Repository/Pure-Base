@@ -91,6 +91,24 @@ half PureBasePbrSelectDiffuseNormalization(uint useUnityStandardDiffuseBrightnes
     return useUnityStandardDiffuseBrightness != 0 ? 1.0 : 0.318309886;
 }
 
+/// <summary>Evaluates the linearized joint GGX visibility approximation independently inspected in Unity 2022.3.22f1.</summary>
+/// <param name="NdotL">The nonnegative surface-to-light cosine.</param>
+/// <param name="NdotV">The nonnegative surface-to-view cosine.</param>
+/// <param name="roughness">Academic roughness a = p^2.</param>
+/// <returns>The finite linearized joint GGX visibility factor.</returns>
+/// <remarks>Exact Smith theory provenance belongs in documentation; this does not imply copied Unity code.</remarks>
+float PureBasePbrEvaluateSmithJointGgxVisibility(float NdotL, float NdotV, float roughness)
+{
+    float lambdaV = NdotL * (NdotV * (1.0f - roughness) + roughness);
+    float lambdaL = NdotV * (NdotL * (1.0f - roughness) + roughness);
+#if defined(SHADER_API_SWITCH)
+    float epsilon = UNITY_HALF_MIN;
+#else
+    float epsilon = 1e-5f;
+#endif
+    return 0.5f / (lambdaV + lambdaL + epsilon);
+}
+
 /// <summary>Evaluates direct GGX diffuse and specular lighting with independent diffuse normalization and binary response controls.</summary>
 /// <param name="brdf">The material BRDF terms.</param>
 /// <param name="normal">The normalized world-space surface normal.</param>
@@ -112,14 +130,12 @@ half3 PureBasePbrEvaluateDirect(PureBasePbrBrdfData brdf, half3 normal, half3 li
     half NdotH = max(0.0, dot(N, H));
     half LdotH = max(0.0, dot(L, H));
     half diffuseNdotL = binaryDiffuse ? step(0.0, signedNdotL) : NdotL;
-    half roughnessFourth = brdf.roughnessSquared * brdf.roughnessSquared;
-    half distributionDenominator = max(3.14159265 * pow(NdotH * NdotH * (roughnessFourth - 1.0) + 1.0, 2.0), 0.000001);
-    half distribution = roughnessFourth / distributionDenominator;
-    half visibilityV = NdotL * sqrt(max(NdotV * (NdotV - NdotV * roughnessFourth) + roughnessFourth, 0.000001));
-    half visibilityL = NdotV * sqrt(max(NdotL * (NdotL - NdotL * roughnessFourth) + roughnessFourth, 0.000001));
-    half visibility = 0.5 / max(visibilityV + visibilityL, 0.000001);
-    half3 specular = distribution * visibility * PureBasePbrSchlickFresnel(brdf.specularColor, LdotH);
-    return max(lightColor, half3(0, 0, 0)) * (brdf.diffuseColor * diffuseNdotL * diffuseNormalization + specular * NdotL);
+    float roughnessFourth = brdf.roughnessSquared * brdf.roughnessSquared;
+    float distributionDenominator = max(3.14159265f * pow((float)NdotH * (float)NdotH * (roughnessFourth - 1.0f) + 1.0f, 2.0f), 0.000001f);
+    float distribution = roughnessFourth / distributionDenominator;
+    float visibility = PureBasePbrEvaluateSmithJointGgxVisibility(NdotL, NdotV, brdf.roughnessSquared);
+    float3 specular = distribution * visibility * NdotL * PureBasePbrSchlickFresnel(brdf.specularColor, LdotH);
+    return max(lightColor, half3(0, 0, 0)) * (brdf.diffuseColor * diffuseNdotL * diffuseNormalization + specular);
 }
 
 /// <summary>Evaluates the Unity Standard helper's decoded diffuse and reflection-probe environment terms.</summary>
