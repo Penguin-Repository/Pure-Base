@@ -44,6 +44,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Defines the fixed relative-error denominator for reference values near zero.</summary>
         private const float RelativeNearZeroFloor = 0.0001f;
 
+        /// <summary>Defines the coordinate sentinel tolerance used by the fixed characterization domain.</summary>
+        private const float CoordinateSentinelTolerance = 0.000001f;
+
         /// <summary>Lists the representative perceptual roughness samples.</summary>
         private static readonly float[] PerceptualRoughnessSamples = { 0.089f, 0.125f, 0.25f, 0.5f, 0.75f, 1.0f };
 
@@ -176,9 +179,9 @@ namespace PureBase.Tests.Daily
             AssertFiniteNonNegative(regularized, "regularized exact " + coordinate);
             AssertFiniteNonNegative(fast, "fast " + coordinate);
             AssertSymmetry(perceptualRoughness, ndotL, ndotV, useSwitchDenominator, legacy, regularized, fast);
-            if (ndotL == 0.0f)
+            if (IsCoordinateSentinel(ndotL, 0.0f))
                 Assert.That(fast * ndotL, Is.EqualTo(0.0f).Within(0.0f), "The float direct visibility product must remain exactly zero at NdotL zero.");
-            if (perceptualRoughness == 1.0f)
+            if (IsCoordinateSentinel(perceptualRoughness, 1.0f))
                 Assert.That(fast, Is.EqualTo(regularized).Within(0.000001f), "Regularized exact and fast visibility must agree at p = 1 for " + coordinate + ".");
             legacyDeltas.Add(VisibilityDelta.Create(legacy, fast, perceptualRoughness, ndotL, ndotV, useSwitchDenominator));
             regularizedDeltas.Add(VisibilityDelta.Create(regularized, fast, perceptualRoughness, ndotL, ndotV, useSwitchDenominator));
@@ -219,13 +222,19 @@ namespace PureBase.Tests.Daily
             return useSwitchDenominator ? SwitchEpsilon : NormalEpsilon;
         }
 
+        /// <summary>Returns whether a fixed characterization coordinate represents an exact domain sentinel.</summary>
+        private static bool IsCoordinateSentinel(float value, float sentinel)
+        {
+            return MathF.Abs(value - sentinel) <= CoordinateSentinelTolerance;
+        }
+
         /// <summary>Requires every formula to preserve symmetry under light and view cosine exchange.</summary>
         private static void AssertSymmetry(float perceptualRoughness, float ndotL, float ndotV, bool useSwitchDenominator, float legacy, float regularized, float fast)
         {
             string coordinate = Coordinate(perceptualRoughness, ndotL, ndotV, useSwitchDenominator);
-            Assert.That(legacy, Is.EqualTo(LegacyExactVisibility(perceptualRoughness, ndotV, ndotL)).Within(0.000001f), "Legacy exact symmetry failed for " + coordinate + ".");
-            Assert.That(regularized, Is.EqualTo(RegularizedExactVisibility(perceptualRoughness, ndotV, ndotL, useSwitchDenominator)).Within(0.000001f), "Regularized exact symmetry failed for " + coordinate + ".");
-            Assert.That(fast, Is.EqualTo(FastVisibility(perceptualRoughness, ndotV, ndotL, useSwitchDenominator)).Within(0.000001f), "Fast symmetry failed for " + coordinate + ".");
+            Assert.That(legacy, Is.EqualTo(LegacyExactVisibility(perceptualRoughness, ndotL: ndotV, ndotV: ndotL)).Within(0.000001f), "Legacy exact symmetry failed for " + coordinate + ".");
+            Assert.That(regularized, Is.EqualTo(RegularizedExactVisibility(perceptualRoughness, ndotL: ndotV, ndotV: ndotL, useSwitchDenominator: useSwitchDenominator)).Within(0.000001f), "Regularized exact symmetry failed for " + coordinate + ".");
+            Assert.That(fast, Is.EqualTo(FastVisibility(perceptualRoughness, ndotL: ndotV, ndotV: ndotL, useSwitchDenominator: useSwitchDenominator)).Within(0.000001f), "Fast symmetry failed for " + coordinate + ".");
         }
 
         /// <summary>Requires a scalar visibility result to be finite and nonnegative.</summary>
@@ -308,13 +317,24 @@ namespace PureBase.Tests.Daily
                 if (delta.Relative > worstRelative.Relative)
                     worstRelative = delta;
             Array.Sort(relative);
-            return new VisibilityDeltaSummary(referenceName, useSwitchDenominator, worstAbsolute, worstRelative, Percentile(absolute, 0.50f), Percentile(absolute, 0.95f), Percentile(absolute, 0.99f), Percentile(relative, 0.50f), Percentile(relative, 0.95f), Percentile(relative, 0.99f));
+            return new VisibilityDeltaSummary(
+                referenceName,
+                useSwitchDenominator,
+                worstAbsolute,
+                worstRelative,
+                new VisibilityDeltaPercentiles(
+                    Percentile(absolute, 0.50f),
+                    Percentile(absolute, 0.95f),
+                    Percentile(absolute, 0.99f),
+                    Percentile(relative, 0.50f),
+                    Percentile(relative, 0.95f),
+                    Percentile(relative, 0.99f)));
         }
 
         /// <summary>Returns the inclusive nearest-rank percentile from an ascending sequence.</summary>
-        private static float Percentile(float[] ascendingValues, float percentile)
+        private static float Percentile(float[] ascendingValues, float quantile)
         {
-            int index = (int)Math.Ceiling((ascendingValues.Length - 1) * percentile);
+            int index = (int)Math.Ceiling((ascendingValues.Length - 1) * quantile);
             return ascendingValues[index];
         }
 
@@ -344,14 +364,14 @@ namespace PureBase.Tests.Daily
             public float Relative { get; }
 
             /// <summary>Gets the coordinate at which this delta was observed.</summary>
-            public string Coordinate { get; }
+            public string Label { get; }
 
             /// <summary>Initializes one visibility delta observation.</summary>
             private VisibilityDelta(float absolute, float relative, string coordinate)
             {
                 Absolute = absolute;
                 Relative = relative;
-                Coordinate = coordinate;
+                Label = coordinate;
             }
 
             /// <summary>Creates one exact-reference delta using the documented relative near-zero policy.</summary>
@@ -363,24 +383,57 @@ namespace PureBase.Tests.Daily
             }
         }
 
+        /// <summary>Stores the absolute and relative percentile series for one visibility characterization.</summary>
+        private sealed class VisibilityDeltaPercentiles
+        {
+            /// <summary>Initializes all requested absolute and relative percentile values.</summary>
+            public VisibilityDeltaPercentiles(float absolute50, float absolute95, float absolute99, float relative50, float relative95, float relative99)
+            {
+                Absolute50 = absolute50;
+                Absolute95 = absolute95;
+                Absolute99 = absolute99;
+                Relative50 = relative50;
+                Relative95 = relative95;
+                Relative99 = relative99;
+            }
+
+            /// <summary>Gets the absolute p50 delta.</summary>
+            public float Absolute50 { get; }
+
+            /// <summary>Gets the absolute p95 delta.</summary>
+            public float Absolute95 { get; }
+
+            /// <summary>Gets the absolute p99 delta.</summary>
+            public float Absolute99 { get; }
+
+            /// <summary>Gets the relative p50 delta.</summary>
+            public float Relative50 { get; }
+
+            /// <summary>Gets the relative p95 delta.</summary>
+            public float Relative95 { get; }
+
+            /// <summary>Gets the relative p99 delta.</summary>
+            public float Relative99 { get; }
+        }
+
         /// <summary>Stores the complete deterministic characterization record for one formula and denominator branch.</summary>
         private readonly struct VisibilityDeltaSummary
         {
             /// <summary>Initializes one complete delta summary.</summary>
-            public VisibilityDeltaSummary(string referenceName, bool useSwitchDenominator, VisibilityDelta worstAbsolute, VisibilityDelta worstRelative, float percentile50Absolute, float percentile95Absolute, float percentile99Absolute, float percentile50Relative, float percentile95Relative, float percentile99Relative)
+            public VisibilityDeltaSummary(string referenceName, bool useSwitchDenominator, VisibilityDelta worstAbsolute, VisibilityDelta worstRelative, VisibilityDeltaPercentiles percentiles)
             {
                 ReferenceName = referenceName;
                 DenominatorBranch = useSwitchDenominator ? "Switch" : "normal";
                 MaximumAbsolute = worstAbsolute.Absolute;
                 MaximumRelative = worstRelative.Relative;
-                WorstAbsoluteCoordinate = worstAbsolute.Coordinate;
-                WorstRelativeCoordinate = worstRelative.Coordinate;
-                Percentile50Absolute = percentile50Absolute;
-                Percentile95Absolute = percentile95Absolute;
-                Percentile99Absolute = percentile99Absolute;
-                Percentile50Relative = percentile50Relative;
-                Percentile95Relative = percentile95Relative;
-                Percentile99Relative = percentile99Relative;
+                WorstAbsoluteCoordinate = worstAbsolute.Label;
+                WorstRelativeCoordinate = worstRelative.Label;
+                Percentile50Absolute = percentiles.Absolute50;
+                Percentile95Absolute = percentiles.Absolute95;
+                Percentile99Absolute = percentiles.Absolute99;
+                Percentile50Relative = percentiles.Relative50;
+                Percentile95Relative = percentiles.Relative95;
+                Percentile99Relative = percentiles.Relative99;
             }
 
             /// <summary>Gets the reference formula name.</summary>

@@ -114,8 +114,8 @@ namespace PureBase.Tests.Daily
                         {
                             foreach (float roughness in new[] { PbrRoughnessFloor, 0.25f, 0.5f, 1.0f })
                             {
-                                AddVisibilityObservation(capture, evidence, shaderName, passName, metallic, roughness, Vector3.back, "normal", true);
-                                AddVisibilityObservation(capture, evidence, shaderName, passName, metallic, roughness, new Vector3(0.98f, 0.0f, -0.2f), "grazing", false);
+                                AddVisibilityObservation(capture, evidence, new PbrVisibilityRenderInput(shaderName, passName, metallic, roughness, Vector3.back, "normal"), true);
+                                AddVisibilityObservation(capture, evidence, new PbrVisibilityRenderInput(shaderName, passName, metallic, roughness, new Vector3(0.98f, 0.0f, -0.2f), "grazing"), false);
                             }
                         }
                     }
@@ -142,9 +142,9 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Renders and validates one complete 64x64 representative direct-visibility observation.</summary>
-        private static void AddVisibilityObservation(ToonLightingCaptureScope capture, List<PbrVisibilityObservation> evidence, string shaderName, string passName, float metallic, float roughness, Vector3 normal, string incidence, bool requireNonBlack)
+        private static void AddVisibilityObservation(ToonLightingCaptureScope capture, List<PbrVisibilityObservation> evidence, PbrVisibilityRenderInput input, bool requireNonBlack)
         {
-            PbrVisibilityObservation observation = capture.RenderPbrVisibilityReference(shaderName, passName, metallic, roughness, normal, incidence);
+            PbrVisibilityObservation observation = capture.RenderPbrVisibilityReference(input.ShaderName, input.PassName, input.Metallic, input.Roughness, input.Normal, input.Incidence);
             AssertPbrVisibilityObservation(observation, requireNonBlack);
             evidence.Add(observation);
         }
@@ -152,7 +152,7 @@ namespace PureBase.Tests.Daily
         /// <summary>Adds the measured zero-dot and zero-half-vector contracts with a neighboring nonblack control.</summary>
         private static void AddDegeneracyObservations(ToonLightingCaptureScope capture, List<PbrVisibilityObservation> evidence)
         {
-            AddVisibilityObservation(capture, evidence, "PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.back, "normal-control", true);
+            AddVisibilityObservation(capture, evidence, new PbrVisibilityRenderInput("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.back, "normal-control"), true);
             PbrVisibilityObservation zeroLight = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.back, "ndotl-zero", Vector3.right);
             PbrVisibilityObservation zeroView = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.right, "ndotv-zero", Vector3.right);
             PbrVisibilityObservation bothZero = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.right, "both-zero", Vector3.forward);
@@ -401,6 +401,39 @@ namespace PureBase.Tests.Daily
         private static float MaximumPbrRoughnessDifference(Color first, Color second)
         {
             return Mathf.Max(Mathf.Abs(first.r - second.r), Mathf.Abs(first.g - second.g), Mathf.Abs(first.b - second.b));
+        }
+
+        /// <summary>Stores the immutable material and incidence inputs for one PBR visibility capture.</summary>
+        private sealed class PbrVisibilityRenderInput
+        {
+            /// <summary>Initializes the complete render input identity for one visibility observation.</summary>
+            public PbrVisibilityRenderInput(string shaderName, string passName, float metallic, float roughness, Vector3 normal, string incidence)
+            {
+                ShaderName = shaderName;
+                PassName = passName;
+                Metallic = metallic;
+                Roughness = roughness;
+                Normal = normal;
+                Incidence = incidence;
+            }
+
+            /// <summary>Gets the source shader name.</summary>
+            public string ShaderName { get; }
+
+            /// <summary>Gets the rendered forward-pass name.</summary>
+            public string PassName { get; }
+
+            /// <summary>Gets the material metallic value.</summary>
+            public float Metallic { get; }
+
+            /// <summary>Gets the material perceptual roughness.</summary>
+            public float Roughness { get; }
+
+            /// <summary>Gets the requested receiver normal.</summary>
+            public Vector3 Normal { get; }
+
+            /// <summary>Gets the selected incidence label.</summary>
+            public string Incidence { get; }
         }
     }
 }

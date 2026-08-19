@@ -47,7 +47,8 @@ namespace PureBase.Tests.Daily
                 PbrVisibilityFrame frame = passName == "ForwardAdd"
                     ? RenderPbrVisibilityLightDifference(material, request)
                     : RenderPbrVisibilityDirectionalLightDifference(material, request);
-                return new PbrVisibilityObservation(shaderName, passName, metallic, roughness, incidence, frame, request, camera, meshFilter.transform);
+                var input = new PbrVisibilityRenderInput(shaderName, passName, metallic, roughness, normal, incidence);
+                return new PbrVisibilityObservation(input, frame, request, camera, meshFilter.transform);
             }
 
             /// <summary>Renders a low-radiance metallic direct observation through an explicit forward pass.</summary>
@@ -183,13 +184,13 @@ namespace PureBase.Tests.Daily
         private readonly struct PbrVisibilityObservation
         {
             /// <summary>Initializes one frame observation.</summary>
-            public PbrVisibilityObservation(string shaderName, string passName, float metallic, float roughness, string incidence, PbrVisibilityFrame frame, LightCaptureRequest request, Camera camera, Transform meshTransform)
+            public PbrVisibilityObservation(PbrVisibilityRenderInput input, PbrVisibilityFrame frame, LightCaptureRequest request, Camera camera, Transform meshTransform)
             {
-                ShaderName = shaderName;
-                PassName = passName;
-                Metallic = metallic;
-                Roughness = roughness;
-                Incidence = incidence;
+                ShaderName = input.ShaderName;
+                PassName = input.PassName;
+                Metallic = input.Metallic;
+                Roughness = input.Roughness;
+                Incidence = input.Incidence;
                 Pixels = frame.Pixels;
                 Normal = frame.Normal;
                 LightDirection = frame.LightDirection;
