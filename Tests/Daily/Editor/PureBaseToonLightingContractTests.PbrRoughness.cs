@@ -43,6 +43,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Defines the optional absolute environment variable selecting the evidence root.</summary>
         private const string VisibilityEvidenceRootEnvironmentVariable = "PUREBASE_ISSUE13_VISIBILITY_EVIDENCE_ROOT";
 
+        /// <summary>Defines the absolute legacy capture directory required before exporting fast-formula evidence.</summary>
+        private const string VisibilityEvidenceReferenceCaptureEnvironmentVariable = "PUREBASE_ISSUE13_VISIBILITY_REFERENCE_CAPTURE";
+
         /// <summary>Defines the minimum nonblack center signal for low-radiance visibility captures.</summary>
         private const float VisibilitySignalMinimum = 0.0001f;
 
@@ -121,7 +124,7 @@ namespace PureBase.Tests.Daily
                 AddDegeneracyObservations(capture, evidence);
             }
 
-            ExportLegacyVisibilityEvidenceIfEnabled(evidence);
+            ExportVisibilityEvidenceIfEnabled(evidence);
         }
 
         /// <summary>Asserts one selected direct incidence and pass case with an optional nonblack control.</summary>
@@ -154,6 +157,7 @@ namespace PureBase.Tests.Daily
             PbrVisibilityObservation zeroView = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.right, "ndotv-zero", Vector3.right);
             PbrVisibilityObservation bothZero = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.right, "both-zero", Vector3.forward);
             PbrVisibilityObservation opposite = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.back, "light-plus-view-zero", Vector3.forward);
+            Assert.That(zeroLight.MeasuredNdotL, Is.EqualTo(0.0f).Within(0.000001f), "The constructed BIRP directional light must be tangent to the measured receiver normal.");
             foreach (PbrVisibilityObservation observation in new[] { zeroLight, zeroView, bothZero, opposite })
             {
                 AssertPbrVisibilityObservation(observation, false);
@@ -178,11 +182,13 @@ namespace PureBase.Tests.Daily
                 Assert.That(observation.Center.maxColorComponent, Is.GreaterThan(VisibilitySignalMinimum), observation.Label + " is black or nondiscriminating.");
         }
 
-        /// <summary>Exports manifest-bound legacy frames only when an explicit environment variable enables the operation.</summary>
-        private static void ExportLegacyVisibilityEvidenceIfEnabled(List<PbrVisibilityObservation> observations)
+        /// <summary>Exports manifest-bound visibility frames only when an explicit supported mode enables the operation.</summary>
+        private static void ExportVisibilityEvidenceIfEnabled(List<PbrVisibilityObservation> observations)
         {
-            if (!string.Equals(Environment.GetEnvironmentVariable(VisibilityEvidenceExportEnvironmentVariable), "legacy", StringComparison.Ordinal))
+            string mode = Environment.GetEnvironmentVariable(VisibilityEvidenceExportEnvironmentVariable);
+            if (string.IsNullOrEmpty(mode))
                 return;
+            Assert.That(mode, Is.EqualTo("legacy").Or.EqualTo("fast"), "Set PUREBASE_ISSUE13_VISIBILITY_EVIDENCE_EXPORT to legacy or fast, or leave it unset to disable evidence export.");
             string root = Environment.GetEnvironmentVariable(VisibilityEvidenceRootEnvironmentVariable);
             if (string.IsNullOrWhiteSpace(root))
                 root = Path.Combine(Path.GetTempPath(), "PureBase-Issue13-Visibility");
@@ -192,18 +198,52 @@ namespace PureBase.Tests.Daily
             AssertExternalEvidenceRoot(root);
             string inputs = BuildVisibilityInputsManifest(observations);
             string fingerprint = Sha256(Encoding.UTF8.GetBytes(inputs));
+            VisibilityCaptureReference reference = mode == "fast" ? ReadFastCaptureReference(inputs, fingerprint) : null;
             string captureId = DateTime.UtcNow.ToString("yyyyMMddTHHmmssfffZ", CultureInfo.InvariantCulture) + "-" + fingerprint.Substring(0, 16);
-            string directory = Path.Combine(root, "captures", "legacy-exact-" + captureId);
-            Assert.That(Directory.Exists(directory), Is.False, "Each legacy evidence export requires a new capture directory so prior audit artifacts remain intact.");
+            string directory = Path.Combine(root, "captures", mode == "legacy" ? "legacy-exact-" + captureId : "fast-" + captureId);
+            Assert.That(Directory.Exists(directory), Is.False, "Each visibility evidence export requires a new capture directory so prior audit artifacts remain intact.");
             Directory.CreateDirectory(directory);
+            WriteVisibilityEvidence(directory, captureId, fingerprint, observations, mode, reference, inputs);
+            TestContext.Progress.WriteLine("PureBase Issue13 visibility evidence capture=" + captureId + ", inputSha256=" + fingerprint + ", directory=" + directory);
+        }
+
+        /// <summary>Reads and validates the immutable legacy inputs before any fast capture path is created.</summary>
+        private static VisibilityCaptureReference ReadFastCaptureReference(string inputs, string fingerprint)
+        {
+            string directory = Environment.GetEnvironmentVariable(VisibilityEvidenceReferenceCaptureEnvironmentVariable);
+            Assert.That(string.IsNullOrWhiteSpace(directory), Is.False, "Fast visibility export requires PUREBASE_ISSUE13_VISIBILITY_REFERENCE_CAPTURE to name the exact legacy capture directory.");
+            Assert.That(Path.IsPathRooted(directory), Is.True, "PUREBASE_ISSUE13_VISIBILITY_REFERENCE_CAPTURE must be an absolute legacy capture directory.");
+            directory = Path.GetFullPath(directory);
+            AssertExternalEvidenceRoot(directory);
+            Assert.That(Directory.Exists(directory), Is.True, "PUREBASE_ISSUE13_VISIBILITY_REFERENCE_CAPTURE must identify an existing legacy capture directory.");
+            string inputsPath = Path.Combine(directory, "inputs.json");
+            Assert.That(File.Exists(inputsPath), Is.True, "The selected legacy capture must contain inputs.json.");
+            byte[] referenceBytes = File.ReadAllBytes(inputsPath);
+            string referenceInputs = Encoding.UTF8.GetString(referenceBytes);
+            Assert.That(referenceInputs, Is.EqualTo(inputs), "Fast visibility export requires the selected legacy inputs.json text to match the current immutable inputs exactly.");
+            Assert.That(referenceBytes, Is.EqualTo(Encoding.UTF8.GetBytes(inputs)), "Fast visibility export requires the selected legacy inputs.json bytes to match the current immutable UTF-8 inputs exactly.");
+            Assert.That(Sha256(referenceBytes), Is.EqualTo(fingerprint), "Fast visibility export requires the selected legacy inputs.json SHA-256 to match the current immutable inputs fingerprint.");
+            string manifestPath = Path.Combine(directory, "capture.json");
+            Assert.That(File.Exists(manifestPath), Is.True, "The selected legacy capture must contain capture.json.");
+            VisibilityCaptureManifest manifest = JsonUtility.FromJson<VisibilityCaptureManifest>(File.ReadAllText(manifestPath));
+            Assert.That(manifest, Is.Not.Null, "The selected legacy capture.json must be valid JSON.");
+            Assert.That(manifest.captureId, Is.Not.Empty, "The selected legacy capture.json must provide captureId.");
+            Assert.That(manifest.formula, Is.EqualTo("legacy-exact"), "Fast visibility export can reference only a legacy-exact capture.");
+            Assert.That(manifest.inputsSha256, Is.EqualTo(fingerprint), "The selected legacy capture.json must record the shared immutable inputs fingerprint.");
+            return new VisibilityCaptureReference(manifest.captureId, directory);
+        }
+
+        /// <summary>Writes one fully linked visibility evidence bundle after all immutable preconditions are satisfied.</summary>
+        private static void WriteVisibilityEvidence(string directory, string captureId, string fingerprint, List<PbrVisibilityObservation> observations, string mode, VisibilityCaptureReference reference, string inputs)
+        {
+            string formula = mode == "legacy" ? "legacy-exact" : "fast";
             WriteVisibilityInputs(Path.Combine(directory, "inputs.json"), inputs);
-            WriteVisibilityObservations(directory, observations);
+            WriteVisibilityObservations(directory, observations, formula);
             Debug.Log("PureBase Issue13 visibility capture " + captureId + " inputSha256=" + fingerprint);
             WriteUnityLogSnapshot(directory, captureId, fingerprint);
-            WriteCaptureManifest(directory, captureId, fingerprint, observations.Count);
+            WriteCaptureManifest(directory, captureId, fingerprint, observations.Count, formula, reference);
             WriteVisibilityHashList(directory, fingerprint);
             WriteNUnitResult(directory, captureId, fingerprint);
-            TestContext.Progress.WriteLine("PureBase Issue13 visibility evidence capture=" + captureId + ", inputSha256=" + fingerprint + ", directory=" + directory);
         }
 
         /// <summary>Rejects evidence locations that could add generated output to the package or Unity Assets tree.</summary>
@@ -212,15 +252,24 @@ namespace PureBase.Tests.Daily
             Assert.That(Path.IsPathRooted(root), Is.True, "Visibility evidence requires an absolute external destination.");
             string package = Path.GetFullPath("Packages/jp.penguin.purebase");
             string assets = Path.GetFullPath(Application.dataPath);
-            Assert.That(root.StartsWith(package, StringComparison.OrdinalIgnoreCase), Is.False, "Visibility evidence must not be written inside the package.");
-            Assert.That(root.StartsWith(assets, StringComparison.OrdinalIgnoreCase), Is.False, "Visibility evidence must not be written inside Unity Assets.");
+            Assert.That(IsPathInside(root, package), Is.False, "Visibility evidence must not be written inside the package.");
+            Assert.That(IsPathInside(root, assets), Is.False, "Visibility evidence must not be written inside Unity Assets.");
+        }
+
+        /// <summary>Determines whether a normalized path is the parent path or a descendant of it.</summary>
+        private static bool IsPathInside(string candidate, string parent)
+        {
+            string normalizedParent = Path.GetFullPath(parent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(candidate, normalizedParent, StringComparison.OrdinalIgnoreCase)
+                || candidate.StartsWith(normalizedParent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || candidate.StartsWith(normalizedParent + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>Builds the immutable render-input manifest shared by legacy and future fast observations.</summary>
         private static string BuildVisibilityInputsManifest(List<PbrVisibilityObservation> observations)
         {
             var manifest = new StringBuilder();
-            manifest.Append("{\n  \"schemaVersion\": 3,\n  \"environment\": {\n");
+            manifest.Append("{\n  \"schemaVersion\": 4,\n  \"environment\": {\n");
             manifest.Append("    \"unityVersion\": ").Append(JsonString(Application.unityVersion)).Append(",\n");
             manifest.Append("    \"colorSpace\": ").Append(JsonString(QualitySettings.activeColorSpace.ToString())).Append(",\n");
             manifest.Append("    \"graphicsDevice\": { \"type\": ").Append(JsonString(SystemInfo.graphicsDeviceType.ToString())).Append(", \"name\": ").Append(JsonString(SystemInfo.graphicsDeviceName)).Append(", \"vendor\": ").Append(JsonString(SystemInfo.graphicsDeviceVendor)).Append(", \"deviceId\": ").Append(SystemInfo.graphicsDeviceID.ToString(CultureInfo.InvariantCulture)).Append(", \"api\": ").Append(JsonString(SystemInfo.graphicsDeviceVersion)).Append(" },\n");
@@ -253,111 +302,23 @@ namespace PureBase.Tests.Daily
             manifest.Append("      \"material\": { \"baseTexture\": \"white\", \"baseColor\": [1, 1, 1, 1], \"metallic\": ").Append(JsonFloat(observation.Metallic)).Append(", \"roughness\": ").Append(JsonFloat(observation.Roughness)).Append(", \"useUnityStandardDiffuseBrightness\": 0 },\n");
             manifest.Append("      \"camera\": { \"transform\": { \"position\": ").Append(JsonVector3(observation.CameraPosition)).Append(", \"rotation\": ").Append(JsonQuaternion(observation.CameraRotation)).Append(" }, \"orthographic\": true, \"orthographicSize\": ").Append(JsonFloat(observation.CameraOrthographicSize)).Append(", \"near\": ").Append(JsonFloat(observation.CameraNearClipPlane)).Append(", \"far\": ").Append(JsonFloat(observation.CameraFarClipPlane)).Append(", \"clearFlags\": \"SolidColor\", \"background\": [0, 0, 0, 0.37], \"renderingPath\": ").Append(JsonString(observation.CameraRenderingPath)).Append(", \"culling\": \"capture-scene\" },\n");
             manifest.Append("      \"mesh\": { \"primitive\": \"full-frame-quad\", \"transform\": { \"position\": ").Append(JsonVector3(observation.MeshPosition)).Append(", \"rotation\": ").Append(JsonQuaternion(observation.MeshRotation)).Append(", \"scale\": ").Append(JsonVector3(observation.MeshScale)).Append(" }, \"uniformNormal\": ").Append(JsonVector3(observation.Normal)).Append(" },\n");
-            manifest.Append("      \"light\": { \"type\": ").Append(JsonString(observation.LightType.ToString())).Append(", \"color\": ").Append(JsonVector4(observation.LightColor)).Append(", \"intensity\": 1, \"transform\": { \"position\": ").Append(JsonVector3(observation.LightTransformPosition)).Append(", \"rotation\": ").Append(JsonQuaternion(observation.LightTransformRotation)).Append(" }, \"range\": ").Append(isPointLight ? JsonFloat(observation.LightRange) : "null").Append(", \"renderLightCounts\": ").Append(isPointLight ? "[1, 2]" : "[1]").Append(" },\n");
+            manifest.Append("      \"light\": { \"type\": ").Append(JsonString(observation.LightType.ToString())).Append(", \"color\": ").Append(JsonVector4(observation.LightColor)).Append(", \"intensity\": 1, \"transform\": { \"position\": ").Append(JsonVector3(observation.LightTransformPosition)).Append(", \"rotation\": ").Append(JsonQuaternion(observation.LightTransformRotation)).Append(" }, \"range\": ").Append(isPointLight ? JsonFloat(observation.LightRange) : "null").Append(" },\n");
+            manifest.Append("      \"directIsolation\": ").Append(GetDirectIsolationManifest(observation.PassName)).Append(",\n");
             manifest.Append("      \"measuredGeometry\": { \"normal\": ").Append(JsonVector3(observation.Normal)).Append(", \"light\": ").Append(JsonVector3(observation.LightDirection)).Append(", \"view\": ").Append(JsonVector3(observation.ViewDirection)).Append(", \"ndotL\": ").Append(JsonFloat(observation.MeasuredNdotL)).Append(", \"ndotV\": ").Append(JsonFloat(observation.MeasuredNdotV)).Append(", \"lightPlusView\": ").Append(JsonVector3(observation.LightPlusView)).Append(", \"halfVector\": ").Append(JsonVector3(observation.HalfVector)).Append(", \"halfVectorDefined\": ").Append(observation.LightPlusView.sqrMagnitude > 0.0f ? "true" : "false").Append(" }\n    }");
         }
 
-        /// <summary>Writes complete diagnostic PNGs, frame statistics, and formula characterization records.</summary>
-        private static void WriteVisibilityObservations(string directory, List<PbrVisibilityObservation> observations)
+        /// <summary>Builds the pass-specific render-difference identity used to isolate direct lighting.</summary>
+        private static string GetDirectIsolationManifest(string passName)
         {
-            Directory.CreateDirectory(directory);
-            var entries = new List<string>();
-            var hashEntries = new List<string>();
-            foreach (PbrVisibilityObservation observation in observations)
+            switch (passName)
             {
-                string fileName = observation.FileName;
-                string path = Path.Combine(directory, fileName);
-                byte[] png = EncodeDiagnosticPng(observation.Pixels);
-                File.WriteAllBytes(path, png);
-                string pngHash = Sha256(png);
-                Assert.That(Sha256(File.ReadAllBytes(path)), Is.EqualTo(pngHash), "Each diagnostic PNG must be written and rehashed before export completes.");
-                entries.Add("    { \"name\": " + JsonString(fileName) + ", \"center\": " + JsonColor(observation.Center) + ", \"centerFinite\": " + (observation.CenterFinite ? "true" : "false") + ", \"frame\": " + BuildFrameSummary(observation.Pixels) + ", \"frameFinite\": " + (observation.FrameFinite ? "true" : "false") + ", \"ndotL\": " + JsonFloat(observation.MeasuredNdotL) + ", \"ndotV\": " + JsonFloat(observation.MeasuredNdotV) + ", \"lightPlusView\": " + JsonVector3(observation.LightPlusView) + ", \"halfVectorDefined\": " + (observation.LightPlusView.sqrMagnitude > 0.0f ? "true" : "false") + ", \"sha256\": " + JsonString(pngHash) + " }");
-                hashEntries.Add("    { \"file\": " + JsonString(fileName) + ", \"sha256\": " + JsonString(pngHash) + ", \"validation\": \"written-and-rehashed\" }");
+                case "ForwardBase":
+                    return "{ \"method\": \"frame-difference\", \"difference\": \"one-light-minus-zero-light\", \"renderLightCounts\": [0, 1] }";
+                case "ForwardAdd":
+                    return "{ \"method\": \"frame-difference\", \"difference\": \"two-lights-minus-one-light\", \"renderLightCounts\": [1, 2] }";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(passName), passName, "Direct-light isolation is defined only for ForwardBase and ForwardAdd.");
             }
-
-            string observationsManifest = "{\n  \"formula\": \"legacy-exact\",\n  \"inputsSha256\": " + JsonString(Sha256(File.ReadAllBytes(Path.Combine(directory, "inputs.json")))) + ",\n  \"observations\": [\n" + string.Join(",\n", entries) + "\n  ]\n}\n";
-            string observationsPath = Path.Combine(directory, "observations.json");
-            File.WriteAllText(observationsPath, observationsManifest, new UTF8Encoding(false));
-            Assert.That(File.ReadAllText(observationsPath), Is.EqualTo(observationsManifest), "observations.json must be written without transformation.");
-            string characterization = PureBasePbrVisibilityApproximationTests.BuildVisibilityCharacterizationArtifact();
-            string characterizationPath = Path.Combine(directory, "characterization.json");
-            File.WriteAllText(characterizationPath, characterization, new UTF8Encoding(false));
-            Assert.That(File.ReadAllText(characterizationPath), Is.EqualTo(characterization), "characterization.json must be written without transformation.");
-        }
-
-        /// <summary>Summarizes every HDR RGB sample without replacing the diagnostic frame.</summary>
-        private static string BuildFrameSummary(Color[] pixels)
-        {
-            Color minimum = new Color(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
-            Color maximum = new Color(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
-            Color total = Color.clear;
-            foreach (Color pixel in pixels)
-            {
-                minimum = new Color(Mathf.Min(minimum.r, pixel.r), Mathf.Min(minimum.g, pixel.g), Mathf.Min(minimum.b, pixel.b), Mathf.Min(minimum.a, pixel.a));
-                maximum = new Color(Mathf.Max(maximum.r, pixel.r), Mathf.Max(maximum.g, pixel.g), Mathf.Max(maximum.b, pixel.b), Mathf.Max(maximum.a, pixel.a));
-                total += pixel;
-            }
-
-            return "{ \"pixelCount\": " + pixels.Length.ToString(CultureInfo.InvariantCulture) + ", \"minimum\": " + JsonColor(minimum) + ", \"maximum\": " + JsonColor(maximum) + ", \"mean\": " + JsonColor(total / pixels.Length) + " }";
-        }
-
-        /// <summary>Writes the focused NUnit success record after all capture assertions and hash writes complete.</summary>
-        private static void WriteNUnitResult(string directory, string captureId, string fingerprint)
-        {
-            string hashPath = Path.Combine(directory, "hashes.json");
-            string result = "{\n  \"framework\": \"NUnit\",\n  \"testId\": " + JsonString(TestContext.CurrentContext.Test.ID) + ",\n  \"testName\": " + JsonString(TestContext.CurrentContext.Test.FullName) + ",\n  \"result\": \"Passed\",\n  \"resultScope\": \"all GPU observations and capture artifacts completed before test return\",\n  \"captureId\": " + JsonString(captureId) + ",\n  \"inputsSha256\": " + JsonString(fingerprint) + ",\n  \"hashManifestSha256\": " + JsonString(Sha256(File.ReadAllBytes(hashPath))) + "\n}\n";
-            string resultPath = Path.Combine(directory, "nunit-result.json");
-            File.WriteAllText(resultPath, result, new UTF8Encoding(false));
-            Assert.That(File.ReadAllText(resultPath), Is.EqualTo(result), "nunit-result.json must be written without transformation.");
-        }
-
-        /// <summary>Copies the exact Unity Editor log after writing a capture-linked diagnostic entry.</summary>
-        private static void WriteUnityLogSnapshot(string directory, string captureId, string fingerprint)
-        {
-            string logPath = Application.consoleLogPath;
-            Assert.That(File.Exists(logPath), Is.True, "Unity Editor log must exist to audit the exact GPU capture.");
-            string log = ReadSharedLog(logPath);
-            Assert.That(log.IndexOf(captureId, StringComparison.Ordinal) >= 0 && log.IndexOf(fingerprint, StringComparison.Ordinal) >= 0, Is.True, "Unity Editor log must contain the capture-linked diagnostic entry.");
-            File.WriteAllText(Path.Combine(directory, "unity-editor.log"), log, new UTF8Encoding(false));
-        }
-
-        /// <summary>Reads Unity's actively written editor log without requesting exclusive file access.</summary>
-        private static string ReadSharedLog(string path)
-        {
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var reader = new StreamReader(stream))
-                return reader.ReadToEnd();
-        }
-
-        /// <summary>Writes the immutable capture identity that links inputs, formula, and audit artifacts.</summary>
-        private static void WriteCaptureManifest(string directory, string captureId, string fingerprint, int observationCount)
-        {
-            string manifest = "{\n  \"schemaVersion\": 1,\n  \"captureId\": " + JsonString(captureId) + ",\n  \"formula\": \"legacy-exact\",\n  \"inputsSha256\": " + JsonString(fingerprint) + ",\n  \"observationCount\": " + observationCount.ToString(CultureInfo.InvariantCulture) + ",\n  \"nunitResult\": \"nunit-result.json\",\n  \"unityLog\": \"unity-editor.log\"\n}\n";
-            string path = Path.Combine(directory, "capture.json");
-            File.WriteAllText(path, manifest, new UTF8Encoding(false));
-            Assert.That(File.ReadAllText(path), Is.EqualTo(manifest), "capture.json must be written without transformation.");
-        }
-
-        /// <summary>Writes and verifies SHA-256 records for every immutable capture artifact except its final NUnit receipt.</summary>
-        private static void WriteVisibilityHashList(string directory, string fingerprint)
-        {
-            var entries = new List<string>();
-            foreach (string file in new[] { "inputs.json", "observations.json", "characterization.json", "unity-editor.log", "capture.json" })
-                entries.Add(BuildHashEntry(directory, file));
-            foreach (string path in Directory.GetFiles(directory, "*.png"))
-                entries.Add(BuildHashEntry(directory, Path.GetFileName(path)));
-            entries.Sort(StringComparer.Ordinal);
-            string hashManifest = "{\n  \"schemaVersion\": 1,\n  \"algorithm\": \"SHA-256\",\n  \"inputsSha256\": " + JsonString(fingerprint) + ",\n  \"files\": [\n" + string.Join(",\n", entries) + "\n  ]\n}\n";
-            string hashPath = Path.Combine(directory, "hashes.json");
-            File.WriteAllText(hashPath, hashManifest, new UTF8Encoding(false));
-            Assert.That(File.ReadAllText(hashPath), Is.EqualTo(hashManifest), "hashes.json must be written without transformation.");
-        }
-
-        /// <summary>Builds one read-back SHA-256 record for an already-written capture artifact.</summary>
-        private static string BuildHashEntry(string directory, string fileName)
-        {
-            string path = Path.Combine(directory, fileName);
-            return "    { \"file\": " + JsonString(fileName) + ", \"sha256\": " + JsonString(Sha256(File.ReadAllBytes(path))) + ", \"validation\": \"written-and-rehashed\" }";
         }
 
         /// <summary>Formats a JSON string without locale or control-character ambiguity.</summary>

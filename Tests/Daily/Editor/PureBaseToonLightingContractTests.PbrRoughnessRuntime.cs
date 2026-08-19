@@ -16,6 +16,11 @@
 
 // Owns direct and reflection fixture setup for PBR perceptual-roughness GPU observations.
 
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Text;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -39,10 +44,10 @@ namespace PureBase.Tests.Daily
                 LightCaptureRequest request = passName == "ForwardAdd"
                     ? CreateLightCaptureRequest(normalizedNormal, new Vector4(0.015f, 0.012f, 0.009f, 1.0f), new Vector4(lightDirection.x, lightDirection.y, lightDirection.z, 1.0f), ShCoefficients.Zero, LightType.Point, 4.0f)
                     : CreateDirectionalLightCaptureRequest(normalizedNormal, new Vector4(0.015f, 0.012f, 0.009f, 1.0f), new Vector4(lightDirection.x, lightDirection.y, lightDirection.z, 0.0f), ShCoefficients.Zero);
-                Color[] pixels = passName == "ForwardAdd"
+                PbrVisibilityFrame frame = passName == "ForwardAdd"
                     ? RenderPbrVisibilityLightDifference(material, request)
-                    : RenderPbrVisibilityWithLights(material, request);
-                return new PbrVisibilityObservation(shaderName, passName, metallic, roughness, incidence, pixels, normalizedNormal, lightDirection.normalized, Vector3.back, request, camera, meshFilter.transform);
+                    : RenderPbrVisibilityDirectionalLightDifference(material, request);
+                return new PbrVisibilityObservation(shaderName, passName, metallic, roughness, incidence, frame, request, camera, meshFilter.transform);
             }
 
             /// <summary>Renders a low-radiance metallic direct observation through an explicit forward pass.</summary>
@@ -79,7 +84,7 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Renders one explicit light configuration and copies all 64x64 linear float samples before cleanup.</summary>
-            private Color[] RenderPbrVisibilityWithLights(Material material, LightCaptureRequest request)
+            private PbrVisibilityFrame RenderPbrVisibilityWithLights(Material material, LightCaptureRequest request)
             {
                 var lightObjects = new System.Collections.Generic.List<GameObject>();
                 try
@@ -92,7 +97,7 @@ namespace PureBase.Tests.Daily
                     CreateLights(lightObjects, request);
                     camera.Render();
                     Assert.That(camera.actualRenderingPath, Is.EqualTo(RenderingPath.Forward), "Visibility capture requires the BIRP Forward camera path.");
-                    return ReadPixels();
+                    return CreatePbrVisibilityFrame(lightObjects);
                 }
                 finally
                 {
@@ -103,16 +108,45 @@ namespace PureBase.Tests.Daily
             }
 
             /// <summary>Renders one and two equivalent Point lights, returning the full isolated second-light frame.</summary>
-            private Color[] RenderPbrVisibilityLightDifference(Material material, LightCaptureRequest request)
+            private PbrVisibilityFrame RenderPbrVisibilityLightDifference(Material material, LightCaptureRequest request)
             {
                 request.lightCount = 1;
-                Color[] oneLight = RenderPbrVisibilityWithLights(material, request);
+                PbrVisibilityFrame oneLight = RenderPbrVisibilityWithLights(material, request);
                 request.lightCount = 2;
-                Color[] twoLights = RenderPbrVisibilityWithLights(material, request);
-                var difference = new Color[oneLight.Length];
-                for (int index = 0; index < difference.Length; index++)
-                    difference[index] = twoLights[index] - oneLight[index];
-                return difference;
+                PbrVisibilityFrame twoLights = RenderPbrVisibilityWithLights(material, request);
+                return CreatePbrVisibilityDifference(oneLight, twoLights);
+            }
+
+            /// <summary>Isolates the Directional Light contribution from unchanged BIRP indirect lighting.</summary>
+            private PbrVisibilityFrame RenderPbrVisibilityDirectionalLightDifference(Material material, LightCaptureRequest request)
+            {
+                LightCaptureRequest noLight = CreateDirectionalLightCaptureRequest(request.normal, Vector4.zero, request.lightPosition, request.coefficients);
+                PbrVisibilityFrame withoutLight = RenderPbrVisibilityWithLights(material, noLight);
+                PbrVisibilityFrame withLight = RenderPbrVisibilityWithLights(material, request);
+                return CreatePbrVisibilityDifference(withoutLight, withLight);
+            }
+
+            /// <summary>Returns the second frame's measured geometry with its isolated RGB contribution.</summary>
+            private static PbrVisibilityFrame CreatePbrVisibilityDifference(PbrVisibilityFrame first, PbrVisibilityFrame second)
+            {
+                var pixels = new Color[first.Pixels.Length];
+                for (int index = 0; index < pixels.Length; index++)
+                    pixels[index] = second.Pixels[index] - first.Pixels[index];
+                return new PbrVisibilityFrame(pixels, second.Normal, second.LightDirection, second.ViewDirection, second.LightTransformPosition, second.LightTransformRotation);
+            }
+
+            /// <summary>Captures the render-used geometry from the configured mesh, camera, and first Unity Light.</summary>
+            private PbrVisibilityFrame CreatePbrVisibilityFrame(List<GameObject> lightObjects)
+            {
+                Vector3 normal = meshFilter.transform.TransformDirection(meshFilter.sharedMesh.normals[0]).normalized;
+                Vector3 viewDirection = -camera.transform.forward;
+                if (lightObjects.Count == 0)
+                    return new PbrVisibilityFrame(ReadPixels(), normal, Vector3.zero, viewDirection, Vector3.zero, Quaternion.identity);
+                Light light = lightObjects[0].GetComponent<Light>();
+                Vector3 lightDirection = light.type == LightType.Directional
+                    ? -light.transform.forward
+                    : (light.transform.position - meshFilter.transform.position).normalized;
+                return new PbrVisibilityFrame(ReadPixels(), normal, lightDirection, viewDirection, light.transform.position, light.transform.rotation);
             }
 
             /// <summary>Installs a transient custom reflection cubemap with distinct finite colors in every mip level.</summary>
@@ -149,26 +183,26 @@ namespace PureBase.Tests.Daily
         private readonly struct PbrVisibilityObservation
         {
             /// <summary>Initializes one frame observation.</summary>
-            public PbrVisibilityObservation(string shaderName, string passName, float metallic, float roughness, string incidence, Color[] pixels, Vector3 normal, Vector3 lightDirection, Vector3 viewDirection, LightCaptureRequest request, Camera camera, Transform meshTransform)
+            public PbrVisibilityObservation(string shaderName, string passName, float metallic, float roughness, string incidence, PbrVisibilityFrame frame, LightCaptureRequest request, Camera camera, Transform meshTransform)
             {
                 ShaderName = shaderName;
                 PassName = passName;
                 Metallic = metallic;
                 Roughness = roughness;
                 Incidence = incidence;
-                Pixels = pixels;
-                Normal = normal;
-                LightDirection = lightDirection;
-                ViewDirection = viewDirection;
-                MeasuredNdotL = Vector3.Dot(normal, lightDirection);
-                MeasuredNdotV = Vector3.Dot(normal, viewDirection);
-                LightPlusView = lightDirection + viewDirection;
+                Pixels = frame.Pixels;
+                Normal = frame.Normal;
+                LightDirection = frame.LightDirection;
+                ViewDirection = frame.ViewDirection;
+                MeasuredNdotL = Vector3.Dot(Normal, LightDirection);
+                MeasuredNdotV = Vector3.Dot(Normal, ViewDirection);
+                LightPlusView = LightDirection + ViewDirection;
                 HalfVector = LightPlusView.sqrMagnitude > 0.0f ? LightPlusView.normalized : Vector3.zero;
                 LightType = request.lightType;
                 LightColor = request.lightColor;
                 LightRange = request.range;
-                LightTransformPosition = request.lightType == LightType.Directional ? Vector3.zero : new Vector3(request.lightPosition.x, request.lightPosition.y, request.lightPosition.z);
-                LightTransformRotation = request.lightType == LightType.Directional ? Quaternion.LookRotation(-lightDirection, Vector3.up) : Quaternion.identity;
+                LightTransformPosition = frame.LightTransformPosition;
+                LightTransformRotation = frame.LightTransformRotation;
                 CameraPosition = camera.transform.position;
                 CameraRotation = camera.transform.rotation;
                 CameraOrthographicSize = camera.orthographicSize;
@@ -283,6 +317,172 @@ namespace PureBase.Tests.Daily
 
             /// <summary>Gets the measured incidence label.</summary>
             public string Incidence { get; }
+        }
+
+        /// <summary>Stores one PBR visibility frame with render-used fixture geometry.</summary>
+        private readonly struct PbrVisibilityFrame
+        {
+            /// <summary>Initializes one rendered frame and its measured scene inputs.</summary>
+            public PbrVisibilityFrame(Color[] pixels, Vector3 normal, Vector3 lightDirection, Vector3 viewDirection, Vector3 lightTransformPosition, Quaternion lightTransformRotation)
+            {
+                Pixels = pixels;
+                Normal = normal;
+                LightDirection = lightDirection;
+                ViewDirection = viewDirection;
+                LightTransformPosition = lightTransformPosition;
+                LightTransformRotation = lightTransformRotation;
+            }
+
+            /// <summary>Gets the linear frame readback.</summary>
+            public Color[] Pixels { get; }
+
+            /// <summary>Gets the world-space receiver normal.</summary>
+            public Vector3 Normal { get; }
+
+            /// <summary>Gets the Unity Light direction toward the receiver.</summary>
+            public Vector3 LightDirection { get; }
+
+            /// <summary>Gets the world-space direction from receiver to camera.</summary>
+            public Vector3 ViewDirection { get; }
+
+            /// <summary>Gets the constructed Unity Light transform position.</summary>
+            public Vector3 LightTransformPosition { get; }
+
+            /// <summary>Gets the constructed Unity Light transform rotation.</summary>
+            public Quaternion LightTransformRotation { get; }
+        }
+
+        /// <summary>Stores the identity of a validated immutable legacy capture selected for fast evidence.</summary>
+        private sealed class VisibilityCaptureReference
+        {
+            /// <summary>Initializes the legacy capture identity used by a fast evidence bundle.</summary>
+            public VisibilityCaptureReference(string captureId, string directory)
+            {
+                CaptureId = captureId;
+                Directory = directory;
+            }
+
+            /// <summary>Gets the selected legacy capture identifier.</summary>
+            public string CaptureId { get; }
+
+            /// <summary>Gets the selected legacy capture directory.</summary>
+            public string Directory { get; }
+        }
+
+        /// <summary>Deserializes the legacy capture identity fields required for immutable fast-reference validation.</summary>
+        [Serializable]
+        private sealed class VisibilityCaptureManifest
+        {
+            /// <summary>Gets or sets the capture identifier recorded by the legacy evidence exporter.</summary>
+            public string captureId;
+
+            /// <summary>Gets or sets the formula state recorded by the legacy evidence exporter.</summary>
+            public string formula;
+
+            /// <summary>Gets or sets the immutable input fingerprint recorded by the legacy evidence exporter.</summary>
+            public string inputsSha256;
+        }
+
+        /// <summary>Writes complete diagnostic PNGs, frame statistics, and formula characterization records.</summary>
+        private static void WriteVisibilityObservations(string directory, List<PbrVisibilityObservation> observations, string formula)
+        {
+            Directory.CreateDirectory(directory);
+            var entries = new List<string>();
+            foreach (PbrVisibilityObservation observation in observations)
+            {
+                string fileName = observation.FileName;
+                string path = Path.Combine(directory, fileName);
+                byte[] png = EncodeDiagnosticPng(observation.Pixels);
+                File.WriteAllBytes(path, png);
+                string pngHash = Sha256(png);
+                Assert.That(Sha256(File.ReadAllBytes(path)), Is.EqualTo(pngHash), "Each diagnostic PNG must be written and rehashed before export completes.");
+                entries.Add("    { \"name\": " + JsonString(fileName) + ", \"center\": " + JsonColor(observation.Center) + ", \"centerFinite\": " + (observation.CenterFinite ? "true" : "false") + ", \"frame\": " + BuildFrameSummary(observation.Pixels) + ", \"frameFinite\": " + (observation.FrameFinite ? "true" : "false") + ", \"ndotL\": " + JsonFloat(observation.MeasuredNdotL) + ", \"ndotV\": " + JsonFloat(observation.MeasuredNdotV) + ", \"lightPlusView\": " + JsonVector3(observation.LightPlusView) + ", \"halfVectorDefined\": " + (observation.LightPlusView.sqrMagnitude > 0.0f ? "true" : "false") + ", \"sha256\": " + JsonString(pngHash) + " }");
+            }
+
+            string observationsManifest = "{\n  \"formula\": " + JsonString(formula) + ",\n  \"inputsSha256\": " + JsonString(Sha256(File.ReadAllBytes(Path.Combine(directory, "inputs.json")))) + ",\n  \"observations\": [\n" + string.Join(",\n", entries) + "\n  ]\n}\n";
+            string observationsPath = Path.Combine(directory, "observations.json");
+            File.WriteAllText(observationsPath, observationsManifest, new UTF8Encoding(false));
+            Assert.That(File.ReadAllText(observationsPath), Is.EqualTo(observationsManifest), "observations.json must be written without transformation.");
+            string characterization = PureBasePbrVisibilityApproximationTests.BuildVisibilityCharacterizationArtifact();
+            string characterizationPath = Path.Combine(directory, "characterization.json");
+            File.WriteAllText(characterizationPath, characterization, new UTF8Encoding(false));
+            Assert.That(File.ReadAllText(characterizationPath), Is.EqualTo(characterization), "characterization.json must be written without transformation.");
+        }
+
+        /// <summary>Summarizes every HDR RGB sample without replacing the diagnostic frame.</summary>
+        private static string BuildFrameSummary(Color[] pixels)
+        {
+            Color minimum = new Color(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+            Color maximum = new Color(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
+            Color total = Color.clear;
+            foreach (Color pixel in pixels)
+            {
+                minimum = new Color(Mathf.Min(minimum.r, pixel.r), Mathf.Min(minimum.g, pixel.g), Mathf.Min(minimum.b, pixel.b), Mathf.Min(minimum.a, pixel.a));
+                maximum = new Color(Mathf.Max(maximum.r, pixel.r), Mathf.Max(maximum.g, pixel.g), Mathf.Max(maximum.b, pixel.b), Mathf.Max(maximum.a, pixel.a));
+                total += pixel;
+            }
+
+            return "{ \"pixelCount\": " + pixels.Length.ToString(CultureInfo.InvariantCulture) + ", \"minimum\": " + JsonColor(minimum) + ", \"maximum\": " + JsonColor(maximum) + ", \"mean\": " + JsonColor(total / pixels.Length) + " }";
+        }
+
+        /// <summary>Writes the focused NUnit success record after all capture assertions and hash writes complete.</summary>
+        private static void WriteNUnitResult(string directory, string captureId, string fingerprint)
+        {
+            string hashPath = Path.Combine(directory, "hashes.json");
+            string result = "{\n  \"framework\": \"NUnit\",\n  \"testId\": " + JsonString(TestContext.CurrentContext.Test.ID) + ",\n  \"testName\": " + JsonString(TestContext.CurrentContext.Test.FullName) + ",\n  \"result\": \"Passed\",\n  \"resultScope\": \"all GPU observations and capture artifacts completed before test return\",\n  \"captureId\": " + JsonString(captureId) + ",\n  \"inputsSha256\": " + JsonString(fingerprint) + ",\n  \"hashManifestSha256\": " + JsonString(Sha256(File.ReadAllBytes(hashPath))) + "\n}\n";
+            string resultPath = Path.Combine(directory, "nunit-result.json");
+            File.WriteAllText(resultPath, result, new UTF8Encoding(false));
+            Assert.That(File.ReadAllText(resultPath), Is.EqualTo(result), "nunit-result.json must be written without transformation.");
+        }
+
+        /// <summary>Copies the exact Unity Editor log after writing a capture-linked diagnostic entry.</summary>
+        private static void WriteUnityLogSnapshot(string directory, string captureId, string fingerprint)
+        {
+            string logPath = Application.consoleLogPath;
+            Assert.That(File.Exists(logPath), Is.True, "Unity Editor log must exist to audit the exact GPU capture.");
+            string log = ReadSharedLog(logPath);
+            Assert.That(log.IndexOf(captureId, StringComparison.Ordinal) >= 0 && log.IndexOf(fingerprint, StringComparison.Ordinal) >= 0, Is.True, "Unity Editor log must contain the capture-linked diagnostic entry.");
+            File.WriteAllText(Path.Combine(directory, "unity-editor.log"), log, new UTF8Encoding(false));
+        }
+
+        /// <summary>Reads Unity's actively written editor log without requesting exclusive file access.</summary>
+        private static string ReadSharedLog(string path)
+        {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var reader = new StreamReader(stream))
+                return reader.ReadToEnd();
+        }
+
+        /// <summary>Writes the immutable capture identity that links inputs, formula, and audit artifacts.</summary>
+        private static void WriteCaptureManifest(string directory, string captureId, string fingerprint, int observationCount, string formula, VisibilityCaptureReference reference)
+        {
+            string referenceMetadata = reference == null ? string.Empty : "  \"reference\": { \"captureId\": " + JsonString(reference.CaptureId) + ", \"path\": " + JsonString(reference.Directory) + ", \"inputsSha256\": " + JsonString(fingerprint) + " },\n";
+            string manifest = "{\n  \"schemaVersion\": 1,\n  \"captureId\": " + JsonString(captureId) + ",\n  \"formula\": " + JsonString(formula) + ",\n  \"inputsSha256\": " + JsonString(fingerprint) + ",\n" + referenceMetadata + "  \"observationCount\": " + observationCount.ToString(CultureInfo.InvariantCulture) + ",\n  \"nunitResult\": \"nunit-result.json\",\n  \"unityLog\": \"unity-editor.log\"\n}\n";
+            string path = Path.Combine(directory, "capture.json");
+            File.WriteAllText(path, manifest, new UTF8Encoding(false));
+            Assert.That(File.ReadAllText(path), Is.EqualTo(manifest), "capture.json must be written without transformation.");
+        }
+
+        /// <summary>Writes and verifies SHA-256 records for every immutable capture artifact except its final NUnit receipt.</summary>
+        private static void WriteVisibilityHashList(string directory, string fingerprint)
+        {
+            var entries = new List<string>();
+            foreach (string file in new[] { "inputs.json", "observations.json", "characterization.json", "unity-editor.log", "capture.json" })
+                entries.Add(BuildHashEntry(directory, file));
+            foreach (string path in Directory.GetFiles(directory, "*.png"))
+                entries.Add(BuildHashEntry(directory, Path.GetFileName(path)));
+            entries.Sort(StringComparer.Ordinal);
+            string hashManifest = "{\n  \"schemaVersion\": 1,\n  \"algorithm\": \"SHA-256\",\n  \"inputsSha256\": " + JsonString(fingerprint) + ",\n  \"files\": [\n" + string.Join(",\n", entries) + "\n  ]\n}\n";
+            string hashPath = Path.Combine(directory, "hashes.json");
+            File.WriteAllText(hashPath, hashManifest, new UTF8Encoding(false));
+            Assert.That(File.ReadAllText(hashPath), Is.EqualTo(hashManifest), "hashes.json must be written without transformation.");
+        }
+
+        /// <summary>Builds one read-back SHA-256 record for an already-written capture artifact.</summary>
+        private static string BuildHashEntry(string directory, string fileName)
+        {
+            string path = Path.Combine(directory, fileName);
+            return "    { \"file\": " + JsonString(fileName) + ", \"sha256\": " + JsonString(Sha256(File.ReadAllBytes(path))) + ", \"validation\": \"written-and-rehashed\" }";
         }
     }
 }
