@@ -229,12 +229,12 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Requires every formula to preserve symmetry under light and view cosine exchange.</summary>
-        private static void AssertSymmetry(float perceptualRoughness, float ndotL, float ndotV, bool useSwitchDenominator, float legacy, float regularized, float fast)
+        private static void AssertSymmetry(float perceptualRoughness, float firstNdot, float secondNdot, bool useSwitchDenominator, float legacy, float regularized, float fast)
         {
-            string coordinate = Coordinate(perceptualRoughness, ndotL, ndotV, useSwitchDenominator);
-            Assert.That(legacy, Is.EqualTo(LegacyExactVisibility(perceptualRoughness, ndotL: ndotV, ndotV: ndotL)).Within(0.000001f), "Legacy exact symmetry failed for " + coordinate + ".");
-            Assert.That(regularized, Is.EqualTo(RegularizedExactVisibility(perceptualRoughness, ndotL: ndotV, ndotV: ndotL, useSwitchDenominator: useSwitchDenominator)).Within(0.000001f), "Regularized exact symmetry failed for " + coordinate + ".");
-            Assert.That(fast, Is.EqualTo(FastVisibility(perceptualRoughness, ndotL: ndotV, ndotV: ndotL, useSwitchDenominator: useSwitchDenominator)).Within(0.000001f), "Fast symmetry failed for " + coordinate + ".");
+            string coordinate = Coordinate(perceptualRoughness, firstNdot, secondNdot, useSwitchDenominator);
+            Assert.That(legacy, Is.EqualTo(LegacyExactVisibility(perceptualRoughness, secondNdot, firstNdot)).Within(0.000001f), "Legacy exact symmetry failed for " + coordinate + ".");
+            Assert.That(regularized, Is.EqualTo(RegularizedExactVisibility(perceptualRoughness, secondNdot, firstNdot, useSwitchDenominator)).Within(0.000001f), "Regularized exact symmetry failed for " + coordinate + ".");
+            Assert.That(fast, Is.EqualTo(FastVisibility(perceptualRoughness, secondNdot, firstNdot, useSwitchDenominator)).Within(0.000001f), "Fast symmetry failed for " + coordinate + ".");
         }
 
         /// <summary>Requires a scalar visibility result to be finite and nonnegative.</summary>
