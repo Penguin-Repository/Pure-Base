@@ -89,7 +89,38 @@ Built-in Standard's internal `0.002` clamp is a different parameterization. It c
 
 No material migration command or bulk serialized rewrite is added. A stored value below `0.089` remains stored as-is until a user explicitly edits or otherwise rewrites the material, but it evaluates as `0.089` at runtime in direct lighting, Unity Standard GI/reflection, and Meta/lightmapping. Stored values at or above `0.089` retain their public ordering and roughness meaning, and the public default remains `0.5`.
 
-This change does not implement the Issue #13 visibility approximation, Issue #14 multiple-scattering compensation, specular anti-aliasing, or full Unity Standard BRDF parity. It does not change the ownership, placement, or behavior of `_UseUnityStandardDiffuseBrightness`.
+### PBR and Hybrid direct GGX visibility
+
+The direct GGX visibility term is the only direct-BRDF term changed here. PBR and Hybrid share `PureBasePbrEvaluateDirect` through the common PBR model, and both `ForwardBase` and `ForwardAdd` use that evaluator. `ForwardBase` still adds Unity Standard indirect GI and reflection-probe lighting, while `ForwardAdd` remains direct light only.
+
+For clamped perceptual roughness $p$, the helper receives academic roughness $a=p^2$ and evaluates the linearized joint GGX visibility:
+
+$$
+\lambda_V = NdotL\left(NdotV(1-a)+a\right),\quad
+\lambda_L = NdotV\left(NdotL(1-a)+a\right),\quad
+V = \frac{0.5}{\lambda_V+\lambda_L+\epsilon}
+$$
+
+`NdotL` and `NdotV` are the nonnegative direct-light and view cosines. The normal-platform denominator uses `epsilon=1e-5f`; the `SHADER_API_SWITCH` branch uses `UNITY_HALF_MIN`. The helper takes float parameters and evaluates the finite visibility expression without square roots. `roughnessFourth=a^2` remains owned by the GGX distribution term and is not derived or consumed by the visibility helper.
+
+The analysis reference is Eric Heitz, *Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs*, Journal of Computer Graphics Techniques 3(2), 2014. Unity 2022.3.22f1 Built-in `UnityStandardBRDF.cginc` was inspected only as behavior reference for the independently expressed approximation; this does not claim that Unity authored exact Smith theory, that Pure Base copied Unity source, or that Unity endorses or contributed to Pure Base.
+
+At source level, the former exact path evaluated two square roots. The fast path replaces them with two linear multiply/add lambda expressions and one reciprocal expression. The direct evaluator widens the distribution, visibility, and complete direct-specular product from half inputs to float before the final half result. The product remains `distribution * visibility * NdotL * Fresnel`. This is a source-level operation and precision comparison only; it does not prove backend instruction count, register use, latency, energy use, GPU time, or a net native-half win.
+
+The unchanged neighboring behavior is the GGX distribution ownership of `roughnessFourth=a^2`, Schlick Fresnel, direct diffuse, Unity Standard indirect GI, reflection probes, Meta/lightmapping evaluation, the perceptual roughness floor, the public property ABI, pass declarations, shader variants, and package dependencies. `_UseUnityStandardDiffuseBrightness` is unchanged. This change does not implement Issue #14 multiple-scattering compensation, specular anti-aliasing, or full Unity Standard BRDF parity.
+
+The fixed characterization domain is `p=[0.089,0.125,0.25,0.5,0.75,1]` and `NdotL/NdotV=[0,0.01,0.05,0.25,0.5,0.75,1]`. The artifact compares fast visibility with both the previous `legacy-exact` square-root form and a `regularized-exact` square-root form using the branch-specific additive denominator. Relative differences use `max(abs(reference), 0.0001)` as the near-zero denominator policy.
+
+| Reference | Denominator branch | Absolute p50 / p95 / p99 / max | Relative p50 / p95 / p99 / max | Worst absolute coordinate | Worst relative coordinate |
+| --- | --- | --- | --- | --- | --- |
+| `legacy-exact` | normal | `0.05848825 / 85.701416 / 450000 / 450000` | `0.02446828 / 0.221387491 / 0.9 / 0.9` | `p=0.089, NdotL=0, NdotV=0, denominator=normal` | `p=1, NdotL=0, NdotV=0, denominator=normal` |
+| `regularized-exact` | normal | `0.0136949122 / 14.3185883 / 94.80673 / 522.817` | `0.0122608114 / 0.198313192 / 0.266411781 / 0.2772352` | `p=0.089, NdotL=0.01, NdotV=0.01, denominator=normal` | `p=0.089, NdotL=0.01, NdotV=0.01, denominator=normal` |
+| `legacy-exact` | Switch | `0.0761735439 / 109.89502 / 491808 / 491808` | `0.0285097174 / 0.268093 / 0.983616 / 0.983616` | `p=0.089, NdotL=0, NdotV=0, denominator=Switch` | `p=0.75, NdotL=0, NdotV=0, denominator=Switch` |
+| `regularized-exact` | Switch | `0.0136935413 / 14.1369286 / 87.76001 / 384.880249` | `0.0122424932 / 0.197805569 / 0.24257569 / 0.267280757` | `p=0.089, NdotL=0.01, NdotV=0.01, denominator=Switch` | `p=0.25, NdotL=0.05, NdotV=0.05, denominator=Switch` |
+
+The final formula and visual evidence use schema version 4 and are recorded by the capture directory `legacy-exact-20260818T201638864Z-cabd6cc0b921d9bc` (capture ID `20260818T201638864Z-cabd6cc0b921d9bc`) and the capture directory `fast-20260818T201936677Z-cabd6cc0b921d9bc` (capture ID `20260818T201936677Z-cabd6cc0b921d9bc`), with shared exact byte-identical inputs SHA-256 `cabd6cc0b921d9bc10c1a113faafef601edd40413311564821e2f907ff7339a2`. The paired visual evidence contains 69 legacy/fast image pairs across PBR and Hybrid `ForwardBase`/`ForwardAdd`, metallic `0`/`1`, roughness `0.089`/`0.25`/`0.5`/`1`, normal and grazing views, plus degenerate direct-input cases, and was reviewed and approved by the user. In the fixed fixture comparison, there were 0 different pixels, 0 different channels, and a maximum absolute channel delta of 0. Direct isolation in the immutable inputs uses `ForwardBase` `one-light-minus-zero-light` with render-light counts `[0,1]` and `ForwardAdd` `two-lights-minus-one-light` with render-light counts `[1,2]`. The comparator records pixel differences without an acceptance threshold; this evidence does not establish a universal visual-quality threshold or claim backend performance.
+
+The normal branch is characterized by source and formula evidence. The Switch branch is characterized by its formula and denominator policy, but Switch runtime execution was not verified.
 
 ### PBR and Hybrid direct-diffuse brightness
 

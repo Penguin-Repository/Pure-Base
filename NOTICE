@@ -19,6 +19,11 @@ lil: An amazing Shader-Core (https://github.com/lilxyzw/Shader-Core) developer (
 License
 This project is licensed under the Apache-2.0 License - see the LICENSE file for details
 
+GGX Visibility Provenance
+The direct GGX visibility helper is an independent implementation informed by Eric Heitz, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs," Journal of Computer Graphics Techniques 3(2), 2014. It uses a linearized joint GGX visibility approximation and does not reproduce exact Smith theory.
+
+Unity 2022.3.22f1 Built-in `UnityStandardBRDF.cginc` was inspected as a behavior reference for the independently expressed approximation. This attribution does not claim that Unity authored the Pure Base helper, that Unity source was copied, that a Unity dependency was added, or that Unity endorses or contributed to Pure Base.
+
 Third-Party Lighting Concept Provenance
 Pure Base's minimal Toon lighting helper is a narrow, independently written reimplementation of selected OpenLit 1.0.2 BIRP concepts inspected through lilToon 2.3.4: color-space luminance, positive-Y SH direction and fallback handling, and the bright/dark SH term structure. The Pure Base adaptation retains Shader-Core's post-light aggregation and does not copy `ComputeLights` or any upstream function body. It adds no OpenLit or lilToon dependency and is not an official lilToon or OpenLit integration. This acknowledgement does not imply endorsement, sponsorship, contributor status, or participation by lilToon or OpenLit developers.
 

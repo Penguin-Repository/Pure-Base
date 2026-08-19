@@ -89,7 +89,38 @@ Built-in Standard 内部の `0.002` クランプは、別のパラメーター�
 
 マテリアル移行コマンドや、保存値を一括書き換えする処理は追加しません。`0.089` 未満の保存値は、ユーザーが明示的に編集または別の方法でマテリアルを書き換えるまで、そのまま保存されます。ただし実行時には、直接光、Unity Standard の GI/反射、Meta/ライトマップのすべてで `0.089` として評価されます。`0.089` 以上の保存値は公開順序と粗さの意味を維持し、公開初期値も `0.5` のままです。
 
-この変更には Issue #13 の可視性近似、Issue #14 の多重散乱補償、スペキュラアンチエイリアシング、Unity Standard との完全な BRDF 一致は含まれません。`_UseUnityStandardDiffuseBrightness` の所有範囲、配置、動作も変更しません。
+### PBR と Hybrid の直接 GGX 可視性
+
+今回変更した直接 BRDF の項は、直接 GGX 可視性だけです。PBR と Hybrid は共通の PBR モデルを通じて `PureBasePbrEvaluateDirect` を共有し、`ForwardBase` と `ForwardAdd` の両方がこの直接評価器を使います。`ForwardBase` はこれまでどおり Unity Standard の間接 GI と反射プローブのライティングを加算し、`ForwardAdd` は直接光だけを扱います。
+
+クランプ後の知覚粗さを $p$ とすると、ヘルパーへ渡す学術的な粗さは $a=p^2$ で、線形化した joint GGX 可視性を次のように評価します。
+
+$$
+\lambda_V = NdotL\left(NdotV(1-a)+a\right),\quad
+\lambda_L = NdotV\left(NdotL(1-a)+a\right),\quad
+V = \frac{0.5}{\lambda_V+\lambda_L+\epsilon}
+$$
+
+`NdotL` と `NdotV` は、0未満を除いた直接光方向と視線方向のコサインです。通常プラットフォームの分母は `epsilon=1e-5f`、`SHADER_API_SWITCH` 分岐は `UNITY_HALF_MIN` を使います。ヘルパーの引数は float で、平方根を使わずに有限な可視性を評価します。`roughnessFourth=a^2` は GGX 分布項の所有物として残り、可視性ヘルパーでは計算も使用もしません。
+
+分析の参照文献は Eric Heitz, *Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs*, Journal of Computer Graphics Techniques 3(2), 2014 です。Unity 2022.3.22f1 Built-in の `UnityStandardBRDF.cginc` は、独立して表現した近似の挙動を確認する参照としてだけ調査しています。Unity が正確な Smith 理論を著作した、Pure Base が Unity のソースをコピーした、Unity が Pure Base を推奨または貢献した、という意味ではありません。
+
+ソースレベルでは、以前の正確な経路は平方根を2回評価していました。高速経路はそれを、線形な乗算・加算による lambda 式2つと、1つの逆数式へ置き換えています。直接評価器は分布、可視性、完全な直接スペキュラ積を half の入力から float へ広げ、最後に half の結果へ狭めます。積は `distribution * visibility * NdotL * Fresnel` のままです。これはソース上の演算と精度の比較だけであり、バックエンドの命令数、レジスター使用量、レイテンシー、消費電力、GPU時間、または native-half が最終的に有利になることを証明するものではありません。
+
+変更されていない周辺の動作は、`roughnessFourth=a^2` を所有する GGX 分布、Schlick Fresnel、直接拡散反射、Unity Standard の間接 GI、反射プローブ、Meta/ライトマップ評価、知覚粗さ下限、公開プロパティ ABI、パス定義、シェーダーバリアント、パッケージ依存関係です。`_UseUnityStandardDiffuseBrightness` も変更していません。Issue #14 の多重散乱補償、スペキュラアンチエイリアシング、Unity Standard との完全な BRDF 一致はこの変更に含まれません。
+
+固定 characterization の領域は `p=[0.089,0.125,0.25,0.5,0.75,1]`、`NdotL/NdotV=[0,0.01,0.05,0.25,0.5,0.75,1]` です。artifact は高速な可視性を、以前の `legacy-exact` 平方根形式と、分岐ごとの加算分母を使う `regularized-exact` 平方根形式の両方と比較しています。相対差の分母には、ゼロ近傍の方針として `max(abs(reference), 0.0001)` を使います。
+
+| 参照式 | 分母分岐 | 絶対差 p50 / p95 / p99 / 最大 | 相対差 p50 / p95 / p99 / 最大 | 絶対差が最大の座標 | 相対差が最大の座標 |
+| --- | --- | --- | --- | --- | --- |
+| `legacy-exact` | normal | `0.05848825 / 85.701416 / 450000 / 450000` | `0.02446828 / 0.221387491 / 0.9 / 0.9` | `p=0.089, NdotL=0, NdotV=0, denominator=normal` | `p=1, NdotL=0, NdotV=0, denominator=normal` |
+| `regularized-exact` | normal | `0.0136949122 / 14.3185883 / 94.80673 / 522.817` | `0.0122608114 / 0.198313192 / 0.266411781 / 0.2772352` | `p=0.089, NdotL=0.01, NdotV=0.01, denominator=normal` | `p=0.089, NdotL=0.01, NdotV=0.01, denominator=normal` |
+| `legacy-exact` | Switch | `0.0761735439 / 109.89502 / 491808 / 491808` | `0.0285097174 / 0.268093 / 0.983616 / 0.983616` | `p=0.089, NdotL=0, NdotV=0, denominator=Switch` | `p=0.75, NdotL=0, NdotV=0, denominator=Switch` |
+| `regularized-exact` | Switch | `0.0136935413 / 14.1369286 / 87.76001 / 384.880249` | `0.0122424932 / 0.197805569 / 0.24257569 / 0.267280757` | `p=0.089, NdotL=0.01, NdotV=0.01, denominator=Switch` | `p=0.25, NdotL=0.05, NdotV=0.05, denominator=Switch` |
+
+最終的な式と visual evidence は schema version 4 を使い、capture directory `legacy-exact-20260818T201638864Z-cabd6cc0b921d9bc`（capture ID `20260818T201638864Z-cabd6cc0b921d9bc`）と capture directory `fast-20260818T201936677Z-cabd6cc0b921d9bc`（capture ID `20260818T201936677Z-cabd6cc0b921d9bc`）に記録されています。共有入力は exact byte-identical で、SHA-256 は `cabd6cc0b921d9bc10c1a113faafef601edd40413311564821e2f907ff7339a2` です。paired visual evidence には、PBR と Hybrid の `ForwardBase`/`ForwardAdd`、metallic `0`/`1`、roughness `0.089`/`0.25`/`0.5`/`1`、normal と grazing の各条件、および退化した直接入力の確認を含む、legacy/fast の画像69組があります。これはユーザーが確認して承認した証拠です。固定 fixture の比較結果は、異なるピクセル 0、異なるチャンネル 0、最大絶対チャンネル差 0 でした。immutable inputs の direct isolation は、`ForwardBase` が `one-light-minus-zero-light`、render-light counts `[0,1]`、`ForwardAdd` が `two-lights-minus-one-light`、render-light counts `[1,2]` です。比較器は受け入れ閾値を定義せず画素差を記録するため、この証拠から普遍的な画質閾値やバックエンド性能を主張するものではありません。
+
+通常分岐はソースと式の evidence で characterization されています。Switch 分岐も式と分母方針は characterization されていますが、Switch 上での実行時動作は検証していません。
 
 ### PBR と Hybrid の直接拡散反射の輝度
 
