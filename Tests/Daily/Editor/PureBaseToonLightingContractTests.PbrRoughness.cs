@@ -127,6 +127,27 @@ namespace PureBase.Tests.Daily
             ExportVisibilityEvidenceIfEnabled(evidence);
         }
 
+        /// <summary>Requires PBR visibility identity strings to remain stable under a comma-decimal culture.</summary>
+        [Test]
+        public void PbrVisibilityObservationIdentityUsesInvariantCulture()
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+                using (var capture = new ToonLightingCaptureScope())
+                {
+                    PbrVisibilityObservation observation = capture.RenderPbrVisibilityReference("PureBase/PBR", "ForwardBase", 1.0f, 0.25f, Vector3.back, "culture");
+                    Assert.That(observation.Label, Is.EqualTo("PureBase/PBR ForwardBase m=1 r=0.25 culture"));
+                    Assert.That(observation.FileName, Is.EqualTo("PureBase-PBR-ForwardBase-m1-r0.25-culture.png"));
+                }
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
         /// <summary>Asserts one selected direct incidence and pass case with an optional nonblack control.</summary>
         private static void AssertDirectRoughnessCase(ToonLightingCaptureScope capture, string shaderName, string passName, Vector3 normal, string incidence, bool requireNonBlack)
         {

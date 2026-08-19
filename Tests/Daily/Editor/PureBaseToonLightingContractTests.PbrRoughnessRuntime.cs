@@ -285,10 +285,10 @@ namespace PureBase.Tests.Daily
             public Vector3 MeshScale { get; }
 
             /// <summary>Gets the human-readable observation label.</summary>
-            public string Label => ShaderName + " " + PassName + " m=" + Metallic + " r=" + Roughness + " " + Incidence;
+            public string Label => ShaderName + " " + PassName + " m=" + Metallic.ToString(CultureInfo.InvariantCulture) + " r=" + Roughness.ToString(CultureInfo.InvariantCulture) + " " + Incidence;
 
             /// <summary>Gets the deterministic diagnostic filename.</summary>
-            public string FileName => ShaderName.Replace("/", "-") + "-" + PassName + "-m" + Metallic.ToString("0") + "-r" + Roughness.ToString("0.###") + "-" + Incidence + ".png";
+            public string FileName => ShaderName.Replace("/", "-") + "-" + PassName + "-m" + Metallic.ToString("0", CultureInfo.InvariantCulture) + "-r" + Roughness.ToString("0.###", CultureInfo.InvariantCulture) + "-" + Incidence + ".png";
 
             /// <summary>Gets whether every RGB frame sample is finite.</summary>
             public bool FrameFinite
