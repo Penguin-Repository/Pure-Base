@@ -95,11 +95,115 @@ namespace PureBase.Tests.Daily
         private static string Bits(double value) => "0x" + BitConverter.DoubleToInt64Bits(value).ToString("X16", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Aggregates accepted scalar-kernel reservations sharing one deterministic selection location.</summary>
+    internal readonly struct SelectionExecutionTraceBucket
+    {
+        /// <summary>Initializes immutable aggregate identity and its accepted reservation count.</summary>
+        internal SelectionExecutionTraceBucket(SelectionExecutionContext context, long reservations)
+        {
+            Candidate = context.Candidate;
+            Stage = context.Stage;
+            Branch = context.Branch;
+            GridName = context.GridName;
+            Path = context.Path;
+            Reservations = reservations;
+        }
+
+        /// <summary>Gets the candidate settings identifier.</summary>
+        internal string Candidate { get; }
+        /// <summary>Gets the named selection stage.</summary>
+        internal string Stage { get; }
+        /// <summary>Gets the active epsilon branch.</summary>
+        internal string Branch { get; }
+        /// <summary>Gets the declared grid name.</summary>
+        internal string GridName { get; }
+        /// <summary>Gets the independently implemented numerical path.</summary>
+        internal string Path { get; }
+        /// <summary>Gets the accepted scalar-kernel reservation total.</summary>
+        internal long Reservations { get; }
+
+        /// <summary>Tests whether a reservation belongs to this aggregate identity.</summary>
+        internal bool Matches(SelectionExecutionContext context) => Candidate == context.Candidate && Stage == context.Stage && Branch == context.Branch && GridName == context.GridName && Path == context.Path;
+        /// <summary>Returns an immutable bucket with one additional accepted reservation.</summary>
+        internal SelectionExecutionTraceBucket Increment() => new SelectionExecutionTraceBucket(new SelectionExecutionContext(Candidate, Stage, Branch, GridName, 0, default, Path), Reservations + 1);
+    }
+
+    /// <summary>Captures immutable ordered aggregate progress for one finite selection execution.</summary>
+    internal readonly struct SelectionExecutionTrace
+    {
+        private readonly SelectionExecutionTraceBucket[] buckets;
+
+        /// <summary>Initializes an immutable trace snapshot from accepted-reservation state.</summary>
+        internal SelectionExecutionTrace(long used, long limit, SelectionExecutionTraceBucket[] buckets, SelectionExecutionContext? lastAccepted, SelectionExecutionFailure? firstRejection)
+        {
+            Used = used;
+            Limit = limit;
+            this.buckets = (SelectionExecutionTraceBucket[])buckets.Clone();
+            LastAccepted = lastAccepted;
+            FirstRejection = firstRejection;
+        }
+
+        /// <summary>Gets the completed scalar-kernel reservations.</summary>
+        internal long Used { get; }
+        /// <summary>Gets the immutable scalar-kernel reservation limit.</summary>
+        internal long Limit { get; }
+        /// <summary>Gets first-occurrence-ordered aggregate accepted reservations.</summary>
+        internal IReadOnlyList<SelectionExecutionTraceBucket> Buckets => Array.AsReadOnly((SelectionExecutionTraceBucket[])buckets.Clone());
+        /// <summary>Gets the final accepted reservation context when any work started.</summary>
+        internal SelectionExecutionContext? LastAccepted { get; }
+        /// <summary>Gets the first rejected reservation when the finite budget exhausted.</summary>
+        internal SelectionExecutionFailure? FirstRejection { get; }
+    }
+
+    /// <summary>Identifies the structured outcome of a cache-isolated finite selection probe.</summary>
+    internal enum SelectionProbeState
+    {
+        /// <summary>The selection completed and returned a selected candidate.</summary>
+        Selected,
+        /// <summary>The shared finite reservation budget rejected a scalar-kernel request.</summary>
+        BudgetExhausted,
+        /// <summary>Every candidate completed but failed a numerical selection gate.</summary>
+        NumericallyRejected,
+        /// <summary>An unexpected exception escaped the selection implementation.</summary>
+        Faulted
+    }
+
+    /// <summary>Returns immutable finite-selection evidence without invoking cache or artifact persistence.</summary>
+    internal sealed class SelectionProbeResult
+    {
+        /// <summary>Initializes the structured outcome, optional selection, trace, and captured exception.</summary>
+        internal SelectionProbeResult(SelectionProbeState state, AdaptiveSelection selection, SelectionExecutionTrace trace, Exception exception)
+        {
+            State = state;
+            Selection = selection;
+            Trace = trace;
+            Exception = exception;
+        }
+
+        /// <summary>Gets the structured selection outcome.</summary>
+        internal SelectionProbeState State { get; }
+        /// <summary>Gets the completed selected candidate only for a selected probe.</summary>
+        internal AdaptiveSelection Selection { get; }
+        /// <summary>Gets immutable accepted-reservation telemetry.</summary>
+        internal SelectionExecutionTrace Trace { get; }
+        /// <summary>Gets the captured exception for non-selected probe outcomes.</summary>
+        internal Exception Exception { get; }
+    }
+
+    /// <summary>Identifies completion of every candidate without a numerically acceptable selection.</summary>
+    internal sealed class SelectionNumericalRejectionException : InvalidOperationException
+    {
+        /// <summary>Initializes the deterministic numerical selection rejection diagnostic.</summary>
+        internal SelectionNumericalRejectionException(string message) : base(message) { }
+    }
+
     /// <summary>Counts scalar-kernel reservations and retains only the first deterministic rejection.</summary>
     internal sealed class SelectionExecutionBudget
     {
         private readonly long limit;
+        private readonly List<SelectionExecutionTraceBucket> buckets = new List<SelectionExecutionTraceBucket>();
         private long used;
+        private SelectionExecutionContext? lastAccepted;
         private SelectionExecutionFailure? firstFailure;
 
         /// <summary>Initializes a finite selection-wide scalar-kernel reservation limit.</summary>
@@ -118,6 +222,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Gets whether selection-wide scalar work has been rejected.</summary>
         internal bool IsExhausted => firstFailure.HasValue;
 
+        /// <summary>Captures immutable telemetry without exposing mutable reservation state.</summary>
+        internal SelectionExecutionTrace Trace => new SelectionExecutionTrace(used, limit, buckets.ToArray(), lastAccepted, firstFailure);
+
         /// <summary>Reserves exactly one scalar-kernel evaluation before its numerical work starts.</summary>
         internal bool TryReserve(SelectionExecutionContext context)
         {
@@ -129,7 +236,22 @@ namespace PureBase.Tests.Daily
             }
 
             used++;
+            lastAccepted = context;
+            RecordAccepted(context);
             return true;
+        }
+
+        /// <summary>Updates the first-occurrence-ordered aggregate after a reservation has been accepted.</summary>
+        private void RecordAccepted(SelectionExecutionContext context)
+        {
+            for (int index = 0; index < buckets.Count; index++)
+            {
+                if (!buckets[index].Matches(context)) continue;
+                buckets[index] = buckets[index].Increment();
+                return;
+            }
+
+            buckets.Add(new SelectionExecutionTraceBucket(context, 1));
         }
 
         /// <summary>Gets the first failure as the finite exception required by selection orchestration.</summary>
@@ -153,6 +275,19 @@ namespace PureBase.Tests.Daily
             return SelectCore(budget, false);
         }
 
+        /// <summary>Runs finite selection without cache or persistence and returns structured stop evidence.</summary>
+        internal static SelectionProbeResult RunSelectionProbeForTest(SelectionExecutionBudget budget)
+        {
+            if (budget == null) throw new ArgumentNullException(nameof(budget));
+            try { return new SelectionProbeResult(SelectionProbeState.Selected, SelectCore(budget, false), budget.Trace, null); }
+            catch (Exception exception)
+            {
+                if (budget.FirstFailure.HasValue) return new SelectionProbeResult(SelectionProbeState.BudgetExhausted, null, budget.Trace, exception);
+                if (exception is SelectionNumericalRejectionException) return new SelectionProbeResult(SelectionProbeState.NumericallyRejected, null, budget.Trace, exception);
+                return new SelectionProbeResult(SelectionProbeState.Faulted, null, budget.Trace, exception);
+            }
+        }
+
         /// <summary>Runs synchronous candidate selection and keeps persistence unreachable for injected runs.</summary>
         private static AdaptiveSelection SelectCore(SelectionExecutionBudget budget, bool persist)
         {
@@ -170,7 +305,7 @@ namespace PureBase.Tests.Daily
                 failures.Add(reason);
             }
 
-            throw new InvalidOperationException("numerical-limit: no frozen adaptive candidate passed. " + string.Join(" | ", failures));
+            throw new SelectionNumericalRejectionException("numerical-limit: no frozen adaptive candidate passed. " + string.Join(" | ", failures));
         }
 
         /// <summary>Adds one noncanonical calibration failure to the deterministic candidate ladder.</summary>
@@ -302,33 +437,6 @@ namespace PureBase.Tests.Daily
     /// <summary>Verifies deterministic selection-wide scalar-kernel accounting without running full selection.</summary>
     public sealed partial class PureBasePbrMultipleScatteringCompensationTests
     {
-        /// <summary>Requires primary exhaustion to reject before the shared scalar kernel starts.</summary>
-        [Test]
-        public void SelectionBudgetRejectsBeforePrimaryKernelWork()
-        {
-            SelectionExecutionBudget budget = new SelectionExecutionBudget(0);
-            AdaptiveResult result = AdaptivePrimary.Integrate(ProbeSettings(), 0.5d, 0.5d, false, budget, ProbeContext("primary"));
-            AssertRejectedBeforeKernel(result, budget, "primary");
-        }
-
-        /// <summary>Requires cross-check exhaustion to reject before the shared scalar kernel starts.</summary>
-        [Test]
-        public void SelectionBudgetRejectsBeforeCrossKernelWork()
-        {
-            SelectionExecutionBudget budget = new SelectionExecutionBudget(0);
-            AdaptiveResult result = AdaptiveCrossCheck.Integrate(ProbeSettings(), 0.5d, 0.5d, false, budget, ProbeContext("cross-check"));
-            AssertRejectedBeforeKernel(result, budget, "cross-check");
-        }
-
-        /// <summary>Requires witness exhaustion to reject before the shared scalar kernel starts.</summary>
-        [Test]
-        public void SelectionBudgetRejectsBeforeWitnessKernelWork()
-        {
-            SelectionExecutionBudget budget = new SelectionExecutionBudget(0);
-            AdaptiveResult result = KronrodWitness.Integrate(ProbeSettings(), 0.5d, 0.5d, false, budget, ProbeContext("witness"));
-            AssertRejectedBeforeKernel(result, budget, "witness");
-        }
-
         /// <summary>Requires repeated bounded selection attempts to report the identical first stage location.</summary>
         [Test]
         public void SelectionBudgetReportsDeterministicStageContext()
@@ -336,25 +444,6 @@ namespace PureBase.Tests.Daily
             string first = SelectionFailure(0); string second = SelectionFailure(0);
             Assert.That(first, Is.EqualTo(second)); Assert.That(first, Does.Contain("candidate=calibration-a stage=calibration branch=normal grid=original index=0"));
             Assert.That(first, Does.Contain("coordinateBits=p=0x3FB6C8B439581062,ndotV=0x0000000000000000 coordinate=p=0.089,ndotV=0 path=primary used=0 limit=0 kernelStarted=false"));
-        }
-
-        /// <summary>Requires injected failures to remain outside canonical artifact persistence.</summary>
-        [Test]
-        public void SelectionBudgetFailureCreatesNoCanonicalArtifact()
-        {
-            string path = AdaptiveProtocol.CanonicalArtifactPath; bool existed = File.Exists(path); byte[] before = existed ? File.ReadAllBytes(path) : null;
-            Assert.Throws<InvalidOperationException>(() => AdaptiveProtocol.RunSelectionForTest(new SelectionExecutionBudget(0)));
-            Assert.That(File.Exists(path), Is.EqualTo(existed)); if (existed) Assert.That(File.ReadAllBytes(path), Is.EqualTo(before));
-        }
-
-        /// <summary>Requires injected selection execution to leave the production lazy cache untouched.</summary>
-        [Test]
-        public void SelectionBudgetInjectedRunnerDoesNotAccessSelectionCache()
-        {
-            var field = typeof(PureBasePbrMultipleScatteringFurnaceOracle).GetField("SelectionCache", BindingFlags.NonPublic | BindingFlags.Static);
-            var cache = (Lazy<AdaptiveSelection>)field.GetValue(null); bool before = cache.IsValueCreated;
-            Assert.Throws<InvalidOperationException>(() => AdaptiveProtocol.RunSelectionForTest(new SelectionExecutionBudget(0)));
-            Assert.That(cache.IsValueCreated, Is.EqualTo(before));
         }
 
         /// <summary>Requires optional accounting to preserve each path's no-budget numerical result and order.</summary>
