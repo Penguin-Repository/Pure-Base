@@ -98,6 +98,22 @@ namespace PureBase.Tests.Daily
             TestContext.Progress.WriteLine(SelectionProbeTraceRenderer.Render(first));
         }
 
+        /// <summary>Observes one explicit 512-reservation prefix without authorizing further numerical work.</summary>
+        [Test]
+        public void SelectionProbeObservesExplicit512ReservationPrefix()
+        {
+            string path = AdaptiveProtocol.CanonicalArtifactPath; bool existed = File.Exists(path); byte[] before = existed ? File.ReadAllBytes(path) : null;
+            var field = typeof(PureBasePbrMultipleScatteringFurnaceOracle).GetField("SelectionCache", BindingFlags.NonPublic | BindingFlags.Static);
+            var cache = (Lazy<AdaptiveSelection>)field.GetValue(null); bool cacheBefore = cache.IsValueCreated;
+            SelectionProbeResult first = AdaptiveProtocol.RunSelectionProbeForTest(new SelectionExecutionBudget(512));
+            SelectionProbeResult second = AdaptiveProtocol.RunSelectionProbeForTest(new SelectionExecutionBudget(512));
+            Assert.That(cache.IsValueCreated, Is.EqualTo(cacheBefore));
+            Assert.That(File.Exists(path), Is.EqualTo(existed)); if (existed) Assert.That(File.ReadAllBytes(path), Is.EqualTo(before));
+            AssertProbesEqual(first, second);
+            AssertTypedNonfaultPrefixState(first);
+            TestContext.Progress.WriteLine(SelectionProbeTraceRenderer.Render(first));
+        }
+
         /// <summary>Requires primary exhaustion to reject before the shared scalar kernel starts.</summary>
         [Test]
         public void SelectionBudgetRejectsBeforePrimaryKernelWork()
