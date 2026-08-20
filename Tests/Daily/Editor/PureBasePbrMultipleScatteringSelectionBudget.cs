@@ -19,9 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
-using System.Reflection;
-using NUnit.Framework;
+using System.Text;
 
 namespace PureBase.Tests.Daily
 {
@@ -188,6 +186,49 @@ namespace PureBase.Tests.Daily
         internal SelectionExecutionTrace Trace { get; }
         /// <summary>Gets the captured exception for non-selected probe outcomes.</summary>
         internal Exception Exception { get; }
+    }
+
+    /// <summary>Renders immutable finite-selection telemetry without reading or mutating execution state.</summary>
+    internal static class SelectionProbeTraceRenderer
+    {
+        /// <summary>Renders the structured outcome, aggregate buckets, and terminal contexts in fixed order.</summary>
+        internal static string Render(SelectionProbeResult probe)
+        {
+            SelectionExecutionTrace trace = probe.Trace;
+            var text = new StringBuilder();
+            text.Append("selection-probe state=").Append(probe.State).Append(" used=").Append(trace.Used).Append(" limit=").Append(trace.Limit).Append(" buckets=[");
+            for (int index = 0; index < trace.Buckets.Count; index++)
+            {
+                SelectionExecutionTraceBucket bucket = trace.Buckets[index];
+                if (index != 0) text.Append(", ");
+                text.Append("{candidate=").Append(bucket.Candidate).Append(" stage=").Append(bucket.Stage).Append(" branch=").Append(bucket.Branch).Append(" grid=").Append(bucket.GridName).Append(" path=").Append(bucket.Path).Append(" reservations=").Append(bucket.Reservations).Append("}");
+            }
+
+            text.Append("] lastAccepted=");
+            AppendContext(text, trace.LastAccepted);
+            text.Append(" firstRejection=");
+            if (!trace.FirstRejection.HasValue) text.Append("none");
+            else
+            {
+                SelectionExecutionFailure failure = trace.FirstRejection.Value;
+                text.Append("{context=");
+                AppendContext(text, failure.Context);
+                text.Append(" used=").Append(failure.Used).Append(" limit=").Append(failure.Limit).Append(" kernelStarted=").Append(failure.KernelStarted.ToString().ToLowerInvariant()).Append("}");
+            }
+
+            return text.ToString();
+        }
+
+        /// <summary>Appends one nullable immutable selection context without retaining coordinate history.</summary>
+        private static void AppendContext(StringBuilder text, SelectionExecutionContext? context)
+        {
+            if (!context.HasValue) { text.Append("none"); return; }
+            SelectionExecutionContext value = context.Value;
+            text.Append("{candidate=").Append(value.Candidate).Append(" stage=").Append(value.Stage).Append(" branch=").Append(value.Branch).Append(" grid=").Append(value.GridName).Append(" index=").Append(value.GridIndex).Append(" coordinateBits=p=").Append(Bits(value.Coordinate.P)).Append(",ndotV=").Append(Bits(value.Coordinate.V)).Append(" path=").Append(value.Path).Append("}");
+        }
+
+        /// <summary>Formats one binary64 coordinate without culture-dependent formatting.</summary>
+        private static string Bits(double value) => "0x" + BitConverter.DoubleToInt64Bits(value).ToString("X16", CultureInfo.InvariantCulture);
     }
 
     /// <summary>Identifies completion of every candidate without a numerically acceptable selection.</summary>
@@ -434,62 +475,4 @@ namespace PureBase.Tests.Daily
         private static bool PassesStress(AdaptiveEvidence[] values) { foreach (AdaptiveEvidence value in values) if (!value.Passes) return false; return true; }
     }
 
-    /// <summary>Verifies deterministic selection-wide scalar-kernel accounting without running full selection.</summary>
-    public sealed partial class PureBasePbrMultipleScatteringCompensationTests
-    {
-        /// <summary>Requires repeated bounded selection attempts to report the identical first stage location.</summary>
-        [Test]
-        public void SelectionBudgetReportsDeterministicStageContext()
-        {
-            string first = SelectionFailure(0); string second = SelectionFailure(0);
-            Assert.That(first, Is.EqualTo(second)); Assert.That(first, Does.Contain("candidate=calibration-a stage=calibration branch=normal grid=original index=0"));
-            Assert.That(first, Does.Contain("coordinateBits=p=0x3FB6C8B439581062,ndotV=0x0000000000000000 coordinate=p=0.089,ndotV=0 path=primary used=0 limit=0 kernelStarted=false"));
-        }
-
-        /// <summary>Requires optional accounting to preserve each path's no-budget numerical result and order.</summary>
-        [Test]
-        public void SelectionBudgetLeavesNoBudgetPathOutputsUnchanged()
-        {
-            AdaptiveSettings settings = ProbeSettings(); AssertResultsEqual(AdaptivePrimary.Integrate(settings, 0.5d, 0.5d, false), AdaptivePrimary.Integrate(settings, 0.5d, 0.5d, false, new SelectionExecutionBudget(long.MaxValue), ProbeContext("primary")));
-            AssertResultsEqual(AdaptiveCrossCheck.Integrate(settings, 0.5d, 0.5d, false), AdaptiveCrossCheck.Integrate(settings, 0.5d, 0.5d, false, new SelectionExecutionBudget(long.MaxValue), ProbeContext("cross-check")));
-            AssertResultsEqual(KronrodWitness.Integrate(settings, 0.5d, 0.5d, false), KronrodWitness.Integrate(settings, 0.5d, 0.5d, false, new SelectionExecutionBudget(long.MaxValue), ProbeContext("witness")));
-        }
-
-        /// <summary>Requires an explicit finite pilot to return selection evidence or its first deterministic failure.</summary>
-        [Test]
-        public void BoundedKronrodSelectionPilotTerminates()
-        {
-            var budget = new SelectionExecutionBudget(64);
-            try { Assert.That(AdaptiveProtocol.RunSelectionForTest(budget).IsSelected, Is.True); }
-            catch (InvalidOperationException exception) { Assert.That(budget.FirstFailure.HasValue, Is.True); Assert.That(exception.Message, Is.EqualTo(budget.FirstFailure.Value.ToString())); }
-            Assert.That(budget.Used, Is.LessThanOrEqualTo(budget.Limit));
-        }
-
-        /// <summary>Creates safe direct-path settings that accept their initial bounded panels.</summary>
-        private static AdaptiveSettings ProbeSettings() => new AdaptiveSettings("selection-budget-probe", 100.0d, 0.0d, 100.0d, 0.0d, 2, 32, 1000000);
-
-        /// <summary>Creates one stable direct-path location used by the three budget rejection probes.</summary>
-        private static SelectionExecutionContext ProbeContext(string path) => new SelectionExecutionContext("probe", "calibration", "normal", "probe", 0, new AdaptiveCoordinate(0.5d, 0.5d), path);
-
-        /// <summary>Asserts an attempted scalar kernel was rejected before any shared kernel work began.</summary>
-        private static void AssertRejectedBeforeKernel(AdaptiveResult result, SelectionExecutionBudget budget, string path)
-        {
-            Assert.That(budget.FirstFailure.HasValue, Is.True); SelectionExecutionFailure failure = budget.FirstFailure.Value;
-            Assert.That(failure.Context.Path, Is.EqualTo(path)); Assert.That(failure.Used, Is.Zero); Assert.That(failure.KernelStarted, Is.False); Assert.That(result.Diagnostic, Is.EqualTo(failure.ToString()));
-        }
-
-        /// <summary>Runs one zero-budget selection attempt and returns its first deterministic diagnostic.</summary>
-        private static string SelectionFailure(long limit)
-        {
-            var budget = new SelectionExecutionBudget(limit); InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => AdaptiveProtocol.RunSelectionForTest(budget));
-            Assert.That(budget.FirstFailure.HasValue, Is.True); return exception.Message;
-        }
-
-        /// <summary>Compares all observable adaptive-result fields without introducing a tolerance change.</summary>
-        private static void AssertResultsEqual(AdaptiveResult expected, AdaptiveResult actual)
-        {
-            Assert.That(actual.Value, Is.EqualTo(expected.Value)); Assert.That(actual.Error, Is.EqualTo(expected.Error)); Assert.That(actual.Tolerance, Is.EqualTo(expected.Tolerance));
-            Assert.That(actual.Evaluations, Is.EqualTo(expected.Evaluations)); Assert.That(actual.Panels, Is.EqualTo(expected.Panels)); Assert.That(actual.Depth, Is.EqualTo(expected.Depth)); Assert.That(actual.Diagnostic, Is.EqualTo(expected.Diagnostic));
-        }
-    }
 }

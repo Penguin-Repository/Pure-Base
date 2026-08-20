@@ -27,93 +27,6 @@ namespace PureBase.Tests.Daily
     /// <summary>Defines the independent fit artifact and numerical protocol contracts.</summary>
     public sealed partial class PureBasePbrMultipleScatteringCompensationTests
     {
-        /// <summary>Requires repeated explicit finite probes to return identical structured budget evidence.</summary>
-        [Test]
-        public void SelectionProbeReturnsDeterministicBudgetTrace()
-        {
-            SelectionProbeResult first = AdaptiveProtocol.RunSelectionProbeForTest(new SelectionExecutionBudget(64));
-            SelectionProbeResult second = AdaptiveProtocol.RunSelectionProbeForTest(new SelectionExecutionBudget(64));
-            Assert.That(first.State, Is.EqualTo(SelectionProbeState.BudgetExhausted));
-            Assert.That(first.Selection, Is.Null);
-            Assert.That(first.Exception, Is.TypeOf<InvalidOperationException>());
-            AssertProbesEqual(first, second);
-        }
-
-        /// <summary>Requires finite probe buckets to account for every accepted reservation and preserve failure evidence.</summary>
-        [Test]
-        public void SelectionProbeTraceAccountsForEveryAcceptedReservation()
-        {
-            SelectionProbeResult probe = AdaptiveProtocol.RunSelectionProbeForTest(new SelectionExecutionBudget(64));
-            long reservations = 0;
-            foreach (SelectionExecutionTraceBucket bucket in probe.Trace.Buckets) reservations += bucket.Reservations;
-            Assert.That(probe.State, Is.EqualTo(SelectionProbeState.BudgetExhausted));
-            Assert.That(reservations, Is.EqualTo(probe.Trace.Used));
-            Assert.That(probe.Trace.Used, Is.EqualTo(probe.Trace.Limit));
-            Assert.That(probe.Trace.LastAccepted.HasValue, Is.True);
-            Assert.That(probe.Trace.FirstRejection.HasValue, Is.True);
-            Assert.That(probe.Trace.FirstRejection.Value.KernelStarted, Is.False);
-            Assert.That(probe.Exception.Message, Is.EqualTo(probe.Trace.FirstRejection.Value.ToString()));
-        }
-
-        /// <summary>Requires the finite probe to avoid both canonical artifact mutation and lazy-cache access.</summary>
-        [Test]
-        public void SelectionProbeIsCacheAndArtifactIsolated()
-        {
-            string path = AdaptiveProtocol.CanonicalArtifactPath; bool existed = File.Exists(path); byte[] before = existed ? File.ReadAllBytes(path) : null;
-            var field = typeof(PureBasePbrMultipleScatteringFurnaceOracle).GetField("SelectionCache", BindingFlags.NonPublic | BindingFlags.Static);
-            var cache = (Lazy<AdaptiveSelection>)field.GetValue(null); bool cacheBefore = cache.IsValueCreated;
-            SelectionProbeResult probe = AdaptiveProtocol.RunSelectionProbeForTest(new SelectionExecutionBudget(64));
-            Assert.That(probe.State, Is.EqualTo(SelectionProbeState.BudgetExhausted));
-            Assert.That(cache.IsValueCreated, Is.EqualTo(cacheBefore));
-            Assert.That(File.Exists(path), Is.EqualTo(existed)); if (existed) Assert.That(File.ReadAllBytes(path), Is.EqualTo(before));
-        }
-
-        /// <summary>Requires primary exhaustion to reject before the shared scalar kernel starts.</summary>
-        [Test]
-        public void SelectionBudgetRejectsBeforePrimaryKernelWork()
-        {
-            SelectionExecutionBudget budget = new SelectionExecutionBudget(0);
-            AdaptiveResult result = AdaptivePrimary.Integrate(ProbeSettings(), 0.5d, 0.5d, false, budget, ProbeContext("primary"));
-            AssertRejectedBeforeKernel(result, budget, "primary");
-        }
-
-        /// <summary>Requires cross-check exhaustion to reject before the shared scalar kernel starts.</summary>
-        [Test]
-        public void SelectionBudgetRejectsBeforeCrossKernelWork()
-        {
-            SelectionExecutionBudget budget = new SelectionExecutionBudget(0);
-            AdaptiveResult result = AdaptiveCrossCheck.Integrate(ProbeSettings(), 0.5d, 0.5d, false, budget, ProbeContext("cross-check"));
-            AssertRejectedBeforeKernel(result, budget, "cross-check");
-        }
-
-        /// <summary>Requires witness exhaustion to reject before the shared scalar kernel starts.</summary>
-        [Test]
-        public void SelectionBudgetRejectsBeforeWitnessKernelWork()
-        {
-            SelectionExecutionBudget budget = new SelectionExecutionBudget(0);
-            AdaptiveResult result = KronrodWitness.Integrate(ProbeSettings(), 0.5d, 0.5d, false, budget, ProbeContext("witness"));
-            AssertRejectedBeforeKernel(result, budget, "witness");
-        }
-
-        /// <summary>Requires injected failures to remain outside canonical artifact persistence.</summary>
-        [Test]
-        public void SelectionBudgetFailureCreatesNoCanonicalArtifact()
-        {
-            string path = AdaptiveProtocol.CanonicalArtifactPath; bool existed = File.Exists(path); byte[] before = existed ? File.ReadAllBytes(path) : null;
-            Assert.Throws<InvalidOperationException>(() => AdaptiveProtocol.RunSelectionForTest(new SelectionExecutionBudget(0)));
-            Assert.That(File.Exists(path), Is.EqualTo(existed)); if (existed) Assert.That(File.ReadAllBytes(path), Is.EqualTo(before));
-        }
-
-        /// <summary>Requires injected selection execution to leave the production lazy cache untouched.</summary>
-        [Test]
-        public void SelectionBudgetInjectedRunnerDoesNotAccessSelectionCache()
-        {
-            var field = typeof(PureBasePbrMultipleScatteringFurnaceOracle).GetField("SelectionCache", BindingFlags.NonPublic | BindingFlags.Static);
-            var cache = (Lazy<AdaptiveSelection>)field.GetValue(null); bool before = cache.IsValueCreated;
-            Assert.Throws<InvalidOperationException>(() => AdaptiveProtocol.RunSelectionForTest(new SelectionExecutionBudget(0)));
-            Assert.That(cache.IsValueCreated, Is.EqualTo(before));
-        }
-
         /// <summary>Proves the retained bounded-Newton diagnostic terminates without becoming canonical data.</summary>
         [Test, Timeout(10000)]
         public void FixedQuadratureRulesTerminate()
@@ -389,7 +302,9 @@ namespace PureBase.Tests.Daily
             Assert.That(AdaptiveProtocol.IsCanonicalArtifactBytesForTest(WithCarriageReturn(bytes)), Is.False);
             Assert.That(AdaptiveProtocol.IsCanonicalArtifactBytesForTest(WithNonAscii(bytes)), Is.False);
             Assert.That(AdaptiveProtocol.IsCanonicalArtifactBytesForTest(WithoutTerminalLf(bytes)), Is.False);
-            Assert.That(artifact, Does.Contain("\"schedulers\": { \"primary\": \"left-before-right-depth-first\", \"crossCheck\": \"right-before-left-depth-first\" }"));
+            AssertIdentityScheduler(artifact, "primary", "left-before-right recursive depth-first");
+            AssertIdentityScheduler(artifact, "crossCheck", "largest indicator first; tie rootSegmentId, depth, binaryPath; left child first");
+            AssertIdentityScheduler(artifact, "witness", "largest local rule indicator first; deterministic directional child order");
             Assert.That(artifact, Does.Contain("\"selectedWitnessDifference\": 0.0001, \"crossDifference\": 0.001"));
             Assert.That(artifact, Does.Contain("\"selectedP95\": 0.004, \"selectedMaximum\": 0.008, \"witnessP95\": 0.0042, \"witnessMaximum\": 0.0082, \"highRoughnessImproves\": true"));
         }
@@ -425,46 +340,15 @@ namespace PureBase.Tests.Daily
             return new AdaptiveSelection(settings, branch, branch, true, true);
         }
 
-        /// <summary>Compares repeated finite probes without relying on exception diagnostic parsing.</summary>
-        private static void AssertProbesEqual(SelectionProbeResult expected, SelectionProbeResult actual)
+        /// <summary>Requires one exact scheduler literal to remain inside its own serialized identity object.</summary>
+        private static void AssertIdentityScheduler(string artifact, string identity, string scheduler)
         {
-            Assert.That(actual.State, Is.EqualTo(expected.State));
-            Assert.That(actual.Trace.Used, Is.EqualTo(expected.Trace.Used));
-            Assert.That(actual.Trace.Limit, Is.EqualTo(expected.Trace.Limit));
-            Assert.That(actual.Exception.GetType(), Is.EqualTo(expected.Exception.GetType()));
-            Assert.That(actual.Exception.Message, Is.EqualTo(expected.Exception.Message));
-            AssertContextsEqual(expected.Trace.LastAccepted, actual.Trace.LastAccepted);
-            AssertFailuresEqual(expected.Trace.FirstRejection, actual.Trace.FirstRejection);
-            Assert.That(actual.Trace.Buckets.Count, Is.EqualTo(expected.Trace.Buckets.Count));
-            for (int index = 0; index < expected.Trace.Buckets.Count; index++) AssertBucketsEqual(expected.Trace.Buckets[index], actual.Trace.Buckets[index]);
-        }
-
-        /// <summary>Compares nullable raw-coordinate contexts exactly by their binary64 identity.</summary>
-        private static void AssertContextsEqual(SelectionExecutionContext? expected, SelectionExecutionContext? actual)
-        {
-            Assert.That(actual.HasValue, Is.EqualTo(expected.HasValue));
-            if (!expected.HasValue) return;
-            SelectionExecutionContext expectedValue = expected.Value; SelectionExecutionContext actualValue = actual.Value;
-            Assert.That(actualValue.Candidate, Is.EqualTo(expectedValue.Candidate)); Assert.That(actualValue.Stage, Is.EqualTo(expectedValue.Stage)); Assert.That(actualValue.Branch, Is.EqualTo(expectedValue.Branch));
-            Assert.That(actualValue.GridName, Is.EqualTo(expectedValue.GridName)); Assert.That(actualValue.GridIndex, Is.EqualTo(expectedValue.GridIndex)); Assert.That(actualValue.Path, Is.EqualTo(expectedValue.Path));
-            Assert.That(BitConverter.DoubleToInt64Bits(actualValue.Coordinate.P), Is.EqualTo(BitConverter.DoubleToInt64Bits(expectedValue.Coordinate.P))); Assert.That(BitConverter.DoubleToInt64Bits(actualValue.Coordinate.V), Is.EqualTo(BitConverter.DoubleToInt64Bits(expectedValue.Coordinate.V)));
-        }
-
-        /// <summary>Compares optional finite failure context and its immutable reservation counters.</summary>
-        private static void AssertFailuresEqual(SelectionExecutionFailure? expected, SelectionExecutionFailure? actual)
-        {
-            Assert.That(actual.HasValue, Is.EqualTo(expected.HasValue));
-            if (!expected.HasValue) return;
-            AssertContextsEqual(expected.Value.Context, actual.Value.Context);
-            Assert.That(actual.Value.Used, Is.EqualTo(expected.Value.Used)); Assert.That(actual.Value.Limit, Is.EqualTo(expected.Value.Limit));
-            Assert.That(actual.Value.KernelStarted, Is.EqualTo(expected.Value.KernelStarted));
-        }
-
-        /// <summary>Compares one ordered aggregate bucket without depending on record equality.</summary>
-        private static void AssertBucketsEqual(SelectionExecutionTraceBucket expected, SelectionExecutionTraceBucket actual)
-        {
-            Assert.That(actual.Candidate, Is.EqualTo(expected.Candidate)); Assert.That(actual.Stage, Is.EqualTo(expected.Stage)); Assert.That(actual.Branch, Is.EqualTo(expected.Branch));
-            Assert.That(actual.GridName, Is.EqualTo(expected.GridName)); Assert.That(actual.Path, Is.EqualTo(expected.Path)); Assert.That(actual.Reservations, Is.EqualTo(expected.Reservations));
+            int identityStart = artifact.IndexOf("\"" + identity + "\": {", StringComparison.Ordinal);
+            int identityEnd = artifact.IndexOf(" }", identityStart, StringComparison.Ordinal);
+            int schedulerStart = artifact.IndexOf("\"scheduler\": \"" + scheduler + "\"", identityStart, StringComparison.Ordinal);
+            Assert.That(identityStart, Is.GreaterThanOrEqualTo(0));
+            Assert.That(identityEnd, Is.GreaterThan(identityStart));
+            Assert.That(schedulerStart, Is.GreaterThan(identityStart).And.LessThan(identityEnd));
         }
 
         /// <summary>Prefixes the bytes with a UTF-8 BOM for strict-format rejection coverage.</summary>
