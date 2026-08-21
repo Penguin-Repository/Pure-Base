@@ -18,15 +18,22 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace PureBase.Tests.Daily
 {
     /// <summary>Tests the immutable, direct-only primary outcome census.</summary>
     public sealed partial class PureBasePbrMultipleScatteringCompensationTests
     {
+        private const string PrimaryOutcomeCensusEvidenceTestName = "PureBase.Tests.Daily.PureBasePbrMultipleScatteringCompensationTests.PrimaryOutcomeCensusRendersFullDeterministicEvidence";
+        private const string PrimaryOutcomeCensusEvidenceFileName = "PureBase.Tests.Daily.PureBasePbrMultipleScatteringCompensationTests.PrimaryOutcomeCensusRendersFullDeterministicEvidence.envelope";
+
         /// <summary>Requires the source-ordered exact-bit union to retain all frozen-grid memberships and both branches.</summary>
         [Test]
         public void PrimaryOutcomeCensusUsesExactBitUnionAndBothBranches()
@@ -67,11 +74,32 @@ namespace PureBase.Tests.Daily
         [Test]
         public void PrimaryOutcomeCensusRendersFullDeterministicEvidence()
         {
+            PreparePrimaryOutcomeCensusEvidenceDirectory();
             PrimaryOutcomeCensus census = AdaptiveProtocol.RunPrimaryOutcomeCensusForTest(); string rendered = PrimaryOutcomeCensusRenderer.Render(census);
             Assert.That(rendered, Does.StartWith("primary-outcome-census version=2 observation=primary-only nonpersistent=true selection-verdict=none shader-safety-certification=none")); Assert.That(rendered, Does.Contain("frozenCandidate=Candidates[0]")); Assert.That(rendered, Does.Contain("fixedPerRowReservationLimit=512")); Assert.That(rendered, Does.Contain("sourceCounts={training=169 validation=49 original=16 stress=25}")); Assert.That(rendered, Does.Contain("categoryCounts={"));
             foreach (PrimaryOutcomeRow row in census.Rows) Assert.That(rendered, Does.Contain("row={index=" + row.CoordinateIndex + " coordinate={"));
             foreach (PrimaryOutcomeRow row in census.Rows) if (row.State != PrimaryDiagnosticState.Accepted) AssertNonAcceptedEvidence(rendered, row);
             TestContext.Progress.WriteLine(rendered);
+            string currentTestId = TestContext.CurrentContext.Test.ID; Assert.That(currentTestId, Is.Not.Empty);
+            byte[] report = Utf8NoBom.GetBytes(rendered); byte[] envelope = CreatePrimaryOutcomeCensusEvidenceEnvelope(report, currentTestId); string hash = GetSha256(report);
+            Assert.That(CreatePrimaryOutcomeCensusEvidenceEnvelope(report, currentTestId), Is.EqualTo(envelope)); Assert.That(GetSha256(report), Is.EqualTo(hash));
+            PublishPrimaryOutcomeCensusEvidence(envelope, report, hash, currentTestId); AssertFinalPrimaryOutcomeCensusEvidenceIsReadable(report, hash, currentTestId);
+            CleanupPrimaryOutcomeCensusEvidenceForTest(); AssertNoPrimaryOutcomeCensusEvidenceArtifacts();
+            PublishPrimaryOutcomeCensusEvidence(envelope, report, hash, currentTestId); AssertFinalPrimaryOutcomeCensusEvidenceIsReadable(report, hash, currentTestId);
+        }
+
+        /// <summary>Removes the named test's transient evidence paths without enumerating other Temp content.</summary>
+        [Test]
+        public void PrimaryOutcomeCensusEvidenceCleanupRemovesPublishedPaths()
+        {
+            CleanupPrimaryOutcomeCensusEvidenceForTest(); AssertNoPrimaryOutcomeCensusEvidenceArtifacts();
+        }
+
+        /// <summary>Removes only this test's final and pending transient evidence files.</summary>
+        internal static void CleanupPrimaryOutcomeCensusEvidenceForTest()
+        {
+            if (File.Exists(PrimaryOutcomeCensusEvidenceFinalPath)) File.Delete(PrimaryOutcomeCensusEvidenceFinalPath);
+            if (File.Exists(PrimaryOutcomeCensusEvidencePendingPath)) File.Delete(PrimaryOutcomeCensusEvidencePendingPath);
         }
 
         /// <summary>Counts source memberships without changing the immutable input list.</summary>
@@ -129,6 +157,70 @@ namespace PureBase.Tests.Daily
         private static Lazy<AdaptiveSelection> GetOutcomeSelectionCache()
         {
             FieldInfo field = typeof(PureBasePbrMultipleScatteringFurnaceOracle).GetField("SelectionCache", BindingFlags.NonPublic | BindingFlags.Static); return (Lazy<AdaptiveSelection>)field.GetValue(null);
+        }
+
+        /// <summary>Gets the deterministic final evidence path below the Unity workspace Temp directory.</summary>
+        private static string PrimaryOutcomeCensusEvidenceFinalPath => Path.Combine(PrimaryOutcomeCensusEvidenceDirectory, PrimaryOutcomeCensusEvidenceFileName);
+
+        /// <summary>Gets the same-volume pending path used before atomically publishing the final evidence.</summary>
+        private static string PrimaryOutcomeCensusEvidencePendingPath => PrimaryOutcomeCensusEvidenceFinalPath + ".pending";
+
+        /// <summary>Gets the dedicated transient evidence directory without depending on a host-specific profile path.</summary>
+        private static string PrimaryOutcomeCensusEvidenceDirectory => Path.Combine(Path.GetFullPath(Path.Combine(Application.dataPath, "..")), "Temp", "PureBase.TestEvidence");
+
+        /// <summary>Gets the fixed UTF-8 encoding used for the byte-identical report body.</summary>
+        private static UTF8Encoding Utf8NoBom => new UTF8Encoding(false);
+
+        /// <summary>Creates the dedicated directory and proves that only the named stale paths were removed.</summary>
+        private static void PreparePrimaryOutcomeCensusEvidenceDirectory()
+        {
+            Directory.CreateDirectory(PrimaryOutcomeCensusEvidenceDirectory); CleanupPrimaryOutcomeCensusEvidenceForTest(); AssertNoPrimaryOutcomeCensusEvidenceArtifacts();
+        }
+
+        /// <summary>Builds the fixed-LF ASCII envelope around the renderer's unchanged UTF-8 report bytes.</summary>
+        private static byte[] CreatePrimaryOutcomeCensusEvidenceEnvelope(byte[] report, string currentTestId)
+        {
+            string header = "format-version=1\nexpected-full-test-name=" + PrimaryOutcomeCensusEvidenceTestName + "\ncurrent-nunit-test-id=" + currentTestId + "\nreport-byte-length=" + report.Length.ToString(CultureInfo.InvariantCulture) + "\nreport-sha256=" + GetSha256(report) + "\n---\n";
+            byte[] headerBytes = Encoding.ASCII.GetBytes(header); byte[] envelope = new byte[headerBytes.Length + report.Length]; Buffer.BlockCopy(headerBytes, 0, envelope, 0, headerBytes.Length); Buffer.BlockCopy(report, 0, envelope, headerBytes.Length, report.Length); return envelope;
+        }
+
+        /// <summary>Writes, flushes, validates, and atomically publishes one complete transient evidence envelope.</summary>
+        private static void PublishPrimaryOutcomeCensusEvidence(byte[] envelope, byte[] report, string hash, string currentTestId)
+        {
+            AssertNoPrimaryOutcomeCensusEvidenceArtifacts(); WriteAndFlushPrimaryOutcomeCensusEvidence(PrimaryOutcomeCensusEvidencePendingPath, envelope); AssertPrimaryOutcomeCensusEvidenceEnvelope(PrimaryOutcomeCensusEvidencePendingPath, report, hash, currentTestId);
+            File.Move(PrimaryOutcomeCensusEvidencePendingPath, PrimaryOutcomeCensusEvidenceFinalPath); Assert.That(File.Exists(PrimaryOutcomeCensusEvidencePendingPath), Is.False); AssertPrimaryOutcomeCensusEvidenceEnvelope(PrimaryOutcomeCensusEvidenceFinalPath, report, hash, currentTestId);
+        }
+
+        /// <summary>Writes one pending envelope synchronously so a later reader cannot observe an unflushed body.</summary>
+        private static void WriteAndFlushPrimaryOutcomeCensusEvidence(string path, byte[] envelope)
+        {
+            using (FileStream stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { stream.Write(envelope, 0, envelope.Length); stream.Flush(true); }
+        }
+
+        /// <summary>Validates every fixed header field, delimiter, hash, and body byte in a published envelope.</summary>
+        private static void AssertPrimaryOutcomeCensusEvidenceEnvelope(string path, byte[] report, string hash, string currentTestId)
+        {
+            string header = "format-version=1\nexpected-full-test-name=" + PrimaryOutcomeCensusEvidenceTestName + "\ncurrent-nunit-test-id=" + currentTestId + "\nreport-byte-length=" + report.Length.ToString(CultureInfo.InvariantCulture) + "\nreport-sha256=" + hash + "\n---\n";
+            byte[] headerBytes = Encoding.ASCII.GetBytes(header); byte[] envelope = File.ReadAllBytes(path); Assert.That(envelope.Length, Is.EqualTo(headerBytes.Length + report.Length)); Assert.That(Encoding.ASCII.GetString(envelope, 0, headerBytes.Length), Is.EqualTo(header));
+            byte[] body = new byte[report.Length]; Buffer.BlockCopy(envelope, headerBytes.Length, body, 0, body.Length); Assert.That(body, Is.EqualTo(report)); Assert.That(GetSha256(body), Is.EqualTo(hash));
+        }
+
+        /// <summary>Reopens the final path to prove that an external reader can recover the validated report body.</summary>
+        private static void AssertFinalPrimaryOutcomeCensusEvidenceIsReadable(byte[] report, string hash, string currentTestId)
+        {
+            AssertPrimaryOutcomeCensusEvidenceEnvelope(PrimaryOutcomeCensusEvidenceFinalPath, report, hash, currentTestId); using (FileStream stream = new FileStream(PrimaryOutcomeCensusEvidenceFinalPath, FileMode.Open, FileAccess.Read, FileShare.Read)) Assert.That(stream.Length, Is.GreaterThan(report.Length));
+        }
+
+        /// <summary>Requires both exact transient paths to be absent without inspecting unrelated Temp files.</summary>
+        private static void AssertNoPrimaryOutcomeCensusEvidenceArtifacts()
+        {
+            Assert.That(File.Exists(PrimaryOutcomeCensusEvidenceFinalPath), Is.False); Assert.That(File.Exists(PrimaryOutcomeCensusEvidencePendingPath), Is.False);
+        }
+
+        /// <summary>Computes the uppercase SHA-256 representation used by the fixed envelope header.</summary>
+        private static string GetSha256(byte[] content)
+        {
+            using (SHA256 algorithm = SHA256.Create()) return BitConverter.ToString(algorithm.ComputeHash(content)).Replace("-", string.Empty);
         }
     }
 }
