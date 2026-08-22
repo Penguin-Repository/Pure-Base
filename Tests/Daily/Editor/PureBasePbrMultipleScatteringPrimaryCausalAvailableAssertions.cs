@@ -63,6 +63,12 @@ namespace PureBase.Tests.Daily
             AssertRun(first, second); AssertIsolation(first); AssertIsolation(second); AssertDirectParity(first); AssertDirectParity(second);
         }
 
+        /// <summary>Checks same-mode deterministic evidence when a finite reservation masks a different null-mode outcome.</summary>
+        internal static void AssertDeterministicBudgetMaskedRuns(PrimaryCausalRun first, PrimaryCausalRun second)
+        {
+            AssertComplete(first); AssertComplete(second); Assert.That(first.Mode, Is.EqualTo(second.Mode)); AssertInvocation(first.Invocation, second.Invocation); AssertRunCore(first, second); AssertReservations(first, second); AssertIsolation(first); AssertIsolation(second); AssertTrace(first.FirstContradictionTrace, second.FirstContradictionTrace);
+        }
+
         /// <summary>Classifies a complete observed depth terminal from its causal record and independently reparsed witness.</summary>
         internal static PrimaryCausalGateResult AssertDepthCapInvariants(PrimaryCausalRun run)
         {
@@ -303,8 +309,8 @@ namespace PureBase.Tests.Daily
         /// <summary>Checks the explicit cache and artifact snapshots did not change around observation.</summary>
         private static void AssertIsolation(PrimaryCausalRun run)
         {
-            Assert.That(run.ObserverIsolationSnapshot.HasValue, Is.True); PrimaryCausalObserverIsolationSnapshot snapshot = run.ObserverIsolationSnapshot.Value;
-            Assert.That(snapshot.PreCacheDigest, Is.EqualTo(snapshot.PostCacheDigest)); Assert.That(snapshot.PreArtifactDigest, Is.EqualTo(snapshot.PostArtifactDigest)); Assert.That(run.PreObserverStateDigest, Is.EqualTo(run.PostObserverStateDigest));
+            Assert.That(run.Availability, Is.EqualTo(PrimaryCausalAvailability.Available)); Assert.That(run.ObserverIsolationSnapshot.HasValue, Is.True); PrimaryCausalObserverIsolationSnapshot snapshot = run.ObserverIsolationSnapshot.Value;
+            Assert.That(snapshot.IsObserved, Is.True); Assert.That(run.PreObserverStateDigest.HasValue, Is.True); Assert.That(run.PostObserverStateDigest.HasValue, Is.True); Assert.That(snapshot.PreCacheDigest.Value, Is.EqualTo(snapshot.PostCacheDigest.Value)); Assert.That(snapshot.PreArtifactDigest.Value, Is.EqualTo(snapshot.PostArtifactDigest.Value)); Assert.That(run.PreObserverStateDigest.Value, Is.EqualTo(run.PostObserverStateDigest.Value));
         }
 
         /// <summary>Checks every exact-bit attempt field within a shared mode-common range.</summary>
@@ -413,7 +419,7 @@ namespace PureBase.Tests.Daily
         /// <summary>Checks exact observer-isolation snapshots when both modes retain them.</summary>
         private static void AssertIsolationSnapshot(PrimaryCausalObserverIsolationSnapshot? left, PrimaryCausalObserverIsolationSnapshot? right)
         {
-            Assert.That(left.HasValue, Is.EqualTo(right.HasValue)); if (!left.HasValue) return; Assert.That(left.Value.PreCacheDigest, Is.EqualTo(right.Value.PreCacheDigest)); Assert.That(left.Value.PostCacheDigest, Is.EqualTo(right.Value.PostCacheDigest)); Assert.That(left.Value.PreArtifactDigest, Is.EqualTo(right.Value.PreArtifactDigest)); Assert.That(left.Value.PostArtifactDigest, Is.EqualTo(right.Value.PostArtifactDigest));
+            Assert.That(left.HasValue, Is.True); Assert.That(right.HasValue, Is.True); Assert.That(left.Value.IsObserved, Is.True); Assert.That(right.Value.IsObserved, Is.True); Assert.That(left.Value.PreCacheDigest.Value, Is.EqualTo(right.Value.PreCacheDigest.Value)); Assert.That(left.Value.PostCacheDigest.Value, Is.EqualTo(right.Value.PostCacheDigest.Value)); Assert.That(left.Value.PreArtifactDigest.Value, Is.EqualTo(right.Value.PreArtifactDigest.Value)); Assert.That(left.Value.PostArtifactDigest.Value, Is.EqualTo(right.Value.PostArtifactDigest.Value));
         }
 
         /// <summary>Checks the optional first contradiction trace exactly.</summary>

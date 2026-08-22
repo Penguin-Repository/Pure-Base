@@ -46,7 +46,13 @@ namespace PureBase.Tests.Daily
         /// <summary>Integrates with an optional observer that cannot affect numerical control flow.</summary>
         internal static AdaptiveResult Integrate(AdaptiveSettings settings, double p, double v, bool switchBranch, SelectionExecutionBudget budget, SelectionExecutionContext context, AdaptivePrimaryCapture capture)
         {
-            var state = new State(settings, p, v, switchBranch, budget, context, capture); AdaptiveEstimate value = IntegratePsi(state, 0.0d, 2.0d * Math.PI, 0, settings.Absolute, 1.0d); return state.Result(value);
+            return Integrate(settings, p, v, switchBranch, budget, context, capture, null);
+        }
+
+        /// <summary>Integrates with an optional causal observer that cannot affect arithmetic or control flow.</summary>
+        internal static AdaptiveResult Integrate(AdaptiveSettings settings, double p, double v, bool switchBranch, SelectionExecutionBudget budget, SelectionExecutionContext context, AdaptivePrimaryCapture capture, PrimaryCausalObserver causalObserver)
+        {
+            var state = new State(settings, p, v, switchBranch, budget, context, capture, causalObserver); AdaptiveEstimate value = IntegratePsi(state, 0.0d, 2.0d * Math.PI, 0, settings.Absolute, 1.0d); return state.Result(value);
         }
 
         /// <summary>Gets the deterministic eta boundaries used for a primary azimuth line.</summary>
@@ -78,19 +84,20 @@ namespace PureBase.Tests.Daily
         private static AdaptiveEstimate IntegratePsi(State state, double left, double right, int depth, double absoluteBudget, double relativeShare)
         {
             if (state.Failed) return default;
-            AdaptiveEstimate coarse = PsiRule(state, left, right, Nodes3, Weights3, absoluteBudget, relativeShare);
-            if (state.Failed) return coarse;
-            AdaptiveEstimate fine = PsiRule(state, left, right, Nodes5, Weights5, absoluteBudget, relativeShare);
-            return state.Failed ? fine : state.Split(coarse, fine, "psi", double.NaN, left, right, depth, absoluteBudget, relativeShare, IntegratePsi);
+            state.ObserveEntry("psi", double.NaN, left, right, depth);
+            AdaptiveEstimate coarse = PsiRule(state, left, right, Nodes3, Weights3, "coarse3", absoluteBudget, relativeShare);
+            if (state.Failed) { state.ObserveExit(coarse.Value); return coarse; }
+            AdaptiveEstimate fine = PsiRule(state, left, right, Nodes5, Weights5, "fine5", absoluteBudget, relativeShare);
+            AdaptiveEstimate result = state.Failed ? fine : state.Split(coarse, fine, "psi", double.NaN, left, right, depth, absoluteBudget, relativeShare, IntegratePsi); state.ObserveExit(result.Value); return result;
         }
 
         /// <summary>Evaluates the outer primary rule with independently split eta integrals.</summary>
-        private static AdaptiveEstimate PsiRule(State state, double left, double right, double[] nodes, double[] weights, double absoluteBudget, double relativeShare)
+        private static AdaptiveEstimate PsiRule(State state, double left, double right, double[] nodes, double[] weights, string rule, double absoluteBudget, double relativeShare)
         {
             double center = (left + right) * 0.5d; double half = (right - left) * 0.5d; var total = new EstimateSum();
             for (int index = 0; index < nodes.Length && !state.Failed; index++)
             {
-                double scale = half * weights[index]; AdaptiveEstimate eta = IntegrateEtaPartitions(state, center + half * nodes[index], absoluteBudget / (2.0d * half), relativeShare); total.Add(AdaptiveEstimate.Scale(eta, scale));
+                double psi = center + half * nodes[index]; state.ObservePsiNode(rule, index, psi, nodes[index]); double scale = half * weights[index]; AdaptiveEstimate eta = IntegrateEtaPartitions(state, psi, absoluteBudget / (2.0d * half), relativeShare); total.Add(AdaptiveEstimate.Scale(eta, scale));
             }
             return total.Value;
         }
@@ -98,11 +105,11 @@ namespace PureBase.Tests.Daily
         /// <summary>Splits each eta line at both declared validity and safe-normalize guard curves.</summary>
         private static AdaptiveEstimate IntegrateEtaPartitions(State state, double psi, double absoluteBudget, double relativeShare)
         {
-            double[] boundaries = EtaBoundaries(state.P, state.V, psi); bool[] useX = VisibilityTailXPartitions(state.P, state.V, psi, state.SwitchBranch, boundaries); var total = new EstimateSum();
+            double[] boundaries = EtaBoundaries(state.P, state.V, psi); bool[] useX = VisibilityTailXPartitions(state.P, state.V, psi, state.SwitchBranch, boundaries); string[] labels = state.HasCausalObserver ? EtaBoundaryLabels(state.P, state.V, psi, boundaries) : null; var total = new EstimateSum();
             state.RecordPartitions(psi, boundaries, useX);
             for (int index = 0; index < boundaries.Length - 1 && !state.Failed; index++)
             {
-                double left = boundaries[index]; double right = boundaries[index + 1]; double share = right - left;
+                double left = boundaries[index]; double right = boundaries[index + 1]; double share = right - left; if (labels != null) state.ObservePartition(0, index, left, right, useX[index], labels[index], labels[index + 1]);
                 total.Add(useX[index] ? IntegrateVisibilityTailEta(state, psi, left, right, 0, absoluteBudget * share, relativeShare) : IntegrateEta(state, psi, left, right, 0, absoluteBudget * share, relativeShare));
             }
             return total.Value;
@@ -112,10 +119,11 @@ namespace PureBase.Tests.Daily
         private static AdaptiveEstimate IntegrateEta(State state, double psi, double left, double right, int depth, double absoluteBudget, double relativeShare)
         {
             if (state.Failed) return default;
+            state.ObserveEntry("eta", psi, left, right, depth);
             AdaptiveEstimate coarse = EtaRule(state, psi, left, right, depth, Nodes3, Weights3);
-            if (state.Failed) return coarse;
+            if (state.Failed) { state.ObserveExit(coarse.Value); return coarse; }
             AdaptiveEstimate fine = EtaRule(state, psi, left, right, depth, Nodes5, Weights5);
-            return state.Failed ? fine : state.Split(coarse, fine, "eta", psi, left, right, depth, absoluteBudget, relativeShare, (current, a, b, d, budget, share) => IntegrateEta(current, psi, a, b, d, budget, share));
+            AdaptiveEstimate result = state.Failed ? fine : state.Split(coarse, fine, "eta", psi, left, right, depth, absoluteBudget, relativeShare, (current, a, b, d, budget, share) => IntegrateEta(current, psi, a, b, d, budget, share)); state.ObserveExit(result.Value); return result;
         }
 
         /// <summary>Reparameterizes one fixed visibility-tail suffix with eta=1-x^2 and deta=2x dx.</summary>
@@ -128,17 +136,18 @@ namespace PureBase.Tests.Daily
         private static AdaptiveEstimate IntegrateTerminalX(State state, double psi, double left, double right, int depth, double absoluteBudget, double relativeShare)
         {
             if (state.Failed) return default;
+            state.ObserveEntry("eta-x", psi, left, right, depth);
             AdaptiveEstimate coarse = TerminalEtaRule(state, psi, left, right, depth, Nodes3, Weights3);
-            if (state.Failed) return coarse;
+            if (state.Failed) { state.ObserveExit(coarse.Value); return coarse; }
             AdaptiveEstimate fine = TerminalEtaRule(state, psi, left, right, depth, Nodes5, Weights5);
-            return state.Failed ? fine : state.Split(coarse, fine, "eta-x", psi, left, right, depth, absoluteBudget, relativeShare, (current, a, b, d, budget, share) => IntegrateTerminalX(current, psi, a, b, d, budget, share));
+            AdaptiveEstimate result = state.Failed ? fine : state.Split(coarse, fine, "eta-x", psi, left, right, depth, absoluteBudget, relativeShare, (current, a, b, d, budget, share) => IntegrateTerminalX(current, psi, a, b, d, budget, share)); state.ObserveExit(result.Value); return result;
         }
 
         /// <summary>Evaluates the primary eta rule without sampling its partition endpoints.</summary>
         private static AdaptiveEstimate EtaRule(State state, double psi, double left, double right, int depth, double[] nodes, double[] weights)
         {
             double center = (left + right) * 0.5d; double half = (right - left) * 0.5d; var total = new Sum();
-            for (int index = 0; index < nodes.Length && !state.Failed; index++) total.Add(weights[index] * Sample(state, center + half * nodes[index], psi, "eta", left, right, depth));
+            for (int index = 0; index < nodes.Length && !state.Failed; index++) total.Add(weights[index] * Sample(state, center + half * nodes[index], psi, "eta", left, right, depth, double.NaN, double.NaN));
             return new AdaptiveEstimate(half * total.Value, 0.0d);
         }
 
@@ -146,14 +155,14 @@ namespace PureBase.Tests.Daily
         private static AdaptiveEstimate TerminalEtaRule(State state, double psi, double left, double right, int depth, double[] nodes, double[] weights)
         {
             double center = (left + right) * 0.5d; double half = (right - left) * 0.5d; var total = new Sum();
-            for (int index = 0; index < nodes.Length && !state.Failed; index++) { double x = center + half * nodes[index]; total.Add(weights[index] * Sample(state, 1.0d - x * x, psi, "eta-x", left, right, depth) * (2.0d * x)); }
+            for (int index = 0; index < nodes.Length && !state.Failed; index++) { double x = center + half * nodes[index]; total.Add(weights[index] * Sample(state, 1.0d - x * x, psi, "eta-x", left, right, depth, x, 2.0d * x) * (2.0d * x)); }
             return new AdaptiveEstimate(half * total.Value, 0.0d);
         }
 
         /// <summary>Rebuilds L and V before the shared exact HLSL-equivalent scalar kernel.</summary>
-        private static double Sample(State state, double eta, double psi, string axis, double left, double right, int depth)
+        private static double Sample(State state, double eta, double psi, string axis, double left, double right, int depth, double rawX = double.NaN, double transformJacobian = double.NaN)
         {
-            if (!state.Evaluate(axis, psi, left, right, depth)) return 0.0d;
+            int sequence = state.ObserveAttempt(axis, psi, eta, axis == "eta-x" ? rawX : eta, left, right, depth, rawX, transformJacobian); if (!state.Evaluate(axis, psi, left, right, depth, sequence)) return 0.0d;
             state.RecordSampleKernelWork(); double a = state.P * state.P; double a2 = a * a; double r2 = a2 * eta / (1.0d - eta); double inverse = 1.0d / Math.Sqrt(1.0d + r2);
             var half = new PureBasePbrMultipleScatteringReference.Direction(Math.Sqrt(r2) * Math.Cos(psi) * inverse, Math.Sqrt(r2) * Math.Sin(psi) * inverse, inverse);
             double q = state.View.Dot(half); PureBasePbrMultipleScatteringReference.Direction light = half * (2.0d * q) - state.View;
@@ -285,24 +294,26 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Maintains primary-only caps and its fixed depth-first panel ordering.</summary>
-        private sealed class State
+        private sealed partial class State
         {
             private readonly AdaptiveSettings settings; private readonly SelectionExecutionBudget budget; private readonly SelectionExecutionContext context; private readonly AdaptivePrimaryCapture capture; private int evaluations; private int panels; private int maximumDepth; private int sampleKernelWork; private string failure;
             /// <summary>Initializes primary state and an optional observer that does not control integration.</summary>
-            internal State(AdaptiveSettings settings, double p, double v, bool switchBranch, SelectionExecutionBudget budget = null, SelectionExecutionContext context = default, AdaptivePrimaryCapture capture = null) { this.settings = settings; this.budget = budget; this.context = context; this.capture = capture; P = p; V = v; View = new PureBasePbrMultipleScatteringReference.Direction(Math.Sqrt(Math.Max(0.0d, 1.0d - v * v)), 0.0d, v); SwitchBranch = switchBranch; }
+            internal State(AdaptiveSettings settings, double p, double v, bool switchBranch, SelectionExecutionBudget budget = null, SelectionExecutionContext context = default, AdaptivePrimaryCapture capture = null, PrimaryCausalObserver causalObserver = null) { this.settings = settings; this.budget = budget; this.context = context; this.capture = capture; this.causalObserver = causalObserver; P = p; V = v; View = new PureBasePbrMultipleScatteringReference.Direction(Math.Sqrt(Math.Max(0.0d, 1.0d - v * v)), 0.0d, v); SwitchBranch = switchBranch; }
             internal double P { get; } internal double V { get; } internal PureBasePbrMultipleScatteringReference.Direction View { get; } internal bool SwitchBranch { get; }
             internal bool Failed => failure != null;
+            internal bool HasCausalObserver => causalObserver != null;
             internal int Panels => panels;
             internal int Evaluations => evaluations;
             internal int SampleKernelWork => sampleKernelWork;
             internal string Failure => failure;
-            internal bool Evaluate(string axis, double outerCoordinate, double left, double right, int depth)
+            internal bool Evaluate(string axis, double outerCoordinate, double left, double right, int depth, int causalSequence)
             {
                 if (Failed) return false;
                 if (evaluations >= settings.MaxEvaluations) { Fail(CapDiagnostic("evaluations", axis, outerCoordinate, left, right, double.NaN, double.NaN, double.NaN, double.NaN, double.NaN, double.NaN, double.NaN, double.NaN, depth)); capture?.RecordTerminalSample(axis, outerCoordinate, left, right, depth, "evaluation-cap"); return false; }
                 evaluations++;
-                if (budget != null && !budget.TryReserve(context)) { Fail(budget.CreateException().Message); capture?.RecordTerminalSample(axis, outerCoordinate, left, right, depth, "selection-budget-pre-kernel"); return false; }
-                capture?.RecordStartedSample(axis, outerCoordinate, left, right, depth);
+                if (budget != null && !budget.TryReserve(context)) { ObserveReservation(causalSequence, true, false, (int)budget.Used, (int)budget.Limit); Fail(budget.CreateException().Message); capture?.RecordTerminalSample(axis, outerCoordinate, left, right, depth, "selection-budget-pre-kernel"); return false; }
+                if (budget != null) ObserveReservation(causalSequence, true, true, (int)budget.Used, (int)budget.Limit); else ObserveReservation(causalSequence, false, true, 0, 0);
+                capture?.RecordStartedSample(axis, outerCoordinate, left, right, depth); ObserveStartedAttempt(causalSequence);
                 return true;
             }
             internal void RecordSampleKernelWork() { if (!Failed) sampleKernelWork++; }
@@ -315,14 +326,17 @@ namespace PureBase.Tests.Daily
             {
                 if (Failed) return fine;
                 double ruleDelta = Math.Abs(fine.Value - coarse.Value); double relativeLimit = settings.Relative * Math.Abs(fine.Value) * relativeShare; double error = fine.Error + ruleDelta; double limit = absoluteBudget + relativeLimit;
-                if (panels >= settings.MaxPanels) { Fail(CapDiagnostic("panels", axis, outerCoordinate, left, right, coarse.Value, fine.Value, fine.Error, ruleDelta, absoluteBudget, relativeLimit, error, limit, depth)); capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "panel-cap", panels, evaluations); return fine; }
+                bool panelCap = panels >= settings.MaxPanels; ObserveDecisionCondition("panel-cap");
+                if (panelCap) { ObserveDecision("panel-cap", axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit); Fail(CapDiagnostic("panels", axis, outerCoordinate, left, right, coarse.Value, fine.Value, fine.Error, ruleDelta, absoluteBudget, relativeLimit, error, limit, depth)); capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "panel-cap", panels, evaluations); return fine; }
                 panels++; maximumDepth = Math.Max(maximumDepth, depth);
-                if (error <= limit) { capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "accepted", panels, evaluations); return new AdaptiveEstimate(fine.Value, error); }
-                if (depth >= settings.MaxDepth) { Fail(DepthDiagnostic(axis, outerCoordinate, left, right, coarse.Value, fine.Value, fine.Error, ruleDelta, absoluteBudget, relativeLimit, error, limit, depth)); capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "depth-cap", panels, evaluations); return fine; }
-                capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "split", panels, evaluations);
-                double middle = (left + right) * 0.5d; AdaptiveEstimate first = recurse(this, left, middle, depth + 1, absoluteBudget * 0.5d, relativeShare);
+                bool accepted = error <= limit; ObserveDecisionCondition("accepted");
+                if (accepted) { ObserveDecision("accepted", axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit); capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "accepted", panels, evaluations); return new AdaptiveEstimate(fine.Value, error); }
+                bool depthCap = depth >= settings.MaxDepth; ObserveDecisionCondition("depth-cap");
+                if (depthCap) { ObserveDecision("depth-cap", axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit); Fail(DepthDiagnostic(axis, outerCoordinate, left, right, coarse.Value, fine.Value, fine.Error, ruleDelta, absoluteBudget, relativeLimit, error, limit, depth)); capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "depth-cap", panels, evaluations); return fine; }
+                ObserveDecision("split", axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit); capture?.RecordSplit(axis, outerCoordinate, left, right, depth, coarse, fine, ruleDelta, absoluteBudget, relativeLimit, error, limit, "split", panels, evaluations);
+                double middle = (left + right) * 0.5d; ObserveLeftChild(); AdaptiveEstimate first = recurse(this, left, middle, depth + 1, absoluteBudget * 0.5d, relativeShare);
                 if (Failed) return first;
-                AdaptiveEstimate second = recurse(this, middle, right, depth + 1, absoluteBudget * 0.5d, relativeShare);
+                ObserveRightChild(); AdaptiveEstimate second = recurse(this, middle, right, depth + 1, absoluteBudget * 0.5d, relativeShare);
                 return new AdaptiveEstimate(first.Value + second.Value, first.Error + second.Error);
             }
             /// <summary>Formats the first pre-increment resource-cap rejection with complete local evidence.</summary>

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-// Defines bounded causal-diagnostic contracts without observing primary arithmetic yet.
+// Defines bounded paired observer-disabled and observer-enabled causal diagnostics with fail-closed availability.
 
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace PureBase.Tests.Daily
@@ -73,23 +76,25 @@ namespace PureBase.Tests.Daily
         Available
     }
 
-    /// <summary>Stores immutable cache and artifact identities before and after causal observation.</summary>
+    /// <summary>Stores observable cache and artifact identities before and after causal observation.</summary>
     internal readonly struct PrimaryCausalObserverIsolationSnapshot
     {
-        /// <summary>Initializes exact cache and artifact identities around one observed run.</summary>
-        internal PrimaryCausalObserverIsolationSnapshot(ulong preCacheDigest, ulong postCacheDigest, ulong preArtifactDigest, ulong postArtifactDigest)
+        /// <summary>Initializes exact identities or null when an observer-only path cannot observe them.</summary>
+        internal PrimaryCausalObserverIsolationSnapshot(ulong? preCacheDigest, ulong? postCacheDigest, ulong? preArtifactDigest, ulong? postArtifactDigest)
         {
             PreCacheDigest = preCacheDigest; PostCacheDigest = postCacheDigest; PreArtifactDigest = preArtifactDigest; PostArtifactDigest = postArtifactDigest;
         }
 
-        /// <summary>Gets the cache identity before observation.</summary>
-        internal ulong PreCacheDigest { get; }
-        /// <summary>Gets the cache identity after observation.</summary>
-        internal ulong PostCacheDigest { get; }
-        /// <summary>Gets the artifact identity before observation.</summary>
-        internal ulong PreArtifactDigest { get; }
-        /// <summary>Gets the artifact identity after observation.</summary>
-        internal ulong PostArtifactDigest { get; }
+        /// <summary>Gets the cache identity before observation, or null when unavailable.</summary>
+        internal ulong? PreCacheDigest { get; }
+        /// <summary>Gets the cache identity after observation, or null when unavailable.</summary>
+        internal ulong? PostCacheDigest { get; }
+        /// <summary>Gets the artifact identity before observation, or null when unavailable.</summary>
+        internal ulong? PreArtifactDigest { get; }
+        /// <summary>Gets the artifact identity after observation, or null when unavailable.</summary>
+        internal ulong? PostArtifactDigest { get; }
+        /// <summary>Gets whether every required isolation identity was actually observed.</summary>
+        internal bool IsObserved => PreCacheDigest.HasValue && PostCacheDigest.HasValue && PreArtifactDigest.HasValue && PostArtifactDigest.HasValue;
     }
 
     /// <summary>Stores the complete result returned by the existing capture-free primary entry point.</summary>
@@ -237,12 +242,12 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Initializes a bounded causal run result.</summary>
         internal PrimaryCausalRun(PrimaryCausalInvocation invocation, PrimaryCausalMode mode, PrimaryCausalAvailability availability, string unavailableReason, PrimaryCausalAttemptCore[] attempts, ReservationObservation[] reservations, PrimaryCausalLineageRecord[] lineage, PrimaryCausalTerminalInvocation[] terminals)
-            : this(invocation, mode, availability, unavailableReason, attempts, reservations, lineage, terminals, Array.Empty<PrimaryCausalCrossAxisEdge>(), Array.Empty<PrimaryCausalAggregate>(), Array.Empty<PrimaryCausalLineageRecord>(), null, invocation.BaselineState, null, 0UL, 0UL, 0UL, null) { }
+            : this(invocation, mode, availability, unavailableReason, attempts, reservations, lineage, terminals, Array.Empty<PrimaryCausalCrossAxisEdge>(), Array.Empty<PrimaryCausalAggregate>(), Array.Empty<PrimaryCausalLineageRecord>(), null, invocation.BaselineState, null, 0UL, null, null, null) { }
 
         /// <summary>Initializes complete bounded causal evidence with retained results and observer state.</summary>
-        internal PrimaryCausalRun(PrimaryCausalInvocation invocation, PrimaryCausalMode mode, PrimaryCausalAvailability availability, string unavailableReason, PrimaryCausalAttemptCore[] attempts, ReservationObservation[] reservations, PrimaryCausalLineageRecord[] lineage, PrimaryCausalTerminalInvocation[] terminals, PrimaryCausalCrossAxisEdge[] crossAxisEdges, PrimaryCausalAggregate[] aggregates, PrimaryCausalLineageRecord[] terminalAncestorChain, PrimaryCausalContradictionTrace firstContradictionTrace, PrimaryCausalBaselineState terminalState, PrimaryCausalCompleteResult? completeResult, ulong modeCommonCoreDigest, ulong preObserverStateDigest, ulong postObserverStateDigest, PrimaryCausalObserverDisabledWitness observerDisabledWitness, PrimaryCausalObserverIsolationSnapshot? observerIsolationSnapshot = null, PrimaryCausalDirectResult? directResult = null, PrimaryCausalAttemptCore? preReservationAttemptCore = null)
+        internal PrimaryCausalRun(PrimaryCausalInvocation invocation, PrimaryCausalMode mode, PrimaryCausalAvailability availability, string unavailableReason, PrimaryCausalAttemptCore[] attempts, ReservationObservation[] reservations, PrimaryCausalLineageRecord[] lineage, PrimaryCausalTerminalInvocation[] terminals, PrimaryCausalCrossAxisEdge[] crossAxisEdges, PrimaryCausalAggregate[] aggregates, PrimaryCausalLineageRecord[] terminalAncestorChain, PrimaryCausalContradictionTrace firstContradictionTrace, PrimaryCausalBaselineState terminalState, PrimaryCausalCompleteResult? completeResult, ulong modeCommonCoreDigest, ulong? preObserverStateDigest, ulong? postObserverStateDigest, PrimaryCausalObserverDisabledWitness observerDisabledWitness, PrimaryCausalObserverIsolationSnapshot? observerIsolationSnapshot = null, PrimaryCausalDirectResult? directResult = null, PrimaryCausalAttemptCore? preReservationAttemptCore = null)
         {
-            if (availability == PrimaryCausalAvailability.Available && (!completeResult.HasValue || modeCommonCoreDigest == 0UL)) throw new ArgumentException("Available causal evidence requires a complete result and mode-common digest.");
+            if (availability == PrimaryCausalAvailability.Available && (!completeResult.HasValue || modeCommonCoreDigest == 0UL || !preObserverStateDigest.HasValue || !postObserverStateDigest.HasValue || !observerIsolationSnapshot.HasValue || !observerIsolationSnapshot.Value.IsObserved)) throw new ArgumentException("Available causal evidence requires complete results and observed isolation identities.");
             Invocation = invocation; Mode = mode; Availability = availability; UnavailableReason = unavailableReason; this.attempts = CopyBounded(attempts); this.reservations = CopyBounded(reservations); this.lineage = CopyBounded(lineage); this.terminals = Copy(terminals); this.crossAxisEdges = Copy(crossAxisEdges); this.aggregates = Copy(aggregates); this.terminalAncestorChain = Copy(terminalAncestorChain); this.preReservationAttemptCore = preReservationAttemptCore; FirstContradictionTrace = firstContradictionTrace; TerminalState = terminalState; CompleteResult = completeResult; ModeCommonCoreDigest = modeCommonCoreDigest; PreObserverStateDigest = preObserverStateDigest; PostObserverStateDigest = postObserverStateDigest; ObserverDisabledWitness = observerDisabledWitness; ObserverIsolationSnapshot = observerIsolationSnapshot; DirectResult = directResult;
         }
 
@@ -278,10 +283,10 @@ namespace PureBase.Tests.Daily
         internal PrimaryCausalCompleteResult? CompleteResult { get; }
         /// <summary>Gets the digest of the mode-common scalar attempt core.</summary>
         internal ulong ModeCommonCoreDigest { get; }
-        /// <summary>Gets primary state before observation begins.</summary>
-        internal ulong PreObserverStateDigest { get; }
-        /// <summary>Gets primary state after observation completes.</summary>
-        internal ulong PostObserverStateDigest { get; }
+        /// <summary>Gets primary state identity before observation, or null when unavailable.</summary>
+        internal ulong? PreObserverStateDigest { get; }
+        /// <summary>Gets primary state identity after observation, or null when unavailable.</summary>
+        internal ulong? PostObserverStateDigest { get; }
         /// <summary>Gets immutable observer-disabled terminal evidence when independently captured.</summary>
         internal PrimaryCausalObserverDisabledWitness ObserverDisabledWitness { get; }
         /// <summary>Gets immutable cache and artifact identities around causal observation.</summary>
@@ -289,12 +294,17 @@ namespace PureBase.Tests.Daily
         /// <summary>Gets the complete capture-free primary result paired with the observed run.</summary>
         internal PrimaryCausalDirectResult? DirectResult { get; }
 
-        /// <summary>Creates a complete synthetic run for parser-only contract tests.</summary>
-        internal static PrimaryCausalRun AvailableForParser(PrimaryCausalBaselineState state, PrimaryCausalTerminalInvocation[] terminals)
+        /// <summary>Clears a parsed witness that did not uniquely match an observed terminal identity.</summary>
+        internal PrimaryCausalRun WithoutObserverDisabledWitness()
+        {
+            return new PrimaryCausalRun(Invocation, Mode, Availability, UnavailableReason, attempts, reservations, lineage, terminals, crossAxisEdges, aggregates, terminalAncestorChain, FirstContradictionTrace, TerminalState, CompleteResult, ModeCommonCoreDigest, PreObserverStateDigest, PostObserverStateDigest, null, ObserverIsolationSnapshot, DirectResult, preReservationAttemptCore);
+        }
+
+        /// <summary>Creates an unavailable identity fixture for parser-only contract tests.</summary>
+        internal static PrimaryCausalRun UnavailableForParser(PrimaryCausalBaselineState state, PrimaryCausalTerminalInvocation[] terminals)
         {
             var invocation = new PrimaryCausalInvocation(0, 1.0d, 1.0d, false, state);
-            var result = new PrimaryCausalCompleteResult(state, "parser-only", 0, 0.0d, 0.0d, null);
-            return new PrimaryCausalRun(invocation, PrimaryCausalMode.NoSelectionBudget, PrimaryCausalAvailability.Available, null, Array.Empty<PrimaryCausalAttemptCore>(), Array.Empty<ReservationObservation>(), Array.Empty<PrimaryCausalLineageRecord>(), terminals, Array.Empty<PrimaryCausalCrossAxisEdge>(), Array.Empty<PrimaryCausalAggregate>(), Array.Empty<PrimaryCausalLineageRecord>(), null, state, result, 1UL, 0UL, 0UL, null);
+            return new PrimaryCausalRun(invocation, PrimaryCausalMode.NoSelectionBudget, PrimaryCausalAvailability.Unavailable, "Parser-only evidence does not establish runtime availability.", Array.Empty<PrimaryCausalAttemptCore>(), Array.Empty<ReservationObservation>(), Array.Empty<PrimaryCausalLineageRecord>(), terminals, Array.Empty<PrimaryCausalCrossAxisEdge>(), Array.Empty<PrimaryCausalAggregate>(), Array.Empty<PrimaryCausalLineageRecord>(), null, state, null, 0UL, null, null, null);
         }
 
         /// <summary>Copies only the required mode-common attempt prefix.</summary>
@@ -312,13 +322,55 @@ namespace PureBase.Tests.Daily
         }
     }
 
-    /// <summary>Exposes the explicit unavailable causal runner until the primary path provides instrumentation.</summary>
+    /// <summary>Executes paired observer-disabled and observer-enabled primary diagnostics.</summary>
     internal static class PrimaryCausalDiagnosticRunner
     {
-        /// <summary>Returns explicit unavailable evidence without invoking or mutating primary arithmetic.</summary>
+        /// <summary>Returns bounded causal evidence paired with an unchanged observer-disabled primary result.</summary>
         internal static PrimaryCausalRun Run(PrimaryCausalInvocation invocation, PrimaryCausalMode mode)
         {
-            return new PrimaryCausalRun(invocation, mode, PrimaryCausalAvailability.Unavailable, "primary-causal-observer-unavailable", Array.Empty<PrimaryCausalAttemptCore>(), Array.Empty<ReservationObservation>(), Array.Empty<PrimaryCausalLineageRecord>(), Array.Empty<PrimaryCausalTerminalInvocation>());
+            AdaptiveSettings settings = FrozenCalibrationASettings(); AdaptiveResult directResult = Integrate(settings, invocation, mode, null); var direct = new PrimaryCausalDirectResult(directResult.Value, directResult.Error, directResult.Tolerance, directResult.Evaluations, directResult.Panels, directResult.Depth, directResult.Diagnostic);
+            PrimaryCausalObserverDisabledWitness witness = null; if (directResult.Diagnostic != null) PrimaryCausalDiagnosticParser.TryParseObserverDisabledDepth(directResult.Diagnostic, out witness);
+            bool hasPreIdentity = TryCaptureIsolationIdentities(out ulong preCache, out ulong preArtifact); var observer = new PrimaryCausalObserver(invocation); bool hasPreObserverState = TryCaptureObserverStateIdentity(out ulong preObserverState); AdaptiveResult observedResult = Integrate(settings, invocation, mode, observer); bool hasPostObserverState = TryCaptureObserverStateIdentity(out ulong postObserverState); bool hasPostIdentity = TryCaptureIsolationIdentities(out ulong postCache, out ulong postArtifact);
+            PrimaryCausalObserverIsolationSnapshot? isolation = hasPreIdentity && hasPostIdentity ? new PrimaryCausalObserverIsolationSnapshot(preCache, postCache, preArtifact, postArtifact) : null;
+            PrimaryCausalRun observed = observer.Complete(observedResult, mode, witness, direct, isolation, hasPreObserverState ? preObserverState : (ulong?)null, hasPostObserverState ? postObserverState : (ulong?)null);
+            if (directResult.Diagnostic == null || PrimaryCausalDiagnosticParser.TryMatchObserverDisabledDepth(directResult.Diagnostic, observed, out _)) return observed;
+            return observed.WithoutObserverDisabledWitness();
+        }
+
+        /// <summary>Runs one primary invocation with the mode's independent selection reservation policy.</summary>
+        private static AdaptiveResult Integrate(AdaptiveSettings settings, PrimaryCausalInvocation invocation, PrimaryCausalMode mode, PrimaryCausalObserver observer)
+        {
+            if (mode == PrimaryCausalMode.NoSelectionBudget) return AdaptivePrimary.Integrate(settings, invocation.P, invocation.NdotV, invocation.SwitchBranch, null, default, null, observer);
+            var budget = new SelectionExecutionBudget(512); var coordinate = new AdaptiveCoordinate(invocation.P, invocation.NdotV); var context = new SelectionExecutionContext(settings.Name, "causal-direct-parity", invocation.SwitchBranch ? "switch" : "normal", "causal", invocation.CoordinateIndex, coordinate, "primary");
+            return AdaptivePrimary.Integrate(settings, coordinate.P, coordinate.V, invocation.SwitchBranch, budget, context, null, observer);
+        }
+
+        /// <summary>Creates the frozen calibration-a settings without reading selection state.</summary>
+        private static AdaptiveSettings FrozenCalibrationASettings() => new AdaptiveSettings("calibration-a", 0.00004d, 0.0004d, 0.00001d, 0.0001d, 18, 65536, 1000000);
+
+        /// <summary>Captures cache realization and artifact bytes without requesting the lazy cache value.</summary>
+        private static bool TryCaptureIsolationIdentities(out ulong cacheDigest, out ulong artifactDigest)
+        {
+            cacheDigest = 0UL; artifactDigest = 0UL; FieldInfo field = typeof(PureBasePbrMultipleScatteringFurnaceOracle).GetField("SelectionCache", BindingFlags.NonPublic | BindingFlags.Static); var cache = field == null ? null : field.GetValue(null) as Lazy<AdaptiveSelection>;
+            if (cache == null) return false;
+            cacheDigest = Digest(cache.IsValueCreated ? new byte[] { 1 } : new byte[] { 0 }); string path = AdaptiveProtocol.CanonicalArtifactPath;
+            if (!File.Exists(path)) { artifactDigest = Digest(new byte[] { 0 }); return true; }
+            artifactDigest = Digest(File.ReadAllBytes(path)); return true;
+        }
+
+        /// <summary>Captures the full Unity random generator state without advancing it.</summary>
+        private static bool TryCaptureObserverStateIdentity(out ulong digest)
+        {
+            digest = 0UL; string serialized = UnityEngine.JsonUtility.ToJson(UnityEngine.Random.state);
+            if (string.IsNullOrEmpty(serialized)) return false;
+            digest = Digest(Encoding.UTF8.GetBytes(serialized)); return true;
+        }
+
+        /// <summary>Hashes immutable observed bytes with a nonzero FNV-1a digest.</summary>
+        private static ulong Digest(byte[] values)
+        {
+            ulong hash = 1469598103934665603UL; foreach (byte value in values) hash = (hash ^ value) * 1099511628211UL;
+            return hash == 0UL ? 1UL : hash;
         }
     }
 
@@ -380,11 +432,11 @@ namespace PureBase.Tests.Daily
         /// <summary>Matches the full observer-disabled depth grammar without optional tokens.</summary>
         private static readonly Regex DepthGrammar = new Regex(@"^numerical-limit primary depth axis=(?<axis>[^ ]+) outer=(?<outer>none|[^ ]+) interval=\[(?<left>[^,]+),(?<right>[^\]]+)\] coarse=(?<coarse>[^ ]+) fine=(?<fine>[^ ]+) inheritedInnerError=(?<inherited>[^ ]+) ruleDelta=(?<delta>[^ ]+) absoluteLimit=(?<absolute>[^ ]+) relativeLimit=(?<relative>[^ ]+) error=(?<error>[^ ]+) limit=(?<limit>[^ ]+) errorOverLimit=(?<over>[^ ]+) depth=(?<depth>[^ ]+)$", RegexOptions.CultureInvariant);
 
-        /// <summary>Matches one exact terminal and parses its finite arithmetic fields without recovery.</summary>
+        /// <summary>Matches one exact depth-cap terminal identity without testing runtime availability.</summary>
         internal static bool TryMatchObserverDisabledDepth(string text, PrimaryCausalRun run, out PrimaryCausalDepthEvidence evidence)
         {
             evidence = default;
-            if (run == null || run.Availability != PrimaryCausalAvailability.Available || run.Invocation.BaselineState != PrimaryCausalBaselineState.DepthCap) return false;
+            if (run == null || run.Invocation.BaselineState != PrimaryCausalBaselineState.DepthCap) return false;
             if (!TryParseObserverDisabledDepth(text, out PrimaryCausalObserverDisabledWitness witness)) return false;
             PrimaryCausalTerminalInvocation terminal = witness.Terminal;
             if (MatchingTerminals(run.Terminals, terminal.Axis, terminal.HasOuter, terminal.Outer, terminal.Left, terminal.Right, terminal.Depth) != 1) return false;

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Seeds exact-bit causal contracts while the primary observer remains explicitly unavailable.
+// Seeds exact-bit causal contracts with observed primary identity requirements.
 
 using System;
 using NUnit.Framework;
@@ -44,6 +44,38 @@ namespace PureBase.Tests.Daily
             AssertFixedMatrix(); PrimaryCausalRun[] runs = ExecuteFixedOrder(); AssertFixedOrder(runs);
         }
 
+        /// <summary>Verifies the normal accepted control through both reservation modes twice.</summary>
+        [Test]
+        public void PrimaryCausalAcceptedControlNormal() => AssertFixedCase(FixedCases[0]);
+
+        /// <summary>Verifies the switch accepted control through both reservation modes twice.</summary>
+        [Test]
+        public void PrimaryCausalAcceptedControlSwitch() => AssertFixedCase(FixedCases[1]);
+
+        /// <summary>Verifies the normal index-one reservation exhaustion prefix through both modes twice.</summary>
+        [Test]
+        public void PrimaryCausalBudgetIndex1Normal() => AssertFixedCase(FixedCases[2]);
+
+        /// <summary>Verifies the switch index-one reservation exhaustion prefix through both modes twice.</summary>
+        [Test]
+        public void PrimaryCausalBudgetIndex1Switch() => AssertFixedCase(FixedCases[3]);
+
+        /// <summary>Verifies the normal intrinsic depth terminal through both reservation modes twice.</summary>
+        [Test]
+        public void PrimaryCausalDepthIndex195Normal() => AssertFixedCase(FixedCases[4]);
+
+        /// <summary>Verifies the switch intrinsic depth terminal through both reservation modes twice.</summary>
+        [Test]
+        public void PrimaryCausalDepthIndex195Switch() => AssertFixedCase(FixedCases[5]);
+
+        /// <summary>Verifies the normal index-207 reservation exhaustion prefix through both modes twice.</summary>
+        [Test]
+        public void PrimaryCausalBudgetIndex207Normal() => AssertFixedCase(FixedCases[6]);
+
+        /// <summary>Verifies the switch index-207 reservation exhaustion prefix through both modes twice.</summary>
+        [Test]
+        public void PrimaryCausalBudgetIndex207Switch() => AssertFixedCase(FixedCases[7]);
+
         /// <summary>Requires bounded lineage and common-prefix evidence, which is intentionally unavailable before instrumentation.</summary>
         [Test]
         public void PrimaryCausalDiagnosticRecordsBoundedLineageAndCommonPrefix()
@@ -56,7 +88,7 @@ namespace PureBase.Tests.Daily
             AssertBudgetExhaustedPrefix(finite, unrestricted);
         }
 
-        /// <summary>Requires deterministic observational isolation evidence, which is intentionally unavailable before instrumentation.</summary>
+        /// <summary>Requires deterministic observational isolation evidence.</summary>
         [Test]
         public void PrimaryCausalDiagnosticIsDeterministicObservationalAndIsolated()
         {
@@ -96,7 +128,7 @@ namespace PureBase.Tests.Daily
         [Test]
         public void PrimaryCausalObserverDisabledDepthParserMatchesExactTerminal()
         {
-            PrimaryCausalRun run = DepthRun(new[] { Terminal() });
+            PrimaryCausalRun run = ParserIdentityFixture(new[] { Terminal() }); AssertParserFixtureUnavailable(run);
             Assert.That(PrimaryCausalDiagnosticParser.TryMatchObserverDisabledDepth(DepthText(), run, out PrimaryCausalDepthEvidence evidence), Is.True);
             Assert.That(PrimaryCausalDiagnosticParser.TryParseObserverDisabledDepth(DepthText(), out PrimaryCausalObserverDisabledWitness witness), Is.True);
             Assert.That(witness.RawDiagnostic, Is.EqualTo(DepthText())); Assert.That(witness.Category, Is.EqualTo(PrimaryCausalBaselineState.DepthCap)); Assert.That(witness.Decision, Is.EqualTo("depth-cap")); Assert.That(witness.DecisionOrder.HasValue, Is.False);
@@ -104,7 +136,7 @@ namespace PureBase.Tests.Daily
             Assert.That(Bits(evidence.Coarse), Is.EqualTo(0x3FF0000000000000UL)); Assert.That(Bits(evidence.Fine), Is.EqualTo(0x4000000000000000UL)); Assert.That(Bits(evidence.Inherited), Is.EqualTo(0x4000000000000000UL));
             Assert.That(Bits(evidence.Delta), Is.EqualTo(0x4008000000000000UL)); Assert.That(Bits(evidence.Absolute), Is.EqualTo(0x4010000000000000UL)); Assert.That(Bits(evidence.Relative), Is.EqualTo(0x4014000000000000UL));
             Assert.That(Bits(evidence.Error), Is.EqualTo(0x4014000000000000UL)); Assert.That(Bits(evidence.Limit), Is.EqualTo(0x4022000000000000UL)); Assert.That(Bits(evidence.ErrorOverLimit), Is.EqualTo(0x3FE1C71C71C71C72UL));
-            Assert.That(PrimaryCausalDiagnosticParser.TryMatchObserverDisabledDepth(DepthText().Replace("outer=0.125", "outer=none"), DepthRun(new[] { new PrimaryCausalTerminalInvocation("eta", false, 0.0d, 0.25d, 0.5d, 7) }), out _), Is.True);
+            PrimaryCausalRun outerNone = ParserIdentityFixture(new[] { new PrimaryCausalTerminalInvocation("eta", false, 0.0d, 0.25d, 0.5d, 7) }); AssertParserFixtureUnavailable(outerNone); Assert.That(PrimaryCausalDiagnosticParser.TryMatchObserverDisabledDepth(DepthText().Replace("outer=0.125", "outer=none"), outerNone, out _), Is.True);
             AssertParsedWitnessGate(NormalDepthText(), null, PrimaryCausalGateResult.NoRepair);
             AssertParsedWitnessGate(DepthText(), PrimaryCausalTerminalContradiction.DecisionControlFlow, PrimaryCausalGateResult.AuthorizeTerminalSplitRepair);
             AssertParsedWitnessGateRejectsCausalDifferences();
@@ -114,7 +146,7 @@ namespace PureBase.Tests.Daily
         [Test]
         public void PrimaryCausalObserverDisabledDepthParserRejectsMalformedAmbiguousOrMismatchedEvidence()
         {
-            PrimaryCausalRun run = DepthRun(new[] { Terminal() });
+            PrimaryCausalRun run = ParserIdentityFixture(new[] { Terminal() }); AssertParserFixtureUnavailable(run);
             foreach (string token in RequiredTokens()) { AssertRejected(DepthText().Replace(token, string.Empty), run); AssertRejected(DepthText().Replace(token, token + " " + token), run); }
             foreach (string field in Binary64Fields()) { AssertRejected(DepthText().Replace(field + "=" + FieldValue(field), field + "=invalid"), run); AssertRejected(DepthText().Replace(field + "=" + FieldValue(field), field + "=NaN"), run); AssertRejected(DepthText().Replace(field + "=" + FieldValue(field), field + "=Infinity"), run); }
             AssertRejected(DepthText().Replace("outer=0.125", "outer=NaN"), run); AssertRejected(DepthText().Replace("outer=0.125", "outer=Infinity"), run); AssertRejected(DepthText().Replace("outer=0.125", "outer=invalid"), run);
@@ -123,8 +155,8 @@ namespace PureBase.Tests.Daily
             AssertRejected(DepthText().Replace("depth=7", "depth=invalid"), run); AssertRejected(DepthText().Replace("depth=7", "depth=7.0"), run); AssertRejected(DepthText().Replace("depth=7", "depth=NaN"), run);
             AssertRejected(DepthText() + " trailing", run); AssertRejected(DepthText().Replace("axis=eta", "axis=eta-x"), run); AssertRejected(DepthText().Replace("outer=0.125", "outer=0.12500000000000003"), run);
             AssertRejected(DepthText().Replace("[0.25,0.5]", "[0.25000000000000006,0.5]"), run); AssertRejected(DepthText().Replace("[0.25,0.5]", "[0.25,0.50000000000000011]"), run); AssertRejected(DepthText().Replace("depth=7", "depth=8"), run);
-            AssertRejected(DepthText(), DepthRun(Array.Empty<PrimaryCausalTerminalInvocation>())); AssertRejected(DepthText(), DepthRun(new[] { Terminal(), Terminal() }));
-            foreach (PrimaryCausalBaselineState state in IneligibleStates()) AssertRejected(DepthText(), PrimaryCausalRun.AvailableForParser(state, new[] { Terminal() }));
+            AssertRejected(DepthText(), ParserIdentityFixture(Array.Empty<PrimaryCausalTerminalInvocation>())); AssertRejected(DepthText(), ParserIdentityFixture(new[] { Terminal(), Terminal() }));
+            foreach (PrimaryCausalBaselineState state in IneligibleStates()) AssertRejected(DepthText(), PrimaryCausalRun.UnavailableForParser(state, new[] { Terminal() }));
         }
 
         /// <summary>Builds one literal fixed row without reading mutable census data.</summary>
@@ -165,10 +197,29 @@ namespace PureBase.Tests.Daily
             return runs;
         }
 
-        /// <summary>Fails only with the explicit missing observer result until instrumentation exists.</summary>
+        /// <summary>Runs one frozen literal case in finite then null order for two deterministic passes.</summary>
+        private static void AssertFixedCase(PrimaryCausalCase value)
+        {
+            PrimaryCausalRun finite = PrimaryCausalDiagnosticRunner.Run(value.Invocation, PrimaryCausalMode.Finite512); PrimaryCausalRun unrestricted = PrimaryCausalDiagnosticRunner.Run(value.Invocation, PrimaryCausalMode.NoSelectionBudget);
+            PrimaryCausalRun repeatedFinite = PrimaryCausalDiagnosticRunner.Run(value.Invocation, PrimaryCausalMode.Finite512); PrimaryCausalRun repeatedUnrestricted = PrimaryCausalDiagnosticRunner.Run(value.Invocation, PrimaryCausalMode.NoSelectionBudget);
+            var runs = new[] { finite, unrestricted, repeatedFinite, repeatedUnrestricted }; foreach (PrimaryCausalRun run in runs) AssertAvailable(run);
+            AssertCaseRuns(value, finite, unrestricted, repeatedFinite, repeatedUnrestricted);
+        }
+
+        /// <summary>Applies the finite-prefix or complete-mode contract for two repeated runs of one literal case.</summary>
+        private static void AssertCaseRuns(PrimaryCausalCase value, PrimaryCausalRun finite, PrimaryCausalRun unrestricted, PrimaryCausalRun repeatedFinite, PrimaryCausalRun repeatedUnrestricted)
+        {
+            PrimaryCausalDecisionRecord firstDecision = PrimaryCausalDecisionDiagnostics.Evaluate(finite, unrestricted); PrimaryCausalDecisionRecord repeatedDecision = PrimaryCausalDecisionDiagnostics.Evaluate(repeatedFinite, repeatedUnrestricted);
+            PrimaryCausalDecisionClassification expectedDecision = value.Invocation.BaselineState == PrimaryCausalBaselineState.Accepted ? PrimaryCausalDecisionClassification.NoRepair : PrimaryCausalDecisionClassification.Reject;
+            Assert.That(firstDecision.Classification, Is.EqualTo(expectedDecision), PrimaryCausalDecisionRenderer.Render(firstDecision)); Assert.That(repeatedDecision.Classification, Is.EqualTo(expectedDecision), PrimaryCausalDecisionRenderer.Render(repeatedDecision));
+            if (value.Invocation.BaselineState != PrimaryCausalBaselineState.BudgetExhausted) { PrimaryCausalAvailableAssertions.AssertRepeatedMatrix(new[] { finite, unrestricted, repeatedFinite, repeatedUnrestricted }); AssertFullNumericalModeEquality(finite, unrestricted, value.Invocation.BaselineState); return; }
+            AssertBudgetExhaustedPrefix(finite, unrestricted); AssertBudgetExhaustedPrefix(repeatedFinite, repeatedUnrestricted); PrimaryCausalAvailableAssertions.AssertDeterministicBudgetMaskedRuns(finite, repeatedFinite); PrimaryCausalAvailableAssertions.AssertDeterministicBudgetMaskedRuns(unrestricted, repeatedUnrestricted);
+        }
+
+        /// <summary>Requires complete causal evidence with observed identities.</summary>
         private static void AssertAvailable(PrimaryCausalRun run)
         {
-            Assert.That(run.Availability, Is.EqualTo(PrimaryCausalAvailability.Available), "Causal primary evidence is intentionally unavailable until instrumentation exists.");
+            Assert.That(run.Availability, Is.EqualTo(PrimaryCausalAvailability.Available), "Causal primary evidence requires complete observed identities.");
         }
 
         /// <summary>Checks intended matrix run ordering after the primary runner becomes available.</summary>
@@ -180,7 +231,8 @@ namespace PureBase.Tests.Daily
                 PrimaryCausalRun run = runs[index]; PrimaryCausalInvocation expected = FixedCases[(index / 2) % FixedCases.Length].Invocation;
                 Assert.That(run.Mode, Is.EqualTo(index % 2 == 0 ? PrimaryCausalMode.Finite512 : PrimaryCausalMode.NoSelectionBudget)); Assert.That(run.Invocation.CoordinateIndex, Is.EqualTo(expected.CoordinateIndex)); Assert.That(run.Invocation.SwitchBranch, Is.EqualTo(expected.SwitchBranch)); Assert.That(Bits(run.Invocation.P), Is.EqualTo(Bits(expected.P))); Assert.That(Bits(run.Invocation.NdotV), Is.EqualTo(Bits(expected.NdotV))); Assert.That(run.Invocation.BaselineState, Is.EqualTo(expected.BaselineState));
             }
-            PrimaryCausalAvailableAssertions.AssertRepeatedMatrix(runs);
+            int passLength = FixedCases.Length * 2;
+            for (int index = 0; index < FixedCases.Length; index++) AssertCaseRuns(FixedCases[index], runs[index * 2], runs[index * 2 + 1], runs[passLength + index * 2], runs[passLength + index * 2 + 1]);
         }
 
         /// <summary>Requires an available run to retain a complete result and nonzero common-core digest.</summary>
@@ -284,8 +336,14 @@ namespace PureBase.Tests.Daily
         /// <summary>Creates a named table row for one independent gate outcome.</summary>
         private static PrimaryCausalGateCase Gate(string name, PrimaryCausalGateEvidence evidence, PrimaryCausalGateResult expected) => new PrimaryCausalGateCase(name, evidence, expected);
 
-        /// <summary>Creates an available synthetic depth run containing the supplied exact terminals.</summary>
-        private static PrimaryCausalRun DepthRun(PrimaryCausalTerminalInvocation[] terminals) => PrimaryCausalRun.AvailableForParser(PrimaryCausalBaselineState.DepthCap, terminals);
+        /// <summary>Creates an unavailable parser identity fixture containing the supplied exact terminals.</summary>
+        private static PrimaryCausalRun ParserIdentityFixture(PrimaryCausalTerminalInvocation[] terminals) => PrimaryCausalRun.UnavailableForParser(PrimaryCausalBaselineState.DepthCap, terminals);
+
+        /// <summary>Requires parser identity fixtures to carry no runtime result or isolation evidence.</summary>
+        private static void AssertParserFixtureUnavailable(PrimaryCausalRun run)
+        {
+            Assert.That(run.Availability, Is.EqualTo(PrimaryCausalAvailability.Unavailable)); Assert.That(run.UnavailableReason, Is.EqualTo("Parser-only evidence does not establish runtime availability.")); Assert.That(run.CompleteResult.HasValue, Is.False); Assert.That(run.ModeCommonCoreDigest, Is.EqualTo(0UL)); Assert.That(run.PreObserverStateDigest.HasValue, Is.False); Assert.That(run.PostObserverStateDigest.HasValue, Is.False); Assert.That(run.ObserverIsolationSnapshot.HasValue, Is.False);
+        }
 
         /// <summary>Creates the one exact terminal identity used by parser tests.</summary>
         private static PrimaryCausalTerminalInvocation Terminal() => new PrimaryCausalTerminalInvocation("eta", true, 0.125d, 0.25d, 0.5d, 7);
@@ -387,12 +445,10 @@ namespace PureBase.Tests.Daily
             var lineage = new PrimaryCausalLineageRecord[514];
             for (int index = 0; index < lineage.Length; index++) lineage[index] = new PrimaryCausalLineageRecord(index + 1, index, "root", "eta", 0.0d, index, "depth-cap");
             var chain = new[] { lineage[513] };
-            var trace = new PrimaryCausalContradictionTrace(11, "error-over-limit", chain);
-            PrimaryCausalDepthEvidence depth = new PrimaryCausalDepthEvidence(1, 2, 2, 8, 4, 5, 10, 9, 10.0d / 9.0d); var causal = new PrimaryCausalTerminalEvidence(Terminal(), PrimaryCausalBaselineState.DepthCap, "depth-cap", depth); var result = new PrimaryCausalCompleteResult(PrimaryCausalBaselineState.DepthCap, "depth-cap", 514, 2.0d, 10.0d, causal); var witness = new PrimaryCausalObserverDisabledWitness("retained-depth", Terminal(), PrimaryCausalBaselineState.DepthCap, "depth-cap", depth);
-            var run = new PrimaryCausalRun(FixedCases[4].Invocation, PrimaryCausalMode.NoSelectionBudget, PrimaryCausalAvailability.Available, null, attempts, Array.Empty<ReservationObservation>(), lineage, new[] { Terminal() }, new[] { new PrimaryCausalCrossAxisEdge(3, 11, "coarse3", 0, 0.125d) }, new[] { new PrimaryCausalAggregate("eta", 0, 0, 514, 9.0d, 4, 0x1234UL) }, chain, trace, PrimaryCausalBaselineState.DepthCap, result, 0x1234UL, 0xCAFEUL, 0xCAFEUL, witness);
+            var run = new PrimaryCausalRun(FixedCases[4].Invocation, PrimaryCausalMode.NoSelectionBudget, PrimaryCausalAvailability.Unavailable, "retention-unit-fixture", attempts, Array.Empty<ReservationObservation>(), lineage, new[] { Terminal() }, Array.Empty<PrimaryCausalCrossAxisEdge>(), Array.Empty<PrimaryCausalAggregate>(), chain, null, PrimaryCausalBaselineState.DepthCap, null, 0UL, null, null, null);
             lineage[513] = new PrimaryCausalLineageRecord(999, 0, "changed", "eta", 0.0d, 0, "changed"); chain[0] = lineage[513];
-            Assert.That(run.Attempts.Count, Is.EqualTo(513)); Assert.That(run.Lineage.Count, Is.EqualTo(513)); Assert.That(run.TerminalAncestorChain.Count, Is.EqualTo(1)); Assert.That(run.TerminalAncestorChain[0].InvocationId, Is.EqualTo(514)); Assert.That(run.CrossAxisEdges[0].RuleKind, Is.EqualTo("coarse3")); Assert.That(run.Aggregates[0].MaximumSequence, Is.EqualTo(4)); Assert.That(run.FirstContradictionTrace.Lineage.Count, Is.EqualTo(1)); Assert.That(run.FirstContradictionTrace.Lineage[0].InvocationId, Is.EqualTo(514)); Assert.That(run.ObserverDisabledWitness.RawDiagnostic, Is.EqualTo("retained-depth")); Assert.That(run.TerminalState, Is.EqualTo(PrimaryCausalBaselineState.DepthCap));
-            var missingWitness = new PrimaryCausalGateEvidence(PrimaryCausalBaselineState.DepthCap, true, causal, null, false, false, false, true); Assert.That(PrimaryCausalDecisionGate.Evaluate(missingWitness), Is.EqualTo(PrimaryCausalGateResult.Reject));
+            Assert.That(run.Availability, Is.EqualTo(PrimaryCausalAvailability.Unavailable)); Assert.That(run.UnavailableReason, Is.EqualTo("retention-unit-fixture")); Assert.That(run.CompleteResult.HasValue, Is.False); Assert.That(run.ModeCommonCoreDigest, Is.EqualTo(0UL)); Assert.That(run.PreObserverStateDigest.HasValue, Is.False); Assert.That(run.PostObserverStateDigest.HasValue, Is.False); Assert.That(run.ObserverIsolationSnapshot.HasValue, Is.False); Assert.That(run.ObserverDisabledWitness, Is.Null);
+            Assert.That(run.Attempts.Count, Is.EqualTo(513)); Assert.That(run.Lineage.Count, Is.EqualTo(513)); Assert.That(run.TerminalAncestorChain.Count, Is.EqualTo(1)); Assert.That(run.TerminalAncestorChain[0].InvocationId, Is.EqualTo(514)); Assert.That(run.TerminalAncestorChain[0].SameAxisParentId, Is.EqualTo(513)); Assert.That(run.TerminalState, Is.EqualTo(PrimaryCausalBaselineState.DepthCap));
         }
 
         /// <summary>Requires a parser rejection without accepting a partial or ambiguous recovery.</summary>
