@@ -65,15 +65,15 @@ namespace PureBase.Tests.Daily
         /// <summary>Runs root evaluation and deterministic transactional outer refinement to acceptance or a hard stop.</summary>
         internal LightSpaceOracleResult Run()
         {
-            if (!LightSpaceOracleContractAlignedCandidate.ValidInput(input, target)) { Stop(LightSpaceOracleStopState.NonFiniteInput, default, false); return Result(); }
+            if (!LightSpaceOracleContractAlignedCandidate.ValidInput(input, target)) { Fail(LightSpaceOracleStopState.NonFiniteInput, default); return Result(); }
             if (!TryReservePanels(1) || !TryEvaluateLeaf(new IndependentOracleCanonicalPath(0, 0UL), 0.0d, 1.0d, out LightSpaceOracleCandidateLeaf root)) return Result();
             leaves.Add(root);
             while (true)
             {
-                if (!TryAggregate(out double value, out double error)) { Stop(LightSpaceOracleStopState.GlobalError, default, false); return Result(); }
+                if (!TryAggregate(out double value, out double error)) { Fail(LightSpaceOracleStopState.GlobalError, default); return Result(); }
                 if (error <= target) return Accept(value, error);
                 int selected = SelectHighestErrorLeaf(); LightSpaceOracleCandidateLeaf parent = leaves[selected];
-                if (parent.Path.Depth >= LightSpaceOracleContractAlignedCandidate.MaximumDepth) { Stop(LightSpaceOracleStopState.DepthCap, parent.Path, false); return Result(); }
+                if (parent.Path.Depth >= LightSpaceOracleContractAlignedCandidate.MaximumDepth) { Fail(LightSpaceOracleStopState.DepthCap, parent.Path); return Result(); }
                 if (!TryReservePanels(2)) return Result();
                 maximumDepth = Math.Max(maximumDepth, parent.Path.Depth + 1); double midpoint = (parent.Left + parent.Right) * 0.5d;
                 if (!TryEvaluateLeaf(Child(parent.Path, false), parent.Left, midpoint, out LightSpaceOracleCandidateLeaf left)) return Result();
@@ -91,7 +91,7 @@ namespace PureBase.Tests.Daily
             for (int index = 0; index < outerFine.Length; index++) { q17 += outerFine[index].Weight * values[index]; thetaError += outerFine[index].Weight * angularErrors[index]; }
             for (int index = 0; index < outerCoarse.Length; index++) q9 += outerCoarse[index].Weight * values[index * 2];
             q17 *= half; q9 *= half; thetaError *= half; double error = LightSpaceOracleContractAlignedCandidate.ComposeLeafError(q9, q17, thetaError);
-            if (!Finite(q17) || !Finite(error) || error < 0.0d) return Stop(LightSpaceOracleStopState.NonFiniteSample, path, false);
+            if (!Finite(q17) || !Finite(error) || error < 0.0d) return Fail(LightSpaceOracleStopState.NonFiniteSample, path);
             leaf = new LightSpaceOracleCandidateLeaf(path, left, right, q17, error); diagnostics?.Record(path, evaluations, panels, q17, error, LightSpaceOracleStopState.Accepted); return true;
         }
 
@@ -99,14 +99,14 @@ namespace PureBase.Tests.Daily
         private bool TryEvaluateNode(double r, out double value, out double angularError)
         {
             value = double.NaN; angularError = double.NaN;
-            if (!LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, r, out LightSpaceOracleCandidateThetaPartition partition)) return Stop(LightSpaceOracleStopState.RootTopologyFailure, default, false);
+            if (!LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, r, out LightSpaceOracleCandidateThetaPartition partition)) return Fail(LightSpaceOracleStopState.RootTopologyFailure, default);
             value = 0.0d; angularError = 0.0d; double[] boundaries = partition.Boundaries;
             for (int index = 0; index + 1 < boundaries.Length; index++)
             {
                 if (!TryEvaluateInterval(r, boundaries[index], boundaries[index + 1], out double coarse, out double fine)) return false;
                 value += fine; angularError += Math.Abs(fine - coarse);
             }
-            return Finite(value) && Finite(angularError) && angularError >= 0.0d || Stop(LightSpaceOracleStopState.NonFiniteSample, default, false);
+            return Finite(value) && Finite(angularError) && angularError >= 0.0d || Fail(LightSpaceOracleStopState.NonFiniteSample, default);
         }
 
         /// <summary>Integrates one atomic interval once with private endpoint-free coarse and fine rules.</summary>
@@ -123,22 +123,22 @@ namespace PureBase.Tests.Daily
                 if (!TrySample(r, middle + half * innerFine[index].Coordinate, out double sample)) return false;
                 fine += innerFine[index].Weight * sample;
             }
-            coarse *= half; fine *= half; return Finite(coarse) && Finite(fine) || Stop(LightSpaceOracleStopState.NonFiniteSample, default, false);
+            coarse *= half; fine *= half; return Finite(coarse) && Finite(fine) || Fail(LightSpaceOracleStopState.NonFiniteSample, default);
         }
 
         /// <summary>Reserves exactly one scalar call immediately before its local scalar evaluation.</summary>
         private bool TrySample(double r, double theta, out double value)
         {
             value = double.NaN;
-            if (evaluations >= LightSpaceOracleContractAlignedCandidate.MaximumEvaluations) return Stop(LightSpaceOracleStopState.EvaluationCap, default, false);
+            if (evaluations >= LightSpaceOracleContractAlignedCandidate.MaximumEvaluations) return Fail(LightSpaceOracleStopState.EvaluationCap, default);
             evaluations++; value = LightSpaceOracleContractAlignedCandidate.EvaluateScalar(input, r, theta);
-            return Finite(value) || Stop(LightSpaceOracleStopState.NonFiniteSample, default, false);
+            return Finite(value) || Fail(LightSpaceOracleStopState.NonFiniteSample, default);
         }
 
         /// <summary>Reserves complete root or sibling panel transactions before numerical work begins.</summary>
         private bool TryReservePanels(int count)
         {
-            if (panels > LightSpaceOracleContractAlignedCandidate.MaximumPanels - count) return Stop(LightSpaceOracleStopState.PanelCap, default, false);
+            if (panels > LightSpaceOracleContractAlignedCandidate.MaximumPanels - count) return Fail(LightSpaceOracleStopState.PanelCap, default);
             panels += count; return true;
         }
 
@@ -179,11 +179,11 @@ namespace PureBase.Tests.Daily
         /// <summary>Builds a child canonical path without reusing a reference scheduler helper.</summary>
         private static IndependentOracleCanonicalPath Child(IndependentOracleCanonicalPath parent, bool right) => new IndependentOracleCanonicalPath(parent.Depth + 1, (parent.BinaryPath << 1) | (right ? 1UL : 0UL));
 
-        /// <summary>Records a first terminal state and returns no acceptable partial candidate result.</summary>
-        private bool Stop(LightSpaceOracleStopState state, IndependentOracleCanonicalPath path, bool result = true)
+        /// <summary>Records a first terminal state and always propagates failure to the immediate caller.</summary>
+        private bool Fail(LightSpaceOracleStopState state, IndependentOracleCanonicalPath path)
         {
             if (stopState == LightSpaceOracleStopState.Accepted) { stopState = state; diagnostics?.Record(path, evaluations, panels, double.NaN, double.NaN, state); }
-            return !result;
+            return false;
         }
 
         /// <summary>Builds an accepted result only after finite error meets the requested target.</summary>

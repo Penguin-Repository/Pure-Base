@@ -133,6 +133,20 @@ namespace PureBase.Tests.Daily
             }
         }
 
+        /// <summary>Requires the p=1 Normal strict candidate to stop without committing a default zero leaf.</summary>
+        [Test]
+        public void IndependentOracleCandidateP1NormalStrictFailureIsFailClosed()
+        {
+            var input = new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Normal);
+            LightSpaceOracleResult result = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget);
+            Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.NonFiniteSample));
+            Assert.That(result.StopState == LightSpaceOracleStopState.Accepted && result.Value == 0.0d && result.EstimatedError == 0.0d, Is.False);
+            Assert.That(double.IsNaN(result.Value), Is.True); Assert.That(double.IsNaN(result.EstimatedError), Is.True);
+            Assert.That(result.Evaluations, Is.InRange(1, LightSpaceOracleContractAlignedCandidate.MaximumEvaluations));
+            Assert.That(result.Panels, Is.InRange(1, LightSpaceOracleContractAlignedCandidate.MaximumPanels));
+            Assert.That(result.Topology, Is.Empty);
+        }
+
         /// <summary>Requires private 9/17 and 17/33 rules, root partitions, and leaf-error composition to retain frozen semantics.</summary>
         [Test]
         public void IndependentOracleCandidateUsesFrozenRulesRootsAndLeafErrorComposition()
