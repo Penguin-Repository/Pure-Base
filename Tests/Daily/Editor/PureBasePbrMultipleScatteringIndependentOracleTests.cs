@@ -114,11 +114,11 @@ namespace PureBase.Tests.Daily
             IndependentOracleThetaPartition missing = IndependentOracleContract.DeriveCandidateThetaPartition(new IndependentOracleInput(1.0d, 1.0d, IndependentOracleBranch.Normal), 0.0d);
             var endpointInput = new IndependentOracleInput(0.089d, 0.0d, IndependentOracleBranch.Normal);
             IndependentOracleThetaPartition zeroRadialAbsence = IndependentOracleContract.DeriveCandidateThetaPartition(endpointInput, 0.0d);
-            IndependentOracleThetaPartition nonzeroResidual = IndependentOracleContract.DeriveCandidateThetaPartition(endpointInput, NextUp(0.0d));
+            IndependentOracleThetaPartition nextUpIntervalRoot = IndependentOracleContract.DeriveCandidateThetaPartition(endpointInput, NextUp(0.0d));
             IndependentOracleThetaPartition distribution = IndependentOracleContract.DeriveCandidateThetaPartition(new IndependentOracleInput(0.089d, 0.5d, IndependentOracleBranch.Normal), 0.5d);
             Assert.That(IndependentOracleContract.RootResidualUlps, Is.EqualTo(128)); Assert.That(IndependentOracleContract.RootTieUlps, Is.EqualTo(32));
             Assert.That(IndependentOracleContract.CandidateJacobian(0.0d), Is.EqualTo(0.0d)); Assert.That(IndependentOracleContract.CandidateJacobian(NextUp(0.0d)), Is.GreaterThan(0.0d));
-            Assert.That(missing.Count, Is.EqualTo(0)); Assert.That(missing.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), "true missing roots remain valid absences"); Assert.That(zeroRadialAbsence.Count, Is.EqualTo(0)); Assert.That(zeroRadialAbsence.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), "exact r=0 zero-Jacobian guard roots are valid absences"); Assert.That(nonzeroResidual.StopState, Is.EqualTo(LightSpaceOracleStopState.RootTopologyFailure), "nonzero radial residual failures remain root-topology failures"); Assert.That(distribution.Count, Is.EqualTo(1), "distribution root"); Assert.That(distribution.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted)); Assert.That(distribution.First.Kind, Is.EqualTo(IndependentOracleRootKind.Distribution));
+            Assert.That(missing.Count, Is.EqualTo(0)); Assert.That(missing.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), "true missing roots remain valid absences"); Assert.That(zeroRadialAbsence.Count, Is.EqualTo(0)); Assert.That(zeroRadialAbsence.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), "exact r=0 zero-Jacobian guard roots are valid absences"); Assert.That(nextUpIntervalRoot.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), "NextUp(0) must use nonzero-r interval admission"); Assert.That(nextUpIntervalRoot.Count, Is.GreaterThan(0)); Assert.That(distribution.Count, Is.EqualTo(1), "distribution root"); Assert.That(distribution.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted)); Assert.That(distribution.First.Kind, Is.EqualTo(IndependentOracleRootKind.Distribution));
             AssertReconstructedRoot(distribution.First, 0.5d, 0.5d, 0.089d);
             AssertAtomicCoverage(IndependentOracleContract.ThetaBoundaries(missing)); AssertAtomicCoverage(IndependentOracleContract.ThetaBoundaries(zeroRadialAbsence)); AssertAtomicCoverage(IndependentOracleContract.ThetaBoundaries(distribution));
             var tied = IndependentOracleContract.CanonicalizeThetaRoots(new IndependentOracleThetaRoot(IndependentOracleRootKind.Guard, 1.0d, 0.0d, true), new IndependentOracleThetaRoot(IndependentOracleRootKind.Distribution, NextUp(1.0d), 0.0d, true));
@@ -131,6 +131,30 @@ namespace PureBase.Tests.Daily
             Assert.That(IndependentOracleContract.TryPositiveGeometricTail(8.0d, 2.0d, out double ratio, out double tail), Is.True); Assert.That(ratio, Is.EqualTo(4.0d)); Assert.That(tail, Is.EqualTo(2.0d / 3.0d));
             Assert.That(IndependentOracleContract.TryPositiveGeometricTail(2.0d, 0.0d, out _, out _), Is.False); double uncertainty = IndependentOracleContract.WitnessUncertainty(1.0e-7d, 1.0e-7d, 1.0e-7d, 1.0e-7d);
             Assert.That(IndependentOracleContract.WitnessUncertaintyPass(uncertainty, 1.0e-7d, 1.0d), Is.True); Assert.That(IndependentOracleContract.WitnessUncertaintyPass(uncertainty, IndependentOracleContract.Budget(1.0d), 1.0d), Is.False); Assert.That(IndependentOracleContract.CandidateUncertainty(1.0d, 4.0d, 2.0d), Is.EqualTo(2.0d));
+        }
+
+        /// <summary>Requires affine interval admission to retain the measured low-r guard root independently of its legacy round trip.</summary>
+        [Test]
+        public void IndependentOracleContractAdmitsLowRadialRootByAffineInterval()
+        {
+            var input = new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Normal); double radial = 0.009607359798384785d;
+            IndependentOracleThetaPartition endpoint = IndependentOracleContract.DeriveCandidateThetaPartition(input, 0.0d);
+            IndependentOracleThetaPartition lowRadial = IndependentOracleContract.DeriveCandidateThetaPartition(input, radial);
+            Assert.That(endpoint.Count, Is.EqualTo(0)); Assert.That(endpoint.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted));
+            Assert.That(lowRadial.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted)); Assert.That(lowRadial.Count, Is.EqualTo(1)); Assert.That(lowRadial.First.Kind, Is.EqualTo(IndependentOracleRootKind.Guard));
+            Assert.That(lowRadial.First.Cosine, Is.EqualTo(-0.9999995259298256d)); Assert.That(lowRadial.First.Theta, Is.EqualTo(3.1406189285650488d));
+            double u = Math.Pow(Math.Sin(Math.PI * radial * 0.5d), 2.0d); double z = Math.Sqrt(1.0d - u * u); double legacyQ = 2.0d * (1.0d + z * Math.Cos(lowRadial.First.Theta));
+            Assert.That(WithinUlps(legacyQ, IndependentOracleContract.GuardFloor, IndependentOracleContract.RootResidualUlps), Is.False, "legacy Cos(Acos) remains an observation rather than the admission gate");
+        }
+
+        /// <summary>Requires nonfinite inputs and nonpositive affine denominators to admit no root.</summary>
+        [Test]
+        public void IndependentOracleContractAffineRootIntervalsFailClosed()
+        {
+            IndependentOracleThetaPartition nonFinite = IndependentOracleContract.DeriveCandidateThetaPartition(new IndependentOracleInput(double.NaN, 0.0d, IndependentOracleBranch.Normal), 0.5d);
+            IndependentOracleThetaPartition zeroDenominator = IndependentOracleContract.DeriveCandidateThetaPartition(new IndependentOracleInput(1.0d, 1.0d, IndependentOracleBranch.Normal), 0.5d);
+            Assert.That(nonFinite.Count, Is.EqualTo(0)); Assert.That(nonFinite.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted));
+            Assert.That(zeroDenominator.Count, Is.EqualTo(0)); Assert.That(zeroDenominator.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted));
         }
 
         /// <summary>Freezes exact representative ordering, ceilings, candidate rule identities, and witness work without retry rungs.</summary>
@@ -336,6 +360,13 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Gets the next positive binary64 value without using a platform-version-specific helper.</summary>
         private static double NextUp(double value) => BitConverter.Int64BitsToDouble(BitConverter.DoubleToInt64Bits(value) + 1L);
+
+        /// <summary>Compares finite nonnegative values by their ordered binary64 ULP distance.</summary>
+        private static bool WithinUlps(double left, double right, int limit)
+        {
+            if (double.IsNaN(left) || double.IsInfinity(left) || double.IsNaN(right) || double.IsInfinity(right) || left < 0.0d || right < 0.0d) return false;
+            ulong leftBits = unchecked((ulong)BitConverter.DoubleToInt64Bits(left)); ulong rightBits = unchecked((ulong)BitConverter.DoubleToInt64Bits(right)); return leftBits >= rightBits ? leftBits - rightBits <= (ulong)limit : rightBits - leftBits <= (ulong)limit;
+        }
 
         /// <summary>Builds Clenshaw--Curtis nodes and weights with the frozen ascending node formula.</summary>
         private static NodeWeight[] ClenshawCurtis(int order)

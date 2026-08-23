@@ -434,12 +434,100 @@ namespace PureBase.Tests.Daily
             double cosine = (targetQ * 0.5d - 1.0d - u * v) / z; return RootFromCosine(IndependentOracleRootKind.Distribution, cosine, u, v, z, targetQ);
         }
 
-        /// <summary>Retains only finite interior roots whose reconstructed q target is within the frozen ULP bound.</summary>
+        /// <summary>Retains finite interior roots whose outward affine q interval contains the frozen target.</summary>
         private static IndependentOracleThetaRoot RootFromCosine(IndependentOracleRootKind kind, double cosine, double u, double v, double z, double targetQ)
         {
             if (!Finite(cosine) || cosine <= -1.0d || cosine >= 1.0d) return MissingRoot();
-            double theta = Math.Acos(cosine); double recoveredQ = 2.0d * ((1.0d - z) + u * v + z * (1.0d + cosine));
-            return theta > 0.0d && theta < Math.PI && WithinUlps(recoveredQ, targetQ, RootResidualUlps) ? new IndependentOracleThetaRoot(kind, theta, cosine, true) : InvalidRoot(kind);
+            double theta = Math.Acos(cosine);
+            return Finite(theta) && theta > 0.0d && theta < Math.PI && TryAffineQInterval(targetQ, u, v, z, out DirectedInterval q) && q.Contains(targetQ)
+                ? new IndependentOracleThetaRoot(kind, theta, cosine, true) : InvalidRoot(kind);
+        }
+
+        /// <summary>Stores finite outward binary64 bounds used only while proving one affine root equation.</summary>
+        private readonly struct DirectedInterval
+        {
+            /// <summary>Initializes finite ordered outward bounds.</summary>
+            internal DirectedInterval(double lower, double upper) { Lower = lower; Upper = upper; }
+            /// <summary>Gets the lower outward binary64 bound.</summary>
+            internal double Lower { get; }
+            /// <summary>Gets the upper outward binary64 bound.</summary>
+            internal double Upper { get; }
+            /// <summary>Gets whether a finite target lies within these bounds.</summary>
+            internal bool Contains(double value) => Finite(value) && value >= Lower && value <= Upper;
+        }
+
+        /// <summary>Builds the affine q interval from stored coefficients without using the target as a q endpoint.</summary>
+        private static bool TryAffineQInterval(double target, double u, double v, double z, out DirectedInterval q)
+        {
+            q = default;
+            if (!Finite(target) || !Finite(u) || !Finite(v) || !Finite(z) || z <= 0.0d) return false;
+            var targetInterval = new DirectedInterval(target, target); var one = new DirectedInterval(1.0d, 1.0d);
+            if (!TryScalePositive(targetInterval, 0.5d, out DirectedInterval halfTarget) || !TryProductPositive(u, v, out DirectedInterval uv)) return false;
+            if (!TrySubtract(halfTarget, one, out DirectedInterval numerator) || !TrySubtract(numerator, uv, out numerator)) return false;
+            if (!TryDividePositive(numerator, z, out DirectedInterval cosine) || !TryScalePositive(cosine, z, out DirectedInterval zCosine)) return false;
+            if (!TryAdd(one, uv, out DirectedInterval baseQ) || !TryAdd(baseQ, zCosine, out DirectedInterval doubledQ)) return false;
+            return TryScalePositive(doubledQ, 2.0d, out q);
+        }
+
+        /// <summary>Multiplies two finite nonnegative coefficients with one adjacent binary64 expansion per bound.</summary>
+        private static bool TryProductPositive(double left, double right, out DirectedInterval result)
+        {
+            result = default;
+            return left >= 0.0d && right >= 0.0d && TryLower(left * right, out double lower) && TryUpper(left * right, out double upper) && TryInterval(lower, upper, out result);
+        }
+
+        /// <summary>Scales finite interval bounds by one finite positive coefficient with directed expansion.</summary>
+        private static bool TryScalePositive(DirectedInterval value, double scale, out DirectedInterval result)
+        {
+            result = default;
+            return scale > 0.0d && Finite(scale) && TryLower(value.Lower * scale, out double lower) && TryUpper(value.Upper * scale, out double upper) && TryInterval(lower, upper, out result);
+        }
+
+        /// <summary>Adds two finite intervals with directed binary64 lower and upper bounds.</summary>
+        private static bool TryAdd(DirectedInterval left, DirectedInterval right, out DirectedInterval result)
+        {
+            result = default;
+            return TryLower(left.Lower + right.Lower, out double lower) && TryUpper(left.Upper + right.Upper, out double upper) && TryInterval(lower, upper, out result);
+        }
+
+        /// <summary>Subtracts two finite intervals with directed binary64 lower and upper bounds.</summary>
+        private static bool TrySubtract(DirectedInterval left, DirectedInterval right, out DirectedInterval result)
+        {
+            result = default;
+            return TryLower(left.Lower - right.Upper, out double lower) && TryUpper(left.Upper - right.Lower, out double upper) && TryInterval(lower, upper, out result);
+        }
+
+        /// <summary>Divides finite interval bounds by one finite positive coefficient with directed expansion.</summary>
+        private static bool TryDividePositive(DirectedInterval value, double denominator, out DirectedInterval result)
+        {
+            result = default;
+            return denominator > 0.0d && Finite(denominator) && TryLower(value.Lower / denominator, out double lower) && TryUpper(value.Upper / denominator, out double upper) && TryInterval(lower, upper, out result);
+        }
+
+        /// <summary>Builds one finite ordered interval from already outward-rounded bounds.</summary>
+        private static bool TryInterval(double lower, double upper, out DirectedInterval result)
+        {
+            result = default;
+            if (!Finite(lower) || !Finite(upper) || lower > upper) return false;
+            result = new DirectedInterval(lower, upper); return true;
+        }
+
+        /// <summary>Expands one finite arithmetic result toward negative infinity by one adjacent binary64 value.</summary>
+        private static bool TryLower(double value, out double lower)
+        {
+            lower = double.NaN;
+            if (!Finite(value)) return false;
+            long bits = BitConverter.DoubleToInt64Bits(value); lower = value == 0.0d ? BitConverter.Int64BitsToDouble(unchecked((long)0x8000000000000001UL)) : BitConverter.Int64BitsToDouble(value > 0.0d ? bits - 1L : bits + 1L);
+            return Finite(lower);
+        }
+
+        /// <summary>Expands one finite arithmetic result toward positive infinity by one adjacent binary64 value.</summary>
+        private static bool TryUpper(double value, out double upper)
+        {
+            upper = double.NaN;
+            if (!Finite(value)) return false;
+            long bits = BitConverter.DoubleToInt64Bits(value); upper = value == 0.0d ? BitConverter.Int64BitsToDouble(1L) : BitConverter.Int64BitsToDouble(value > 0.0d ? bits + 1L : bits - 1L);
+            return Finite(upper);
         }
 
         /// <summary>Sorts roots by theta and resolves semantic ties with the guard boundary first.</summary>

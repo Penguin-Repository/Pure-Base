@@ -180,6 +180,17 @@ namespace PureBase.Tests.Daily
             Assert.That(partition.Boundaries, Is.EqualTo(new[] { 0.0d, Math.PI }));
         }
 
+        /// <summary>Requires nonzero low-r interval admission while keeping exact zero-Jacobian absence separate.</summary>
+        [Test]
+        public void IndependentOracleCandidateRequiresLowRadialAffineIntervalAdmission()
+        {
+            var input = new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Normal); double radial = 0.009607359798384785d;
+            Assert.That(LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, 0.0d, out LightSpaceOracleCandidateThetaPartition endpoint), Is.True);
+            Assert.That(endpoint.Boundaries, Is.EqualTo(new[] { 0.0d, Math.PI }));
+            Assert.That(LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, radial, out LightSpaceOracleCandidateThetaPartition lowRadial), Is.True);
+            Assert.That(lowRadial.Boundaries, Is.EqualTo(new[] { 0.0d, 3.1406189285650488d, Math.PI }));
+        }
+
         /// <summary>Requires candidate-local atomic theta boundaries to cover every sampled node domain exactly once.</summary>
         [Test]
         public void IndependentOracleCandidateThetaPartitionsCoverEveryNodeDomainExactlyOnce()
