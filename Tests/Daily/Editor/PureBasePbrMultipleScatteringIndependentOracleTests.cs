@@ -280,7 +280,7 @@ namespace PureBase.Tests.Daily
         public void IndependentOracleKernelsHaveNoForbiddenNumericalDependencies()
         {
             string[] legacy = { "AdaptivePrimary", "AdaptiveCrossCheck", "KronrodWitness", "AdaptiveProtocol", "PureBasePbrMultipleScatteringReference", "PureBasePbrSafeNormalize", "PureBasePbrEvaluateSmithJointGgxVisibility", "EvaluateGuardedTerms" };
-            AssertKernelDependencies("PureBasePbrMultipleScatteringLightSpaceOracle*.cs", legacy, @"\bIndependentOracleWitness[A-Za-z0-9_]*\b", new[] { "IndependentOracleInput", "IndependentOracleBranch", "LightSpaceOracleStopState" });
+            AssertKernelDependencies("PureBasePbrMultipleScatteringLightSpaceOracle*.cs", legacy, @"\bIndependentOracleWitness[A-Za-z0-9_]*\b", new[] { "IndependentOracleInput", "IndependentOracleBranch", "LightSpaceOracleStopState", "IndependentOracleCanonicalPath", "LightSpaceOracleResult", "LightSpaceOracleCandidateDiagnosticSink" });
             AssertKernelDependencies("PureBasePbrMultipleScatteringIndependentOracleWitness*.cs", legacy, @"\bLightSpaceOracle[A-Za-z0-9_]*\b", new[] { "IndependentOracleInput", "IndependentOracleDecisionEvidence" });
             Assert.That(WitnessDependencyAuditPasses("IndependentOracleInput"), Is.True, "the raw input tuple is an approved witness boundary");
             Assert.That(WitnessDependencyAuditPasses("IndependentOracleDecisionEvidence"), Is.True, "comparison evidence is an approved witness boundary");

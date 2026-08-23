@@ -18,7 +18,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace PureBase.Tests.Daily
 {
@@ -88,25 +91,111 @@ namespace PureBase.Tests.Daily
             Assert.That(report.Has("terminal-stop", LightSpaceOracleConformanceDisposition.Conforming), Is.True);
         }
 
-        /// <summary>Remains RED only because the direct replacement candidate boundary is unavailable.</summary>
+        /// <summary>Requires every representative base and strict direct candidate result to be finite and accepted.</summary>
         [Test]
         public void IndependentOracleCandidateProducesRepresentativeEvidence()
         {
-            Assert.That(() => LightSpaceOracle.Integrate(IndependentOracleContract.RepresentativeRows[0].Input, IndependentOracleContract.CandidateBaseTarget), Throws.Nothing);
+            foreach (IndependentOracleRepresentativeRow row in IndependentOracleContract.RepresentativeRows)
+            foreach (double target in Targets())
+            {
+                LightSpaceOracleResult result = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, target);
+                Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch + "/" + target);
+                Assert.That(double.IsNaN(result.Value) || double.IsInfinity(result.Value), Is.False);
+                Assert.That(double.IsNaN(result.EstimatedError) || double.IsInfinity(result.EstimatedError), Is.False);
+            }
         }
 
-        /// <summary>Remains RED only because the direct replacement candidate boundary is unavailable.</summary>
+        /// <summary>Requires bit-exact direct repeats and the frozen base-to-strict uncertainty bound.</summary>
         [Test]
         public void IndependentOracleCandidateIsDeterministicFiniteAndStricterStable()
         {
-            Assert.That(() => LightSpaceOracle.Integrate(IndependentOracleContract.RepresentativeRows[0].Input, IndependentOracleContract.CandidateStrictTarget), Throws.Nothing);
+            foreach (IndependentOracleRepresentativeRow row in IndependentOracleContract.RepresentativeRows)
+            {
+                LightSpaceOracleResult baseResult = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateBaseTarget);
+                LightSpaceOracleResult strictResult = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateStrictTarget);
+                LightSpaceOracleResult repeated = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateStrictTarget);
+                AssertAccepted(baseResult, row, IndependentOracleContract.CandidateBaseTarget); AssertAccepted(strictResult, row, IndependentOracleContract.CandidateStrictTarget); AssertResults(strictResult, repeated);
+                double uncertainty = Math.Max(strictResult.EstimatedError, Math.Abs(baseResult.Value - strictResult.Value));
+                Assert.That(uncertainty, Is.LessThanOrEqualTo(IndependentOracleContract.CandidateBaseTarget), row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch);
+            }
         }
 
-        /// <summary>Remains RED only because the direct replacement candidate boundary is unavailable.</summary>
+        /// <summary>Requires every p=1 branch and view control to meet the approved composed analytical inequality.</summary>
         [Test]
         public void IndependentOracleCandidateMatchesP1AnalyticalBenchmark()
         {
-            Assert.That(() => LightSpaceOracle.Integrate(new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Normal), IndependentOracleContract.CandidateStrictTarget), Throws.Nothing);
+            foreach (double view in IndependentOracleContract.AnalyticalViewCosines)
+            foreach (IndependentOracleBranch branch in new[] { IndependentOracleBranch.Normal, IndependentOracleBranch.Switch })
+            {
+                LightSpaceOracleResult result = LightSpaceOracleContractAlignedCandidate.Integrate(new IndependentOracleInput(1.0d, view, branch), IndependentOracleContract.CandidateStrictTarget);
+                Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), view + "/" + branch);
+                Assert.That(IndependentOracleContract.CandidateAnalyticalPass(IndependentOracleContract.EvaluateP1Analytical(view, branch), result.Value, result.EstimatedError), Is.True, view + "/" + branch);
+            }
+        }
+
+        /// <summary>Requires private 9/17 and 17/33 rules, root partitions, and leaf-error composition to retain frozen semantics.</summary>
+        [Test]
+        public void IndependentOracleCandidateUsesFrozenRulesRootsAndLeafErrorComposition()
+        {
+            Assert.That(LightSpaceOracleContractAlignedCandidate.MaximumDepth, Is.EqualTo(22)); Assert.That(LightSpaceOracleContractAlignedCandidate.MaximumPanels, Is.EqualTo(262144)); Assert.That(LightSpaceOracleContractAlignedCandidate.MaximumEvaluations, Is.EqualTo(4000000));
+            AssertRule(LightSpaceOracleCandidateQuadrature.ClenshawCurtis(9), true); AssertRule(LightSpaceOracleCandidateQuadrature.ClenshawCurtis(17), true);
+            AssertRule(LightSpaceOracleCandidateQuadrature.FejerII(17), false); AssertRule(LightSpaceOracleCandidateQuadrature.FejerII(33), false);
+            Assert.That(LightSpaceOracleContractAlignedCandidate.ComposeLeafError(2.0d, 3.5d, 0.25d), Is.EqualTo(1.75d)); Assert.That(double.IsNaN(LightSpaceOracleContractAlignedCandidate.ComposeLeafError(1.0d, 2.0d, -1.0d)), Is.True);
+            AssertPartition(new IndependentOracleInput(0.089d, 0.5d, IndependentOracleBranch.Normal), 0.5d); AssertPartition(new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Switch), 0.5d);
+        }
+
+        /// <summary>Requires candidate-local atomic theta boundaries to cover every sampled node domain exactly once.</summary>
+        [Test]
+        public void IndependentOracleCandidateThetaPartitionsCoverEveryNodeDomainExactlyOnce()
+        {
+            foreach (IndependentOracleRepresentativeRow row in IndependentOracleContract.RepresentativeRows)
+                AssertPartition(row.Input, 0.5d);
+        }
+
+        /// <summary>Requires direct invalid-input stops, deterministic canonical topology, and frozen cap constants.</summary>
+        [Test]
+        public void IndependentOracleCandidateSchedulerAndCapsAreDeterministicAndFailClosed()
+        {
+            var invalid = new IndependentOracleInput(double.NaN, 0.5d, IndependentOracleBranch.Normal);
+            LightSpaceOracleResult invalidResult = LightSpaceOracleContractAlignedCandidate.Integrate(invalid, IndependentOracleContract.CandidateBaseTarget);
+            LightSpaceOracleResult invalidTarget = LightSpaceOracleContractAlignedCandidate.Integrate(IndependentOracleContract.RepresentativeRows[0].Input, -1.0d);
+            LightSpaceOracleResult first = LightSpaceOracleContractAlignedCandidate.Integrate(IndependentOracleContract.RepresentativeRows[0].Input, IndependentOracleContract.CandidateStrictTarget);
+            LightSpaceOracleResult repeated = LightSpaceOracleContractAlignedCandidate.Integrate(IndependentOracleContract.RepresentativeRows[0].Input, IndependentOracleContract.CandidateStrictTarget);
+            Assert.That(invalidResult.StopState, Is.EqualTo(LightSpaceOracleStopState.NonFiniteInput)); Assert.That(double.IsNaN(invalidResult.Value), Is.True); Assert.That(invalidTarget.StopState, Is.EqualTo(LightSpaceOracleStopState.NonFiniteInput));
+            AssertAccepted(first, IndependentOracleContract.RepresentativeRows[0], IndependentOracleContract.CandidateStrictTarget); Assert.That(first.Topology, Is.Not.Empty); AssertResults(first, repeated);
+        }
+
+        /// <summary>Requires bounded write-only candidate diagnostics to preserve direct numerical results and deterministic identity.</summary>
+        [Test]
+        public void IndependentOracleCandidateDiagnosticsAccountEveryReservedEvaluation()
+        {
+            IndependentOracleInput input = IndependentOracleContract.RepresentativeRows[0].Input; var observed = new LightSpaceOracleCandidateDiagnosticSink(); var repeated = new LightSpaceOracleCandidateDiagnosticSink();
+            LightSpaceOracleResult direct = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget);
+            LightSpaceOracleResult withDiagnostics = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget, observed);
+            LightSpaceOracleResult repeatedDiagnostics = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget, repeated);
+            AssertResults(direct, withDiagnostics); AssertResults(withDiagnostics, repeatedDiagnostics); Assert.That(observed.Records, Is.InRange(1, 128)); Assert.That(observed.Digest, Is.EqualTo(repeated.Digest));
+        }
+
+        /// <summary>Requires candidate source to exclude retained prototype, legacy, witness, and contract numerical helpers.</summary>
+        [Test]
+        public void IndependentOracleContractAlignedCandidateHasNoReferenceNumericalDependencies()
+        {
+            string[] forbidden = { "LightSpaceOracleQuadrature", "LightSpaceOracleReferencePrototype", "IndependentOracleContract", "AdaptivePrimary", "AdaptiveCrossCheck", "KronrodWitness", "IndependentOracleWitness", "PureBasePbrMultipleScatteringReference", "PureBasePbrSafeNormalize", "PureBasePbrEvaluateSmithJointGgxVisibility", "EvaluateGuardedTerms" };
+            foreach (string path in CandidateSourcePaths())
+            {
+                string source = File.ReadAllText(path); foreach (string token in forbidden) Assert.That(source, Does.Not.Contain(token), Path.GetFileName(path) + " references " + token);
+                Assert.That(Regex.IsMatch(source, @"diagnostics\s*\.\s*(?!Record\b)"), Is.False, Path.GetFileName(path) + " reads diagnostic sink state");
+            }
+        }
+
+        /// <summary>Requires candidate execution to avoid cache, artifact, and shared telemetry mutation by construction.</summary>
+        [Test]
+        public void IndependentOracleCandidateIsLegacyCacheArtifactAndTelemetryIsolated()
+        {
+            foreach (string path in CandidateSourcePaths())
+            {
+                string source = File.ReadAllText(path); Assert.That(source, Does.Not.Contain("File.")); Assert.That(source, Does.Not.Contain("Directory.")); Assert.That(source, Does.Not.Contain("PlayerPrefs"));
+            }
         }
 
         /// <summary>Gets the two exact p=0.089 grazing branch identities.</summary>
@@ -118,6 +207,39 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Gets the unchanged base and strict diagnostic targets.</summary>
         private static IReadOnlyList<double> Targets() => new[] { IndependentOracleContract.CandidateBaseTarget, IndependentOracleContract.CandidateStrictTarget };
+
+        /// <summary>Gets exactly the three authoritative candidate implementation sources.</summary>
+        private static IReadOnlyList<string> CandidateSourcePaths()
+        {
+            string directory = Path.Combine(Application.dataPath, "..", "Packages", "jp.penguin.purebase", "Tests", "Daily", "Editor");
+            string[] paths = Directory.GetFiles(directory, "PureBasePbrMultipleScatteringLightSpaceOracleContractAligned*.cs", SearchOption.TopDirectoryOnly); Array.Sort(paths, StringComparer.Ordinal);
+            Assert.That(paths.Length, Is.EqualTo(3)); return paths;
+        }
+
+        /// <summary>Requires one private candidate rule to remain symmetric, positive, and normalized.</summary>
+        private static void AssertRule(LightSpaceOracleCandidateRuleNode[] rule, bool includesEndpoints)
+        {
+            double weight = 0.0d; foreach (LightSpaceOracleCandidateRuleNode node in rule) { Assert.That(node.Weight, Is.GreaterThan(0.0d)); Assert.That(node.Coordinate, Is.InRange(-1.0d, 1.0d)); weight += node.Weight; }
+            bool firstIsEndpoint = Math.Abs(Math.Abs(rule[0].Coordinate) - 1.0d) <= 2.0e-15d;
+            Assert.That(weight, Is.EqualTo(2.0d).Within(2.0e-13d)); Assert.That(firstIsEndpoint, Is.EqualTo(includesEndpoints));
+        }
+
+        /// <summary>Requires one local root partition to form an ordered exact half-azimuth cover.</summary>
+        private static void AssertPartition(IndependentOracleInput input, double radial)
+        {
+            Assert.That(LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, radial, out LightSpaceOracleCandidateThetaPartition partition), Is.True, input.P + "/" + input.NdotV + "/" + radial);
+            Assert.That(partition.Boundaries[0], Is.EqualTo(0.0d)); Assert.That(partition.Boundaries[partition.Boundaries.Length - 1], Is.EqualTo(Math.PI));
+            double measure = 0.0d; for (int index = 0; index + 1 < partition.Boundaries.Length; index++) { Assert.That(partition.Boundaries[index], Is.LessThan(partition.Boundaries[index + 1])); measure += partition.Boundaries[index + 1] - partition.Boundaries[index]; }
+            Assert.That(measure, Is.EqualTo(Math.PI).Within(2.0e-15d));
+        }
+
+        /// <summary>Requires one direct candidate result to be finite, accepted, and within frozen ceilings.</summary>
+        private static void AssertAccepted(LightSpaceOracleResult result, IndependentOracleRepresentativeRow row, double target)
+        {
+            Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch + "/" + target);
+            Assert.That(double.IsNaN(result.Value) || double.IsInfinity(result.Value), Is.False); Assert.That(double.IsNaN(result.EstimatedError) || double.IsInfinity(result.EstimatedError), Is.False);
+            Assert.That(result.EstimatedError, Is.LessThanOrEqualTo(target)); Assert.That(result.Evaluations, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumEvaluations)); Assert.That(result.Panels, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumPanels));
+        }
 
         /// <summary>Compares terminal fields and the trace identity while requiring bounded capture.</summary>
         private static void AssertTrace(LightSpaceOracleDiagnosticTrace observed, LightSpaceOracleDiagnosticTrace repeated, LightSpaceOracleDiagnosticTrace disabled)

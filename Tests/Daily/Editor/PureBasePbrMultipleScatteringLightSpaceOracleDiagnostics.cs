@@ -337,4 +337,25 @@ namespace PureBase.Tests.Daily
         internal void Add(ulong item) { value ^= item; value *= 1099511628211UL; }
         internal void Add(string item) { if (item == null) { Add(-1); return; } Add(item.Length); foreach (char character in item) Add(character); }
     }
+
+    /// <summary>Collects a bounded, write-only digest of candidate lifecycle observations.</summary>
+    internal sealed class LightSpaceOracleCandidateDiagnosticSink
+    {
+        private const int MaximumRecords = 128;
+        private readonly LightSpaceOracleDigest digest = new LightSpaceOracleDigest();
+        private int records;
+
+        /// <summary>Gets the number of retained bounded candidate observations.</summary>
+        internal int Records => records;
+
+        /// <summary>Gets the stable digest of all retained candidate observations.</summary>
+        internal string Digest => digest.Value;
+
+        /// <summary>Records one terminal or completed-leaf observation without supplying values back to the candidate.</summary>
+        internal void Record(IndependentOracleCanonicalPath path, int evaluations, int panels, double value, double error, LightSpaceOracleStopState state)
+        {
+            if (records >= MaximumRecords) return;
+            digest.Add(path.Depth); digest.Add(path.BinaryPath); digest.Add(evaluations); digest.Add(panels); digest.Add(value); digest.Add(error); digest.Add((int)state); records++;
+        }
+    }
 }
