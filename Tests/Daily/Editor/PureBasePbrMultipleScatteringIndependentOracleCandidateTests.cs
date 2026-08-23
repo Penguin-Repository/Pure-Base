@@ -112,11 +112,13 @@ namespace PureBase.Tests.Daily
             foreach (IndependentOracleRepresentativeRow row in IndependentOracleContract.RepresentativeRows)
             {
                 LightSpaceOracleResult baseResult = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateBaseTarget);
+                LightSpaceOracleResult repeatedBase = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateBaseTarget);
                 LightSpaceOracleResult strictResult = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateStrictTarget);
-                LightSpaceOracleResult repeated = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateStrictTarget);
-                AssertAccepted(baseResult, row, IndependentOracleContract.CandidateBaseTarget); AssertAccepted(strictResult, row, IndependentOracleContract.CandidateStrictTarget); AssertResults(strictResult, repeated);
-                double uncertainty = Math.Max(strictResult.EstimatedError, Math.Abs(baseResult.Value - strictResult.Value));
-                Assert.That(uncertainty, Is.LessThanOrEqualTo(IndependentOracleContract.CandidateBaseTarget), row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch);
+                LightSpaceOracleResult repeatedStrict = LightSpaceOracleContractAlignedCandidate.Integrate(row.Input, IndependentOracleContract.CandidateStrictTarget);
+                AssertAccepted(baseResult, row, IndependentOracleContract.CandidateBaseTarget); AssertAccepted(strictResult, row, IndependentOracleContract.CandidateStrictTarget);
+                AssertResults(baseResult, repeatedBase); AssertResults(strictResult, repeatedStrict);
+                double uncertainty = IndependentOracleContract.CandidateUncertainty(strictResult.EstimatedError, baseResult.Value, strictResult.Value);
+                Assert.That(IndependentOracleContract.CandidateUncertaintyPass(uncertainty), Is.True, row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch);
             }
         }
 
@@ -305,9 +307,10 @@ namespace PureBase.Tests.Daily
         /// <summary>Requires one direct candidate result to be finite, accepted, and within frozen ceilings.</summary>
         private static void AssertAccepted(LightSpaceOracleResult result, IndependentOracleRepresentativeRow row, double target)
         {
-            Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch + "/" + target);
+            string evidence = row.PBits + "/" + row.NdotVBits + "/" + row.Input.Branch + "/" + target + "/value=" + result.Value.ToString("R") + "/valueBits=" + BitConverter.DoubleToInt64Bits(result.Value) + "/error=" + result.EstimatedError.ToString("R") + "/errorBits=" + BitConverter.DoubleToInt64Bits(result.EstimatedError) + "/evaluations=" + result.Evaluations + "/panels=" + result.Panels + "/depth=" + result.MaximumDepth + "/stop=" + result.StopState + "/topology=" + result.Topology;
+            Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.Accepted), evidence);
             Assert.That(double.IsNaN(result.Value) || double.IsInfinity(result.Value), Is.False); Assert.That(double.IsNaN(result.EstimatedError) || double.IsInfinity(result.EstimatedError), Is.False);
-            Assert.That(result.EstimatedError, Is.LessThanOrEqualTo(target)); Assert.That(result.Evaluations, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumEvaluations)); Assert.That(result.Panels, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumPanels));
+            Assert.That(result.EstimatedError, Is.LessThanOrEqualTo(target)); Assert.That(result.MaximumDepth, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumDepth)); Assert.That(result.Evaluations, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumEvaluations)); Assert.That(result.Panels, Is.LessThanOrEqualTo(LightSpaceOracleContractAlignedCandidate.MaximumPanels));
         }
 
         /// <summary>Compares terminal fields and the trace identity while requiring bounded capture.</summary>
@@ -351,7 +354,7 @@ namespace PureBase.Tests.Daily
         /// <summary>Checks every terminal result field, including diagnostic-only depth and topology.</summary>
         private static void AssertResults(LightSpaceOracleResult actual, LightSpaceOracleResult expected)
         {
-            Assert.That(actual.Value, Is.EqualTo(expected.Value)); Assert.That(actual.EstimatedError, Is.EqualTo(expected.EstimatedError)); Assert.That(actual.Evaluations, Is.EqualTo(expected.Evaluations)); Assert.That(actual.Panels, Is.EqualTo(expected.Panels)); Assert.That(actual.MaximumDepth, Is.EqualTo(expected.MaximumDepth)); Assert.That(actual.StopState, Is.EqualTo(expected.StopState)); Assert.That(actual.Topology, Is.EqualTo(expected.Topology));
+            Assert.That(BitConverter.DoubleToInt64Bits(actual.Value), Is.EqualTo(BitConverter.DoubleToInt64Bits(expected.Value))); Assert.That(BitConverter.DoubleToInt64Bits(actual.EstimatedError), Is.EqualTo(BitConverter.DoubleToInt64Bits(expected.EstimatedError))); Assert.That(actual.Evaluations, Is.EqualTo(expected.Evaluations)); Assert.That(actual.Panels, Is.EqualTo(expected.Panels)); Assert.That(actual.MaximumDepth, Is.EqualTo(expected.MaximumDepth)); Assert.That(actual.StopState, Is.EqualTo(expected.StopState)); Assert.That(actual.Topology, Is.EqualTo(expected.Topology));
         }
 
         /// <summary>Requires the first retained legacy observation to contain only immutable local root facts.</summary>
