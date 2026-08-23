@@ -171,6 +171,15 @@ namespace PureBase.Tests.Daily
             AssertPartition(new IndependentOracleInput(0.089d, 0.5d, IndependentOracleBranch.Normal), 0.5d); AssertPartition(new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Switch), 0.5d);
         }
 
+        /// <summary>Requires the exact zero-radial endpoint to omit roots only because its local candidate Jacobian is zero.</summary>
+        [Test]
+        public void IndependentOracleCandidateZeroRadialEndpointAcceptsZeroJacobianRootAbsence()
+        {
+            var input = new IndependentOracleInput(0.089d, 0.0d, IndependentOracleBranch.Normal);
+            Assert.That(LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, 0.0d, out LightSpaceOracleCandidateThetaPartition partition), Is.True);
+            Assert.That(partition.Boundaries, Is.EqualTo(new[] { 0.0d, Math.PI }));
+        }
+
         /// <summary>Requires candidate-local atomic theta boundaries to cover every sampled node domain exactly once.</summary>
         [Test]
         public void IndependentOracleCandidateThetaPartitionsCoverEveryNodeDomainExactlyOnce()

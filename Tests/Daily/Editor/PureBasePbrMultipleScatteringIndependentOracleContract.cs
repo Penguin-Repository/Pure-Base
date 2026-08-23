@@ -290,6 +290,7 @@ namespace PureBase.Tests.Daily
         internal static IndependentOracleThetaPartition DeriveCandidateThetaPartition(IndependentOracleInput input, double r)
         {
             if (!Unit(input.P) || !Unit(input.NdotV) || !Unit(r)) return EmptyPartition();
+            if (IsZeroRadialRootAbsence(r)) return EmptyPartition();
             double u = Math.Pow(Math.Sin(Math.PI * r * 0.5d), 2.0d); double v = input.NdotV; double z = Math.Sqrt(1.0d - u * u) * Math.Sqrt(1.0d - v * v);
             IndependentOracleThetaRoot guard = DeriveGuardRoot(u, v, z); IndependentOracleThetaRoot distribution = DeriveDistributionRoot(input.P, u, v, z);
             return OrderRoots(guard, distribution);
@@ -461,6 +462,9 @@ namespace PureBase.Tests.Daily
 
         /// <summary>Gets an invalid interior candidate sentinel that must surface as a root-topology stop.</summary>
         private static IndependentOracleThetaRoot InvalidRoot(IndependentOracleRootKind kind) => new IndependentOracleThetaRoot(kind, double.NaN, double.NaN, false, false);
+
+        /// <summary>Gets whether only the exact zero radial endpoint may omit finite theta roots because its candidate Jacobian is exactly zero.</summary>
+        private static bool IsZeroRadialRootAbsence(double r) => r == 0.0d && CandidateJacobian(r) == 0.0d;
 
         /// <summary>Gets whether a value is a finite closed-unit-interval coordinate.</summary>
         private static bool Unit(double value) => Finite(value) && value >= 0.0d && value <= 1.0d;
