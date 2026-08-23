@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// Defines the unavailable independent light-space candidate entry point without fabricating a numerical result.
+// Defines the unavailable candidate boundary and the separate diagnostic reference-prototype entry point.
 
 using System;
 using System.Collections.Generic;
@@ -363,13 +363,25 @@ namespace PureBase.Tests.Daily
         }
     }
 
-    /// <summary>Provides the unavailable independent light-space candidate integration boundary.</summary>
+    /// <summary>Provides the independent light-space candidate integration boundary.</summary>
     internal static class LightSpaceOracle
     {
         /// <summary>Throws because no independent candidate implementation is available to construct a numerical result.</summary>
         internal static LightSpaceOracleResult Integrate(IndependentOracleInput input, double requestedTarget)
         {
             throw new NotImplementedException("The independent light-space candidate is not implemented.");
+        }
+    }
+
+    /// <summary>Exposes the retained quadrature prototype only as bounded, non-authoritative diagnostic evidence.</summary>
+    internal static class LightSpaceOracleReferencePrototype
+    {
+        /// <summary>Runs the retained prototype with optional bounded observation and returns its terminal diagnostic trace.</summary>
+        internal static LightSpaceOracleDiagnosticTrace IntegrateWithDiagnostics(IndependentOracleInput input, double requestedTarget, bool capture = true)
+        {
+            LightSpaceOracleDiagnosticRecorder recorder = capture ? new LightSpaceOracleDiagnosticRecorder(input, requestedTarget) : null;
+            LightSpaceOracleResult result = LightSpaceOracleQuadrature.IntegrateReference(input, requestedTarget, recorder);
+            return recorder == null ? LightSpaceOracleDiagnosticTrace.Disabled(input, requestedTarget, result) : recorder.Complete(result);
         }
     }
 }

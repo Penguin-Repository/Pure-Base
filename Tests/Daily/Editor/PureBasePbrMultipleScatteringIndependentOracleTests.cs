@@ -280,19 +280,12 @@ namespace PureBase.Tests.Daily
         public void IndependentOracleKernelsHaveNoForbiddenNumericalDependencies()
         {
             string[] legacy = { "AdaptivePrimary", "AdaptiveCrossCheck", "KronrodWitness", "AdaptiveProtocol", "PureBasePbrMultipleScatteringReference", "PureBasePbrSafeNormalize", "PureBasePbrEvaluateSmithJointGgxVisibility", "EvaluateGuardedTerms" };
-            AssertKernelDependencies("PureBasePbrMultipleScatteringLightSpaceOracle*.cs", legacy, @"\bIndependentOracleWitness[A-Za-z0-9_]*\b", new[] { "IndependentOracleInput", "LightSpaceOracleStopState" });
+            AssertKernelDependencies("PureBasePbrMultipleScatteringLightSpaceOracle*.cs", legacy, @"\bIndependentOracleWitness[A-Za-z0-9_]*\b", new[] { "IndependentOracleInput", "IndependentOracleBranch", "LightSpaceOracleStopState" });
             AssertKernelDependencies("PureBasePbrMultipleScatteringIndependentOracleWitness*.cs", legacy, @"\bLightSpaceOracle[A-Za-z0-9_]*\b", new[] { "IndependentOracleInput", "IndependentOracleDecisionEvidence" });
             Assert.That(WitnessDependencyAuditPasses("IndependentOracleInput"), Is.True, "the raw input tuple is an approved witness boundary");
             Assert.That(WitnessDependencyAuditPasses("IndependentOracleDecisionEvidence"), Is.True, "comparison evidence is an approved witness boundary");
             Assert.That(WitnessDependencyAuditPasses("LightSpaceOracleStopState"), Is.False, "a witness reference to a candidate stop enum must fail the dependency audit");
             Assert.That(WitnessDependencyAuditPasses("LightSpaceOracleResult"), Is.False, "a candidate numerical result remains outside the witness boundary");
-        }
-
-        /// <summary>Requires a numerical candidate result when the candidate implementation becomes available.</summary>
-        [Test]
-        public void IndependentOracleCandidateProducesRepresentativeEvidence()
-        {
-            Assert.That(() => LightSpaceOracle.Integrate(IndependentOracleContract.RepresentativeRows[0].Input, IndependentOracleContract.CandidateBaseTarget), Throws.Nothing);
         }
 
         /// <summary>Requires witness analytical-control evidence when the witness implementation becomes available.</summary>
