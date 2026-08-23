@@ -60,7 +60,7 @@ namespace PureBase.Tests.Daily
             return 2.0d * distribution * visibility * u * Math.PI * Math.Sin(Math.PI * r) * 0.5d;
         }
 
-        /// <summary>Derives roots from local q targets and admits only finite residual-valid interior boundaries.</summary>
+        /// <summary>Derives roots from local q targets and admits only finite interval-contained interior boundaries.</summary>
         internal static bool TryDeriveThetaPartition(IndependentOracleInput input, double r, out LightSpaceOracleCandidateThetaPartition partition, LightSpaceOracleCandidateDiagnosticSink diagnostics = null)
         {
             partition = default;
@@ -89,18 +89,66 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Derives a guard or distribution root from a finite q target.</summary>
-        private static bool TryRoot(LightSpaceOracleCandidateRootKind kind, double r, double target, double u, double v, double z, LightSpaceOracleCandidateDiagnosticSink diagnostics, out double theta)
+        internal static bool TryRoot(LightSpaceOracleCandidateRootKind kind, double r, double target, double u, double v, double z, LightSpaceOracleCandidateDiagnosticSink diagnostics, out double theta)
         {
             theta = double.NaN;
             if (z <= 0.0d) return true;
+            if (r == 0.0d) return true;
             double cosine = (target * 0.5d - 1.0d - u * v) / z;
-            if (!Finite(cosine) || cosine <= -1.0d || cosine >= 1.0d) return true;
+            if (!Finite(cosine)) return RecordRootTopologyFailure(diagnostics, kind, r, target, cosine, double.NaN, LightSpaceOracleCandidateRootInteriorPresence.NotReached, LightSpaceOracleCandidateRootTopologyStage.CosineDerived);
+            if (cosine <= -1.0d || cosine >= 1.0d) return true;
             theta = Math.Acos(cosine);
+            if (!Finite(theta) || theta <= 0.0d || theta >= Math.PI) return RecordRootTopologyFailure(diagnostics, kind, r, target, cosine, theta, Finite(theta) ? LightSpaceOracleCandidateRootInteriorPresence.Absent : LightSpaceOracleCandidateRootInteriorPresence.NotReached, LightSpaceOracleCandidateRootTopologyStage.ThetaDerived);
+            if (!TryAffineCosineInterval(target, u, v, z, out double cosineLower, out double cosineUpper)) return RecordRootTopologyFailure(diagnostics, kind, r, target, cosine, theta, LightSpaceOracleCandidateRootInteriorPresence.Present, LightSpaceOracleCandidateRootTopologyStage.ThetaDerived);
+            if (!TryAffineTargetInterval(u, v, z, cosineLower, cosineUpper, out double targetLower, out double targetUpper)) return RecordRootTopologyFailure(diagnostics, kind, r, target, cosine, theta, LightSpaceOracleCandidateRootInteriorPresence.Present, LightSpaceOracleCandidateRootTopologyStage.ThetaDerived);
+            if (target < targetLower || target > targetUpper) return RecordRootTopologyFailure(diagnostics, kind, r, target, cosine, theta, LightSpaceOracleCandidateRootInteriorPresence.Present, LightSpaceOracleCandidateRootTopologyStage.ThetaDerived);
             double recovered = 2.0d * (1.0d + u * v + z * Math.Cos(theta));
-            bool present = theta > 0.0d && theta < Math.PI; bool residualValid = WithinUlps(recovered, target, 128);
-            if (present && residualValid) return true;
-            diagnostics?.RecordFirstRootTopologyFailure(kind, r, target, cosine, LightSpaceOracleCandidateCosineCorrection.None, theta, recovered, residualValid ? LightSpaceOracleCandidateRootResidualValidity.Valid : LightSpaceOracleCandidateRootResidualValidity.Invalid, present ? LightSpaceOracleCandidateRootInteriorPresence.Present : LightSpaceOracleCandidateRootInteriorPresence.Absent, LightSpaceOracleCandidateRootSemanticOrder.NotReached);
+            bool residualValid = WithinUlps(recovered, target, 128);
+            if (!residualValid) diagnostics?.RecordFirstLegacyRoundTripObservation(kind, r, target, cosine, theta, recovered, LightSpaceOracleCandidateRootResidualValidity.Invalid);
+            return true;
+        }
+
+        /// <summary>Records one rejected root using only facts computed before its admission branch returns.</summary>
+        private static bool RecordRootTopologyFailure(LightSpaceOracleCandidateDiagnosticSink diagnostics, LightSpaceOracleCandidateRootKind kind, double r, double target, double cosine, double theta, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootTopologyStage stage)
+        {
+            diagnostics?.RecordFirstRootTopologyFailure(kind, r, target, cosine, LightSpaceOracleCandidateCosineCorrection.None, theta, double.NaN, LightSpaceOracleCandidateRootResidualValidity.NotEvaluated, interiorPresence, LightSpaceOracleCandidateRootSemanticOrder.NotReached, stage);
             return false;
+        }
+
+        /// <summary>Builds outward binary64 cosine bounds for the local affine root equation.</summary>
+        private static bool TryAffineCosineInterval(double target, double u, double v, double z, out double lower, out double upper)
+        {
+            lower = double.NaN; upper = double.NaN;
+            if (!Finite(target) || !Finite(u) || !Finite(v) || !Finite(z) || z <= 0.0d) return false;
+            if (!TryOutward(target * 0.5d, true, out double halfLower) || !TryOutward(target * 0.5d, false, out double halfUpper)) return false;
+            if (!TryOutward(halfLower - 1.0d, true, out double baseLower) || !TryOutward(halfUpper - 1.0d, false, out double baseUpper)) return false;
+            if (!TryOutward(u * v, true, out double productLower) || !TryOutward(u * v, false, out double productUpper)) return false;
+            if (!TryOutward(baseLower - productUpper, true, out double numeratorLower) || !TryOutward(baseUpper - productLower, false, out double numeratorUpper)) return false;
+            return TryOutward(numeratorLower / z, true, out lower) && TryOutward(numeratorUpper / z, false, out upper) && lower <= upper;
+        }
+
+        /// <summary>Builds outward binary64 q bounds solely from affine cosine bounds and stored coefficients.</summary>
+        private static bool TryAffineTargetInterval(double u, double v, double z, double cosineLower, double cosineUpper, out double lower, out double upper)
+        {
+            lower = double.NaN; upper = double.NaN;
+            if (!Finite(u) || !Finite(v) || !Finite(z) || z <= 0.0d || !Finite(cosineLower) || !Finite(cosineUpper) || cosineLower > cosineUpper) return false;
+            if (!TryOutward(u * v, true, out double productLower) || !TryOutward(u * v, false, out double productUpper)) return false;
+            if (!TryOutward(z * cosineLower, true, out double cosineProductLower) || !TryOutward(z * cosineUpper, false, out double cosineProductUpper)) return false;
+            if (!TryOutward(1.0d + productLower, true, out double baseLower) || !TryOutward(1.0d + productUpper, false, out double baseUpper)) return false;
+            if (!TryOutward(baseLower + cosineProductLower, true, out double sumLower) || !TryOutward(baseUpper + cosineProductUpper, false, out double sumUpper)) return false;
+            return TryOutward(2.0d * sumLower, true, out lower) && TryOutward(2.0d * sumUpper, false, out upper) && lower <= upper;
+        }
+
+        /// <summary>Rounds one finite binary64 operation result outward by one adjacent representable value.</summary>
+        private static bool TryOutward(double value, bool lower, out double bound)
+        {
+            bound = double.NaN;
+            if (!Finite(value)) return false;
+            long bits = BitConverter.DoubleToInt64Bits(value);
+            if (value == 0.0d) bits = lower ? unchecked((long)0x8000000000000001UL) : 1L;
+            else bits += value > 0.0d == lower ? -1L : 1L;
+            bound = BitConverter.Int64BitsToDouble(bits);
+            return Finite(bound);
         }
 
         /// <summary>Derives the local GGX denominator transition, treating endpoint contacts as valid absences.</summary>
@@ -110,7 +158,8 @@ namespace PureBase.Tests.Daily
             if (z <= 0.0d || p >= 1.0d) return true;
             double alphaSquared = p * p * p * p; double h2 = (1.0d - Math.Sqrt(1.0e-6d / Math.PI)) / (1.0d - alphaSquared);
             double target = (u + v) * (u + v) / h2;
-            return Finite(target) && (target < 1.0e-6d || TryRoot(LightSpaceOracleCandidateRootKind.Distribution, r, target, u, v, z, diagnostics, out theta));
+            if (!Finite(target)) return RecordRootTopologyFailure(diagnostics, LightSpaceOracleCandidateRootKind.Distribution, r, target, double.NaN, double.NaN, LightSpaceOracleCandidateRootInteriorPresence.NotReached, LightSpaceOracleCandidateRootTopologyStage.TargetDerived);
+            return target < 1.0e-6d || TryRoot(LightSpaceOracleCandidateRootKind.Distribution, r, target, u, v, z, diagnostics, out theta);
         }
 
         /// <summary>Builds semantic guard-first ties and strictly ordered endpoint-inclusive atomic boundaries.</summary>

@@ -345,19 +345,22 @@ namespace PureBase.Tests.Daily
     internal enum LightSpaceOracleCandidateCosineCorrection { None }
 
     /// <summary>Classifies the residual admission result for one candidate root.</summary>
-    internal enum LightSpaceOracleCandidateRootResidualValidity { Valid, Invalid }
+    internal enum LightSpaceOracleCandidateRootResidualValidity { Valid, Invalid, NotEvaluated }
 
     /// <summary>Classifies whether one candidate root lies strictly inside the theta domain.</summary>
-    internal enum LightSpaceOracleCandidateRootInteriorPresence { Absent, Present }
+    internal enum LightSpaceOracleCandidateRootInteriorPresence { Absent, Present, NotReached }
 
     /// <summary>Classifies the semantic order state when a candidate root attempt terminates.</summary>
     internal enum LightSpaceOracleCandidateRootSemanticOrder { NotReached }
+
+    /// <summary>Classifies the last root fact that existed when topology admission rejected it.</summary>
+    internal enum LightSpaceOracleCandidateRootTopologyStage { TargetDerived, CosineDerived, ThetaDerived }
 
     /// <summary>Stores the first rejected candidate root using only immutable primitive observations.</summary>
     internal readonly struct LightSpaceOracleCandidateRootTopologyFailure
     {
         /// <summary>Initializes the local facts available at one root topology rejection.</summary>
-        internal LightSpaceOracleCandidateRootTopologyFailure(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, LightSpaceOracleCandidateCosineCorrection correction, double theta, double reconstructedTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootSemanticOrder semanticOrder) { Kind = kind; RadialCoordinate = radialCoordinate; Target = target; RawCosine = rawCosine; Correction = correction; Theta = theta; ReconstructedTarget = reconstructedTarget; ResidualValidity = residualValidity; InteriorPresence = interiorPresence; SemanticOrder = semanticOrder; }
+        internal LightSpaceOracleCandidateRootTopologyFailure(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, LightSpaceOracleCandidateCosineCorrection correction, double theta, double reconstructedTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootSemanticOrder semanticOrder, LightSpaceOracleCandidateRootTopologyStage stage) { Kind = kind; RadialCoordinate = radialCoordinate; Target = target; RawCosine = rawCosine; Correction = correction; Theta = theta; ReconstructedTarget = reconstructedTarget; ResidualValidity = residualValidity; InteriorPresence = interiorPresence; SemanticOrder = semanticOrder; Stage = stage; }
         internal LightSpaceOracleCandidateRootKind Kind { get; }
         internal double RadialCoordinate { get; }
         internal double Target { get; }
@@ -368,6 +371,21 @@ namespace PureBase.Tests.Daily
         internal LightSpaceOracleCandidateRootResidualValidity ResidualValidity { get; }
         internal LightSpaceOracleCandidateRootInteriorPresence InteriorPresence { get; }
         internal LightSpaceOracleCandidateRootSemanticOrder SemanticOrder { get; }
+        internal LightSpaceOracleCandidateRootTopologyStage Stage { get; }
+    }
+
+    /// <summary>Stores the first interval-admitted root with an invalid legacy round-trip observation.</summary>
+    internal readonly struct LightSpaceOracleCandidateLegacyRoundTripObservation
+    {
+        /// <summary>Initializes immutable evidence retained after interval admission succeeds.</summary>
+        internal LightSpaceOracleCandidateLegacyRoundTripObservation(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, double theta, double recoveredTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity) { Kind = kind; RadialCoordinate = radialCoordinate; Target = target; RawCosine = rawCosine; Theta = theta; RecoveredTarget = recoveredTarget; ResidualValidity = residualValidity; }
+        internal LightSpaceOracleCandidateRootKind Kind { get; }
+        internal double RadialCoordinate { get; }
+        internal double Target { get; }
+        internal double RawCosine { get; }
+        internal double Theta { get; }
+        internal double RecoveredTarget { get; }
+        internal LightSpaceOracleCandidateRootResidualValidity ResidualValidity { get; }
     }
 
     /// <summary>Collects a bounded, write-only digest of candidate lifecycle observations.</summary>
@@ -377,6 +395,7 @@ namespace PureBase.Tests.Daily
         private readonly LightSpaceOracleDigest digest = new LightSpaceOracleDigest();
         private int records;
         private LightSpaceOracleCandidateRootTopologyFailure? firstRootTopologyFailure;
+        private LightSpaceOracleCandidateLegacyRoundTripObservation? firstLegacyRoundTripObservation;
 
         /// <summary>Gets the number of retained bounded candidate observations.</summary>
         internal int Records => records;
@@ -387,6 +406,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Gets the independent first root topology failure without exposing it to candidate computation.</summary>
         internal LightSpaceOracleCandidateRootTopologyFailure? FirstRootTopologyFailure => firstRootTopologyFailure;
 
+        /// <summary>Gets the first interval-admitted root whose legacy 128-ULP round-trip was invalid.</summary>
+        internal LightSpaceOracleCandidateLegacyRoundTripObservation? FirstLegacyRoundTripObservation => firstLegacyRoundTripObservation;
+
         /// <summary>Records one terminal or completed-leaf observation without supplying values back to the candidate.</summary>
         internal void Record(IndependentOracleCanonicalPath path, int evaluations, int panels, double value, double error, LightSpaceOracleStopState state)
         {
@@ -395,11 +417,19 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Records only the first root failure independently of the lifecycle-record capacity.</summary>
-        internal void RecordFirstRootTopologyFailure(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, LightSpaceOracleCandidateCosineCorrection correction, double theta, double reconstructedTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootSemanticOrder semanticOrder)
+        internal void RecordFirstRootTopologyFailure(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, LightSpaceOracleCandidateCosineCorrection correction, double theta, double reconstructedTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootSemanticOrder semanticOrder, LightSpaceOracleCandidateRootTopologyStage stage)
         {
             if (firstRootTopologyFailure.HasValue) return;
-            firstRootTopologyFailure = new LightSpaceOracleCandidateRootTopologyFailure(kind, radialCoordinate, target, rawCosine, correction, theta, reconstructedTarget, residualValidity, interiorPresence, semanticOrder);
-            digest.Add("root-topology-failure"); digest.Add((int)kind); digest.Add(radialCoordinate); digest.Add(target); digest.Add(rawCosine); digest.Add((int)correction); digest.Add(theta); digest.Add(reconstructedTarget); digest.Add((int)residualValidity); digest.Add((int)interiorPresence); digest.Add((int)semanticOrder);
+            firstRootTopologyFailure = new LightSpaceOracleCandidateRootTopologyFailure(kind, radialCoordinate, target, rawCosine, correction, theta, reconstructedTarget, residualValidity, interiorPresence, semanticOrder, stage);
+            digest.Add("root-topology-failure"); digest.Add((int)kind); digest.Add(radialCoordinate); digest.Add(target); digest.Add(rawCosine); digest.Add((int)correction); digest.Add(theta); digest.Add(reconstructedTarget); digest.Add((int)residualValidity); digest.Add((int)interiorPresence); digest.Add((int)semanticOrder); digest.Add((int)stage);
+        }
+
+        /// <summary>Records only the first invalid legacy round-trip independently of lifecycle and topology records.</summary>
+        internal void RecordFirstLegacyRoundTripObservation(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, double theta, double recoveredTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity)
+        {
+            if (firstLegacyRoundTripObservation.HasValue) return;
+            firstLegacyRoundTripObservation = new LightSpaceOracleCandidateLegacyRoundTripObservation(kind, radialCoordinate, target, rawCosine, theta, recoveredTarget, residualValidity);
+            digest.Add("legacy-round-trip-observation"); digest.Add((int)kind); digest.Add(radialCoordinate); digest.Add(target); digest.Add(rawCosine); digest.Add(theta); digest.Add(recoveredTarget); digest.Add((int)residualValidity);
         }
     }
 }
