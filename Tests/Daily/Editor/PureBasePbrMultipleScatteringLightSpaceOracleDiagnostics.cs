@@ -338,12 +338,45 @@ namespace PureBase.Tests.Daily
         internal void Add(string item) { if (item == null) { Add(-1); return; } Add(item.Length); foreach (char character in item) Add(character); }
     }
 
+    /// <summary>Classifies the candidate root whose topology admission failed.</summary>
+    internal enum LightSpaceOracleCandidateRootKind { Guard, Distribution }
+
+    /// <summary>Classifies whether the candidate changed a raw root cosine before evaluation.</summary>
+    internal enum LightSpaceOracleCandidateCosineCorrection { None }
+
+    /// <summary>Classifies the residual admission result for one candidate root.</summary>
+    internal enum LightSpaceOracleCandidateRootResidualValidity { Valid, Invalid }
+
+    /// <summary>Classifies whether one candidate root lies strictly inside the theta domain.</summary>
+    internal enum LightSpaceOracleCandidateRootInteriorPresence { Absent, Present }
+
+    /// <summary>Classifies the semantic order state when a candidate root attempt terminates.</summary>
+    internal enum LightSpaceOracleCandidateRootSemanticOrder { NotReached }
+
+    /// <summary>Stores the first rejected candidate root using only immutable primitive observations.</summary>
+    internal readonly struct LightSpaceOracleCandidateRootTopologyFailure
+    {
+        /// <summary>Initializes the local facts available at one root topology rejection.</summary>
+        internal LightSpaceOracleCandidateRootTopologyFailure(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, LightSpaceOracleCandidateCosineCorrection correction, double theta, double reconstructedTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootSemanticOrder semanticOrder) { Kind = kind; RadialCoordinate = radialCoordinate; Target = target; RawCosine = rawCosine; Correction = correction; Theta = theta; ReconstructedTarget = reconstructedTarget; ResidualValidity = residualValidity; InteriorPresence = interiorPresence; SemanticOrder = semanticOrder; }
+        internal LightSpaceOracleCandidateRootKind Kind { get; }
+        internal double RadialCoordinate { get; }
+        internal double Target { get; }
+        internal double RawCosine { get; }
+        internal LightSpaceOracleCandidateCosineCorrection Correction { get; }
+        internal double Theta { get; }
+        internal double ReconstructedTarget { get; }
+        internal LightSpaceOracleCandidateRootResidualValidity ResidualValidity { get; }
+        internal LightSpaceOracleCandidateRootInteriorPresence InteriorPresence { get; }
+        internal LightSpaceOracleCandidateRootSemanticOrder SemanticOrder { get; }
+    }
+
     /// <summary>Collects a bounded, write-only digest of candidate lifecycle observations.</summary>
     internal sealed class LightSpaceOracleCandidateDiagnosticSink
     {
         private const int MaximumRecords = 128;
         private readonly LightSpaceOracleDigest digest = new LightSpaceOracleDigest();
         private int records;
+        private LightSpaceOracleCandidateRootTopologyFailure? firstRootTopologyFailure;
 
         /// <summary>Gets the number of retained bounded candidate observations.</summary>
         internal int Records => records;
@@ -351,11 +384,22 @@ namespace PureBase.Tests.Daily
         /// <summary>Gets the stable digest of all retained candidate observations.</summary>
         internal string Digest => digest.Value;
 
+        /// <summary>Gets the independent first root topology failure without exposing it to candidate computation.</summary>
+        internal LightSpaceOracleCandidateRootTopologyFailure? FirstRootTopologyFailure => firstRootTopologyFailure;
+
         /// <summary>Records one terminal or completed-leaf observation without supplying values back to the candidate.</summary>
         internal void Record(IndependentOracleCanonicalPath path, int evaluations, int panels, double value, double error, LightSpaceOracleStopState state)
         {
             if (records >= MaximumRecords) return;
             digest.Add(path.Depth); digest.Add(path.BinaryPath); digest.Add(evaluations); digest.Add(panels); digest.Add(value); digest.Add(error); digest.Add((int)state); records++;
+        }
+
+        /// <summary>Records only the first root failure independently of the lifecycle-record capacity.</summary>
+        internal void RecordFirstRootTopologyFailure(LightSpaceOracleCandidateRootKind kind, double radialCoordinate, double target, double rawCosine, LightSpaceOracleCandidateCosineCorrection correction, double theta, double reconstructedTarget, LightSpaceOracleCandidateRootResidualValidity residualValidity, LightSpaceOracleCandidateRootInteriorPresence interiorPresence, LightSpaceOracleCandidateRootSemanticOrder semanticOrder)
+        {
+            if (firstRootTopologyFailure.HasValue) return;
+            firstRootTopologyFailure = new LightSpaceOracleCandidateRootTopologyFailure(kind, radialCoordinate, target, rawCosine, correction, theta, reconstructedTarget, residualValidity, interiorPresence, semanticOrder);
+            digest.Add("root-topology-failure"); digest.Add((int)kind); digest.Add(radialCoordinate); digest.Add(target); digest.Add(rawCosine); digest.Add((int)correction); digest.Add(theta); digest.Add(reconstructedTarget); digest.Add((int)residualValidity); digest.Add((int)interiorPresence); digest.Add((int)semanticOrder);
         }
     }
 }

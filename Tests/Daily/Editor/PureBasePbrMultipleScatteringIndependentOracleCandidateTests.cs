@@ -139,12 +139,25 @@ namespace PureBase.Tests.Daily
         {
             var input = new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Normal);
             LightSpaceOracleResult result = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget);
-            Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.NonFiniteSample));
+            Assert.That(result.StopState, Is.EqualTo(LightSpaceOracleStopState.RootTopologyFailure));
             Assert.That(result.StopState == LightSpaceOracleStopState.Accepted && result.Value == 0.0d && result.EstimatedError == 0.0d, Is.False);
             Assert.That(double.IsNaN(result.Value), Is.True); Assert.That(double.IsNaN(result.EstimatedError), Is.True);
-            Assert.That(result.Evaluations, Is.InRange(1, LightSpaceOracleContractAlignedCandidate.MaximumEvaluations));
-            Assert.That(result.Panels, Is.InRange(1, LightSpaceOracleContractAlignedCandidate.MaximumPanels));
+            Assert.That(result.Evaluations, Is.EqualTo(750)); Assert.That(result.Panels, Is.EqualTo(1));
             Assert.That(result.Topology, Is.Empty);
+        }
+
+        /// <summary>Requires the strict p=1 Normal root rejection to be single, deterministic, and observer-neutral.</summary>
+        [Test]
+        public void IndependentOracleCandidateP1NormalStrictRootTopologyFailureTraceIsDeterministic()
+        {
+            var input = new IndependentOracleInput(1.0d, 0.0d, IndependentOracleBranch.Normal); var observed = new LightSpaceOracleCandidateDiagnosticSink(); var repeated = new LightSpaceOracleCandidateDiagnosticSink();
+            LightSpaceOracleResult direct = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget);
+            LightSpaceOracleResult enabled = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget, observed);
+            LightSpaceOracleResult enabledRepeated = LightSpaceOracleContractAlignedCandidate.Integrate(input, IndependentOracleContract.CandidateStrictTarget, repeated);
+            AssertResults(direct, enabled); AssertResults(enabled, enabledRepeated); Assert.That(observed.Digest, Is.EqualTo(repeated.Digest)); Assert.That(observed.Records, Is.EqualTo(1));
+            Assert.That(observed.FirstRootTopologyFailure.HasValue, Is.True); Assert.That(repeated.FirstRootTopologyFailure.HasValue, Is.True);
+            AssertRootTopologyFailure(observed.FirstRootTopologyFailure.Value); AssertRootTopologyFailure(repeated.FirstRootTopologyFailure.Value);
+            Assert.That(enabled.StopState, Is.EqualTo(LightSpaceOracleStopState.RootTopologyFailure)); Assert.That(enabled.Evaluations, Is.EqualTo(750)); Assert.That(enabled.Panels, Is.EqualTo(1)); Assert.That(enabled.Topology, Is.Empty);
         }
 
         /// <summary>Requires private 9/17 and 17/33 rules, root partitions, and leaf-error composition to retain frozen semantics.</summary>
@@ -198,7 +211,7 @@ namespace PureBase.Tests.Daily
             foreach (string path in CandidateSourcePaths())
             {
                 string source = File.ReadAllText(path); foreach (string token in forbidden) Assert.That(source, Does.Not.Contain(token), Path.GetFileName(path) + " references " + token);
-                Assert.That(Regex.IsMatch(source, @"diagnostics\s*\.\s*(?!Record\b)"), Is.False, Path.GetFileName(path) + " reads diagnostic sink state");
+                Assert.That(Regex.IsMatch(source, @"diagnostics\s*\.\s*(?!(?:Record|RecordFirstRootTopologyFailure)\b)"), Is.False, Path.GetFileName(path) + " reads diagnostic sink state");
             }
         }
 
@@ -297,6 +310,16 @@ namespace PureBase.Tests.Daily
         private static void AssertResults(LightSpaceOracleResult actual, LightSpaceOracleResult expected)
         {
             Assert.That(actual.Value, Is.EqualTo(expected.Value)); Assert.That(actual.EstimatedError, Is.EqualTo(expected.EstimatedError)); Assert.That(actual.Evaluations, Is.EqualTo(expected.Evaluations)); Assert.That(actual.Panels, Is.EqualTo(expected.Panels)); Assert.That(actual.MaximumDepth, Is.EqualTo(expected.MaximumDepth)); Assert.That(actual.StopState, Is.EqualTo(expected.StopState)); Assert.That(actual.Topology, Is.EqualTo(expected.Topology));
+        }
+
+        /// <summary>Requires the known first guard residual rejection to retain only locally observed root facts.</summary>
+        private static void AssertRootTopologyFailure(LightSpaceOracleCandidateRootTopologyFailure failure)
+        {
+            Assert.That(failure.Kind, Is.EqualTo(LightSpaceOracleCandidateRootKind.Guard)); Assert.That(failure.RadialCoordinate, Is.GreaterThan(0.0d).And.LessThan(0.01d));
+            Assert.That(failure.Target, Is.EqualTo(1.0e-6d)); Assert.That(double.IsNaN(failure.RawCosine) || double.IsInfinity(failure.RawCosine), Is.False);
+            Assert.That(failure.Correction, Is.EqualTo(LightSpaceOracleCandidateCosineCorrection.None)); Assert.That(double.IsNaN(failure.Theta) || double.IsInfinity(failure.Theta), Is.False);
+            Assert.That(failure.ResidualValidity, Is.EqualTo(LightSpaceOracleCandidateRootResidualValidity.Invalid)); Assert.That(failure.InteriorPresence, Is.EqualTo(LightSpaceOracleCandidateRootInteriorPresence.Present));
+            Assert.That(failure.SemanticOrder, Is.EqualTo(LightSpaceOracleCandidateRootSemanticOrder.NotReached));
         }
 
         /// <summary>Gets whether two retained diagnostic path identities are exactly equal.</summary>

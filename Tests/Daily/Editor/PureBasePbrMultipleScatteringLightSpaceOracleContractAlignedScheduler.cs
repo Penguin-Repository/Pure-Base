@@ -99,7 +99,7 @@ namespace PureBase.Tests.Daily
         private bool TryEvaluateNode(double r, out double value, out double angularError)
         {
             value = double.NaN; angularError = double.NaN;
-            if (!LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, r, out LightSpaceOracleCandidateThetaPartition partition)) return Fail(LightSpaceOracleStopState.RootTopologyFailure, default);
+            if (!LightSpaceOracleContractAlignedCandidate.TryDeriveThetaPartition(input, r, out LightSpaceOracleCandidateThetaPartition partition, diagnostics)) return Fail(LightSpaceOracleStopState.RootTopologyFailure, default);
             value = 0.0d; angularError = 0.0d; double[] boundaries = partition.Boundaries;
             for (int index = 0; index + 1 < boundaries.Length; index++)
             {

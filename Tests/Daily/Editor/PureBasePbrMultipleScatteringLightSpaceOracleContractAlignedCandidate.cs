@@ -61,15 +61,15 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Derives roots from local q targets and admits only finite residual-valid interior boundaries.</summary>
-        internal static bool TryDeriveThetaPartition(IndependentOracleInput input, double r, out LightSpaceOracleCandidateThetaPartition partition)
+        internal static bool TryDeriveThetaPartition(IndependentOracleInput input, double r, out LightSpaceOracleCandidateThetaPartition partition, LightSpaceOracleCandidateDiagnosticSink diagnostics = null)
         {
             partition = default;
             if (!Unit(input.P) || !Unit(input.NdotV) || !Unit(r)) return false;
             double sine = Math.Sin(Math.PI * r * 0.5d); double u = sine * sine; double v = input.NdotV;
             double z = Math.Sqrt(1.0d - u * u) * Math.Sqrt(1.0d - v * v);
             if (!Finite(z)) return false;
-            if (!TryRoot(0, 1.0e-6d, u, v, z, out double guard)) return false;
-            if (!TryDistributionRoot(input.P, u, v, z, out double distribution)) return false;
+            if (!TryRoot(LightSpaceOracleCandidateRootKind.Guard, r, 1.0e-6d, u, v, z, diagnostics, out double guard)) return false;
+            if (!TryDistributionRoot(input.P, r, u, v, z, diagnostics, out double distribution)) return false;
             partition = BuildPartition(guard, distribution);
             return partition.Boundaries != null;
         }
@@ -89,7 +89,7 @@ namespace PureBase.Tests.Daily
         }
 
         /// <summary>Derives a guard or distribution root from a finite q target.</summary>
-        private static bool TryRoot(int kind, double target, double u, double v, double z, out double theta)
+        private static bool TryRoot(LightSpaceOracleCandidateRootKind kind, double r, double target, double u, double v, double z, LightSpaceOracleCandidateDiagnosticSink diagnostics, out double theta)
         {
             theta = double.NaN;
             if (z <= 0.0d) return true;
@@ -97,18 +97,20 @@ namespace PureBase.Tests.Daily
             if (!Finite(cosine) || cosine <= -1.0d || cosine >= 1.0d) return true;
             theta = Math.Acos(cosine);
             double recovered = 2.0d * (1.0d + u * v + z * Math.Cos(theta));
-            if (theta <= 0.0d || theta >= Math.PI || !WithinUlps(recovered, target, 128)) return false;
-            return kind == 0 || kind == 1;
+            bool present = theta > 0.0d && theta < Math.PI; bool residualValid = WithinUlps(recovered, target, 128);
+            if (present && residualValid) return true;
+            diagnostics?.RecordFirstRootTopologyFailure(kind, r, target, cosine, LightSpaceOracleCandidateCosineCorrection.None, theta, recovered, residualValid ? LightSpaceOracleCandidateRootResidualValidity.Valid : LightSpaceOracleCandidateRootResidualValidity.Invalid, present ? LightSpaceOracleCandidateRootInteriorPresence.Present : LightSpaceOracleCandidateRootInteriorPresence.Absent, LightSpaceOracleCandidateRootSemanticOrder.NotReached);
+            return false;
         }
 
         /// <summary>Derives the local GGX denominator transition, treating endpoint contacts as valid absences.</summary>
-        private static bool TryDistributionRoot(double p, double u, double v, double z, out double theta)
+        private static bool TryDistributionRoot(double p, double r, double u, double v, double z, LightSpaceOracleCandidateDiagnosticSink diagnostics, out double theta)
         {
             theta = double.NaN;
             if (z <= 0.0d || p >= 1.0d) return true;
             double alphaSquared = p * p * p * p; double h2 = (1.0d - Math.Sqrt(1.0e-6d / Math.PI)) / (1.0d - alphaSquared);
             double target = (u + v) * (u + v) / h2;
-            return Finite(target) && (target < 1.0e-6d || TryRoot(1, target, u, v, z, out theta));
+            return Finite(target) && (target < 1.0e-6d || TryRoot(LightSpaceOracleCandidateRootKind.Distribution, r, target, u, v, z, diagnostics, out theta));
         }
 
         /// <summary>Builds semantic guard-first ties and strictly ordered endpoint-inclusive atomic boundaries.</summary>
