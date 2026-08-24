@@ -314,4 +314,40 @@ namespace PureBase.Tests.Daily
             internal double Weight { get; }
         }
     }
+
+    /// <summary>Builds immutable synthetic rubric inputs with narrow rule-specific mutators.</summary>
+    internal sealed class SyntheticClassifierFixture
+    {
+        private bool identityCompatible = true;
+        private bool checkerAvailable = true;
+        private bool cohortAgreement = true;
+        private bool floorConsistent;
+        private bool mixedSignal;
+        private bool greySignal;
+        private int aLeaves;
+        private int bLeaves;
+        private AngularDiagnosticBoundaryEvidence boundary = new AngularDiagnosticBoundaryEvidence(AngularDiagnosticMechanism.None, 0, 0);
+        private AngularDiagnosticSmoothEvidence smooth = new AngularDiagnosticSmoothEvidence(AngularDiagnosticMechanism.None, 0, false);
+
+        /// <summary>Sets the usable A cohort evidence count.</summary>
+        internal SyntheticClassifierFixture WithA(int leaves) { aLeaves = leaves; return this; }
+        /// <summary>Sets the usable B cohort evidence count and its floor predicate.</summary>
+        internal SyntheticClassifierFixture WithB(int leaves, bool consistent) { bLeaves = leaves; floorConsistent = consistent; return this; }
+        /// <summary>Sets same-boundary coverage and one-to-one smooth controls for C.</summary>
+        internal SyntheticClassifierFixture WithBoundary(int leaves, int controls) { boundary = new AngularDiagnosticBoundaryEvidence(AngularDiagnosticMechanism.A, leaves, controls); return this; }
+        /// <summary>Sets smooth coverage and separated quantiles for D.</summary>
+        internal SyntheticClassifierFixture WithSmooth(int leaves, bool separated) { smooth = new AngularDiagnosticSmoothEvidence(AngularDiagnosticMechanism.B, leaves, separated); return this; }
+        /// <summary>Sets the reproducible identity result.</summary>
+        internal SyntheticClassifierFixture WithIdentityCompatible(bool value) { identityCompatible = value; return this; }
+        /// <summary>Marks the independent checker unavailable.</summary>
+        internal SyntheticClassifierFixture WithoutChecker() { checkerAvailable = false; return this; }
+        /// <summary>Sets whether the two fixed cohorts agree.</summary>
+        internal SyntheticClassifierFixture WithCohortAgreement(bool value) { cohortAgreement = value; return this; }
+        /// <summary>Marks mixed synthetic evidence.</summary>
+        internal SyntheticClassifierFixture WithMixedSignal() { mixedSignal = true; return this; }
+        /// <summary>Marks grey synthetic evidence.</summary>
+        internal SyntheticClassifierFixture WithGreySignal() { greySignal = true; return this; }
+        /// <summary>Freezes the builder state into one immutable classifier input.</summary>
+        internal AngularDiagnosticClassificationInput Build() => new AngularDiagnosticClassificationInput(new AngularDiagnosticAvailability(identityCompatible, checkerAvailable, cohortAgreement, mixedSignal, greySignal), new AngularDiagnosticCohortEvidence(AngularDiagnosticCohort.Coverage, aLeaves), new AngularDiagnosticCohortEvidence(AngularDiagnosticCohort.Enrichment, bLeaves), floorConsistent, boundary, smooth);
+    }
 }

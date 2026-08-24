@@ -283,6 +283,18 @@ namespace PureBase.Tests.Daily
         public void DescriptiveAggregatesRetainCohortsOverlapAndShortfallsWithoutClassification() {
             List<CandidateAngularIntervalRecord> first = AngularDiagnosticSampling.Select(SyntheticSelectionRecords(), out List<AngularDiagnosticSelectionSlot> slots); List<CandidateAngularIntervalRecord> second = AngularDiagnosticSampling.Select(SyntheticSelectionRecords(), out List<AngularDiagnosticSelectionSlot> repeatedSlots); List<string> firstText = AngularDiagnosticSampling.FormatDescriptiveAggregates(first, slots); List<string> secondText = AngularDiagnosticSampling.FormatDescriptiveAggregates(second, repeatedSlots); int coverage = Count(first, AngularDiagnosticCohort.Coverage); int enrichment = Count(first, AngularDiagnosticCohort.Enrichment); Assert.That(firstText.Count, Is.LessThanOrEqualTo(12)); CollectionAssert.AreEqual(firstText, secondText); Assert.That(firstText[0], Does.Contain("coverage=count=" + coverage + ",complete=0,finite=" + coverage + ",usable=0,unavailable=" + coverage + ",identityMismatch=" + coverage).And.Contain("enrichment=count=" + enrichment + ",complete=0,finite=" + enrichment + ",usable=0,unavailable=" + enrichment + ",identityMismatch=" + enrichment).And.Contain("hSum=").And.Contain("eSum=").And.Contain("overlap=").And.Not.Contain("classification")); List<CandidateAngularIntervalRecord> numeric = CompleteAggregateRecords(); string numericAggregate = AngularDiagnosticSampling.FormatDescriptiveAggregates(numeric, slots)[0]; Assert.That(numericAggregate, Does.Contain("coverage=count=2,complete=2,finite=2,usable=2,unavailable=0,identityMismatch=0").And.Contain("enrichment=count=2,complete=2,finite=2,usable=2,unavailable=0,identityMismatch=0").And.Contain("overlap=1").And.Contain("hSum=").And.Contain("eMin=").And.Contain("fMax=").And.Contain("uHSum=").And.Contain("aMinusMin=").And.Contain("aPlusMax=")); Assert.That(firstText, Has.Member("stratum=GuardAdjacent,requested=3,selected=0,shortfall=3")); var oversized = new List<CandidateAngularIntervalRecord>(); for (int index = 0; index <= AngularDiagnosticSampling.MaximumSelected; index++) oversized.Add(first[0]); Assert.Throws<InvalidOperationException>(() => AngularDiagnosticSampling.FormatDescriptiveAggregates(oversized, slots));
         }
+        /// <summary>Requires synthetic formatter output to preserve deterministic bounded review fields.</summary>
+        [Test]
+        public void SyntheticFormatterOutputIsBoundedDeterministicAndComplete()
+        {
+            List<CandidateAngularIntervalRecord> first = CompleteAggregateRecords(); List<CandidateAngularIntervalRecord> second = CompleteAggregateRecords();
+            AngularDiagnosticSampling.Select(SyntheticSelectionRecords(), out List<AngularDiagnosticSelectionSlot> firstSlots); AngularDiagnosticSampling.Select(SyntheticSelectionRecords(), out List<AngularDiagnosticSelectionSlot> secondSlots);
+            List<string> firstSelected = AngularDiagnosticSampling.FormatSelected(first); List<string> secondSelected = AngularDiagnosticSampling.FormatSelected(second); List<string> firstAggregates = AngularDiagnosticSampling.FormatDescriptiveAggregates(first, firstSlots); List<string> secondAggregates = AngularDiagnosticSampling.FormatDescriptiveAggregates(second, secondSlots);
+            Assert.That(firstSelected, Is.Not.Empty); Assert.That(firstSelected.Count, Is.LessThanOrEqualTo(AngularDiagnosticSampling.MaximumSelected)); Assert.That(firstAggregates, Is.Not.Empty); Assert.That(firstAggregates.Count, Is.LessThanOrEqualTo(12)); CollectionAssert.AreEqual(firstSelected, secondSelected); CollectionAssert.AreEqual(firstAggregates, secondAggregates);
+            Assert.That(firstSelected[0], Does.StartWith("id=").And.Contain("|checker=").And.Contain(",h=").And.Contain(",difference=").And.Contain(",f=").And.Contain(",uH=").And.Contain(",a-=").And.Contain(",a+=").And.Contain(",signal=").And.Contain(",available=").And.Contain(",unavailable=").And.Contain("|classification=Unclassified"));
+            Assert.That(firstAggregates[0], Does.Contain("coverage=count=").And.Contain("enrichment=count=").And.Contain("overlap=")); Assert.That(firstAggregates, Has.Member("stratum=GuardAdjacent,requested=3,selected=0,shortfall=3"));
+        }
+
         /// <summary>Requires the exact terminal mesh to yield deterministic bounded and separately tagged cohorts.</summary>
         [Test]
         public void MinimumGrazingTerminalIntervalsSelectDeterministicBoundedCohorts()
@@ -306,6 +318,7 @@ namespace PureBase.Tests.Daily
                 Assert.That(evidence.Target, Is.EqualTo(IndependentOracleContract.CandidateBaseTarget)); Assert.That(evidence.UsableReference || evidence.UnavailableReason != AngularDiagnosticUnavailableReason.None, Is.True, record.Identity); Assert.That(evidence.Check.Finite, Is.True, record.Identity); Assert.That(evidence.UnavailableReason, Is.EqualTo(evidence.UsableReference ? AngularDiagnosticUnavailableReason.None : AngularDiagnosticUnavailableReason.UncertaintyRejected), record.Identity);
             }
             Assert.That(work, Is.LessThanOrEqualTo(29792)); Assert.That(4000000 + current.Records.Count * 50 + work, Is.LessThanOrEqualTo(9984042)); Assert.That(AngularDiagnosticSampling.SelectedEvidenceIsComplete(current.Selected), Is.True); CollectionAssert.AreEqual(AngularDiagnosticSampling.FormatSelected(current.Selected), AngularDiagnosticSampling.FormatSelected(CaptureTerminalEvidence().Selected));
+            EmitTerminalEvidence(current);
         }
         /// <summary>Audits the calculation boundary so candidate numerical types cannot enter the checker DTO.</summary>
         [Test]
@@ -420,6 +433,14 @@ namespace PureBase.Tests.Daily
         }
         /// <summary>Requires the two fresh terminal reproductions to retain byte-identical terminal evidence.</summary>
         private static void AssertTerminalIdentity(TerminalEvidence first, TerminalEvidence second) { Assert.That(Bits(first.Result.Value), Is.EqualTo(Bits(second.Result.Value))); Assert.That(Bits(first.Result.EstimatedError), Is.EqualTo(Bits(second.Result.EstimatedError))); Assert.That(first.Result.StopState, Is.EqualTo(second.Result.StopState)); Assert.That(first.Result.Evaluations, Is.EqualTo(second.Result.Evaluations)); Assert.That(first.Result.Panels, Is.EqualTo(second.Result.Panels)); Assert.That(first.Result.MaximumDepth, Is.EqualTo(second.Result.MaximumDepth)); Assert.That(first.Result.Topology, Is.EqualTo(second.Result.Topology)); Assert.That(Bits(first.RecomposedAngular), Is.EqualTo(Bits(second.RecomposedAngular))); AssertLeavesUnchanged(first.Leaves, second.Leaves); CollectionAssert.AreEqual(Identities(first.Records), Identities(second.Records)); CollectionAssert.AreEqual(Identities(first.Selected), Identities(second.Selected)); }
+        /// <summary>Emits only fully validated immutable terminal evidence through the NUnit test output channel.</summary>
+        private static void EmitTerminalEvidence(TerminalEvidence evidence)
+        {
+            List<string> selected = AngularDiagnosticSampling.FormatSelected(evidence.Selected); List<string> aggregates = AngularDiagnosticSampling.FormatDescriptiveAggregates(evidence.Selected, evidence.Slots);
+            Assert.That(selected, Is.Not.Empty); Assert.That(selected.Count, Is.LessThanOrEqualTo(AngularDiagnosticSampling.MaximumSelected)); Assert.That(aggregates, Is.Not.Empty); Assert.That(aggregates.Count, Is.LessThanOrEqualTo(12));
+            foreach (string value in selected) TestContext.Out.WriteLine(value);
+            foreach (string value in aggregates) TestContext.Out.WriteLine(value);
+        }
         /// <summary>Requires observer-side replay to leave copied committed leaves byte-identical.</summary>
         private static void AssertLeavesUnchanged(IList<LightSpaceOracleCandidateLeaf> before, IList<LightSpaceOracleCandidateLeaf> after) { Assert.That(after.Count, Is.EqualTo(before.Count)); for (int index = 0; index < before.Count; index++) { Assert.That(before[index].Path.CompareSpatial(after[index].Path), Is.Zero); Assert.That(BitConverter.DoubleToInt64Bits(before[index].Left), Is.EqualTo(BitConverter.DoubleToInt64Bits(after[index].Left))); Assert.That(BitConverter.DoubleToInt64Bits(before[index].Right), Is.EqualTo(BitConverter.DoubleToInt64Bits(after[index].Right))); Assert.That(BitConverter.DoubleToInt64Bits(before[index].Value), Is.EqualTo(BitConverter.DoubleToInt64Bits(after[index].Value))); Assert.That(BitConverter.DoubleToInt64Bits(before[index].Error), Is.EqualTo(BitConverter.DoubleToInt64Bits(after[index].Error))); } }
         /// <summary>Builds a deterministic selected-identity sequence for repeat comparison.</summary>
@@ -460,40 +481,5 @@ namespace PureBase.Tests.Daily
             internal double Committed { get; }
         }
 
-        /// <summary>Builds immutable synthetic rubric inputs with narrow rule-specific mutators.</summary>
-        private sealed class SyntheticClassifierFixture
-        {
-            private bool identityCompatible = true;
-            private bool checkerAvailable = true;
-            private bool cohortAgreement = true;
-            private bool floorConsistent;
-            private bool mixedSignal;
-            private bool greySignal;
-            private int aLeaves;
-            private int bLeaves;
-            private AngularDiagnosticBoundaryEvidence boundary = new AngularDiagnosticBoundaryEvidence(AngularDiagnosticMechanism.None, 0, 0);
-            private AngularDiagnosticSmoothEvidence smooth = new AngularDiagnosticSmoothEvidence(AngularDiagnosticMechanism.None, 0, false);
-
-            /// <summary>Sets the usable A cohort evidence count.</summary>
-            internal SyntheticClassifierFixture WithA(int leaves) { aLeaves = leaves; return this; }
-            /// <summary>Sets the usable B cohort evidence count and its floor predicate.</summary>
-            internal SyntheticClassifierFixture WithB(int leaves, bool consistent) { bLeaves = leaves; floorConsistent = consistent; return this; }
-            /// <summary>Sets same-boundary coverage and one-to-one smooth controls for C.</summary>
-            internal SyntheticClassifierFixture WithBoundary(int leaves, int controls) { boundary = new AngularDiagnosticBoundaryEvidence(AngularDiagnosticMechanism.A, leaves, controls); return this; }
-            /// <summary>Sets smooth coverage and separated quantiles for D.</summary>
-            internal SyntheticClassifierFixture WithSmooth(int leaves, bool separated) { smooth = new AngularDiagnosticSmoothEvidence(AngularDiagnosticMechanism.B, leaves, separated); return this; }
-            /// <summary>Sets the reproducible identity result.</summary>
-            internal SyntheticClassifierFixture WithIdentityCompatible(bool value) { identityCompatible = value; return this; }
-            /// <summary>Marks the independent checker unavailable.</summary>
-            internal SyntheticClassifierFixture WithoutChecker() { checkerAvailable = false; return this; }
-            /// <summary>Sets whether the two fixed cohorts agree.</summary>
-            internal SyntheticClassifierFixture WithCohortAgreement(bool value) { cohortAgreement = value; return this; }
-            /// <summary>Marks mixed synthetic evidence.</summary>
-            internal SyntheticClassifierFixture WithMixedSignal() { mixedSignal = true; return this; }
-            /// <summary>Marks grey synthetic evidence.</summary>
-            internal SyntheticClassifierFixture WithGreySignal() { greySignal = true; return this; }
-            /// <summary>Freezes the builder state into one immutable classifier input.</summary>
-            internal AngularDiagnosticClassificationInput Build() => new AngularDiagnosticClassificationInput(new AngularDiagnosticAvailability(identityCompatible, checkerAvailable, cohortAgreement, mixedSignal, greySignal), new AngularDiagnosticCohortEvidence(AngularDiagnosticCohort.Coverage, aLeaves), new AngularDiagnosticCohortEvidence(AngularDiagnosticCohort.Enrichment, bLeaves), floorConsistent, boundary, smooth);
-        }
     }
 }
