@@ -163,13 +163,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install verified Shader-Core 0.1.9 release
+      - name: Install verified Shader-Core 0.1.12 release
         shell: pwsh
         run: |
           & "$env:PACKAGE_ROOT/.github/scripts/Install-VerifiedShaderCoreRelease.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT `
-            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip' `
-            -ExpectedSha256 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
+            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip' `
+            -ExpectedSha256 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924'
 
       - name: Restore Unity 2022.3.22f1
         id: unity

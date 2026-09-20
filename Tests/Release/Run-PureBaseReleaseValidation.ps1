@@ -1216,7 +1216,7 @@ function Get-ConsumerFirstBootstrapTransitionReport {
 function Assert-ConsumerFirstBootstrapTransitionReport {
     param([Parameter(Mandatory = $true)]$Report)
 
-    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.9' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
+    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.12' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
         throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
     }
     $expectedAccepted = [int]$Report.summary.expectedAdded + [int]$Report.summary.expectedChanged
@@ -1244,11 +1244,11 @@ function Assert-ConsumerImmutableManifestBaseline {
         [Parameter(Mandatory = $true)][string]$RunLabel
     )
 
-    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.1.9') {
-        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.1.9."
+    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.1.12') {
+        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.1.12."
     }
     if ($Manifest.shaderCore.expectedIdentitySha256 -ne $Manifest.shaderCore.treeSha256) {
-        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.1.9.sha256.json."
+        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.1.12.sha256.json."
     }
 }
 
@@ -2579,8 +2579,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Approved release archive builder failed.' }
     $zipPath = Join-Path $archiveDirectory ('jp.penguin.purebase-' + [string]$packageJson.version + '.zip')
     if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Approved release archive builder did not produce the expected ZIP.' }
-    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.1.9.sha256.json'
-    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.1.9.sha256.json') -Destination $shaderCoreManifestPath -Force
+    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.1.12.sha256.json'
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.1.12.sha256.json') -Destination $shaderCoreManifestPath -Force
 
     $scaffoldRoot = Join-Path $scriptRoot 'ConsumerProject'
     Copy-RegularTree -Source $scaffoldRoot -Destination $consumerRoot

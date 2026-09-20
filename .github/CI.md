@@ -77,7 +77,7 @@ non-draft branches in this repository: their writers may run their pull request 
 Unity activation credentials.
 
 The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
-embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.9`, matching the exact
+embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.12`, matching the exact
 dependency identity required by Pure Base for both Daily and release validation. Git line-ending
 conversion is disabled, and the project is configured for Linear color space before Daily
 validation.

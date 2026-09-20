@@ -46,7 +46,7 @@ Describe 'Pure-Base CI Unity project generation' {
         )
         [IO.File]::WriteAllText(
             (Join-Path $shaderCoreRoot 'package.json'),
-            '{"name":"jp.lilxyzw.shadercore","version":"0.1.9"}',
+            '{"name":"jp.lilxyzw.shadercore","version":"0.1.12"}',
             [Text.UTF8Encoding]::new($false)
         )
         [IO.File]::WriteAllText(
@@ -153,7 +153,7 @@ QualitySettings:
         $failure = $null
         try { & $projectBuilder -ProjectRoot $projectRoot }
         catch { $failure = $_ }
-        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*exactly 0.1.9*') -Message 'The CI project builder accepted an unexpected Shader-Core version.'
+        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*exactly 0.1.12*') -Message 'The CI project builder accepted an unexpected Shader-Core version.'
     }
 
     It 'rejects a missing owner LightingData fixture' {

@@ -26,7 +26,7 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 - Unity `2022.3` が必要です。動作検証には Unity `2022.3.22f1` を使用しています。
 - Built-in Render Pipeline のみ対応しています。URP には対応していません。
-- `jp.lilxyzw.shadercore` `0.1.9` が必要です。
+- `jp.lilxyzw.shadercore` `0.1.12` が必要です。
 - 将来の Shader-Core `0.1.x` を自動では許可しません。Shader-Core は `0.x` 間の互換性を保証しておらず、読み込み処理、プロジェクト設定、関数の形が変わる可能性があります。
 - 検証では D3D11 を使用します。
 - Opaque、Cutout、Transparent の描画モードに対応しています。初期状態は Cutout です。URP には対応していません。

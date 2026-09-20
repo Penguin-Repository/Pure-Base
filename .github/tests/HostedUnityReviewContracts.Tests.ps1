@@ -636,8 +636,8 @@ Describe 'Hosted Unity review contracts' {
     }
 
     It 'stages the same verified Shader-Core release asset in every Unity validation consumer' {
-        $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip'
-        $expectedSha256 = 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed'
+        $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip'
+        $expectedSha256 = 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924'
         $consumers = @(
             [pscustomobject]@{ Workflow = $dailyWorkflow; Job = 'unity-daily' },
             [pscustomobject]@{ Workflow = $releaseWorkflow; Job = 'validate' }
@@ -649,7 +649,7 @@ Describe 'Hosted Unity review contracts' {
 
         foreach ($consumer in $consumers) {
             $job = Get-NamedJobBlock -Workflow $consumer.Workflow -Name $consumer.Job
-            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core 0.1.9 release'
+            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core 0.1.12 release'
 
             $step | Should -Not -BeNullOrEmpty
             $step | Should -Match 'Install-VerifiedShaderCoreRelease\.ps1'
@@ -851,10 +851,46 @@ Describe 'Hosted Unity review contracts' {
         $fixturePath = Join-Path $temporaryRoot 'not-an-executable.txt'
         $logPath = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Watchdog-Log-' + [guid]::NewGuid().ToString('N') + '.log')
         $diagnosticPath = [IO.Path]::ChangeExtension($logPath, 'Watchdog.txt')
+        $expectedProcess = [Diagnostics.Process]::new()
+        $expectedStartException = $null
+        $unstartedProcess = [Diagnostics.Process]::new()
+        $unstartedProcessException = $null
 
         try {
             New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
             Set-Content -LiteralPath $fixturePath -Value 'not an executable'
+
+            $expectedProcess.StartInfo = [Diagnostics.ProcessStartInfo]::new()
+            $expectedProcess.StartInfo.FileName = $fixturePath
+            $expectedProcess.StartInfo.Arguments = "-logFile $logPath"
+            $expectedProcess.StartInfo.UseShellExecute = $false
+            $expectedProcess.StartInfo.CreateNoWindow = $true
+            $expectedProcess.StartInfo.WorkingDirectory = [Environment]::CurrentDirectory
+            try {
+                [void]$expectedProcess.Start()
+                throw 'The invalid Unity Editor fixture unexpectedly started.'
+            }
+            catch {
+                $expectedStartException = $_.Exception
+            }
+
+            $expectedStartException.GetType().FullName | Should -Be 'System.Management.Automation.MethodInvocationException'
+            $expectedStartException.InnerException.GetType().FullName | Should -Be 'System.ComponentModel.Win32Exception'
+            $expectedStartException.InnerException.NativeErrorCode | Should -Be 193
+            $expectedStartMessage = $expectedStartException.Message
+
+            try {
+                $null = [Diagnostics.Process].GetProperty('Id').GetValue($unstartedProcess)
+                throw 'The unstarted process unexpectedly has an ID.'
+            }
+            catch {
+                $unstartedProcessException = $_.Exception
+            }
+
+            $unstartedProcessBaseException = $unstartedProcessException.GetBaseException()
+            $unstartedProcessBaseException.GetType().FullName | Should -Be 'System.InvalidOperationException'
+            $unstartedProcessMessage = $unstartedProcessBaseException.Message
+            $unstartedProcessMessage | Should -Not -BeNullOrEmpty
 
             $childOutput = & pwsh -NoLogo -NoProfile -NonInteractive `
                 -File (Join-Path $repositoryRoot '.github/scripts/UnityWatchdogProxy.ps1') `
@@ -865,10 +901,19 @@ Describe 'Hosted Unity review contracts' {
             $exitCode | Should -Be 1
             Test-Path -LiteralPath $diagnosticPath -PathType Leaf | Should -BeTrue
             $diagnostic = Get-Content -LiteralPath $diagnosticPath -Raw
-            $diagnostic | Should -Match '(?m)^Exception=Exception calling "Start"'
-            $childOutput | Should -Not -Match '(?i)(No process associated with this object|Process has not been started|The Process object must have an associated process|process.*not.*started)'
+            $diagnosticMatch = [regex]::Match($diagnostic, '(?m)^Exception=(?<message>[^\r\n]*)\r?$')
+            $diagnosticMatch.Success | Should -BeTrue
+            $diagnosticMatch.Groups['message'].Value | Should -Be $expectedStartMessage
+
+            $normalizedChildOutput = ($childOutput -replace '(?m)^\s*\|\s*', '') -replace '\s+', ''
+            $normalizedExpectedStartMessage = $expectedStartMessage -replace '\s+', ''
+            $normalizedUnstartedProcessMessage = $unstartedProcessMessage -replace '\s+', ''
+            $normalizedChildOutput | Should -Match ([regex]::Escape($normalizedExpectedStartMessage))
+            $normalizedChildOutput | Should -Not -Match ([regex]::Escape($normalizedUnstartedProcessMessage))
         }
         finally {
+            $expectedProcess.Dispose()
+            $unstartedProcess.Dispose()
             Remove-Item -LiteralPath $temporaryRoot, $logPath, $diagnosticPath -Recurse -Force -ErrorAction SilentlyContinue
         }
     }

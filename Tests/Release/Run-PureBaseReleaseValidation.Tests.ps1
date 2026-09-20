@@ -289,7 +289,7 @@ Describe 'Release validation runner contracts' {
                 releaseZipSha256            = 'release-zip'
                 shaderCore                  = [ordered]@{
                     packageName            = 'jp.lilxyzw.shadercore'
-                    packageVersion         = '0.1.9'
+                    packageVersion         = '0.1.12'
                     expectedIdentitySha256 = 'shader-core'
                     treeSha256             = 'shader-core'
                 }

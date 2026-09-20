@@ -138,7 +138,7 @@ Describe 'Validate-PureBaseParity synthetic artifact contracts' {
                     unapprovedTrackedScmodulePaths      = @()
                     missingTrackedScmodulePaths         = @()
                     trackedScmodulePathsExactlyApproved = $true
-                    shaderCoreDependency                = '0.1.9'
+                    shaderCoreDependency                = '0.1.12'
                     urpDependencyPresent                = $false
                     packageContainsPureBaseTestAssets   = $false
                     pbrHybridPropertiesByteIdentical    = $true
