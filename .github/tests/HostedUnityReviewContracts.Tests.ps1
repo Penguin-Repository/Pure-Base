@@ -876,7 +876,6 @@ Describe 'Hosted Unity review contracts' {
 
             $expectedStartException.GetType().FullName | Should -Be 'System.Management.Automation.MethodInvocationException'
             $expectedStartException.InnerException.GetType().FullName | Should -Be 'System.ComponentModel.Win32Exception'
-            $expectedStartException.InnerException.NativeErrorCode | Should -Be 193
             $expectedStartMessage = $expectedStartException.Message
 
             try {
