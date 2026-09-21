@@ -1,3 +1,24 @@
+2026/09/22
+Ver. 0.2.0
+https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0
+https://github.com/Penguin-Repository/Pure-Base/milestone/2?closed=1
+
+* Added configurable Opaque, Cutout, and Transparent rendering modes to all PureBase shaders, with shared Inspector controls and material-state synchronization while preserving Cutout as the compatibility default for existing materials.
+* Added configurable stencil support across all PureBase shaders, including shared reference, read/write masks, comparison, and pass/fail operations, with ForwardAdd re-testing the configured comparison without modifying the stencil buffer.
+* Improved module-free Toon lighting with a stable dominant light direction and bright/dark spherical-harmonics environment bands derived from the OpenLit 1.0.2 lighting contract.
+* Separated realtime shadow visibility from Toon light color and direction weighting, preventing shadow attenuation from distorting the dominant light direction while preserving distance and spot attenuation.
+* Added Linear and Gamma color-space handling for Toon SH lighting while preserving Shader-Core ownership of BIRP light acquisition, lightmaps, phase dispatch, and additional-light enumeration.
+* Preserved ForwardAdd as direct-light only without SH environment lighting and retained the existing PBR, Hybrid, and Unlit lighting ownership.
+* Added the opt-in `_UseUnityStandardDiffuseBrightness` control to PBR and Hybrid, allowing Unity Standard-like direct-diffuse brightness while keeping the previous physically normalized `1/pi` behavior as the default.
+* Raised the PBR and Hybrid perceptual roughness floor to `0.089` across direct lighting, Unity Standard GI and reflections, and Meta/lightmapping for improved low-roughness stability. Existing serialized values below the floor remain stored unchanged but evaluate as `0.089`.
+* Replaced the previous square-root Smith GGX visibility evaluation with a finite linearized joint GGX visibility approximation for PBR and Hybrid direct specular lighting, with documented analytical provenance and regression coverage.
+* Updated the exact Shader-Core dependency from `0.1.9` to `0.1.12` and synchronized dependency verification, CI, release validation, and documentation with the reviewed package.
+* Improved the shared Cutoff Inspector layout so the slider expands with the available Inspector width while preserving its numeric input, range, Undo behavior, and Cutout-only visibility.
+* Expanded Daily, release, cold-consumer, rendering-mode, stencil, Toon lighting, PBR roughness, diffuse-brightness, and GGX visibility validation coverage.
+* Retained the existing shader names and compatibility behavior for existing materials; no bulk material migration is required.
+* Updated the package version and release download identity to `0.2.0`.
+
+
 2026/08/15
 Ver. 0.2.0-beta.2
 https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0-beta.2
@@ -27,6 +48,7 @@ https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0-beta.1
 - Expanded Daily, release-runner, and cold-consumer validation for rendering modes, stencil behavior, Inspector persistence, rollback, and D24S8 runtime coverage.
 - Added repository-wide LF line-ending enforcement and updated release/security workflow dependencies.
 - Updated the package version and release download identity to `0.2.0-beta.1`.
+
 
 2026/08/06
 Ver. 0.1.0
