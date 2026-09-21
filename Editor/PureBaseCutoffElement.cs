@@ -54,6 +54,7 @@ namespace PureBase.Editor
         )
         {
             var rangeContainer = new VisualElement();
+            rangeContainer.style.flexGrow = 1;
             container.Add(rangeContainer);
             editor.ShaderProperty(rangeContainer, property, new[] { CutoffRangeAttribute });
 
