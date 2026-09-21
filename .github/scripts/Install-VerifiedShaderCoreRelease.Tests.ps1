@@ -22,7 +22,7 @@ Describe 'Install-VerifiedShaderCoreRelease' {
             param(
                 [string]$Path,
                 [string]$PackageName = 'jp.lilxyzw.shadercore',
-                [string]$PackageVersion = '0.1.9',
+                [string]$PackageVersion = '0.1.12',
                 [string[]]$AdditionalEntries = @(),
                 [hashtable]$AdditionalEntryExternalAttributes = @{}
             )
@@ -112,7 +112,7 @@ Describe 'Install-VerifiedShaderCoreRelease' {
 
             & (Join-Path $PSScriptRoot 'Install-VerifiedShaderCoreRelease.ps1') `
                 -ProjectRoot $script:projectRoot `
-                -Uri 'https://example.test/jp.lilxyzw.shadercore-0.1.9.zip' `
+                -Uri 'https://example.test/jp.lilxyzw.shadercore-0.1.12.zip' `
                 -ExpectedSha256 $ExpectedSha256 `
                 -TemporaryRoot $script:temporaryRoot
         }

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "packageName": "jp.lilxyzw.shadercore",
-  "packageVersion": "0.1.9",
+  "packageVersion": "0.1.12",
   "scope": "All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.",
   "algorithm": "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\\t<lowercase-file-sha256>\\n' in ordinal path order.",
-  "identitySha256": "2bd669a4387d2dcf7f9b4be42301b63456e37358e2a41db822832f3d96831303",
+  "identitySha256": "6ca755934cda14aca0ea6e22953943be5cf5a40ec02a7b4638586d8667d2e9e5",
   "entries": [
     {
       "path": "Editor.meta",
@@ -68,7 +68,7 @@
     },
     {
       "path": "Editor/API/ModuleSetter.cs",
-      "sha256": "f66d27ea64d6efb21695fa11ba6026ac80b6ef868f9f9eac99e65bd7e7902dd6"
+      "sha256": "b0dfce479283b0c92abeaa01902bac42b4280ca04a314bb397acbe23c30a040d"
     },
     {
       "path": "Editor/API/ModuleSetter.cs.meta",
@@ -104,11 +104,19 @@
     },
     {
       "path": "Editor/Core/JsonParser.cs",
-      "sha256": "c9cff0c13e1c738c65d112ae34ff361f98be57a9d256df7b05d9a12be5703252"
+      "sha256": "662412e29ca3b0ec6289a6e7f5776e8cfbe2a4d4330ffe43ba90e94777392f8a"
     },
     {
       "path": "Editor/Core/JsonParser.cs.meta",
       "sha256": "cc59a2267211bd803e7cf9592591c8d29948513373d3066a999ce9f1d1368a38"
+    },
+    {
+      "path": "Editor/Core/NumParser.cs",
+      "sha256": "044bd5aebf90ea65d8288fab5f64fcd543881057a5e07c4ec93d1c96bd232b04"
+    },
+    {
+      "path": "Editor/Core/NumParser.cs.meta",
+      "sha256": "f571e3e3a4089fdd9425e0b76cb465fcc3783153438a59f6a985b9e79c937ec3"
     },
     {
       "path": "Editor/Core/POParser.cs",
@@ -120,7 +128,7 @@
     },
     {
       "path": "Editor/Core/SCModule.cs",
-      "sha256": "fdeb6122542d79387e1d3e57fc217a989cbd6277b86c4d77ac3621d750cf29c1"
+      "sha256": "02d589d928066a3c2c24cd32c41d832aa8c96950afb6a2c5aa347a292c42e147"
     },
     {
       "path": "Editor/Core/SCModule.cs.meta",
@@ -128,7 +136,7 @@
     },
     {
       "path": "Editor/Core/SCProperty.cs",
-      "sha256": "3a9f77ab23aaf7506c2d3da8ce2740e774762d81bbc4e6e21674bebfc6a24d4d"
+      "sha256": "d9c8248cbbd2d71fd6ea9ab88c048609cea509a5a89984df62385bdfe953819a"
     },
     {
       "path": "Editor/Core/SCProperty.cs.meta",
@@ -136,7 +144,7 @@
     },
     {
       "path": "Editor/Core/SCPropertyClipbord.cs",
-      "sha256": "4548c355751a99f8148c9976cd50fe06f873228295de5f9d84429df1d49595cf"
+      "sha256": "a0c2ac0018a6c2afbac5c0bb27cd825a31978cba28e7b5244e63ae06dec48f85"
     },
     {
       "path": "Editor/Core/SCPropertyClipbord.cs.meta",
@@ -256,7 +264,7 @@
     },
     {
       "path": "Editor/Importer/SCShaderImporter.cs",
-      "sha256": "3755508dfd6bce0f51295314ef3f6654090ee9e71614b7e2910aa121452273c9"
+      "sha256": "ccf6c6dda4c15368ca3c643088ff0de967d00a32d6c80e0a7fc1fac519b742a5"
     },
     {
       "path": "Editor/Importer/SCShaderImporter.cs.meta",
@@ -292,7 +300,7 @@
     },
     {
       "path": "Editor/Localization.cs",
-      "sha256": "0af28774c1bc104e4408e03834f4dae7b00655e888440dd0cb65eed60b579f4e"
+      "sha256": "9df21d027ce9f47c45139c0d4ce9412ac05ece7d98d8a65f14096d9bc5644047"
     },
     {
       "path": "Editor/Localization.cs.meta",
@@ -304,7 +312,7 @@
     },
     {
       "path": "Editor/MaterialEditor/CustomAttributes.cs",
-      "sha256": "db1249e6cca82a012dd91fd625b6d2eb0b0f74ea414af1c508c2480c451e8ae0"
+      "sha256": "3c2abc2f7dfc86c66ce64501355c131ce573f2cf8545fa866de5ac91f76f3a97"
     },
     {
       "path": "Editor/MaterialEditor/CustomAttributes.cs.meta",
@@ -328,7 +336,7 @@
     },
     {
       "path": "Editor/MaterialEditor/PropertyClipboard.cs",
-      "sha256": "72d52c1746ea0fffe81b1fa459aa72ee39b306a89c2d33fcf3d935852a2965d5"
+      "sha256": "ec2fa5dc457e0cb7fe67890702cf5826f1d22cb614bf41fbb21d51a70175e544"
     },
     {
       "path": "Editor/MaterialEditor/PropertyClipboard.cs.meta",
@@ -336,7 +344,7 @@
     },
     {
       "path": "Editor/MaterialEditor/SCMaterialEditor.cs",
-      "sha256": "4220bb19ee4768d86ce9150f3f7a57a4f76e1fad27240d2193a0d0c1c708a233"
+      "sha256": "b17fc28a7749e1aa5d305d5621a889359b29993b8166b31d3d6bae62dcf63296"
     },
     {
       "path": "Editor/MaterialEditor/SCMaterialEditor.cs.meta",
@@ -380,7 +388,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCEditableTextureButton.cs",
-      "sha256": "31a8f70f488449e6a0678441e6d7347f9f6699323413dce98599e2eef36c045d"
+      "sha256": "2260a05725cd5cd009638685eea60aa1a788a5ad8ffd974e6735259ff033c305"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCEditableTextureButton.cs.meta",
@@ -412,7 +420,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCGradientSelect.cs",
-      "sha256": "52e0a5c9127801105e07cb4a3d5ec8c78e1c5f516b73e9d8ff3e85ee92f0d24f"
+      "sha256": "115c79e51dc62b2ed1c8828dfa0f288c547b7a8c4d7813643945de83464c819b"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCGradientSelect.cs.meta",
@@ -452,7 +460,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPopupField.cs",
-      "sha256": "86dbcfef0850d70f89ad86a6af9a303ab9d598059dbbdbc7870624cb6b54da54"
+      "sha256": "7d22add6320840f1ffc4823936cec1b13a25433a8afc9f1a51bba806fbf7f5ba"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPopupField.cs.meta",
@@ -560,7 +568,7 @@
     },
     {
       "path": "Editor/Utils/AssetUtils.cs",
-      "sha256": "773fb85330bafd454a3333451a481d2ea2baf39b0b7116bf9f0bac199f3e783b"
+      "sha256": "0fdc7990f4ccd9b7b3dde7561e50a452f315afd658d717050131afaff956f1b3"
     },
     {
       "path": "Editor/Utils/AssetUtils.cs.meta",
@@ -700,7 +708,7 @@
     },
     {
       "path": "ShaderLibrary/urp_forward.hlsl",
-      "sha256": "9b8e4ad718e1862e343ce2d339abefe5c729e12e66454e1a839dcb3bfaf5f0d3"
+      "sha256": "c398efb53b0d50c1ec45b5a71330018b5d16ddb66a11810ff3e959e9a9b5fad8"
     },
     {
       "path": "ShaderLibrary/urp_forward.hlsl.meta",
@@ -768,7 +776,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "33c295d8bf14bd11a827d609314baae01cb7182556b96d3fb8b9fd90bbb05951"
+      "sha256": "889430bea4b7ebec18c6031c91cc15f4a088a6ab1e8a9909a45b3a946415f68a"
     },
     {
       "path": "package.json.meta",

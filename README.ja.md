@@ -54,7 +54,7 @@ Pure Base には、用途の異なる4つのシェーダーが含まれていま
 
 - Unity 2022.3
 - Built-in Render Pipeline
-- Shader-Core 0.1.9
+- Shader-Core 0.1.12
 
 URPには対応していません。Opaque、Cutout、Transparent の描画モードを利用でき、初期状態は Cutout です。
 
@@ -85,7 +85,7 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 1. 使用するUnityプロジェクトを管理ソフトで開きます。
 2. パッケージ一覧から `PureBase` を探します。
 3. 追加する版を選び、プロジェクトへ導入します。
-4. Shader-Core 0.1.9 が一緒に導入されることを確認します。
+4. Shader-Core 0.1.12 が一緒に導入されることを確認します。
 
 このREADMEが対象とするパッケージ版は `0.2.0-beta.2` です。
 
@@ -241,11 +241,11 @@ Pure Base に含まれるのは、用途の異なる4つのシェーダーだ！
 
 - Unity 2022.3
 - Built-in Render Pipeline
-- Shader-Core 0.1.9
+- Shader-Core 0.1.12
 
 見たか、この三本柱を！
 
-**Unity 2022.3！ Built-in Render Pipeline！ Shader-Core 0.1.9！**
+**Unity 2022.3！ Built-in Render Pipeline！ Shader-Core 0.1.12！**
 
 ここが Pure Base の勝負する舞台だ！
 
@@ -316,7 +316,7 @@ URLは長い！
 1. 使用するUnityプロジェクトを管理ソフトで開きます。
 2. パッケージ一覧から `PureBase` を探します。
 3. 追加する版を選び、プロジェクトへ導入します。
-4. Shader-Core 0.1.9 が一緒に導入されることを確認します。
+4. Shader-Core 0.1.12 が一緒に導入されることを確認します。
 
 開く！
 探す！

@@ -26,7 +26,7 @@ Pure Base is a minimal Shader-Core host. It is not intended to become a feature-
 
 - Unity `2022.3` is required. Integration validation is fixed to Unity `2022.3.22f1`.
 - Only the Built-in Render Pipeline is supported. URP is not supported.
-- The package requires exactly `jp.lilxyzw.shadercore` `0.1.9`.
+- The package requires exactly `jp.lilxyzw.shadercore` `0.1.12`.
 - Future `0.1.x` Shader-Core releases are not accepted automatically. Shader-Core does not declare compatibility across `0.x` releases, and importer, project-setting, and method-shape contracts may change.
 - The integration harness forces D3D11 during test execution.
 - Opaque, Cutout, and Transparent rendering modes are supported. Cutout is the default mode; URP is not supported.

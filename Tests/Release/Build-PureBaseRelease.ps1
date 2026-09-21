@@ -277,8 +277,8 @@ function Get-VerifiedShaderCorePackageIdentity {
     $shaderCorePackage = Get-Content -LiteralPath (Join-Path $ShaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
     $packageName = [string]$shaderCorePackage.name
     $packageVersion = [string]$shaderCorePackage.version
-    if ($packageName -ne 'jp.lilxyzw.shadercore' -or $packageVersion -ne '0.1.9') {
-        throw 'Local Shader-Core must be jp.lilxyzw.shadercore version 0.1.9.'
+    if ($packageName -ne 'jp.lilxyzw.shadercore' -or $packageVersion -ne '0.1.12') {
+        throw 'Local Shader-Core must be jp.lilxyzw.shadercore version 0.1.12.'
     }
 
     return [pscustomobject][ordered]@{
@@ -420,7 +420,7 @@ function Assert-ShaderCoreIdentity {
         }
 
         throw (@(
-                'Local Shader-Core identity does not match shader-core-0.1.9.sha256.json.'
+                'Local Shader-Core identity does not match shader-core-0.1.12.sha256.json.'
                 "Expected aggregate identity SHA-256: $($expectedManifest.identitySha256)."
                 "Actual aggregate identity SHA-256: $($actualManifest.identitySha256)."
                 "Expected entry count: $($expectedEntries.Count)."
@@ -447,7 +447,7 @@ if (Test-ReparsePoint -Item (Get-Item -LiteralPath $packageRoot -Force)) {
 $workspaceRoot = Split-Path -Parent (Split-Path -Parent $packageRoot)
 $shaderCoreRoot = Join-Path (Join-Path $workspaceRoot 'Packages') 'jp.lilxyzw.shadercore'
 $contractPath = Join-Path $scriptRoot 'release-content.json'
-$manifestPath = Join-Path $scriptRoot 'shader-core-0.1.9.sha256.json'
+$manifestPath = Join-Path $scriptRoot 'shader-core-0.1.12.sha256.json'
 $contract = Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
 if ($contract.schemaVersion -ne 1) {
     throw "Unsupported release contract schema version '$($contract.schemaVersion)'."

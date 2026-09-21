@@ -46,28 +46,28 @@ Describe 'Shader-Core identity manifest generation' {
         $shaderCoreRoot = Join-Path $TestDrive 'jp.lilxyzw.shadercore'
         Remove-Item -LiteralPath $shaderCoreRoot -Recurse -Force -ErrorAction SilentlyContinue
         New-Item -ItemType Directory -Path $shaderCoreRoot -Force | Out-Null
-        [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.1.9"}', [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.1.12"}', [System.Text.UTF8Encoding]::new($false))
         [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'identity-probe.txt'), 'identity probe', [System.Text.UTF8Encoding]::new($false))
-        $manifestPath = Join-Path $TestDrive 'shader-core-0.1.9.sha256.json'
+        $manifestPath = Join-Path $TestDrive 'shader-core-0.1.12.sha256.json'
     }
 
-    It 'writes a manifest with the verified 0.1.9 package metadata' {
+    It 'writes a manifest with the verified 0.1.12 package metadata' {
         Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
 
         $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         Assert-ManifestHarness -Condition ([string]$manifest.packageName -eq 'jp.lilxyzw.shadercore') -Message 'Generated manifest packageName is not the verified Shader-Core package ID.'
-        Assert-ManifestHarness -Condition ([string]$manifest.packageVersion -eq '0.1.9') -Message 'Generated manifest packageVersion is not the verified Shader-Core version.'
+        Assert-ManifestHarness -Condition ([string]$manifest.packageVersion -eq '0.1.12') -Message 'Generated manifest packageVersion is not the verified Shader-Core version.'
         Assert-ManifestHarness -Condition ([string]$manifest.identitySha256 -match '^[a-f0-9]{64}$') -Message 'Generated manifest identitySha256 is not a lowercase SHA-256 hash.'
     }
 
     It 'does not overwrite a manifest when the local package ID is mismatched' {
-        [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"unexpected.shadercore","version":"0.1.9"}', [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"unexpected.shadercore","version":"0.1.12"}', [System.Text.UTF8Encoding]::new($false))
         [System.IO.File]::WriteAllText($manifestPath, 'preserve-id-mismatch', [System.Text.UTF8Encoding]::new($false))
 
         $failure = $null
         try { Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
         catch { $failure = $_ }
-        Assert-ManifestHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*jp.lilxyzw.shadercore version 0.1.9*') -Message 'Mismatched Shader-Core package ID was not rejected.'
+        Assert-ManifestHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*jp.lilxyzw.shadercore version 0.1.12*') -Message 'Mismatched Shader-Core package ID was not rejected.'
         Assert-ManifestHarness -Condition ((Get-Content -LiteralPath $manifestPath -Raw) -eq 'preserve-id-mismatch') -Message 'Mismatched Shader-Core package ID overwrote the manifest.'
     }
 
@@ -78,7 +78,7 @@ Describe 'Shader-Core identity manifest generation' {
         $failure = $null
         try { Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
         catch { $failure = $_ }
-        Assert-ManifestHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*jp.lilxyzw.shadercore version 0.1.9*') -Message 'Mismatched Shader-Core package version was not rejected.'
+        Assert-ManifestHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*jp.lilxyzw.shadercore version 0.1.12*') -Message 'Mismatched Shader-Core package version was not rejected.'
         Assert-ManifestHarness -Condition ((Get-Content -LiteralPath $manifestPath -Raw) -eq 'preserve-version-mismatch') -Message 'Mismatched Shader-Core package version overwrote the manifest.'
     }
 
@@ -231,7 +231,7 @@ Describe 'Deterministic release archive contracts' {
                 'Shaders/PureBasePBR.scshader'    = "Shader fixture PBR`n"
                 'Shaders/PureBaseToon.scshader'   = "Shader fixture Toon`n"
                 'Shaders/PureBaseUnlit.scshader'  = "Shader fixture Unlit`n"
-                'package.json'                    = "{`"name`":`"jp.penguin.purebase`",`"version`":`"0.2.0`",`"vpmDependencies`":{`"jp.lilxyzw.shadercore`":`"0.1.9`"}}`n"
+                'package.json'                    = "{`"name`":`"jp.penguin.purebase`",`"version`":`"0.2.0`",`"vpmDependencies`":{`"jp.lilxyzw.shadercore`":`"0.1.12`"}}`n"
             }
             foreach ($entry in $files.GetEnumerator()) {
                 $path = Join-Path $packageRoot $entry.Key
@@ -241,7 +241,7 @@ Describe 'Deterministic release archive contracts' {
 
             Copy-Item -LiteralPath $builderPath -Destination (Join-Path $scriptRoot 'Build-PureBaseRelease.ps1') -Force
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'release-content.json') -Destination (Join-Path $scriptRoot 'release-content.json') -Force
-            [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.1.9"}' + "`n", $utf8NoBom)
+            [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.1.12"}' + "`n", $utf8NoBom)
             [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'identity-probe.txt'), "fixture identity`n", $utf8NoBom)
 
             & git -C $packageRoot init --initial-branch master --quiet
@@ -364,6 +364,6 @@ Describe 'Deterministic release archive contracts' {
         $archive = Get-ChildItem -LiteralPath $outputDirectory -Filter 'jp.penguin.purebase-0.2.0.zip' -File | Select-Object -First 1
         $archive | Should -Not -BeNullOrEmpty
         (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant() |
-            Should -Be 'b9ea2454a4dc12be358824865bac7bd8beba293a83c8ec9c129083bc950130a1'
+            Should -Be 'f02a576651006fd771e86c57e0a7a2f44340799f39c4aeca734acb380270afcc'
     }
 }

@@ -18,10 +18,10 @@ param(
     [string]$ProjectRoot,
 
     [ValidatePattern('^https://')]
-    [string]$Uri = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip',
+    [string]$Uri = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip',
 
     [ValidatePattern('^[0-9a-f]{64}$')]
-    [string]$ExpectedSha256 = 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed',
+    [string]$ExpectedSha256 = 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924',
 
     [string]$TemporaryRoot = [IO.Path]::GetTempPath()
 )
@@ -110,8 +110,8 @@ function Assert-ShaderCorePackageMetadata {
         throw "The extracted Shader-Core package metadata is invalid: $($_.Exception.Message)"
     }
 
-    if ($metadata.name -ne 'jp.lilxyzw.shadercore' -or $metadata.version -ne '0.1.9') {
-        throw "The extracted package metadata must identify jp.lilxyzw.shadercore 0.1.9; found '$($metadata.name)' '$($metadata.version)'."
+    if ($metadata.name -ne 'jp.lilxyzw.shadercore' -or $metadata.version -ne '0.1.12') {
+        throw "The extracted package metadata must identify jp.lilxyzw.shadercore 0.1.12; found '$($metadata.name)' '$($metadata.version)'."
     }
 }
 
@@ -123,10 +123,10 @@ function Install-VerifiedShaderCoreRelease {
         [string]$ProjectRoot,
 
         [ValidatePattern('^https://')]
-        [string]$Uri = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.9/jp.lilxyzw.shadercore-0.1.9.zip',
+        [string]$Uri = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip',
 
         [ValidatePattern('^[0-9a-f]{64}$')]
-        [string]$ExpectedSha256 = 'fe303273fd653a44d2dc1b746cec587c07fcec3e2777409549b71a2ed742f5ed',
+        [string]$ExpectedSha256 = 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924',
 
         [ValidateNotNullOrEmpty()]
         [string]$TemporaryRoot = [IO.Path]::GetTempPath()
@@ -155,7 +155,7 @@ function Install-VerifiedShaderCoreRelease {
 
     $operationId = [Guid]::NewGuid().ToString('N')
     $downloadDirectory = Join-Path $temporaryRootPath "ShaderCoreRelease.$operationId"
-    $archivePath = Join-Path $downloadDirectory 'jp.lilxyzw.shadercore-0.1.9.zip'
+    $archivePath = Join-Path $downloadDirectory 'jp.lilxyzw.shadercore-0.1.12.zip'
     $candidatePath = Join-Path $packagesPath ".jp.lilxyzw.shadercore.staging.$operationId"
     $backupPath = Join-Path $packagesPath ".jp.lilxyzw.shadercore.backup.$operationId"
     $targetMoved = $false

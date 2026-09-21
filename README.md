@@ -52,7 +52,7 @@ Every shader can be used without installing an optional module.
 
 - Unity 2022.3
 - Built-in Render Pipeline
-- Shader-Core 0.1.9
+- Shader-Core 0.1.12
 
 URP is not supported. Opaque, Cutout, and Transparent rendering modes are available; Cutout is the default.
 
@@ -83,7 +83,7 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 1. Open the Unity project in your package manager.
 2. Find `PureBase` in the package list.
 3. Select the version you want and add it to the project.
-4. Confirm that Shader-Core 0.1.9 is installed with it.
+4. Confirm that Shader-Core 0.1.12 is installed with it.
 
 The package version described here is `0.2.0-beta.2`.
 
