@@ -1689,7 +1689,7 @@ function New-ProductContract {
     $requiredSourceFragments = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
     if ($ShaderName -eq 'PureBase/PBR' -or $ShaderName -eq 'PureBase/Hybrid') {
         $requiredSourceFragments += '_UseUnityStandardDiffuseBrightness'
-        $requiredSourceFragments += 'SC_float(_Roughness, 0.5, [SCRange(0.089,1)], "Roughness", "")'
+        $requiredSourceFragments += '[SCRange(0.089,1)] _Roughness ("Roughness", Float) = 0.5'
     }
     return [ordered]@{
         shaderName                   = $ShaderName

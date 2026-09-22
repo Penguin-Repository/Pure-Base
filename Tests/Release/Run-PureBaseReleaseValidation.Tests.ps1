@@ -77,8 +77,20 @@ Describe 'Release validation runner contracts' {
         $expectedSourceFragments = [ordered]@{
             'PureBase/Unlit'  = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
             'PureBase/Toon'   = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT')
-            'PureBase/PBR'    = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT', '_UseUnityStandardDiffuseBrightness', 'SC_float(_Roughness, 0.5, [SCRange(0.089,1)], "Roughness", "")')
-            'PureBase/Hybrid' = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT', '_UseUnityStandardDiffuseBrightness', 'SC_float(_Roughness, 0.5, [SCRange(0.089,1)], "Roughness", "")')
+            'PureBase/PBR'    = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT', '_UseUnityStandardDiffuseBrightness', '[SCRange(0.089,1)] _Roughness ("Roughness", Float) = 0.5')
+            'PureBase/Hybrid' = @('#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT', '_UseUnityStandardDiffuseBrightness', '[SCRange(0.089,1)] _Roughness ("Roughness", Float) = 0.5')
+        }
+        $generatedShaderLabExcerpt = @'
+#pragma shader_feature_local _ PUREBASE_RENDERING_OPAQUE PUREBASE_RENDERING_TRANSPARENT
+[SCToggle] _UseUnityStandardDiffuseBrightness ("Unity Standard Diffuse Brightness", Integer) = 0
+[SCRange(0.089,1)] _Roughness ("Roughness", Float) = 0.5
+'@
+
+        foreach ($shaderName in @('PureBase/PBR', 'PureBase/Hybrid')) {
+            $product = New-ProductContract -ShaderName $shaderName
+            foreach ($fragment in @($product.requiredSourceFragments)) {
+                Assert-Harness -Condition $generatedShaderLabExcerpt.Contains([string]$fragment) -Message "Generated ShaderLab excerpt for '$shaderName' is missing required fragment '$fragment'."
+            }
         }
 
         foreach ($shaderName in $expectedVisibleProperties.Keys) {
