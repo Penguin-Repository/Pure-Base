@@ -290,7 +290,7 @@ jobs:
 
       - name: Upload release validation evidence
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pure-base-release-validation-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
