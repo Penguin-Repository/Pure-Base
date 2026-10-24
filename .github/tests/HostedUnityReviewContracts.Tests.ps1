@@ -708,7 +708,7 @@ Describe 'Hosted Unity review contracts' {
         $releaseWorkflow | Should -Match '(?m)git\s+status\s+--porcelain'
         $releaseWorkflow | Should -Match '(?m)git\s+for-each-ref'
 
-        $uploadStep | Should -Match '(?m)^        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a(?: #.*)?$'
+        $uploadStep | Should -Match '(?m)^        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9(?: #.*)?$'
         $uploadStep | Should -Match '(?m)^          path: \|$'
         $uploadStep | Should -Match '(?m)^          if-no-files-found: error$'
         $uploadStep | Should -Match '(?m)^          compression-level: 0$'
