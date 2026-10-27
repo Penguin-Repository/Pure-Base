@@ -98,7 +98,7 @@ jobs:
           exit 1
 
   unity-editor-cache:
-    name: Prepare Unity 2022.3.22f1 cache
+    name: Prepare Unity 2022.3.28f1 cache
     needs: authorize
     if: needs.authorize.outputs.allowed == 'true'
     runs-on: windows-2022
@@ -114,7 +114,7 @@ jobs:
         id: unity-cache-lookup
         uses: ./.github/actions/lookup-unity-editor-cache
         with:
-          unity-version: "2022.3.22f1"
+          unity-version: "2022.3.28f1"
           cli-version: "1.0.0-beta.3"
           cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"
 
@@ -123,7 +123,7 @@ jobs:
         if: steps.unity-cache-lookup.outputs.cache-hit != 'true'
         uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
         with:
-          unity-version: "2022.3.22f1"
+          unity-version: "2022.3.28f1"
           cli-version: "1.0.0-beta.3"
           cli-channel: beta
           cache: "true"
@@ -132,14 +132,14 @@ jobs:
         shell: pwsh
         run: |
           if ("${{ steps.unity-cache-lookup.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache metadata lookup hit for 2022.3.22f1; this preparation job did not download, extract, or install the Editor." >> $env:GITHUB_STEP_SUMMARY
+            "Unity Editor cache metadata lookup hit for 2022.3.28f1; this preparation job did not download, extract, or install the Editor." >> $env:GITHUB_STEP_SUMMARY
           }
           else {
             "Unity Editor cache metadata lookup missed; setup-unity-cli ran to restore or install the Editor, and a newly installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
           }
 
   unity-daily:
-    name: Unity 2022.3.22f1 / D3D11
+    name: Unity 2022.3.28f1 / D3D11
     needs:
       - authorize
       - unity-editor-cache
@@ -163,19 +163,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install verified Shader-Core 0.1.12 release
+      - name: Install verified Shader-Core 0.3.0 release
         shell: pwsh
         run: |
           & "$env:PACKAGE_ROOT/.github/scripts/Install-VerifiedShaderCoreRelease.ps1" `
             -ProjectRoot $env:CI_PROJECT_ROOT `
-            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip' `
-            -ExpectedSha256 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924'
+            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.3.0/jp.lilxyzw.shadercore-0.3.0.zip' `
+            -ExpectedSha256 '5fb149379441031e172128933a23a8e5acb066c76e9d942aa91ed13ad93c70b5'
 
-      - name: Restore Unity 2022.3.22f1
+      - name: Restore Unity 2022.3.28f1
         id: unity
         uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
         with:
-          unity-version: "2022.3.22f1"
+          unity-version: "2022.3.28f1"
           cli-version: "1.0.0-beta.3"
           cli-channel: beta
           cache: "true"

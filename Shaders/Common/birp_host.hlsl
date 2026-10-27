@@ -123,11 +123,7 @@ half4 frag(v2f input, bool isFront : SV_IsFrontFace) : SV_Target
 
     sd.col.rgb += sd.add + sd.postadd;
     PureBaseApplyRenderingModeOutputAlpha(sd.col, coverage);
-    #if defined(UNITY_PASS_FORWARDADD)
-    UNITY_APPLY_FOG_COLOR(input.fogCoord, sd.col, fixed4(0, 0, 0, 0));
-    #else
-    UNITY_APPLY_FOG(input.fogCoord, sd.col);
-    #endif
+    SCApplyFog(vertex, sd.col.rgb);
 
     __SC_PHASE_postpixel__
 

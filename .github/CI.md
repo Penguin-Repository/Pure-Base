@@ -18,10 +18,10 @@ limitations under the License.
 
 ## Unity runner
 
-Daily and release validation run on GitHub-hosted `windows-2022` runners. Each run installs Unity
-2022.3.22f1 through `yamachu/unity-cli-actions`, activates Unity Personal through
-`buildalon/activate-unity-license`, and exports the discovered Editor path to the existing validation
-scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
+Daily and release validation run on GitHub-hosted `windows-2022` runners with Unity
+2022.3.28f1 (revision `6bae5ce6b222`), restored through `yamachu/unity-cli-actions`. They activate
+Unity Personal through `buildalon/activate-unity-license` and export the discovered Editor path to
+the existing validation scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
 to avoid repeating the full Editor installation on every run. The cache preparation job uses
 `.github/actions/lookup-unity-editor-cache` for a metadata-only lookup. On a true hit, it does not
 download, extract, or install an Editor archive. The dependent execution job performs the one real
@@ -35,7 +35,7 @@ are therefore non-fatal fallback behavior. Malformed cache identity inputs still
 helper does not use step-level `continue-on-error`.
 
 The exact cache key is `unity-editor-${{ runner.os }}-${{ runner.arch }}-${{ inputs.unity-version }}`
-for Unity `2022.3.22f1`, with no branch, commit, pull request, run, or restore-key component and no
+for Unity `2022.3.28f1`, with no branch, commit, pull request, run, or restore-key component and no
 cross-OS archive. GitHub cache scope can therefore let branches and pull requests reuse the
 default-branch cache when the exact key and cache version match. The lookup helper supports only
 Windows X64. It downloads the versioned `unity-windows-x64.exe` artifact directly from Unity's
@@ -77,13 +77,14 @@ non-draft branches in this repository: their writers may run their pull request 
 Unity activation credentials.
 
 The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
-embedded packages. Shader-Core is pinned to the exact reviewed tag `0.1.12`, matching the exact
+embedded packages. Shader-Core is pinned to the exact reviewed tag `0.3.0`, matching the exact
 dependency identity required by Pure Base for both Daily and release validation. Git line-ending
 conversion is disabled, and the project is configured for Linear color space before Daily
-validation.
-Pure Base does not automatically accept future `0.1.x` versions because Shader-Core has no declared
-0.x compatibility guarantee, and its importer, ProjectSettings, and method-shape contracts are
-compatibility-sensitive. Each future version requires explicit review and an updated pin.
+validation. Shader-Core releases are pinned explicitly because compatibility across `0.x` versions
+is not assumed; importer, ProjectSettings, and method-shape contracts are compatibility-sensitive.
+Each version change requires explicit review and an updated pin. The version pin describes the CI
+project and tested runtime expectation; it does not modify the Unity Editor, ProjectSettings, or VPM
+configuration of a developer's existing workspace.
 
 ## VRChat SDK parity boundary
 
@@ -146,11 +147,17 @@ is merged, through the unchanged `push` path. This resolver is not a protection 
 pull request that changes workflow or helper code; the Unity credentials for trusted same-repository
 branches rely on the repository's branch-writer trust policy.
 
-`Release validation` is manual and read-only. Configure/import runs through the Unity watchdog
+`Release validation` is manual and read-only, and is the normal hosted Release consumer validation
+path; do not run `Tests/Release/Run-PureBaseReleaseValidation.ps1` locally during ordinary
+development. Configure/import runs through the Unity watchdog
 proxy. The audited release-validation runner receives the real `Unity.exe`, because it intentionally
 rejects wrapper executables while proving the required Unity version from the editor path. The
-workflow uploads the complete evidence directory, including a versioned copy of the audited package
-ZIP.
+workflow uploads bounded evidence from the artifact root: bootstrap and per-run evidence, archive
+ZIPs and digests, the Shader-Core manifest, run/cleanup summaries, the validated package, repository
+state, and outer logs. It excludes the whole ConsumerProject, Unity cache, secrets, and arbitrary
+crash dumps. The success exporter runs only on success; evidence upload always runs and rejects
+missing expected files. A hosted exact-head run is required to establish results for a committed and
+pushed revision.
 
 `package.json` is the sole release identity and version declaration. The `version` input to the
 manual `Release` workflow is confirmation only: it must exactly match the checked-out package

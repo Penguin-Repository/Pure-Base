@@ -171,7 +171,7 @@ Describe 'Release validation runner contracts' {
                             $manifest.dependencies | Add-Member -NotePropertyName 'com.unity.classifier-probe' -NotePropertyValue '1.0.0'
                             [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\manifest.json'), ($manifest | ConvertTo-Json -Depth 8 -Compress), (New-Object System.Text.UTF8Encoding($false)))
                         }
-                        'wrong-revision' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\ProjectVersion.txt'), "m_EditorVersion: 2022.3.22f1`nm_EditorVersionWithRevision: 2022.3.22f1 (000000000000)", (New-Object System.Text.UTF8Encoding($false))) }
+                        'wrong-revision' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'ProjectSettings\ProjectVersion.txt'), "m_EditorVersion: 2022.3.28f1`nm_EditorVersionWithRevision: 2022.3.28f1 (000000000000)", (New-Object System.Text.UTF8Encoding($false))) }
                         'lock-mismatch' { [System.IO.File]::WriteAllText((Join-Path $consumerRoot 'Packages\packages-lock.json'), '{"dependencies":{"com.unity.test-framework":{},"jp.lilxyzw.shadercore":{"source":"registry","path":"../_LocalPackages/jp.lilxyzw.shadercore"},"jp.penguin.purebase":{"source":"local","path":"../_LocalPackages/jp.penguin.purebase"}}}', (New-Object System.Text.UTF8Encoding($false))) }
                         'lock-version-mismatch' {
                             $lock = Get-Content -LiteralPath (Join-Path $consumerRoot 'Packages\packages-lock.json') -Raw | ConvertFrom-Json
@@ -301,7 +301,7 @@ Describe 'Release validation runner contracts' {
                 releaseZipSha256            = 'release-zip'
                 shaderCore                  = [ordered]@{
                     packageName            = 'jp.lilxyzw.shadercore'
-                    packageVersion         = '0.1.12'
+                    packageVersion         = '0.3.0'
                     expectedIdentitySha256 = 'shader-core'
                     treeSha256             = 'shader-core'
                 }
@@ -345,8 +345,8 @@ Describe 'Release validation runner contracts' {
             foreach ($dependencyName in $packageProfile.manifestDependencies.Keys) { $manifestDependencies[$dependencyName] = $packageProfile.manifestDependencies[$dependencyName] }
             Write-HarnessBootstrapFile -RelativePath 'Packages/manifest.json' -Content (([ordered]@{ dependencies = $manifestDependencies }) | ConvertTo-Json -Depth 4 -Compress)
             Write-HarnessBootstrapFile -RelativePath 'ProjectSettings/ProjectVersion.txt' -Content @'
-m_EditorVersion: 2022.3.22f1
-m_EditorVersionWithRevision: 2022.3.22f1 (887be4894c44)
+m_EditorVersion: 2022.3.28f1
+m_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)
 '@
             $lockDependencies = [ordered]@{}
             foreach ($dependencyName in $packageProfile.lockDependencies.Keys) {
@@ -1281,26 +1281,33 @@ Describe 'Release validation workflow evidence export contracts' {
         $workflowPath = Join-Path $packageRoot '.github/workflows/release-validation.yml'
         $workflowSource = Get-Content -LiteralPath $workflowPath -Raw
         $uploadStepMatch = [regex]::Match($workflowSource, '(?ms)^\s*- name: Upload release validation evidence\s*\r?\n.*?(?=^\s*- name:|\z)')
+        $exportStepMatch = [regex]::Match($workflowSource, '(?ms)^\s*- name: Export versioned validation ZIP\s*\r?\n.*?(?=^\s*- name:|\z)')
         $artifactRoot = '${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}'
         $expectedArtifactPaths = @(
             ($artifactRoot + '\validated-package'),
             ($artifactRoot + '\repository-state.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\runtime-readbacks.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\library-reset.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\*summary.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\*.log'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\shader-core-state-initialization-report.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\fixed-point-report.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\**\immutable-input-manifest-fixed-point-delta.json')
+            ($artifactRoot + '\ReleaseConsumer-*\bootstrap\**'),
+            ($artifactRoot + '\ReleaseConsumer-*\runs\**'),
+            ($artifactRoot + '\ReleaseConsumer-*\archive\*.zip'),
+            ($artifactRoot + '\ReleaseConsumer-*\archive\*.sha256'),
+            ($artifactRoot + '\ReleaseConsumer-*\shader-core-0.3.0.sha256.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\run-summary.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\cleanup-summary.json'),
+            ($artifactRoot + '\ReleaseConsumer-*\cleanup-failure.json'),
+            ($artifactRoot + '\*.log')
         )
 
+        $exportStepMatch.Success | Should -BeTrue -Because 'the Release workflow must export the versioned validation ZIP'
+        $exportStepMatch.Value | Should -Match '(?m)^\s*if: success\(\)\s*$' -Because 'the validated package must only be exported on success'
         $uploadStepMatch.Success | Should -BeTrue -Because 'the Release workflow must have a dedicated evidence upload step'
         $uploadStep = $uploadStepMatch.Value
         $uploadStep | Should -Match '(?m)^\s*if: always\(\)\s*$' -Because 'failed Release validation must upload evidence'
         $uploadStep | Should -Match 'actions/upload-artifact@' -Because 'the existing evidence artifact must remain an uploaded artifact'
-        foreach ($expectedArtifactPath in $expectedArtifactPaths) {
-            $uploadStep | Should -Match ([regex]::Escape($expectedArtifactPath)) -Because "the evidence artifact must include '$expectedArtifactPath'"
-        }
+        $uploadStep | Should -Match '(?m)^\s*if-no-files-found: error\s*$' -Because 'missing evidence must not be silently accepted'
+        $pathMatch = [regex]::Match($uploadStep, '(?ms)^          path: \|\r?\n(?<paths>(?:^            [^\r\n]*(?:\r?\n|$))+?)(?=^          [A-Za-z0-9_-]+:|\z)')
+        $pathMatch.Success | Should -BeTrue -Because 'the upload must declare its evidence paths'
+        $artifactPaths = @($pathMatch.Groups['paths'].Value -split "\r?\n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
+        $artifactPaths | Should -Be $expectedArtifactPaths -Because 'only the bounded external evidence paths may be uploaded'
     }
 }
 

@@ -506,13 +506,13 @@ Describe 'Hosted Unity review contracts' {
         $checkoutStep | Should -Match '(?m)^          persist-credentials: false$'
         $lookupStep | Should -Match '(?m)^        id: unity-cache-lookup$'
         $lookupStep | Should -Match '(?m)^        uses: \./\.github/actions/lookup-unity-editor-cache$'
-        $lookupStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
+        $lookupStep | Should -Match '(?m)^          unity-version: "2022\.3\.28f1"$'
         $lookupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
         $lookupStep | Should -Match '(?m)^          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"$'
         $lookupStep | Should -Not -Match '(?m)^          cli-channel:'
         $fallbackStep | Should -Match "(?m)^        if: steps\.unity-cache-lookup\.outputs\.cache-hit != 'true'$"
         $fallbackStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $fallbackStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
+        $fallbackStep | Should -Match '(?m)^          unity-version: "2022\.3\.28f1"$'
         $fallbackStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
         $fallbackStep | Should -Match '(?m)^          cli-channel: beta$'
         $fallbackStep | Should -Match '(?m)^          cache: "true"$'
@@ -531,13 +531,13 @@ Describe 'Hosted Unity review contracts' {
             'Release publishing' { $releasePublishingWorkflow }
         }
         $executionJob = Get-NamedJobBlock -Workflow $Workflow -Name $Job
-        $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity 2022.3.22f1'
+        $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity 2022.3.28f1'
 
         $executionJob | Should -Not -BeNullOrEmpty
         ([regex]::Matches($executionJob, '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@')).Count | Should -Be 1
         $setupStep | Should -Not -Match '(?m)^        if:'
         $setupStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $setupStep | Should -Match '(?m)^          unity-version: "2022\.3\.22f1"$'
+        $setupStep | Should -Match '(?m)^          unity-version: "2022\.3\.28f1"$'
         $setupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
         $setupStep | Should -Match '(?m)^          cli-channel: beta$'
         $setupStep | Should -Match '(?m)^          cache: "true"$'
@@ -636,8 +636,8 @@ Describe 'Hosted Unity review contracts' {
     }
 
     It 'stages the same verified Shader-Core release asset in every Unity validation consumer' {
-        $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip'
-        $expectedSha256 = 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924'
+        $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.3.0/jp.lilxyzw.shadercore-0.3.0.zip'
+        $expectedSha256 = '5fb149379441031e172128933a23a8e5acb066c76e9d942aa91ed13ad93c70b5'
         $consumers = @(
             [pscustomobject]@{ Workflow = $dailyWorkflow; Job = 'unity-daily' },
             [pscustomobject]@{ Workflow = $releaseWorkflow; Job = 'validate' }
@@ -649,7 +649,7 @@ Describe 'Hosted Unity review contracts' {
 
         foreach ($consumer in $consumers) {
             $job = Get-NamedJobBlock -Workflow $consumer.Workflow -Name $consumer.Job
-            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core 0.1.12 release'
+            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core 0.3.0 release'
 
             $step | Should -Not -BeNullOrEmpty
             $step | Should -Match 'Install-VerifiedShaderCoreRelease\.ps1'
@@ -732,13 +732,15 @@ Describe 'Hosted Unity review contracts' {
         $expectedPathLines = @(
             "$artifactRoot\validated-package"
             "$artifactRoot\repository-state.json"
-            "$artifactRoot\ReleaseConsumer-*\**\runtime-readbacks.json"
-            "$artifactRoot\ReleaseConsumer-*\**\library-reset.json"
-            "$artifactRoot\ReleaseConsumer-*\**\*summary.json"
-            "$artifactRoot\ReleaseConsumer-*\**\*.log"
-            "$artifactRoot\ReleaseConsumer-*\**\shader-core-state-initialization-report.json"
-            "$artifactRoot\ReleaseConsumer-*\**\fixed-point-report.json"
-            "$artifactRoot\ReleaseConsumer-*\**\immutable-input-manifest-fixed-point-delta.json"
+            "$artifactRoot\ReleaseConsumer-*\bootstrap\**"
+            "$artifactRoot\ReleaseConsumer-*\runs\**"
+            "$artifactRoot\ReleaseConsumer-*\archive\*.zip"
+            "$artifactRoot\ReleaseConsumer-*\archive\*.sha256"
+            "$artifactRoot\ReleaseConsumer-*\shader-core-0.3.0.sha256.json"
+            "$artifactRoot\ReleaseConsumer-*\run-summary.json"
+            "$artifactRoot\ReleaseConsumer-*\cleanup-summary.json"
+            "$artifactRoot\ReleaseConsumer-*\cleanup-failure.json"
+            "$artifactRoot\*.log"
         )
         $pathLines | Should -Be $expectedPathLines
         ($pathLines -join "`n") | Should -Not -Match '\.\.'

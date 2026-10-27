@@ -44,8 +44,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RequiredUnityVersion = '2022.3.22f1'
-$RequiredUnityRevision = '887be4894c44'
+$RequiredUnityVersion = '2022.3.28f1'
+$RequiredUnityRevision = '6bae5ce6b222'
 $ConsumerAssembly = 'PureBase.Release.Consumer.Tests'
 $ProductNames = @('PureBase/Unlit', 'PureBase/Toon', 'PureBase/PBR', 'PureBase/Hybrid')
 $ProductPasses = @('ForwardBase', 'ForwardAdd', 'ShadowCaster', 'Meta')
@@ -822,7 +822,7 @@ function Assert-FirstBootstrapProjectSettingsAsset {
 
     $profile = Get-FirstBootstrapProjectSettingsProfile
     if (-not $profile.Contains($RelativePath)) {
-        throw "No Unity 2022.3.22f1 project-settings projection is defined for '$RelativePath'."
+        throw "No Unity $RequiredUnityVersion project-settings projection is defined for '$RelativePath'."
     }
     $expected = $profile[$RelativePath]
     $facts = Assert-FirstBootstrapUnityYaml -ConsumerRoot $ConsumerRoot -RelativePath $RelativePath -ExpectedRootName $expected.root
@@ -962,7 +962,7 @@ function Assert-FirstBootstrapManifest {
         throw 'First-bootstrap manifest has no dependency map.'
     }
     if (@($manifest.dependencies.PSObject.Properties).Count -ne $expectedDependencies.Count) {
-        throw 'First-bootstrap manifest dependency names do not match the Unity 2022.3.22f1 profile.'
+        throw "First-bootstrap manifest dependency names do not match the Unity $RequiredUnityVersion profile."
     }
     $expectedNames = @(Get-OrdinalSortedStrings -Values ([string[]]$expectedDependencies.Keys))
     foreach ($dependencyName in $expectedDependencies.Keys) {
@@ -985,7 +985,7 @@ function Assert-FirstBootstrapManifest {
             throw "First-bootstrap manifest added an unprofiled dependency '$($dependency.Name)'."
         }
     }
-    return [ordered]@{ profile = 'Unity-2022.3.22f1-887be4894c44'; dependencyNames = $expectedNames; localDependencies = @('jp.lilxyzw.shadercore', 'jp.penguin.purebase') }
+    return [ordered]@{ profile = "Unity-$RequiredUnityVersion-$RequiredUnityRevision"; dependencyNames = $expectedNames; localDependencies = @('jp.lilxyzw.shadercore', 'jp.penguin.purebase') }
 }
 
 function Assert-FirstBootstrapProjectVersion {
@@ -1010,7 +1010,7 @@ function Assert-FirstBootstrapPackagesLock {
     $profile = Get-FirstBootstrapPackageProfile
     $expectedLock = $profile.lockDependencies
     if (@($lock.dependencies.PSObject.Properties).Count -ne $expectedLock.Count) {
-        throw 'First-bootstrap packages-lock.json entry names do not match the Unity 2022.3.22f1 profile.'
+        throw "First-bootstrap packages-lock.json entry names do not match the Unity $RequiredUnityVersion profile."
     }
     foreach ($dependencyName in $expectedLock.Keys) {
         $actualProperty = $lock.dependencies.PSObject.Properties[$dependencyName]
@@ -1053,7 +1053,7 @@ function Assert-FirstBootstrapPackagesLock {
             throw "First-bootstrap packages-lock.json local package escapes _LocalPackages: '$localDependencyName'."
         }
     }
-    return [ordered]@{ profile = 'Unity-2022.3.22f1-887be4894c44'; lockEntryCount = $expectedLock.Count; manifestLockRoots = @(Get-OrdinalSortedStrings -Values ([string[]]$profile.manifestDependencies.Keys)) }
+    return [ordered]@{ profile = "Unity-$RequiredUnityVersion-$RequiredUnityRevision"; lockEntryCount = $expectedLock.Count; manifestLockRoots = @(Get-OrdinalSortedStrings -Values ([string[]]$profile.manifestDependencies.Keys)) }
 }
 
 function Assert-FirstBootstrapBillingMode {
@@ -1061,7 +1061,7 @@ function Assert-FirstBootstrapBillingMode {
 
     $billing = Get-ConsumerFileText -ConsumerRoot $ConsumerRoot -RelativePath 'Assets/Resources/BillingMode.json' | ConvertFrom-Json
     if ($null -eq $billing -or @($billing.PSObject.Properties).Count -ne 1 -or $null -eq $billing.PSObject.Properties['androidStore'] -or [string]$billing.androidStore -ne 'GooglePlay') {
-        throw 'First-bootstrap BillingMode.json does not match the Unity 2022.3.22f1 Android-store profile.'
+        throw "First-bootstrap BillingMode.json does not match the Unity $RequiredUnityVersion Android-store profile."
     }
     return [ordered]@{ androidStore = 'GooglePlay' }
 }
@@ -1175,11 +1175,11 @@ function Get-ConsumerFirstBootstrapTransitionReport {
                 $hasExpectedDependencyTypes = @($sceneTemplateSettings.dependencyTypeInfos).Count -eq 22
                 $hasOnlyDefaultDependencyTypes = @($sceneTemplateSettings.dependencyTypeInfos | Where-Object { $_.userAdded -or [string]::IsNullOrEmpty([string]$_.type) -or ([int]$_.defaultInstantiationMode -ne 0 -and [int]$_.defaultInstantiationMode -ne 1) }).Count -eq 0
                 $hasExpectedDefaultDependencyType = $null -ne $defaultDependencyTypeInfo -and -not $defaultDependencyTypeInfo.userAdded -and [string]$defaultDependencyTypeInfo.type -eq '<default_scene_template_dependencies>' -and [int]$defaultDependencyTypeInfo.defaultInstantiationMode -eq 1
-                if ($null -eq $sceneTemplateSettings -or $actualNames.Count -ne $expectedNames.Count -or [string]::Join('|', $actualNames) -ne [string]::Join('|', $expectedNames) -or @($sceneTemplateSettings.templatePinStates).Count -ne 0 -or -not $hasExpectedDependencyTypes -or -not $hasOnlyDefaultDependencyTypes -or -not $hasExpectedDefaultDependencyType -or [int]$sceneTemplateSettings.newSceneOverride -ne 0) { throw 'First-bootstrap SceneTemplateSettings does not match the Unity 2022.3.22f1 dependency-type projection.' }
+                if ($null -eq $sceneTemplateSettings -or $actualNames.Count -ne $expectedNames.Count -or [string]::Join('|', $actualNames) -ne [string]::Join('|', $expectedNames) -or @($sceneTemplateSettings.templatePinStates).Count -ne 0 -or -not $hasExpectedDependencyTypes -or -not $hasOnlyDefaultDependencyTypes -or -not $hasExpectedDefaultDependencyType -or [int]$sceneTemplateSettings.newSceneOverride -ne 0) { throw "First-bootstrap SceneTemplateSettings does not match the Unity $RequiredUnityVersion dependency-type projection." }
                 $facts = [ordered]@{ propertyNames = $expectedNames; templatePinCount = 0; dependencyTypeInfoCount = @($sceneTemplateSettings.dependencyTypeInfos).Count; userAddedDependencyTypeInfoCount = 0 }
             }
             elseif ((Get-FirstBootstrapProjectSettingsProfile).Contains($entry.path)) { $facts = Assert-FirstBootstrapProjectSettingsAsset -ConsumerRoot $ConsumerRoot -RelativePath $entry.path }
-            elseif ($entry.path.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal)) { throw "No Unity 2022.3.22f1 ProjectSettings projection classified '$($entry.path)'." }
+            elseif ($entry.path.StartsWith('ProjectSettings/', [System.StringComparison]::Ordinal)) { throw "No Unity $RequiredUnityVersion ProjectSettings projection classified '$($entry.path)'." }
             else { throw "No semantic rule classified '$($entry.path)'." }
 
             $entry.semanticChecks = @('path-operation-approved', 'ownership-approved', 'observed-stable-hash-or-semantic-projection', 'content-schema-approved')
@@ -1216,7 +1216,7 @@ function Get-ConsumerFirstBootstrapTransitionReport {
 function Assert-ConsumerFirstBootstrapTransitionReport {
     param([Parameter(Mandatory = $true)]$Report)
 
-    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.1.12' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
+    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.3.0' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
         throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
     }
     $expectedAccepted = [int]$Report.summary.expectedAdded + [int]$Report.summary.expectedChanged
@@ -1244,11 +1244,11 @@ function Assert-ConsumerImmutableManifestBaseline {
         [Parameter(Mandatory = $true)][string]$RunLabel
     )
 
-    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.1.12') {
-        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.1.12."
+    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.3.0') {
+        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.3.0."
     }
     if ($Manifest.shaderCore.expectedIdentitySha256 -ne $Manifest.shaderCore.treeSha256) {
-        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.1.12.sha256.json."
+        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.3.0.sha256.json."
     }
 }
 
@@ -2579,8 +2579,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Approved release archive builder failed.' }
     $zipPath = Join-Path $archiveDirectory ('jp.penguin.purebase-' + [string]$packageJson.version + '.zip')
     if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Approved release archive builder did not produce the expected ZIP.' }
-    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.1.12.sha256.json'
-    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.1.12.sha256.json') -Destination $shaderCoreManifestPath -Force
+    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.3.0.sha256.json'
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.3.0.sha256.json') -Destination $shaderCoreManifestPath -Force
 
     $scaffoldRoot = Join-Path $scriptRoot 'ConsumerProject'
     Copy-RegularTree -Source $scaffoldRoot -Destination $consumerRoot

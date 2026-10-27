@@ -21,11 +21,13 @@ This document defines the stable public contract of the Pure-Base shader package
 ## Runtime Boundary
 
 - Target pipeline: Unity Built-in Render Pipeline only.
-- Integration validation editor: Unity `2022.3.22f1`.
+- Current tested CI/runtime expectation: Unity `2022.3.28f1` (revision `6bae5ce6b222`), Windows, D3D11, BIRP, Linear color space.
 - Integration test graphics API: D3D11, forced by the harness.
-- Shader-Core dependency: exactly `jp.lilxyzw.shadercore` `0.1.12`.
-- Pure-Base does not automatically allow future `0.1.x` releases. Shader-Core upstream has not declared compatibility across `0.x` releases, and importer, ProjectSettings, and method-shape contracts are sensitive.
+- Shader-Core dependency: exactly `jp.lilxyzw.shadercore` `0.3.0`.
+- Shader-Core releases are pinned explicitly. Do not assume compatibility across `0.x` releases; importer, ProjectSettings, and method-shape contracts are sensitive.
 - Opaque, Cutout, and Transparent rendering modes are supported. URP is outside the supported contract.
+
+The committed numeric baseline `Tests/Baselines/birp-d3d11-2022.3.22f1.json` retains its 2022.3.22f1 provenance and values. The runtime expectation is 2022.3.28f1; the baseline is not represented as generated or re-baselined on that editor. The saved 2022.3.28f1 candidate passed the full Daily assembly (100 tests) and strict canonical case, which does not establish that the separate mandatory 2022.3.22f1 `WarmUp` native crash is fixed or that all Unity 2022.3 versions are compatible.
 
 ## Stable Shader Paths
 
@@ -47,7 +49,7 @@ Every product shader source retains exactly four passes:
 | Pass | Ownership and restrictions |
 | --- | --- |
 | `ForwardBase` | Builds the normal surface and lighting result. PBR and Hybrid own Unity Standard indirect GI and reflection-probe evaluation here. |
-| `ForwardAdd` | Additional direct-light contribution only, with black fog semantics. PBR and Hybrid must not duplicate indirect GI or reflection-probe lighting here. |
+| `ForwardAdd` | Additional direct-light contribution only, with black fog semantics through Shader-Core's shared `SCApplyFog` API. PBR and Hybrid must not duplicate indirect GI or reflection-probe lighting here. |
 | `ShadowCaster` | When enabled for Cutout, applies coverage after the Shader-Core `base` phase, so module changes to `sd.albedoAlpha.a` affect casting. |
 | `Meta` | Uses the host base-texture Cutout coverage for Meta/lightmap workflows when enabled. This dedicated pass does not execute the standard phase ABI. |
 
@@ -198,6 +200,10 @@ The standard insertion points are shared by the product hosts in this order:
 
 External modules may target these standard phases. The `base` phase runs before Cutout coverage is finalized. The host saturates only `sd.albedoAlpha.a` before the alpha test; `sd.albedoAlpha.rgb` remains unclamped so HDR base color and module color adjustments are preserved. The host finalizes output alpha and applies fog before `postpixel`; no host color mutation occurs after `postpixel` before returning the fragment result. The final alpha from `postpixel` is the source alpha for both `ForwardBase` and `ForwardAdd`.
 
+Both forward passes call `SCApplyFog(vertex, sd.col.rgb)` after `PureBaseApplyRenderingModeOutputAlpha` and before `postpixel`. The shared Shader-Core API selects the fog behavior for the pass, including black fog for `ForwardAdd`; only RGB is fogged, and the alpha established by the rendering mode remains intact.
+
+The saved qualitative colored-Fog observation covers module-free `PureBase/Unlit`, Opaque, Perspective, and `ForwardBase`: RGB changes from red toward blue Fog, while the alpha-display view remains white at the center and black around it. It does not establish numeric raw-RGBA behavior or coverage of every mode or projection. The previously observed Orthographic Fog distance mismatch remains unresolved; Perspective does not cancel it.
+
 `Meta` is not a standard-phase execution path. Pass ownership remains fixed: `ForwardBase` builds the normal surface and lighting result, `ForwardAdd` is additional direct light only, `ShadowCaster` honors base-phase Cutout changes when enabled, and `Meta` retains host-owned Cutout coverage when enabled.
 
 ## Model Semantics
@@ -267,7 +273,7 @@ The package-owned validation source of truth is `Packages/jp.penguin.purebase/Te
 
 ## Verification Evidence
 
-The final disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11. The matrix covers module-free imports, all ten standard external phase probes, PBR and Hybrid finite/reflection/`ForwardAdd`/specular behavior, Unlit and Toon regressions, a fixed validation-scene bake with Meta and shadow checks, and 56 Built-in Render Pipeline variants.
+The historical disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11. The matrix covers module-free imports, all ten standard external phase probes, PBR and Hybrid finite/reflection/`ForwardAdd`/specular behavior, Unlit and Toon regressions, a fixed validation-scene bake with Meta and shadow checks, and 56 Built-in Render Pipeline variants. The saved Unity `2022.3.28f1` candidate Daily result passed 100 tests and the strict canonical case, but does not prove the older Unity `2022.3.22f1` `WarmUp` issue fixed or universal 2022.3 compatibility. The nine-file Pester suite completed on its recorded inputs with Pester 5.9.0: 75 tests, 74 passed, 0 failed, and 1 existing host-capability skip. Its evidence collector returned native exit 1 after misclassifying the NUnit XML summary; the suite result was Passed, but native-zero collection was not achieved. No new runtime run was performed on final package inputs after the documentation update. Final review is incomplete, and hosted Release validation has not been performed.
 
 The validation artifact records dynamic lightmap as `NOT_DETERMINISTIC_IN_BATCH_EDITMODE`. The result documents the deterministic limitation of batch EditMode; it does not verify runtime dynamic-lightmap rendering.
 

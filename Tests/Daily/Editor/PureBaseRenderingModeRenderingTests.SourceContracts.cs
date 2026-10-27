@@ -126,7 +126,18 @@ namespace PureBase.Tests.Daily
                 "The BIRP host must call the shared rendering-mode output-alpha operation."
             );
             int modeOutputAlpha = modeOutputAlphaCall.Index;
-            int fog = RequireIndex(host, "UNITY_APPLY_FOG");
+            Match fogCall = Regex.Match(host, @"\bSCApplyFog\s*\(\s*vertex\s*,\s*sd\.col\.rgb\s*\)\s*;");
+            Assert.That(
+                fogCall.Success,
+                Is.True,
+                "The BIRP host must apply Shader-Core fog to the shared vertex data and output RGB."
+            );
+            Assert.That(
+                Regex.Matches(host, @"\bSCApplyFog\s*\(\s*vertex\s*,\s*sd\.col\.rgb\s*\)\s*;").Count,
+                Is.EqualTo(1),
+                "The shared BIRP host must apply Shader-Core fog exactly once."
+            );
+            int fog = fogCall.Index;
             int postPixel = RequireIndex(host, "__SC_PHASE_postpixel__");
             int returnStatement = RequireIndex(host, "return sd.col;");
             StringAssert.Contains(

@@ -176,7 +176,7 @@ if (-not (Test-Path -LiteralPath $proxyScriptPath -PathType Leaf)) {
 }
 
 $pwshPath = (Get-Command pwsh -ErrorAction Stop).Source
-$proxyRoot = Join-Path $env:RUNNER_TEMP 'PureBaseUnityProxy/2022.3.22f1/Editor'
+$proxyRoot = Join-Path $env:RUNNER_TEMP 'PureBaseUnityProxy/2022.3.28f1/Editor'
 New-Item -ItemType Directory -Path $proxyRoot -Force | Out-Null
 $proxyCommandPath = Join-Path $proxyRoot 'Unity.cmd'
 $proxyCommand = @"
