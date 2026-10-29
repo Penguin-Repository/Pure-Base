@@ -271,13 +271,14 @@ Describe 'Release validation runner contracts' {
             )
 
             $entries = @(
-                [ordered]@{ path = 'Packages/manifest.json'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-manifest' } else { 'post-manifest' } },
+                [ordered]@{ path = 'Packages/manifest.json'; sha256 = Get-Sha256Hex -Path (Join-Path $ConsumerRoot 'Packages/manifest.json') },
                 [ordered]@{ path = 'ProjectSettings/ProjectVersion.txt'; sha256 = if ($Transition -eq 'pre-bootstrap') { 'pre-project-version' } else { 'post-project-version' } },
                 [ordered]@{ path = 'ProjectSettings/QualitySettings.asset'; sha256 = Get-Sha256Hex -Path (Join-Path $ConsumerRoot 'ProjectSettings\QualitySettings.asset') }
             )
             if ($Transition -ne 'pre-bootstrap') {
                 foreach ($path in Get-ExpectedFirstBootstrapAddedPaths) {
                     $absolutePath = Join-Path $ConsumerRoot $path.Replace('/', '\')
+                    if ($path -eq 'Packages/packages-lock.json' -and -not (Test-Path -LiteralPath $absolutePath)) { continue }
                     $entries += [ordered]@{ path = $path; sha256 = Get-Sha256Hex -Path $absolutePath }
                 }
             }
@@ -352,6 +353,7 @@ m_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)
             foreach ($dependencyName in $packageProfile.lockDependencies.Keys) {
                 $expected = $packageProfile.lockDependencies[$dependencyName]
                 $lockDependencies[$dependencyName] = [ordered]@{ version = $expected.version; depth = $expected.depth; source = $expected.source; dependencies = $expected.dependencies }
+                if ($expected.source -eq 'registry') { $lockDependencies[$dependencyName].url = 'https://packages.unity.com' }
             }
             Write-HarnessBootstrapFile -RelativePath 'Packages/packages-lock.json' -Content (([ordered]@{ dependencies = $lockDependencies }) | ConvertTo-Json -Depth 8 -Compress)
             Write-HarnessBootstrapFile -RelativePath 'Assets/Resources/BillingMode.json' -Content '{"androidStore":"GooglePlay"}'
@@ -411,6 +413,14 @@ m_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)
         $script:HarnessBaselineMismatch = $false
         $script:HarnessEditorGuardFailure = $false
         $script:HarnessResetCalls = 0
+        $script:HarnessBootstrapPrepared = $false
+        $script:HarnessCaptureFault = 'none'
+        $script:HarnessCaptureFaultStage = 1
+        $script:HarnessCaptureFaultApplied = $false
+        $script:HarnessReadLock = $null
+        $script:HarnessRawReadCount = 0
+        $script:HarnessDeniedWriterCount = 0
+        $script:HarnessReadDependencyBytes = ${function:Read-DependencyInputBytes}
         $script:HarnessCimProcesses = @()
         $script:HarnessCimException = $null
         $script:coldLibraryResetCount = 0
@@ -421,6 +431,46 @@ m_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)
             if ($script:HarnessEditorGuardFailure) {
                 throw "Synthetic editor guard failure for '$ProjectRoot'."
             }
+            if ($script:HarnessManifestIndex -eq 1 -and -not $script:HarnessBootstrapPrepared) {
+                Initialize-HarnessFirstBootstrapFiles -ConsumerRoot $ProjectRoot
+                $script:HarnessBootstrapPrepared = $true
+                if ($script:HarnessBootstrapSemanticMutation -eq 'receipt-meta-collision') {
+                    $receiptGuid = [regex]::Match((Get-Content -LiteralPath (Join-Path $ProjectRoot 'Assets/ReceiptAnchor.asset.meta') -Raw), '(?m)^guid:\s*([0-9a-f]{32})\s*$').Groups[1].Value
+                    $generatedMetaPath = Join-Path $ProjectRoot 'Assets/ReleaseModules.meta'
+                    $generatedMeta = Get-Content -LiteralPath $generatedMetaPath -Raw
+                    [System.IO.File]::WriteAllText($generatedMetaPath, [regex]::Replace($generatedMeta, '(?m)^guid:\s*[0-9a-f]{32}\s*$', ('guid: ' + $receiptGuid)), (New-Object System.Text.UTF8Encoding($false)))
+                }
+                if ($script:HarnessBootstrapSemanticMutation -eq 'public-version-mismatch') {
+                    $path = Join-Path $ProjectRoot 'Packages/manifest.json'
+                    $text = [System.IO.File]::ReadAllText($path).Replace('4.9.3', '4.11.0')
+                    [System.IO.File]::WriteAllText($path, ("`r`n " + $text + " `r`n"), [System.Text.UTF8Encoding]::new($true))
+                }
+            }
+            if ($script:HarnessManifestIndex -eq $script:HarnessCaptureFaultStage -and -not $script:HarnessCaptureFaultApplied) {
+                $script:HarnessCaptureFaultApplied = $true
+                $path = Join-Path $ProjectRoot 'Packages/manifest.json'
+                switch ($script:HarnessCaptureFault) {
+                    'unsafe' { throw 'Synthetic unsafe boundary.' }
+                    'read' { $script:HarnessReadLock = [System.IO.FileStream]::new($path, 'Open', 'ReadWrite', 'None') }
+                    'missing-lock' { Remove-Item -LiteralPath (Join-Path $ProjectRoot 'Packages/packages-lock.json') -Force }
+                    'private' { [System.IO.File]::WriteAllText($path, '{"dependencies":{"com.unity.test-framework":"https://user:credential@example.invalid/private"}}') }
+                    'unknown' { [System.IO.File]::WriteAllText($path, '{"dependencies":{},"unknown":"capture-private-marker"}') }
+                    'parse' { [System.IO.File]::WriteAllText($path, '{"dependencies": "capture-private-marker') }
+                    'duplicate' { [System.IO.File]::WriteAllText($path, '{"dependencies":{},"dependencies":{}}') }
+                    'trailing' { [System.IO.File]::WriteAllText($path, '{"dependencies":{}} {"private":"capture-private-marker"}') }
+                    'absolute' { [System.IO.File]::WriteAllText($path, '{"dependencies":{"jp.penguin.purebase":"file:C:/capture-private-marker"}}') }
+                    'lock-private' { [System.IO.File]::WriteAllText((Join-Path $ProjectRoot 'Packages/packages-lock.json'), '{"dependencies":{"com.unity.test-framework":{"version":"1.1.33","depth":0,"source":"registry","dependencies":{},"url":"https://user:credential@example.invalid/private"}}}') }
+                    'lock-duplicate' { [System.IO.File]::WriteAllText((Join-Path $ProjectRoot 'Packages/packages-lock.json'), '{"dependencies":{"com.unity.test-framework":{"version":"1.1.33","depth":0,"source":"registry","dependencies":{},"dependencies":{}}}}') }
+                    'initializer-settings' { [System.IO.File]::WriteAllText((Join-Path $ProjectRoot 'ProjectSettings/jp.lilxyzw.shadercore.asset'), 'invalid initializer settings') }
+                }
+            }
+        }
+
+        function Read-DependencyInputBytes {
+            param([string]$Path, $File, $Streams, $Raw)
+
+            $script:HarnessRawReadCount++
+            & $script:HarnessReadDependencyBytes @PSBoundParameters
         }
 
         function Get-CimInstance {
@@ -451,19 +501,24 @@ m_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)
             param([Parameter(Mandatory = $true)][string]$ConsumerRoot, [Parameter(Mandatory = $true)][string]$ZipPath, [Parameter(Mandatory = $true)][string]$ShaderCoreManifestPath)
 
             $callIndex = $script:HarnessManifestIndex
-            $hashIndex = if ($callIndex -le 4) { 0 } else { [Math]::Min($callIndex - 3, $script:HarnessManifestHashes.Count - 1) }
-            $transition = if ($callIndex -eq 0) { 'pre-bootstrap' } elseif ($callIndex -eq 1) { $script:HarnessBootstrapTransition } else { 'approved' }
-            if ($callIndex -eq 1) {
-                Initialize-HarnessFirstBootstrapFiles -ConsumerRoot $ConsumerRoot
-                if ($script:HarnessBootstrapSemanticMutation -eq 'receipt-meta-collision') {
-                    $receiptGuid = [regex]::Match((Get-Content -LiteralPath (Join-Path $ConsumerRoot 'Assets\ReceiptAnchor.asset.meta') -Raw), '(?m)^guid:\s*([0-9a-f]{32})\s*$').Groups[1].Value
-                    $generatedMetaPath = Join-Path $ConsumerRoot 'Assets\ReleaseModules.meta'
-                    $generatedMeta = Get-Content -LiteralPath $generatedMetaPath -Raw
-                    [System.IO.File]::WriteAllText($generatedMetaPath, [regex]::Replace($generatedMeta, '(?m)^guid:\s*[0-9a-f]{32}\s*$', ('guid: ' + $receiptGuid)), (New-Object System.Text.UTF8Encoding($false)))
+            if ($callIndex -eq 1 -and $script:HarnessCaptureFault -eq 'sharing') {
+                foreach ($name in @('manifest.json', 'packages-lock.json')) {
+                    $writer = $null
+                    try { $writer = [System.IO.FileStream]::new((Join-Path $ConsumerRoot ('Packages/' + $name)), 'Open', 'ReadWrite', 'Read') }
+                    catch {
+                        if (($_.Exception.GetBaseException().HResult -band 0xffff) -eq 32) { $script:HarnessDeniedWriterCount++ }
+                        else { throw }
+                    }
+                    finally { if ($null -ne $writer) { $writer.Dispose() } }
                 }
             }
+            $hashIndex = if ($callIndex -le 5) { 0 } else { [Math]::Min($callIndex - 4, $script:HarnessManifestHashes.Count - 1) }
+            $transition = if ($callIndex -eq 0) { 'pre-bootstrap' } elseif ($callIndex -eq 1) { $script:HarnessBootstrapTransition } else { 'approved' }
             $manifest = New-HarnessManifest -RootHash $script:HarnessManifestHashes[$hashIndex] -ConsumerRoot $ConsumerRoot -Transition $transition
             $script:HarnessManifestIndex++
+            if ($callIndex -eq $script:HarnessCaptureFaultStage -and $script:HarnessCaptureFault -eq 'hash') {
+                $manifest.entries[0].sha256 = 'not-the-captured-hash'
+            }
             if ($script:HarnessBaselineMismatch -and $callIndex -gt 0) {
                 $manifest.shaderCore.treeSha256 = 'unexpected-shader-core'
             }
@@ -529,7 +584,9 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
                 [Parameter()][string]$TestFilter = 'Harness',
                 [Parameter()][switch]$AllowObservationEvidence,
                 [Parameter()][ValidateSet('approved', 'existing-entry-content-mutation', 'unexpected-new-immutable-entry', 'removal')][string]$BootstrapTransition = 'approved',
-                [Parameter()][ValidateSet('none', 'receipt-meta-collision')][string]$BootstrapSemanticMutation = 'none',
+                [Parameter()][ValidateSet('none', 'receipt-meta-collision', 'public-version-mismatch')][string]$BootstrapSemanticMutation = 'none',
+                [Parameter()][string]$CaptureFault = 'none',
+                [Parameter()][int]$CaptureFaultStage = 1,
                 [Parameter()][ValidateSet('approved', 'missing', 'extra', 'hash-mismatch')][string]$StagingReceiptTransition = 'approved',
                 [Parameter()][switch]$OmitStagedCanonicalConfig
             )
@@ -581,6 +638,12 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
             $script:HarnessBaselineMismatch = [bool]$BaselineMismatch
             $script:HarnessEditorGuardFailure = [bool]$EditorGuardFailure
             $script:HarnessResetCalls = 0
+            $script:HarnessBootstrapPrepared = $false
+            $script:HarnessCaptureFault = $CaptureFault
+            $script:HarnessCaptureFaultStage = $CaptureFaultStage
+            $script:HarnessCaptureFaultApplied = $false
+            $script:HarnessRawReadCount = 0
+            $script:HarnessDeniedWriterCount = 0
             $env:PUREBASE_HARNESS_BOOTSTRAP_EXIT = [string]$BootstrapExitCode
             $env:PUREBASE_HARNESS_BOOTSTRAP_NUNIT_RESULT = $BootstrapNUnitResult
             $env:PUREBASE_HARNESS_INITIALIZER_EXIT = [string]$InitializerExitCode
@@ -601,7 +664,10 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
                 $failure = $_
                 $summary = $null
             }
-            return [ordered]@{ root = $caseRoot; consumerRoot = $consumerRoot; bootstrapDirectory = (Join-Path $caseRoot 'bootstrap'); runDirectory = (Join-Path $caseRoot ('runs/' + $Label)); settingsPath = $settingsPath; failure = $failure; summary = $summary; resetCalls = $script:HarnessResetCalls }
+            finally {
+                if ($null -ne $script:HarnessReadLock) { $script:HarnessReadLock.Dispose(); $script:HarnessReadLock = $null }
+            }
+            return [ordered]@{ root = $caseRoot; consumerRoot = $consumerRoot; bootstrapDirectory = (Join-Path $caseRoot 'bootstrap'); runDirectory = (Join-Path $caseRoot ('runs/' + $Label)); settingsPath = $settingsPath; failure = $failure; summary = $summary; resetCalls = $script:HarnessResetCalls; inventoryCalls = $script:HarnessManifestIndex; rawReads = $script:HarnessRawReadCount; deniedWriters = $script:HarnessDeniedWriterCount }
         }
 
         function Invoke-HarnessCleanupPath {
@@ -1159,7 +1225,8 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
             $initializerFailure = Invoke-HarnessCase -Label 'initializer-process-failure' -ManifestHashes @('bootstrap', 'bootstrap') -InitializerExitCode 23
             foreach ($case in @($bootstrapProcessFailure, $bootstrapNUnitFailure, $bootstrapBaselineFailure)) {
                 Assert-Harness -Condition ($null -ne $case.failure) -Message "Bootstrap failure '$($case.bootstrapDirectory)' unexpectedly passed."
-                Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-quiescent.json') -PathType Leaf) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not persist its post-bootstrap manifest."
+                $reachedManifest = if ($case -eq $bootstrapBaselineFailure) { 'immutable-input-manifest-quiescent.json' } else { 'immutable-input-manifest-after-scene-bootstrap.json' }
+                Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory $reachedManifest) -PathType Leaf) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not persist its reached-boundary manifest."
                 Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json') -PathType Leaf) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not persist its observed delta."
                 Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory 'failure-evidence/immutable-input-manifest-bootstrap-delta.json') -PathType Leaf) -Message "Bootstrap failure '$($case.bootstrapDirectory)' did not preserve its actual delta artifact as failure evidence."
                 $bootstrapDelta = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'immutable-input-manifest-bootstrap-delta.json') -Raw | ConvertFrom-Json
@@ -1184,6 +1251,70 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
             Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $bootstrapSemanticFailure.bootstrapDirectory 'semantic-transition-report.json') -PathType Leaf) -Message 'Bootstrap semantic mutation did not persist its semantic report.'
             Assert-Harness -Condition (Test-Path -LiteralPath (Join-Path $bootstrapSemanticFailure.bootstrapDirectory 'failure-evidence/semantic-transition-report.json') -PathType Leaf) -Message 'Bootstrap semantic mutation did not preserve the semantic report as failure evidence.'
             Assert-Harness -Condition (-not (Test-Path -LiteralPath $bootstrapSemanticFailure.runDirectory)) -Message 'Bootstrap semantic mutation did not stop before the matrix row.'
+
+            $captureIndex = Get-Content -LiteralPath (Join-Path $fixturePreservation.bootstrapDirectory 'dependency-inputs/index.json') -Raw | ConvertFrom-Json
+            Assert-Harness -Condition ($captureIndex.status -eq 'Complete' -and @($captureIndex.stages).Count -eq 5) -Message 'Successful bootstrap did not finalize all dependency boundaries.'
+            $preLock = $captureIndex.stages[0].files[1]
+            Assert-Harness -Condition ($preLock.existence -eq 'Missing' -and $preLock.read -eq 'NotApplicable' -and $preLock.comparison -eq 'MissingConfirmed' -and $null -eq $preLock.length) -Message 'Pre-bootstrap missing lock was not distinguished from a read failure.'
+            foreach ($stage in $captureIndex.stages) {
+                foreach ($file in @($stage.files | Where-Object { $_.existence -eq 'Present' })) {
+                    $savedPath = Join-Path $fixturePreservation.bootstrapDirectory ('dependency-inputs/' + $stage.stage + '/' + $file.name)
+                    $savedBytes = [System.IO.File]::ReadAllBytes($savedPath)
+                    Assert-Harness -Condition ($file.read -eq 'Complete' -and $file.comparison -eq 'Matched' -and $file.publication -eq 'Complete' -and $file.length -eq $savedBytes.LongLength -and $file.sha256 -eq (Get-Sha256Hex -Bytes $savedBytes)) -Message 'Published dependency bytes did not match their same-stage metadata.'
+                }
+            }
+
+            $rawSemanticFailure = Invoke-HarnessCase -Label 'public-version-semantic-failure' -ManifestHashes @('bootstrap') -BootstrapSemanticMutation 'public-version-mismatch'
+            Assert-Harness -Condition ($null -ne $rawSemanticFailure.failure -and $rawSemanticFailure.failure.Exception.Message -match 'semantic transition rejected') -Message 'Public version drift was not left to the semantic validator.'
+            $expectedRaw = [System.IO.File]::ReadAllBytes((Join-Path $rawSemanticFailure.consumerRoot 'Packages/manifest.json'))
+            $expectedLock = [System.IO.File]::ReadAllBytes((Join-Path $rawSemanticFailure.consumerRoot 'Packages/packages-lock.json'))
+            Remove-Item -LiteralPath $rawSemanticFailure.consumerRoot -Recurse -Force
+            foreach ($pair in @(@('manifest.json', $expectedRaw), @('packages-lock.json', $expectedLock))) {
+                $saved = [System.IO.File]::ReadAllBytes((Join-Path $rawSemanticFailure.bootstrapDirectory ('dependency-inputs/quiescent/' + $pair[0])))
+                Assert-Harness -Condition ([Convert]::ToBase64String($saved) -ceq [Convert]::ToBase64String($pair[1])) -Message 'Semantic rejection or consumer cleanup lost the original dependency bytes, BOM, or whitespace.'
+            }
+            $semanticIndex = Get-Content -LiteralPath (Join-Path $rawSemanticFailure.bootstrapDirectory 'dependency-inputs/index.json') -Raw | ConvertFrom-Json
+            Assert-Harness -Condition ($semanticIndex.primaryValidation.status -eq 'Failed' -and $semanticIndex.stages[2].status -eq 'Complete' -and $semanticIndex.stages[3].status -eq 'NotReached') -Message 'Semantic rejection did not retain completed and unreached boundaries separately.'
+
+            $heldStreams = Invoke-HarnessCase -Label 'dependency-capture-held-streams' -ManifestHashes @('bootstrap') -CaptureFault 'sharing'
+            Assert-Harness -Condition ($null -eq $heldStreams.failure -and $heldStreams.deniedWriters -eq 2) -Message 'Both dependency streams were not protected against ordinary writes during same-stage inventory.'
+            foreach ($fault in @('unsafe', 'read', 'hash', 'missing-lock', 'private', 'unknown', 'parse', 'duplicate', 'trailing', 'absolute', 'lock-private', 'lock-duplicate')) {
+                $case = Invoke-HarnessCase -Label ('dependency-capture-' + $fault) -ManifestHashes @('bootstrap') -CaptureFault $fault
+                $index = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'dependency-inputs/index.json') -Raw | ConvertFrom-Json
+                $stage = $index.stages[1]
+                Assert-Harness -Condition ($null -ne $case.failure -and $index.status -eq 'Partial' -and $stage.status -ne 'Complete' -and $index.stages[2].status -eq 'NotReached') -Message "Dependency capture '$fault' did not stop before the initializer."
+                Assert-Harness -Condition (-not (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory 'shader-core-state-initialization-command.json'))) -Message "Dependency capture '$fault' launched another Unity invocation."
+                $expectedInventoryCalls = if ($fault -in @('unsafe', 'read')) { 1 } else { 2 }
+                $expectedRawReads = if ($fault -eq 'unsafe') { 2 } else { 4 }
+                Assert-Harness -Condition ($case.inventoryCalls -eq $expectedInventoryCalls -and $case.rawReads -eq $expectedRawReads) -Message "Dependency capture '$fault' retried live reads in failure handling."
+                if ($fault -eq 'unsafe') { Assert-Harness -Condition ($stage.status -eq 'SkippedUnsafeState') -Message 'Unsafe boundary was not explicitly skipped.' }
+                if ($fault -eq 'read') { Assert-Harness -Condition ($stage.files[0].read -eq 'Failed' -and $stage.files[0].existence -ne 'Missing') -Message 'Read denial was misclassified as Missing.' }
+                if ($fault -eq 'hash') { Assert-Harness -Condition ($stage.files[0].comparison -eq 'Failed' -and $stage.code -eq 'InventoryMismatch') -Message 'Same-stage hash mismatch was not retained.' }
+                if ($fault -eq 'missing-lock') { Assert-Harness -Condition ($stage.files[1].existence -eq 'Missing' -and $stage.code -eq 'RequiredInputMissing') -Message 'Required post-bootstrap lock absence was not retained.' }
+                if ($fault -in @('private', 'unknown', 'parse', 'duplicate', 'trailing', 'absolute', 'lock-private', 'lock-duplicate')) {
+                    $rejectedFile = if ($fault.StartsWith('lock-', [System.StringComparison]::Ordinal)) { $stage.files[1] } else { $stage.files[0] }
+                    Assert-Harness -Condition ($rejectedFile.publication -eq 'Withheld' -and -not (Test-Path -LiteralPath (Join-Path $case.bootstrapDirectory ('dependency-inputs/after-scene-bootstrap/' + $rejectedFile.name)))) -Message "Rejected dependency input '$fault' entered the public raw directory."
+                    foreach ($file in Get-ChildItem -LiteralPath $case.bootstrapDirectory -File -Recurse) {
+                        $publicText = [System.IO.File]::ReadAllText($file.FullName)
+                        Assert-Harness -Condition ($publicText -notmatch 'capture-private-marker|credential@example|DependencySchemaRejected|JsonReaderException') -Message "Rejected dependency input '$fault' leaked through a public artifact or error."
+                    }
+                }
+            }
+
+            foreach ($nativeFailure in @(
+                    @{ Label = 'native-scene-and-capture-failure'; BootstrapExitCode = 19; CaptureFaultStage = 1 },
+                    @{ Label = 'native-initializer-and-capture-failure'; InitializerExitCode = 23; CaptureFaultStage = 2 }
+                )) {
+                $case = Invoke-HarnessCase @nativeFailure -ManifestHashes @('bootstrap') -CaptureFault 'read'
+                $index = Get-Content -LiteralPath (Join-Path $case.bootstrapDirectory 'dependency-inputs/index.json') -Raw | ConvertFrom-Json
+                $stage = $index.stages[$nativeFailure.CaptureFaultStage]
+                $exitCode = if ($nativeFailure.CaptureFaultStage -eq 1) { 19 } else { 23 }
+                Assert-Harness -Condition ($case.failure.Exception.Message -match "exited with $exitCode" -and $stage.nativeExitCode -eq $exitCode -and $stage.code -eq 'ReadOrHashFailed' -and $index.primaryValidation.status -eq 'Failed') -Message 'Capture failure replaced the observed native failure.'
+                Assert-Harness -Condition ($index.stages[$nativeFailure.CaptureFaultStage + 1].status -eq 'NotReached') -Message 'Native/capture failure did not stop subsequent Unity work.'
+            }
+            $earlySettingsFailure = Invoke-HarnessCase -Label 'initializer-settings-early-failure' -ManifestHashes @('bootstrap') -CaptureFault 'initializer-settings' -CaptureFaultStage 2
+            $earlyIndex = Get-Content -LiteralPath (Join-Path $earlySettingsFailure.bootstrapDirectory 'dependency-inputs/index.json') -Raw | ConvertFrom-Json
+            Assert-Harness -Condition ($null -ne $earlySettingsFailure.failure -and $earlyIndex.stages[2].status -eq 'Complete' -and $earlyIndex.stages[3].status -eq 'NotReached') -Message 'Initializer settings assertion ran before capturing quiescent dependency inputs.'
 
             $resetMismatch = Invoke-HarnessCase -Label 'reset-mismatch' -Selections @{ 'PureBase/Unlit' = @('module') } -ManifestHashes @('bootstrap', 'bootstrap', 'row', 'drift', 'drift')
             Assert-Harness -Condition ($null -ne $resetMismatch.failure) -Message 'Cold reset manifest drift unexpectedly passed.'

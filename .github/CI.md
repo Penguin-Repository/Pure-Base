@@ -159,6 +159,20 @@ crash dumps. The success exporter runs only on success; evidence upload always r
 missing expected files. A hosted exact-head run is required to establish results for a committed and
 pushed revision.
 
+The runner also captures the original `Packages/manifest.json` and
+`Packages/packages-lock.json` bytes at the `pre-bootstrap`, `after-scene-bootstrap`, `quiescent`,
+`second-after-scene`, and `second-quiescent` boundaries. Each stage is written below
+`bootstrap/dependency-inputs/<stage>/`, with its `capture.json`; the parent
+`bootstrap/dependency-inputs/index.json` records stage summaries, runner provenance, and the
+separate primary-validation result and capture codes. Captured bytes retain their original encoding
+markers, whitespace, and line endings. Before publication, the runner screens each raw document
+against the allowed dependency-input schema; rejected raw bytes are withheld rather than saved in
+the public artifact. This is a shared-read, handle-held capture and comparison, not an
+operating-system atomic snapshot. `Partial` stage/index status and `NotReached` later stages describe
+capture progress separately from the primary validation failure. A missing required input, privacy
+rejection, capture or metadata failure, or loss of expected files during workflow upload makes the
+evidence handoff incomplete; it is not a successful complete capture.
+
 `package.json` is the sole release identity and version declaration. The `version` input to the
 manual `Release` workflow is confirmation only: it must exactly match the checked-out package
 version, and the workflow never writes or commits a package version. A release-preparation commit
