@@ -39,11 +39,12 @@ Describe 'Unity runtime prerequisites' {
         }
 
         function Invoke-ResolverFixture {
-            param([switch]$WithoutEvidence)
+            param([switch]$WithoutEvidence, [switch]$RequireExistingRuntime)
 
             $arguments = @{
                 EditorPath = $rt.editor; RealEditorPathOutputFile = $rt.real
             }
+            if ($RequireExistingRuntime) { $arguments.RequireExistingRuntime = $true }
             if (-not $WithoutEvidence) {
                 $arguments.RuntimeEvidence = $true
                 $arguments.WorkflowRunId = '1234'
@@ -378,6 +379,31 @@ Describe 'Unity runtime prerequisites' {
         foreach ($id in @('2010-sp1-x64', '2013-x64')) {
             $rt.state.runtimes."vcredist-$id.exe".status | Should -Be 'ExistingRuntime'
         }
+        $rt.downloads.Count | Should -Be 0
+        $rt.signatures.Count | Should -Be 0
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+
+    It 'rejects missing runtime before preparing an installer or resolving the Editor' {
+        Invoke-ResolverFixture -WithoutEvidence -RequireExistingRuntime
+        $rt.error.ToString() | Should -Be 'RuntimePrerequisiteFailed: RuntimeFilesMissing; secondary=None'
+        $rt.output.Count | Should -Be 0
+        $rt.downloads.Count | Should -Be 0
+        $rt.signatures.Count | Should -Be 0
+        $rt.probes.Count | Should -Be 0
+        [IO.File]::Exists($rt.real) | Should -BeFalse
+        @(Get-ChildItem -LiteralPath $env:RUNNER_TEMP -Force).Count | Should -Be 0
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+
+    It 'preserves the single output and real Editor path when required runtimes exist' {
+        foreach ($name in @('msvcr100', 'msvcp100', 'msvcr120', 'msvcp120')) {
+            [IO.File]::WriteAllText((Join-Path $env:WINDIR "System32/$name.dll"), 'synthetic DLL')
+        }
+        Invoke-ResolverFixture -WithoutEvidence -RequireExistingRuntime
+        $rt.error | Should -BeNullOrEmpty -Because $rt.console
+        $rt.output | Should -Be @((Join-Path $env:RUNNER_TEMP 'PureBaseUnityProxy/2022.3.28f1/Editor/Unity.cmd'))
+        [IO.File]::ReadAllText($rt.real).Trim() | Should -Be $rt.editor
         $rt.downloads.Count | Should -Be 0
         $rt.signatures.Count | Should -Be 0
         Should -Invoke Start-Process -Times 0 -Exactly

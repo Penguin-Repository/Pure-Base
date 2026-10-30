@@ -131,6 +131,18 @@ jobs:
             [Text.UTF8Encoding]::new($false)
           )
 
+      - name: Provision Unity runtime prerequisites
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          $checkoutSha = (Get-Content -LiteralPath (Join-Path $env:ARTIFACT_ROOT 'repository-state.json') -Raw | ConvertFrom-Json).head
+          & "$env:PACKAGE_ROOT/.github/scripts/Install-ReleaseUnityRuntimePrerequisites.ps1" `
+            -WorkflowRunId '${{ github.run_id }}' `
+            -WorkflowRunAttempt '${{ github.run_attempt }}' `
+            -WorkflowJob '${{ github.job }}' `
+            -IntendedSha '${{ github.sha }}' `
+            -CheckoutSha $checkoutSha
+
       - name: Install verified Shader-Core 0.3.0 release
         shell: pwsh
         run: |
@@ -186,15 +198,10 @@ jobs:
         shell: pwsh
         run: |
           $realEditorPathFile = Join-Path $env:RUNNER_TEMP 'PureBase.RealUnityEditorPath.txt'
-          $checkoutSha = (Get-Content -LiteralPath (Join-Path $env:ARTIFACT_ROOT 'repository-state.json') -Raw | ConvertFrom-Json).head
           $watchdogEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
             -EditorPath '${{ steps.unity.outputs.editor-path }}' `
             -RealEditorPathOutputFile $realEditorPathFile `
-            -RuntimeEvidence `
-            -WorkflowRunId '${{ github.run_id }}' `
-            -WorkflowRunAttempt '${{ github.run_attempt }}' `
-            -IntendedSha '${{ github.sha }}' `
-            -CheckoutSha $checkoutSha
+            -RequireExistingRuntime
           $realEditorPath = (Get-Content -LiteralPath $realEditorPathFile -Raw).Trim()
           "UNITY_EDITOR_PATH=$watchdogEditorPath" >> $env:GITHUB_ENV
           "REAL_UNITY_EDITOR_PATH=$realEditorPath" >> $env:GITHUB_ENV

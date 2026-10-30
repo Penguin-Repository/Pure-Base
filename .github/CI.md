@@ -149,9 +149,12 @@ branches rely on the repository's branch-writer trust policy.
 
 `Release validation` is manual and read-only, and is the normal hosted Release consumer validation
 path; do not run `Tests/Release/Run-PureBaseReleaseValidation.ps1` locally during ordinary
-development. Configure/import runs through the Unity watchdog
-proxy. The audited release-validation runner receives the real `Unity.exe`, because it intentionally
-rejects wrapper executables while proving the required Unity version from the editor path. The
+development. Immediately after the initial repository-state snapshot, the workflow provisions the
+required Visual C++ runtime pairs before Shader-Core acquisition, Unity restore or license
+activation. This step has a 15-minute timeout within the existing 240-minute validation job.
+Configure/import runs through the Unity watchdog proxy. The audited release-validation runner
+receives the real `Unity.exe`, because it intentionally rejects wrapper executables while proving
+the required Unity version from the editor path. The
 workflow uploads bounded evidence from the artifact root: bootstrap and per-run evidence, archive
 ZIPs and digests, the Shader-Core manifest, run/cleanup summaries, the validated package, repository
 state, and outer logs. It excludes the whole ConsumerProject, Unity cache, secrets, and arbitrary
@@ -159,35 +162,59 @@ crash dumps. The success exporter runs only on success; evidence upload always r
 missing expected files. A hosted exact-head run is required to establish results for a committed and
 pushed revision.
 
-The Release editor-path resolver checks the Visual C++ 2010 SP1 x64 and 2013 x64 runtime DLL
-prerequisites in that order. When a runtime is missing, it downloads the fixed Microsoft installer,
-requires one `Valid` Authenticode result with a non-null Microsoft
-signer, and keeps the downloaded file open for shared reads while verifying and, when accepted,
-running that same file. Only installer exit codes `0`, `1638`, and `3010` are accepted, followed by
-another required-DLL check. A failed signature or incomplete required evidence stops the sequence;
-the later runtime and Unity editor are not treated as reached.
+Release uses the runner's existing Chocolatey CLI; it does not bootstrap or upgrade Chocolatey.
+The step requires an existing 64-bit Windows process and `System32`, resolves `choco.exe` as an
+application, and accepts only a successfully observed 2.x CLI version. It checks the Visual C++
+2010 pair (`msvcr100.dll`, `msvcp100.dll`) before the 2013 pair (`msvcr120.dll`, `msvcp120.dll`).
+Only a missing pair triggers one synchronous package request, in this order:
+
+| Package | Requested package version | Required `System32` DLL pair |
+| --- | --- | --- |
+| `vcredist2010` | `10.0.40219.32503` | `msvcr100.dll`, `msvcp100.dll` |
+| `vcredist2013` | `12.0.40660.20180427` | `msvcr120.dll`, `msvcp120.dll` |
+
+Each request uses only `https://community.chocolatey.org/api/v2/` and the arguments
+`install <package> --version=<version> --source=https://community.chocolatey.org/api/v2/ -y --no-progress --requirechecksum --use-package-exit-codes`.
+Only native exit `0` or `3010` is accepted, and the requested DLL pair must then exist; after both
+checks all four DLLs are checked again. `3010` records that a reboot is required, but the workflow
+does not reboot. The wrapper does not retry requests; there is no reinstall, fallback download or
+old installer path in Release. Package-internal network retry behavior is not established here.
+The resolver is called with `RequireExistingRuntime`: if a required DLL is missing, it fails before
+creating an installer path, downloading, checking a signature or starting an installer. The switch
+defaults to false, so the existing Daily caller and its prior runtime behavior are retained.
+
+These are requested Chocolatey package versions when a pair is missing, not assertions about the
+version of pre-existing DLLs. If both DLLs in a pair already exist, that pair is skipped and is not
+proof that the fixed package or DLL version is installed. The packages may install x86 components
+as well as x64 components. Release now relies on the preinstalled Chocolatey CLI, the selected feed
+and package script, and required package checksums; this is not equivalent to the former explicit
+same-bytes Microsoft installer Authenticode check. A checksum requirement does not establish package
+authenticity or reproduce that signature check. DLL existence does not establish loadability,
+authenticity or version. A package request or accepted exit alone also does not prove a new install
+or successful Unity runtime use; the postchecks and the later full Release validation remain
+separate evidence.
 
 The workflow adds only
 `${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\runtime-prerequisites\report.json`
-to the existing always-uploaded artifact. This bounded JSON report contains the run identity,
-runtime stage/status, allowlisted result codes, and limited presence and byte-identity fields. It is
-not the raw diagnostic record. The separate private work directory is
-`${{ runner.temp }}\PureBase-Runtime-Prerequisites-Private-${{ github.run_id }}-${{ github.run_attempt }}`;
-it may contain downloaded installer bytes, selected response metadata, signature results,
-certificate DER files, exception details, and runner provenance. These raw private fields are not
-included in the artifact upload. `NotReached`, `Partial`, `Incomplete`, and `Withheld` describe
-distinct progress or evidence states; a missing report or failed upload does not establish a
-complete evidence handoff. Primary prerequisite failures remain distinct from secondary evidence
-save failures.
+to the existing always-uploaded artifact. This finite schema-version-2 report uses provider
+`Chocolatey` and records run/attempt/job and intended/checkout SHA identity, the observed CLI version,
+fixed source, package names/requested versions, pair pre/post booleans, `NotReached`,
+`ExistingRuntime` or `InstallRequested` status, the observed native exit or null, reboot-required
+state, final four-DLL booleans, fixed primary/secondary result codes and UTC time. It excludes
+arbitrary paths, URI query values, environment dumps, raw exceptions and DLL FileVersion data.
+Private temporary stdout/stderr files from Chocolatey are not uploaded; they are not a durable
+evidence transfer mechanism. This Release diagnostic contract accepts the bounded report and
+existing run/job results; it does not require cross-session receipt of the original EXE, nupkg, all
+HTTP data, signature DER or complete raw Chocolatey logs. This narrower contract does not mean raw
+records were acquired, does not resolve prior unknown diagnostic causes, and does not authorize a
+new hosted run. Report initialization/save failures stop validation; a report-save failure is kept
+secondary to the primary prerequisite failure when possible.
 
-The private directory is temporary runner storage, not a durable or access-controlled transfer
-mechanism. No approved complete-payload receiving path is currently configured, so this report does
-not make raw evidence available for later receipt and does not authorize a new hosted run. Mocked
-tests do not establish compatibility with the real Windows signature provider, shared-file
-semantics, or installer. No additional signature probes, trust relaxation, unlock-and-retry
-fallback, or reinstall behavior is provided. The existing Daily caller without runtime-evidence
-inputs continues to return its single Unity watchdog proxy path; this evidence handling does not
-change workflow discovery or add a CI job.
+The existing Daily caller without runtime-evidence inputs continues to use the resolver's default
+legacy path and return its single Unity watchdog proxy path. Release no longer passes the old
+`RuntimeEvidence` identity inputs to that resolver; it passes the identity to the prerequisite
+producer and uploads the one bounded report. These changes do not alter workflow discovery, add a CI
+job, or change the existing bounded Release evidence list.
 
 The runner also captures the original `Packages/manifest.json` and
 `Packages/packages-lock.json` bytes at the `pre-bootstrap`, `after-scene-bootstrap`, `quiescent`,

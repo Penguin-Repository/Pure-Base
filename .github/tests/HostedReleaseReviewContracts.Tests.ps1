@@ -27,18 +27,31 @@ Describe 'Hosted Release review contracts' {
         $resolverScript.Contains('real Unity.exe because its audited runner intentionally rejects wrapper executables') | Should -BeTrue
     }
 
-    It 'enables prerequisite evidence explicitly and only uploads its safe report' {
+    It 'provisions prerequisites before Unity and only uploads the safe report' {
         $job = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
         $paths = Get-NamedStepBlock -Job $job -Name 'Export Unity editor paths'
+        $provision = Get-NamedStepBlock -Job $job -Name 'Provision Unity runtime prerequisites'
         $upload = Get-NamedStepBlock -Job $job -Name 'Upload release validation evidence'
         $export = Get-NamedStepBlock -Job $job -Name 'Export versioned validation ZIP'
 
-        $paths | Should -Match '(?m)^            -RuntimeEvidence `$'
-        $paths | Should -Match '-WorkflowRunId ''\$\{\{ github\.run_id \}\}'''
-        $paths | Should -Match '-WorkflowRunAttempt ''\$\{\{ github\.run_attempt \}\}'''
-        $paths | Should -Match '-IntendedSha ''\$\{\{ github\.sha \}\}'''
-        $paths | Should -Match '-CheckoutSha \$checkoutSha'
-        $paths | Should -Match 'repository-state\.json'
+        Assert-LinesInOrder -Block $job -ExpectedLines @(
+            '      - name: Capture initial repository state',
+            '      - name: Provision Unity runtime prerequisites',
+            '      - name: Install verified Shader-Core 0.3.0 release',
+            '      - name: Restore Unity 2022.3.28f1',
+            '      - name: Activate Unity Personal license',
+            '      - name: Export Unity editor paths'
+        )
+        $provision | Should -Match '(?m)^        timeout-minutes: 15$'
+        $provision | Should -Match 'Install-ReleaseUnityRuntimePrerequisites\.ps1'
+        $provision | Should -Match '-WorkflowRunId ''\$\{\{ github\.run_id \}\}'''
+        $provision | Should -Match '-WorkflowRunAttempt ''\$\{\{ github\.run_attempt \}\}'''
+        $provision | Should -Match '-WorkflowJob ''\$\{\{ github\.job \}\}'''
+        $provision | Should -Match '-IntendedSha ''\$\{\{ github\.sha \}\}'''
+        $provision | Should -Match '-CheckoutSha \$checkoutSha'
+        $provision | Should -Match 'repository-state\.json'
+        $paths | Should -Match '(?m)^            -RequireExistingRuntime$'
+        $paths | Should -Not -Match 'RuntimeEvidence|WorkflowRunId|WorkflowRunAttempt|IntendedSha|CheckoutSha'
         $dailyWorkflow | Should -Not -Match 'RuntimeEvidence'
         $upload | Should -Match '(?m)^        if: always\(\)$'
         $upload | Should -Match '(?m)^          retention-days: 14$'

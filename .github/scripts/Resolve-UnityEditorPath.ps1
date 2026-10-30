@@ -20,6 +20,7 @@ param(
 
     [string]$RealEditorPathOutputFile,
     [switch]$RuntimeEvidence,
+    [switch]$RequireExistingRuntime,
     [string]$WorkflowRunId,
     [string]$WorkflowRunAttempt,
     [string]$IntendedSha,
@@ -291,6 +292,15 @@ function Resolve-WindowsAbsolutePath {
     return [System.IO.Path]::GetFullPath($candidate)
 }
 
+function New-RuntimeInstallerPath {
+    param([string]$Root, [string]$FileName)
+
+    New-Item -ItemType Directory -Path $Root -ErrorAction Stop | Out-Null
+    $path = Join-Path $Root $FileName
+    Assert-PlainPath -Path $path -Root $Root
+    return $path
+}
+
 function Assert-MicrosoftRuntime {
     param(
         [Parameter(Mandatory = $true)][string]$DisplayName,
@@ -309,9 +319,8 @@ function Assert-MicrosoftRuntime {
         $State.files = @($RequiredFiles | ForEach-Object { [bool](Test-Path -LiteralPath $_ -PathType Leaf) })
         if ($State.files -notcontains $false) { $State.status = 'ExistingRuntime' }
         else {
-            New-Item -ItemType Directory -Path $RuntimeRoot -ErrorAction Stop | Out-Null
-            $installerPath = Join-Path $RuntimeRoot $InstallerFileName
-            Assert-PlainPath -Path $installerPath -Root $RuntimeRoot
+            if ($RequireExistingRuntime) { $State.failure = 'RuntimeFilesMissing'; throw 'RuntimeFilesMissing' }
+            $installerPath = New-RuntimeInstallerPath -Root $RuntimeRoot -FileName $InstallerFileName
             Add-RuntimeEvent 'Download'
             $response = Invoke-DownloadWithRetry -Uri $InstallerUri -OutFile $installerPath
             $State.status = 'Downloaded'
