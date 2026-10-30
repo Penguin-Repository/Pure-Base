@@ -159,6 +159,36 @@ crash dumps. The success exporter runs only on success; evidence upload always r
 missing expected files. A hosted exact-head run is required to establish results for a committed and
 pushed revision.
 
+The Release editor-path resolver checks the Visual C++ 2010 SP1 x64 and 2013 x64 runtime DLL
+prerequisites in that order. When a runtime is missing, it downloads the fixed Microsoft installer,
+requires one `Valid` Authenticode result with a non-null Microsoft
+signer, and keeps the downloaded file open for shared reads while verifying and, when accepted,
+running that same file. Only installer exit codes `0`, `1638`, and `3010` are accepted, followed by
+another required-DLL check. A failed signature or incomplete required evidence stops the sequence;
+the later runtime and Unity editor are not treated as reached.
+
+The workflow adds only
+`${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\runtime-prerequisites\report.json`
+to the existing always-uploaded artifact. This bounded JSON report contains the run identity,
+runtime stage/status, allowlisted result codes, and limited presence and byte-identity fields. It is
+not the raw diagnostic record. The separate private work directory is
+`${{ runner.temp }}\PureBase-Runtime-Prerequisites-Private-${{ github.run_id }}-${{ github.run_attempt }}`;
+it may contain downloaded installer bytes, selected response metadata, signature results,
+certificate DER files, exception details, and runner provenance. These raw private fields are not
+included in the artifact upload. `NotReached`, `Partial`, `Incomplete`, and `Withheld` describe
+distinct progress or evidence states; a missing report or failed upload does not establish a
+complete evidence handoff. Primary prerequisite failures remain distinct from secondary evidence
+save failures.
+
+The private directory is temporary runner storage, not a durable or access-controlled transfer
+mechanism. No approved complete-payload receiving path is currently configured, so this report does
+not make raw evidence available for later receipt and does not authorize a new hosted run. Mocked
+tests do not establish compatibility with the real Windows signature provider, shared-file
+semantics, or installer. No additional signature probes, trust relaxation, unlock-and-retry
+fallback, or reinstall behavior is provided. The existing Daily caller without runtime-evidence
+inputs continues to return its single Unity watchdog proxy path; this evidence handling does not
+change workflow discovery or add a CI job.
+
 The runner also captures the original `Packages/manifest.json` and
 `Packages/packages-lock.json` bytes at the `pre-bootstrap`, `after-scene-bootstrap`, `quiescent`,
 `second-after-scene`, and `second-quiescent` boundaries. Each stage is written below

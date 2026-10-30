@@ -12,12 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Resolves the Editor only after fail-closed runtime prerequisites and optional evidence.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$EditorPath,
 
-    [string]$RealEditorPathOutputFile
+    [string]$RealEditorPathOutputFile,
+    [switch]$RuntimeEvidence,
+    [string]$WorkflowRunId,
+    [string]$WorkflowRunAttempt,
+    [string]$IntendedSha,
+    [string]$CheckoutSha
 )
 
 Set-StrictMode -Version Latest
@@ -32,23 +38,237 @@ function Invoke-DownloadWithRetry {
     )
 
     for ($attempt = 1; $attempt -le $MaximumAttempts; $attempt++) {
+        $Detail.downloadAttempt = $attempt
+        $failure = $null
         try {
-            if (Test-Path -LiteralPath $OutFile -PathType Leaf) {
-                Remove-Item -LiteralPath $OutFile -Force
-            }
-            Invoke-WebRequest -Uri $Uri -OutFile $OutFile
-            return
+            $response = Invoke-WebRequest -Uri $Uri -OutFile $OutFile -PassThru -ErrorAction Stop
         }
-        catch {
-            if ($attempt -eq $MaximumAttempts) {
-                throw "Download failed after $MaximumAttempts attempts: '$Uri'. $($_.Exception.Message)"
-            }
+        catch { $failure = $_ }
+        if ($null -eq $failure) {
+            return $response
+        }
+        $Detail.downloadErrors += Get-RuntimeFailureData $failure
+        $State.payload = if (Test-Path -LiteralPath $OutFile -PathType Leaf) { 'Partial' } else { 'Absent' }
+        Save-RuntimeDetail
+        if ($attempt -eq $MaximumAttempts) {
+            $State.failure = 'DownloadFailed'
+            throw 'RuntimeDownloadFailed'
+        }
+        Write-Warning "RuntimeDownloadRetry attempt=$attempt"
+        Start-Sleep -Seconds ([Math]::Pow(2, $attempt))
+    }
+}
 
-            $delaySeconds = [Math]::Pow(2, $attempt)
-            Write-Warning "Download attempt $attempt failed for '$Uri': $($_.Exception.Message). Retrying in $delaySeconds seconds."
-            Start-Sleep -Seconds $delaySeconds
+function Assert-PlainPath {
+    param([string]$Path, [string]$Root)
+
+    $full = [IO.Path]::GetFullPath($Path)
+    $prefix = [IO.Path]::GetFullPath($Root).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    if (-not $full.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'PathOutsideRoot' }
+    for ($node = $full; $node; $node = [IO.Path]::GetDirectoryName($node)) {
+        if (Test-Path -LiteralPath $node) {
+            if ((Get-Item -LiteralPath $node -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw 'ReparsePath'
+            }
         }
     }
+}
+
+function Write-RuntimeJson {
+    param([string]$Path, $Value)
+
+    try {
+        Assert-PlainPath -Path $Path -Root $env:RUNNER_TEMP
+        $json = ConvertTo-Json -InputObject $Value -Depth 30
+        Set-Content -LiteralPath $Path -Value $json -Encoding utf8NoBOM -ErrorAction Stop
+    }
+    catch {
+        $_.Exception.Data['RuntimeSaveFailure'] = if ($Path -eq $ReportPath) { 'ReportSaveFailed' } else { 'PrivateSaveFailed' }
+        throw
+    }
+}
+
+function Add-RuntimeEvent {
+    param([string]$Stage)
+
+    $State.stage = $Stage
+    $Detail.events += [ordered]@{ stage = $Stage; utc = [DateTime]::UtcNow.ToString('o') }
+}
+
+function Save-RuntimeDetail {
+    if ($RuntimeEvidence) {
+        $Detail.state = $State
+        Write-RuntimeJson -Path (Join-Path $RuntimeRoot 'metadata.json') -Value $Detail
+    }
+}
+
+function Save-RuntimeReport {
+    if ($RuntimeEvidence) {
+        Write-RuntimeJson -Path $ReportPath -Value $Report
+    }
+}
+
+function Initialize-RuntimeEvidence {
+    if (-not $RuntimeEvidence) { return }
+    if ($WorkflowRunId -notmatch '^[0-9]+$' -or $WorkflowRunAttempt -notmatch '^[1-9][0-9]*$' -or
+        $IntendedSha -notmatch '^[0-9a-f]{40}$' -or $CheckoutSha -notmatch '^[0-9a-f]{40}$') {
+        throw 'RuntimeEvidenceIdentityInvalid'
+    }
+    foreach ($path in @($PublicRoot, $PrivateRoot)) {
+        Assert-PlainPath -Path $path -Root $env:RUNNER_TEMP
+        if (Test-Path -LiteralPath $path) { throw 'RuntimeEvidenceCollision' }
+    }
+    foreach ($path in @($PublicRoot, $PrivateRoot)) {
+        New-Item -ItemType Directory -Path $path -ErrorAction Stop | Out-Null
+        Assert-PlainPath -Path $path -Root $env:RUNNER_TEMP
+    }
+    $provenance = [ordered]@{
+        run = $WorkflowRunId; attempt = $WorkflowRunAttempt; intendedSha = $IntendedSha; checkoutSha = $CheckoutSha
+        utc = [DateTime]::UtcNow.ToString('o'); utcFormat = 'ISO8601 round-trip, 100ns representation; clock accuracy unknown'
+        pwsh = $PSVersionTable; os = [Runtime.InteropServices.RuntimeInformation]::OSDescription
+        job = $env:GITHUB_JOB; runnerName = $env:RUNNER_NAME; runnerOS = $env:RUNNER_OS
+        runnerArch = $env:RUNNER_ARCH; imageOS = $env:ImageOS; imageVersion = $env:ImageVersion
+        missingMetadata = 'Unknown: not supplied by environment'; transfer = 'NotReached: no authorized transfer'
+        upload = 'Unknown: external workflow outcome'; runnerLoss = 'Unknown: cannot observe after process loss'
+    }
+    Write-RuntimeJson -Path (Join-Path $PrivateRoot 'provenance.json') -Value $provenance
+    Save-RuntimeReport
+}
+
+function Get-ApiField {
+    param($Object, [string]$Name)
+
+    if ($null -eq $Object) { return $null }
+    if ($Object -is [Collections.IDictionary]) { return $Object[$Name] }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -ne $property) { return $property.Value }
+    return $null
+}
+
+function Get-RuntimeFailureData {
+    param([Management.Automation.ErrorRecord]$Record)
+
+    return [ordered]@{
+        exception = $Record.Exception.ToString(); errorRecord = $Record.ToString()
+        errorId = $Record.FullyQualifiedErrorId; category = $Record.CategoryInfo.ToString()
+        scriptStackTrace = $Record.ScriptStackTrace; errorDetails = [string]$Record.ErrorDetails
+        position = $Record.InvocationInfo.PositionMessage; line = $Record.InvocationInfo.Line
+        exceptionType = $Record.Exception.GetType().FullName
+    }
+}
+
+function Get-RuntimeHttpMetadata {
+    param($Response, [string]$Uri)
+
+    $baseResponse = Get-ApiField $Response 'BaseResponse'
+    $request = Get-ApiField $baseResponse 'RequestMessage'
+    $headers = Get-ApiField $Response 'Headers'
+    $selected = [ordered]@{}
+    foreach ($name in @('Content-Type', 'Content-Length', 'Content-Encoding', 'Date', 'Last-Modified', 'ETag')) {
+        $selected[$name] = Get-ApiField $headers $name
+    }
+    return [ordered]@{
+        requestUri = $Uri; finalUri = [string](Get-ApiField $request 'RequestUri')
+        statusCode = Get-ApiField $Response 'StatusCode'; headers = $selected
+        absentFields = 'NotProvidedByApi'; redirectHistory = 'NotProvidedByApi'
+    }
+}
+
+function Save-RuntimeCertificate {
+    param($Certificate, [string]$Name)
+
+    if ($null -eq $Certificate) { return $null }
+    $bytes = [byte[]]$Certificate.RawData
+    if ($RuntimeEvidence) {
+        $path = Join-Path $RuntimeRoot "$Name.der"
+        Assert-PlainPath -Path $path -Root $RuntimeRoot
+        [IO.File]::WriteAllBytes($path, $bytes)
+    }
+    return [ordered]@{
+        file = "$Name.der"; length = $bytes.LongLength
+        sha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+        subject = $Certificate.Subject; issuer = $Certificate.Issuer; serialNumber = $Certificate.SerialNumber
+        thumbprint = $Certificate.Thumbprint; notBefore = $Certificate.NotBefore.ToString('o'); notAfter = $Certificate.NotAfter.ToString('o')
+    }
+}
+
+function Save-RuntimeSignature {
+    param($Signature)
+
+    $numericStatus = $null
+    try { $numericStatus = [int]$Signature.Status } catch { $numericStatus = $null }
+    $record = [ordered]@{
+        status = [string]$Signature.Status; statusCode = $numericStatus; statusMessage = $Signature.StatusMessage
+        signatureType = $Signature.SignatureType; isOSBinary = $Signature.IsOSBinary; path = $Signature.Path
+        signerCertificate = Save-RuntimeCertificate $Signature.SignerCertificate 'signer'
+        timeStamperCertificate = Save-RuntimeCertificate $Signature.TimeStamperCertificate 'timestamp'
+        chain = 'NotProvidedByApi'; winVerifyTrustCode = 'NotProvidedByApi'; revocationHistory = 'NotProvidedByApi'
+    }
+    if ($RuntimeEvidence) { Write-RuntimeJson -Path (Join-Path $RuntimeRoot 'signature.json') -Value $record }
+}
+
+function Copy-ProtectedRuntime {
+    param([IO.FileStream]$Handle, [string]$Path)
+
+    Assert-PlainPath -Path $Path -Root $RuntimeRoot
+    $State.length = $Handle.Length
+    $State.sha256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($Handle)).ToLowerInvariant()
+    $Handle.Position = 0
+    if (-not $RuntimeEvidence) { return }
+    $copy = Join-Path $RuntimeRoot 'installer.bytes'
+    Assert-PlainPath -Path $copy -Root $RuntimeRoot
+    if (Test-Path -LiteralPath $copy) { throw 'RuntimeCopyCollision' }
+    Copy-Item -LiteralPath $Path -Destination $copy -ErrorAction Stop
+    Assert-PlainPath -Path $copy -Root $RuntimeRoot
+    $copyHash = (Get-FileHash -LiteralPath $copy -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ((Get-Item -LiteralPath $copy).Length -ne $State.length -or $copyHash -cne $State.sha256) {
+        throw 'RuntimeCopyMismatch'
+    }
+    $Detail.source = [IO.Path]::GetFileName($Path)
+    $Detail.copy = 'installer.bytes'
+}
+
+function Read-RuntimeSignature {
+    param([string]$Path)
+
+    Add-RuntimeEvent 'Signature'
+    $signature = $null
+    try { $signature = Get-AuthenticodeSignature -LiteralPath $Path -ErrorAction Stop }
+    catch {
+        $State.signature = 'ResultNotReturned'
+        $State.failure = if ($_.Exception -is [Management.Automation.CommandNotFoundException]) { 'SignatureUnavailable' } else { 'SignatureNotReturned' }
+        $Detail.signatureError = Get-RuntimeFailureData $_
+        return
+    }
+    $State.signature = 'Unknown'
+    $known = @('Valid', 'UnknownError', 'NotSigned', 'HashMismatch', 'NotTrusted', 'NotSupportedFileFormat', 'Incompatible')
+    if ([string]$signature.Status -cin $known) { $State.signature = [string]$signature.Status }
+    $State.failure = 'SignatureRejected'
+    if ([string]$signature.Status -ceq 'Valid' -and $null -ne $signature.SignerCertificate -and
+        $signature.SignerCertificate.Subject -like '*Microsoft Corporation*') { $State.failure = 'None' }
+    Add-RuntimeEvent 'SignatureReturned'
+    Save-RuntimeSignature $signature
+}
+
+function Install-ProtectedRuntime {
+    param([string]$Path, [string[]]$Arguments, [string[]]$RequiredFiles)
+
+    Add-RuntimeEvent 'Installer'
+    Save-RuntimeDetail
+    Save-RuntimeReport
+    $State.installer = 'StartRequested'
+    try {
+        $process = Start-Process -FilePath $Path -ArgumentList $Arguments -Wait -PassThru -NoNewWindow -ErrorAction Stop
+    }
+    catch { $State.failure = 'InstallerStartFailed'; throw }
+    $State.installer = 'Returned'
+    $State.exitCode = [int]$process.ExitCode
+    Add-RuntimeEvent 'InstallerReturned'
+    $State.failure = 'InstallerExitRejected'
+    if ($State.exitCode -notin @(0, 1638, 3010)) { return }
+    $State.files = @($RequiredFiles | ForEach-Object { [bool](Test-Path -LiteralPath $_ -PathType Leaf) })
+    $State.failure = if ($State.files -contains $false) { 'RuntimeFilesMissing' } else { 'None' }
+    Add-RuntimeEvent 'Postcheck'
 }
 
 function Resolve-WindowsAbsolutePath {
@@ -73,56 +293,85 @@ function Resolve-WindowsAbsolutePath {
 
 function Assert-MicrosoftRuntime {
     param(
-        [Parameter(Mandatory = $true)]
-        [string]$DisplayName,
-        [Parameter(Mandatory = $true)]
-        [string[]]$RequiredFiles,
-        [Parameter(Mandatory = $true)]
-        [string]$InstallerFileName,
-        [Parameter(Mandatory = $true)]
-        [string]$InstallerUri,
-        [Parameter(Mandatory = $true)]
-        [string[]]$InstallerArguments
+        [Parameter(Mandatory = $true)][string]$DisplayName,
+        [Parameter(Mandatory = $true)][string[]]$RequiredFiles,
+        [Parameter(Mandatory = $true)][string]$InstallerFileName,
+        [Parameter(Mandatory = $true)][string]$InstallerUri,
+        [Parameter(Mandatory = $true)][string[]]$InstallerArguments
     )
 
-    $missingRuntimeFiles = @($RequiredFiles | Where-Object {
-            -not (Test-Path -LiteralPath $_ -PathType Leaf)
-        })
-    if ($missingRuntimeFiles.Count -eq 0) {
-        Write-Host "$DisplayName is already available."
-        return
+    $State = $Report.runtimes[$InstallerFileName]
+    $RuntimeRoot = Join-Path $PrivateRoot $State.runtime
+    $Detail = [ordered]@{ events = @(); downloadAttempt = 0; downloadErrors = @(); source = $InstallerFileName; copy = $null }
+    $handle = $null
+    try {
+        Add-RuntimeEvent 'Prerequisite'
+        $State.files = @($RequiredFiles | ForEach-Object { [bool](Test-Path -LiteralPath $_ -PathType Leaf) })
+        if ($State.files -notcontains $false) { $State.status = 'ExistingRuntime' }
+        else {
+            New-Item -ItemType Directory -Path $RuntimeRoot -ErrorAction Stop | Out-Null
+            $installerPath = Join-Path $RuntimeRoot $InstallerFileName
+            Assert-PlainPath -Path $installerPath -Root $RuntimeRoot
+            Add-RuntimeEvent 'Download'
+            $response = Invoke-DownloadWithRetry -Uri $InstallerUri -OutFile $installerPath
+            $State.status = 'Downloaded'
+            $State.payload = 'Incomplete'
+            Add-RuntimeEvent 'Downloaded'
+            $Detail.http = Get-RuntimeHttpMetadata -Response $response -Uri $InstallerUri
+            $handle = [IO.File]::Open($installerPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            Copy-ProtectedRuntime -Handle $handle -Path $installerPath
+            Save-RuntimeDetail
+            Read-RuntimeSignature -Path $installerPath
+            $State.payload = 'Complete'
+            Save-RuntimeDetail
+            Save-RuntimeReport
+            if ($State.failure -eq 'None') {
+                Install-ProtectedRuntime -Path $installerPath -Arguments $InstallerArguments -RequiredFiles $RequiredFiles
+            }
+        }
     }
-
-    $installerPath = Join-Path $env:RUNNER_TEMP $InstallerFileName
-    Write-Host "Installing $DisplayName because these files are missing: $($missingRuntimeFiles -join ', ')"
-    Invoke-DownloadWithRetry -Uri $InstallerUri -OutFile $installerPath
-
-    $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
-    if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
-        $null -eq $signature.SignerCertificate -or
-        $signature.SignerCertificate.Subject -notlike '*Microsoft Corporation*') {
-        throw "Downloaded $DisplayName installer did not have a valid Microsoft signature. Status: $($signature.Status)."
+    catch {
+        $Detail.error = Get-RuntimeFailureData $_
+        if ($State.payload -ne 'Partial') { $State.payload = 'Incomplete' }
+        if ($_.Exception.Data['RuntimeSaveFailure']) { $State.secondary = $_.Exception.Data['RuntimeSaveFailure'] }
+        elseif ($State.stage -in @('Signature', 'SignatureReturned')) { $State.secondary = 'PrivateSaveFailed' }
+        if ($State.failure -eq 'None') { $State.failure = 'EvidenceIncomplete' }
     }
-
-    $installerProcess = Start-Process `
-        -FilePath $installerPath `
-        -ArgumentList $InstallerArguments `
-        -Wait `
-        -PassThru `
-        -NoNewWindow
-    if ($installerProcess.ExitCode -notin @(0, 1638, 3010)) {
-        throw "$DisplayName installer failed with exit code $($installerProcess.ExitCode)."
-    }
-
-    $missingAfterInstall = @($RequiredFiles | Where-Object {
-            -not (Test-Path -LiteralPath $_ -PathType Leaf)
-        })
-    if ($missingAfterInstall.Count -gt 0) {
-        throw "$DisplayName installation completed but required files are still missing: $($missingAfterInstall -join ', ')."
-    }
-
-    Write-Host "$DisplayName installed successfully (exit code $($installerProcess.ExitCode))."
+    finally { if ($null -ne $handle) { $handle.Dispose() } }
+    Complete-RuntimeEvidence
 }
+
+function Complete-RuntimeEvidence {
+    Add-RuntimeEvent 'SaveRequested'
+    try {
+        if ($State.status -ne 'ExistingRuntime') { Save-RuntimeDetail }
+    }
+    catch { $State.secondary = 'PrivateSaveFailed'; $State.payload = 'Incomplete' }
+    if ($State.failure -eq 'None' -and $State.secondary -ne 'None') { $State.failure = 'EvidenceIncomplete' }
+    try { Save-RuntimeReport }
+    catch { $State.secondary = 'ReportSaveFailed'; $State.payload = 'Incomplete' }
+    if ($State.failure -eq 'None' -and $State.secondary -ne 'None') { $State.failure = 'EvidenceIncomplete' }
+    if ($State.failure -ne 'None') {
+        throw [InvalidOperationException]::new("RuntimePrerequisiteFailed: $($State.failure); secondary=$($State.secondary)")
+    }
+}
+
+$suffix = if ($RuntimeEvidence) { "$WorkflowRunId-$WorkflowRunAttempt" } else { [guid]::NewGuid().ToString('N') }
+$PrivateRoot = Join-Path $env:RUNNER_TEMP "PureBase-Runtime-Prerequisites-Private-$suffix"
+$PublicRoot = Join-Path $env:RUNNER_TEMP "PureBase-Release-Validation-$suffix/runtime-prerequisites"
+$ReportPath = Join-Path $PublicRoot 'report.json'
+$Report = [ordered]@{
+    schemaVersion = 1; run = $WorkflowRunId; attempt = $WorkflowRunAttempt
+    intendedSha = $IntendedSha; checkoutSha = $CheckoutSha; runtimes = [ordered]@{}
+}
+foreach ($id in @('2010-sp1-x64', '2013-x64')) {
+    $Report.runtimes["vcredist-$id.exe"] = [ordered]@{
+        runtime = $id; stage = 'NotReached'; status = 'NotReached'; signature = 'NotReached'
+        installer = 'NotReached'; exitCode = $null; files = @(); length = $null; sha256 = $null
+        payload = 'Absent'; failure = 'None'; secondary = 'None'; transfer = 'Withheld'
+    }
+}
+try { Initialize-RuntimeEvidence } catch { throw [InvalidOperationException]::new('RuntimeEvidenceInitializationFailed') }
 
 $runtimeDirectory = Join-Path $env:WINDIR 'System32'
 Assert-MicrosoftRuntime `
