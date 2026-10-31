@@ -2103,7 +2103,9 @@ function New-InitialValidationMatrix {
 
     $matrix = New-Object System.Collections.Generic.List[object]
     $matrix.Add([ordered]@{ label = 'module-free-clean-import'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerModuleFreeImportTests.ModuleFreeProductsCompileWithConfiguredPassPropertyAndSourceContracts'; selections = @{}; skipColdLibraryReset = $false })
-    $matrix.Add([ordered]@{ label = 'rendering-mode-contract'; contract = New-ModuleFreeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRenderingModeTests.ColdImportedPublicNormalizerMatchesTheFourByThreeStateTable'; selections = @{}; skipColdLibraryReset = $false })
+    $renderingModeContract = New-ModuleFreeContract
+    $renderingModeContract.runLabel = 'rendering-mode-contract'
+    $matrix.Add([ordered]@{ label = 'rendering-mode-contract'; contract = $renderingModeContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRenderingModeTests.ColdImportedPublicNormalizerMatchesTheFourByThreeStateTable'; selections = @{}; skipColdLibraryReset = $false })
     if (-not $ModuleFreeOnly) {
         $matrix.Add([ordered]@{ label = 'module-free-toon-runtime-observation'; contract = New-ModuleFreeToonRuntimeObservationContract; filter = 'PureBase.Release.Consumer.Tests.PureBaseConsumerRuntimeTests.ConfiguredRuntimeSamplesProduceExpectedBirpReadbacks'; selections = @{}; requiresColdLibraryReset = $true; skipColdLibraryReset = $false })
     }

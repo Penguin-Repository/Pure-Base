@@ -168,6 +168,43 @@ explicit approval. If additional changes are necessary to satisfy these
 conditions, stop and seek a separate decision rather than expanding this
 exception.
 
+### Bounded per-invocation evidence separation
+
+For the single correction that gives the rendering-mode validation row its
+own evidence directory, use commit
+`f0777009b2b53887686afad1d12c818ed721e967` as the baseline. Only for this
+correction, the file-length limits below replace the limits of the preceding
+bootstrap-profile exception; that exception's edit scope is not extended.
+
+* `Tests/Release/Run-PureBaseReleaseValidation.ps1`: baseline 3031 physical
+    lines; permit at most two added physical lines, with a maximum of 3033.
+* `Tests/Release/Run-PureBaseReleaseValidation.Tests.ps1`: baseline and
+    maximum 1445 physical lines; no added physical lines.
+* `New-InitialValidationMatrix`: baseline 11 lines, maximum 13 lines,
+    including the function declaration and closing brace.
+
+In `New-InitialValidationMatrix`, create a separate module-free contract for
+the `rendering-mode-contract` row and set only that contract's `runLabel` to
+`rendering-mode-contract`. Use two separate assignment lines and reference
+that contract in the existing row. Preserve the first row's contract, all
+filters, ordering, selections, reset flags, and every other contract field.
+Do not change `New-ModuleFreeContract` or the evidence-writing functions.
+
+In the existing initial-matrix Pester assertion, change only the rendering
+row's expected `runLabel` and its explanatory message. Preserve the first
+row's expectation, all other conditions, assertions, cases, and harness code.
+Do not add assertion lines, helpers, source files, suites, or runtime guards.
+
+This accepts only the specified existing file-length excesses and the two
+assignment lines. It grants no function-length or complexity exception:
+modified functions must remain under 50 lines and complexity below 20.
+Do not edit other functions or compress lines or remove blanks or comments
+to create room. Review the complete diff and run the existing complete
+runner Pester file. Do not alter the profile, workflow, cleanup, privacy,
+or validation thresholds. Stop if any additional change is needed.
+This is not a general grandfathering rule or a Codacy suppression, and it
+does not authorize future evidence or profile changes.
+
 ## Persistent communication
 
 Do not persist temporary orchestration labels in repository artifacts.
