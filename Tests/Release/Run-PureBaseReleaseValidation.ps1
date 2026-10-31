@@ -44,8 +44,6 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$RequiredUnityVersion = '2022.3.28f1'
-$RequiredUnityRevision = '6bae5ce6b222'
 $ConsumerAssembly = 'PureBase.Release.Consumer.Tests'
 $ProductNames = @('PureBase/Unlit', 'PureBase/Toon', 'PureBase/PBR', 'PureBase/Hybrid')
 $ProductPasses = @('ForwardBase', 'ForwardAdd', 'ShadowCaster', 'Meta')
@@ -578,134 +576,7 @@ function Get-FirstBootstrapGeneratedMetaProfile {
 
 
 function Get-FirstBootstrapPackageProfile {
-    $manifestDependencies = [ordered]@{}
-    foreach ($entry in @'
-com.unity.2d.sprite|1.0.0
-com.unity.2d.tilemap|1.0.0
-com.unity.ads|4.4.2
-com.unity.ai.navigation|1.1.5
-com.unity.analytics|3.8.1
-com.unity.collab-proxy|2.3.1
-com.unity.ide.rider|3.0.28
-com.unity.ide.visualstudio|2.0.22
-com.unity.ide.vscode|1.2.5
-com.unity.purchasing|4.11.0
-com.unity.test-framework|1.1.33
-com.unity.textmeshpro|3.0.6
-com.unity.timeline|1.7.6
-com.unity.ugui|1.0.0
-com.unity.xr.legacyinputhelpers|2.1.10
-jp.lilxyzw.shadercore|file:../_LocalPackages/jp.lilxyzw.shadercore
-jp.penguin.purebase|file:../_LocalPackages/jp.penguin.purebase
-com.unity.modules.ai|1.0.0
-com.unity.modules.androidjni|1.0.0
-com.unity.modules.animation|1.0.0
-com.unity.modules.assetbundle|1.0.0
-com.unity.modules.audio|1.0.0
-com.unity.modules.cloth|1.0.0
-com.unity.modules.director|1.0.0
-com.unity.modules.imageconversion|1.0.0
-com.unity.modules.imgui|1.0.0
-com.unity.modules.jsonserialize|1.0.0
-com.unity.modules.particlesystem|1.0.0
-com.unity.modules.physics|1.0.0
-com.unity.modules.physics2d|1.0.0
-com.unity.modules.screencapture|1.0.0
-com.unity.modules.terrain|1.0.0
-com.unity.modules.terrainphysics|1.0.0
-com.unity.modules.tilemap|1.0.0
-com.unity.modules.ui|1.0.0
-com.unity.modules.uielements|1.0.0
-com.unity.modules.umbra|1.0.0
-com.unity.modules.unityanalytics|1.0.0
-com.unity.modules.unitywebrequest|1.0.0
-com.unity.modules.unitywebrequestassetbundle|1.0.0
-com.unity.modules.unitywebrequestaudio|1.0.0
-com.unity.modules.unitywebrequesttexture|1.0.0
-com.unity.modules.unitywebrequestwww|1.0.0
-com.unity.modules.vehicles|1.0.0
-com.unity.modules.video|1.0.0
-com.unity.modules.vr|1.0.0
-com.unity.modules.wind|1.0.0
-com.unity.modules.xr|1.0.0
-'@ -split "`r?`n" | Where-Object { $_ -ne '' }) {
-        $parts = $entry.Split('|', 2)
-        $manifestDependencies.Add($parts[0], $parts[1])
-    }
-
-    $lockDependencies = [ordered]@{}
-    foreach ($entry in @'
-com.unity.2d.sprite|1.0.0|0|builtin|
-com.unity.2d.tilemap|1.0.0|0|builtin|com.unity.modules.tilemap=1.0.0,com.unity.modules.uielements=1.0.0
-com.unity.ads|4.4.2|0|registry|com.unity.ugui=1.0.0
-com.unity.ai.navigation|1.1.5|0|registry|com.unity.modules.ai=1.0.0
-com.unity.analytics|3.8.1|0|registry|com.unity.services.analytics=1.0.4,com.unity.ugui=1.0.0
-com.unity.collab-proxy|2.3.1|0|registry|
-com.unity.ext.nunit|1.0.6|1|registry|
-com.unity.ide.rider|3.0.28|0|registry|com.unity.ext.nunit=1.0.6
-com.unity.ide.visualstudio|2.0.22|0|registry|com.unity.test-framework=1.1.9
-com.unity.ide.vscode|1.2.5|0|registry|
-com.unity.modules.ai|1.0.0|0|builtin|
-com.unity.modules.androidjni|1.0.0|0|builtin|
-com.unity.modules.animation|1.0.0|0|builtin|
-com.unity.modules.assetbundle|1.0.0|0|builtin|
-com.unity.modules.audio|1.0.0|0|builtin|
-com.unity.modules.cloth|1.0.0|0|builtin|com.unity.modules.physics=1.0.0
-com.unity.modules.director|1.0.0|0|builtin|com.unity.modules.animation=1.0.0,com.unity.modules.audio=1.0.0
-com.unity.modules.imageconversion|1.0.0|0|builtin|
-com.unity.modules.imgui|1.0.0|0|builtin|
-com.unity.modules.jsonserialize|1.0.0|0|builtin|
-com.unity.modules.particlesystem|1.0.0|0|builtin|
-com.unity.modules.physics|1.0.0|0|builtin|
-com.unity.modules.physics2d|1.0.0|0|builtin|
-com.unity.modules.screencapture|1.0.0|0|builtin|com.unity.modules.imageconversion=1.0.0
-com.unity.modules.subsystems|1.0.0|1|builtin|com.unity.modules.jsonserialize=1.0.0
-com.unity.modules.terrain|1.0.0|0|builtin|
-com.unity.modules.terrainphysics|1.0.0|0|builtin|com.unity.modules.physics=1.0.0,com.unity.modules.terrain=1.0.0
-com.unity.modules.tilemap|1.0.0|0|builtin|com.unity.modules.physics2d=1.0.0
-com.unity.modules.ui|1.0.0|0|builtin|
-com.unity.modules.uielements|1.0.0|0|builtin|com.unity.modules.imgui=1.0.0,com.unity.modules.jsonserialize=1.0.0,com.unity.modules.ui=1.0.0
-com.unity.modules.umbra|1.0.0|0|builtin|
-com.unity.modules.unityanalytics|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.unitywebrequest=1.0.0
-com.unity.modules.unitywebrequest|1.0.0|0|builtin|
-com.unity.modules.unitywebrequestassetbundle|1.0.0|0|builtin|com.unity.modules.assetbundle=1.0.0,com.unity.modules.unitywebrequest=1.0.0
-com.unity.modules.unitywebrequestaudio|1.0.0|0|builtin|com.unity.modules.audio=1.0.0,com.unity.modules.unitywebrequest=1.0.0
-com.unity.modules.unitywebrequesttexture|1.0.0|0|builtin|com.unity.modules.imageconversion=1.0.0,com.unity.modules.unitywebrequest=1.0.0
-com.unity.modules.unitywebrequestwww|1.0.0|0|builtin|com.unity.modules.assetbundle=1.0.0,com.unity.modules.audio=1.0.0,com.unity.modules.imageconversion=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.modules.unitywebrequestassetbundle=1.0.0,com.unity.modules.unitywebrequestaudio=1.0.0
-com.unity.modules.vehicles|1.0.0|0|builtin|com.unity.modules.physics=1.0.0
-com.unity.modules.video|1.0.0|0|builtin|com.unity.modules.audio=1.0.0,com.unity.modules.ui=1.0.0,com.unity.modules.unitywebrequest=1.0.0
-com.unity.modules.vr|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.physics=1.0.0,com.unity.modules.xr=1.0.0
-com.unity.modules.wind|1.0.0|0|builtin|
-com.unity.modules.xr|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.physics=1.0.0,com.unity.modules.subsystems=1.0.0
-com.unity.nuget.newtonsoft-json|3.2.1|1|registry|
-com.unity.purchasing|4.11.0|0|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.jsonserialize=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.services.core=1.8.2,com.unity.ugui=1.0.0
-com.unity.services.analytics|5.0.0|1|registry|com.unity.modules.jsonserialize=1.0.0,com.unity.services.core=1.10.1,com.unity.ugui=1.0.0
-com.unity.services.core|1.12.5|1|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.nuget.newtonsoft-json=3.2.1
-com.unity.test-framework|1.1.33|0|registry|com.unity.ext.nunit=1.0.6,com.unity.modules.imgui=1.0.0,com.unity.modules.jsonserialize=1.0.0
-com.unity.textmeshpro|3.0.6|0|registry|com.unity.ugui=1.0.0
-com.unity.timeline|1.7.6|0|registry|com.unity.modules.animation=1.0.0,com.unity.modules.audio=1.0.0,com.unity.modules.director=1.0.0,com.unity.modules.particlesystem=1.0.0
-com.unity.ugui|1.0.0|0|builtin|com.unity.modules.imgui=1.0.0,com.unity.modules.ui=1.0.0
-com.unity.xr.legacyinputhelpers|2.1.10|0|registry|com.unity.modules.vr=1.0.0,com.unity.modules.xr=1.0.0
-jp.lilxyzw.shadercore|file:../_LocalPackages/jp.lilxyzw.shadercore|0|local|com.unity.nuget.newtonsoft-json=3.0.0
-jp.penguin.purebase|file:../_LocalPackages/jp.penguin.purebase|0|local|
-'@ -split "`r?`n" | Where-Object { $_ -ne '' }) {
-        $parts = $entry.Split('|', 5)
-        $dependencies = [ordered]@{}
-        if (-not [string]::IsNullOrEmpty($parts[4])) {
-            foreach ($edge in $parts[4].Split(',')) {
-                $edgeParts = $edge.Split('=', 2)
-                $dependencies.Add($edgeParts[0], $edgeParts[1])
-            }
-        }
-        $lockDependencies.Add($parts[0], [ordered]@{ version = $parts[1]; depth = [int]$parts[2]; source = $parts[3]; dependencies = $dependencies })
-    }
-
-    return [ordered]@{
-        unityVersion         = $RequiredUnityVersion
-        unityRevision        = $RequiredUnityRevision
-        manifestDependencies = $manifestDependencies
-        lockDependencies     = $lockDependencies
-    }
+    return Get-PureBaseBootstrapPackageProfile -PackageRoot $validationPackageRoot
 }
 
 function Get-FirstBootstrapProjectSettingsProfile {
@@ -1216,7 +1087,7 @@ function Get-ConsumerFirstBootstrapTransitionReport {
 function Assert-ConsumerFirstBootstrapTransitionReport {
     param([Parameter(Mandatory = $true)]$Report)
 
-    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne '0.3.0' -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
+    if ($Report.profile.unityVersion -ne $RequiredUnityVersion -or $Report.profile.unityRevision -ne $RequiredUnityRevision -or $Report.profile.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Report.profile.shaderCore.packageVersion -ne $validationInputs.ShaderCoreVersion -or $Report.profile.shaderCore.identitySha256 -ne $Report.profile.shaderCore.expectedIdentitySha256) {
         throw 'First-bootstrap semantic transition profile does not match the pinned Unity and Shader-Core identities.'
     }
     $expectedAccepted = [int]$Report.summary.expectedAdded + [int]$Report.summary.expectedChanged
@@ -1244,11 +1115,11 @@ function Assert-ConsumerImmutableManifestBaseline {
         [Parameter(Mandatory = $true)][string]$RunLabel
     )
 
-    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne '0.3.0') {
-        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version 0.3.0."
+    if ($Manifest.shaderCore.packageName -ne 'jp.lilxyzw.shadercore' -or $Manifest.shaderCore.packageVersion -ne $validationInputs.ShaderCoreVersion) {
+        throw "Consumer run '$RunLabel' did not stage Shader-Core jp.lilxyzw.shadercore version $($validationInputs.ShaderCoreVersion)."
     }
     if ($Manifest.shaderCore.expectedIdentitySha256 -ne $Manifest.shaderCore.treeSha256) {
-        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core-0.3.0.sha256.json."
+        throw "Consumer run '$RunLabel' staged Shader-Core does not match shader-core.sha256.json."
     }
 }
 
@@ -1437,7 +1308,7 @@ function Write-DependencyInputIndex {
                 primaryValidation = $Capture.Primary; captureCodes = @($Capture.Codes.ToArray()); stages = @($Capture.Stages.Values)
                 referenceBase = 'run-root'; unity = [ordered]@{ version = $RequiredUnityVersion; revision = $RequiredUnityRevision }
                 provenance = [ordered]@{
-                    repositoryState = '../repository-state.json'; shaderCoreIdentity = 'shader-core-0.3.0.sha256.json'; releaseIdentity = 'bootstrap/immutable-input-manifest-pre-bootstrap.json'
+                    repositoryState = '../repository-state.json'; shaderCoreIdentity = 'shader-core.sha256.json'; releaseIdentity = 'bootstrap/immutable-input-manifest-pre-bootstrap.json'
                     checkoutCommit = if ($env:GITHUB_SHA -cmatch '\A[0-9a-f]{40}\z') { $env:GITHUB_SHA } else { $null }
                     workflowRunId = if ($env:GITHUB_RUN_ID -match '\A[0-9]+\z') { $env:GITHUB_RUN_ID } else { $null }
                     workflowRunAttempt = if ($env:GITHUB_RUN_ATTEMPT -match '\A[0-9]+\z') { $env:GITHUB_RUN_ATTEMPT } else { $null }
@@ -2841,6 +2712,11 @@ function Remove-ConsumerProject {
 }
 
 $packageRoot = Get-PackageGitRoot
+$validationPackageRoot = $packageRoot
+. (Join-Path $PSScriptRoot '../Tooling/PureBaseValidationInputs.ps1')
+$validationInputs = Get-PureBaseValidationInputs -PackageRoot $packageRoot
+$RequiredUnityVersion = $validationInputs.UnityVersion
+$RequiredUnityRevision = $validationInputs.UnityRevision
 if ($ModuleFreeOnly -and $CompareWarmAndColdStandardMorph) {
     throw '-ModuleFreeOnly cannot be combined with -CompareWarmAndColdStandardMorph because the latter requires the five-row standard-morph comparison: module-free import, rendering-mode contract, module-free Toon runtime observation, warm, and cold.'
 }
@@ -2895,8 +2771,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Approved release archive builder failed.' }
     $zipPath = Join-Path $archiveDirectory ('jp.penguin.purebase-' + [string]$packageJson.version + '.zip')
     if (-not (Test-Path -LiteralPath $zipPath -PathType Leaf)) { throw 'Approved release archive builder did not produce the expected ZIP.' }
-    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core-0.3.0.sha256.json'
-    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core-0.3.0.sha256.json') -Destination $shaderCoreManifestPath -Force
+    $shaderCoreManifestPath = Join-Path $runRoot 'shader-core.sha256.json'
+    Copy-Item -LiteralPath (Join-Path $scriptRoot 'shader-core.sha256.json') -Destination $shaderCoreManifestPath -Force
 
     $scaffoldRoot = Join-Path $scriptRoot 'ConsumerProject'
     Copy-RegularTree -Source $scaffoldRoot -Destination $consumerRoot

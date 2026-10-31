@@ -278,14 +278,14 @@ Describe 'Hosted Unity review contracts' {
         $checkoutStep | Should -Match '(?m)^          persist-credentials: false$'
         $lookupStep | Should -Match '(?m)^        id: unity-cache-lookup$'
         $lookupStep | Should -Match '(?m)^        uses: \./\.github/actions/lookup-unity-editor-cache$'
-        $lookupStep | Should -Match '(?m)^          unity-version: "2022\.3\.28f1"$'
-        $lookupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
-        $lookupStep | Should -Match '(?m)^          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"$'
+        $lookupStep | Should -Match '(?m)^          unity-version: \$\{\{ steps\.validation-inputs\.outputs\.unity-version \}\}$'
+        $lookupStep | Should -Match '(?m)^          cli-version: \$\{\{ steps\.validation-inputs\.outputs\.cli-version \}\}$'
+        $lookupStep | Should -Match '(?m)^          cli-sha256: \$\{\{ steps\.validation-inputs\.outputs\.cli-sha256 \}\}$'
         $lookupStep | Should -Not -Match '(?m)^          cli-channel:'
         $fallbackStep | Should -Match "(?m)^        if: steps\.unity-cache-lookup\.outputs\.cache-hit != 'true'$"
         $fallbackStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $fallbackStep | Should -Match '(?m)^          unity-version: "2022\.3\.28f1"$'
-        $fallbackStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
+        $fallbackStep | Should -Match '(?m)^          unity-version: \$\{\{ steps\.validation-inputs\.outputs\.unity-version \}\}$'
+        $fallbackStep | Should -Match '(?m)^          cli-version: \$\{\{ steps\.validation-inputs\.outputs\.cli-version \}\}$'
         $fallbackStep | Should -Match '(?m)^          cli-channel: beta$'
         $fallbackStep | Should -Match '(?m)^          cache: "true"$'
         ([regex]::Matches($preparationJob, '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@')).Count | Should -Be 1
@@ -303,14 +303,14 @@ Describe 'Hosted Unity review contracts' {
             'Release publishing' { $releasePublishingWorkflow }
         }
         $executionJob = Get-NamedJobBlock -Workflow $Workflow -Name $Job
-        $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity 2022.3.28f1'
+        $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity Editor'
 
         $executionJob | Should -Not -BeNullOrEmpty
         ([regex]::Matches($executionJob, '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@')).Count | Should -Be 1
         $setupStep | Should -Not -Match '(?m)^        if:'
         $setupStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $setupStep | Should -Match '(?m)^          unity-version: "2022\.3\.28f1"$'
-        $setupStep | Should -Match '(?m)^          cli-version: "1\.0\.0-beta\.3"$'
+        $setupStep | Should -Match '(?m)^          unity-version: \$\{\{ steps\.validation-inputs\.outputs\.unity-version \}\}$'
+        $setupStep | Should -Match '(?m)^          cli-version: \$\{\{ steps\.validation-inputs\.outputs\.cli-version \}\}$'
         $setupStep | Should -Match '(?m)^          cli-channel: beta$'
         $setupStep | Should -Match '(?m)^          cache: "true"$'
     }

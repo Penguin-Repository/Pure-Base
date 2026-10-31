@@ -18,10 +18,14 @@ param(
     [string]$ProjectRoot,
 
     [ValidatePattern('^https://')]
-    [string]$Uri = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.3.0/jp.lilxyzw.shadercore-0.3.0.zip',
+    [string]$Uri,
 
     [ValidatePattern('^[0-9a-f]{64}$')]
-    [string]$ExpectedSha256 = '5fb149379441031e172128933a23a8e5acb066c76e9d942aa91ed13ad93c70b5',
+    [string]$ExpectedSha256,
+
+    [string]$ExpectedVersion,
+
+    [string]$ArchivePath,
 
     [string]$TemporaryRoot = [IO.Path]::GetTempPath()
 )
@@ -95,7 +99,9 @@ function Assert-ExtractedTreeIsSafe {
 function Assert-ShaderCorePackageMetadata {
     param(
         [Parameter(Mandatory)]
-        [string]$PackageRoot
+        [string]$PackageRoot,
+        [Parameter(Mandatory)]
+        [string]$ExpectedVersion
     )
 
     $packageJsonPath = Join-Path $PackageRoot 'package.json'
@@ -110,9 +116,62 @@ function Assert-ShaderCorePackageMetadata {
         throw "The extracted Shader-Core package metadata is invalid: $($_.Exception.Message)"
     }
 
-    if ($metadata.name -ne 'jp.lilxyzw.shadercore' -or $metadata.version -ne '0.3.0') {
-        throw "The extracted package metadata must identify jp.lilxyzw.shadercore 0.3.0; found '$($metadata.name)' '$($metadata.version)'."
+    if ($metadata.name -cne 'jp.lilxyzw.shadercore' -or $metadata.version -cne $ExpectedVersion) {
+        throw "The extracted package metadata must identify jp.lilxyzw.shadercore $ExpectedVersion; found '$($metadata.name)' '$($metadata.version)'."
     }
+}
+
+function Write-ShaderCoreArchiveEntry {
+    param($Entry, [string]$DestinationPath)
+
+    New-Item -ItemType Directory -Path (Split-Path -Parent $DestinationPath) -Force -ErrorAction Stop | Out-Null
+    $inputStream = $Entry.Open()
+    try {
+        $output = [IO.File]::Open($DestinationPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try { $inputStream.CopyTo($output) }
+        finally { $output.Dispose() }
+    }
+    finally { $inputStream.Dispose() }
+}
+
+function Expand-ShaderCoreArchive {
+    param([string]$ArchivePath, [string]$CandidatePath)
+
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    New-Item -ItemType Directory -Path $CandidatePath -ErrorAction Stop | Out-Null
+    $candidatePrefix = $CandidatePath + [IO.Path]::DirectorySeparatorChar
+    $seenEntryPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+    try {
+        foreach ($entry in $archive.Entries) {
+            $entryPath = Get-SafeArchiveRelativePath -Entry $entry
+            if ($null -eq $entryPath) { continue }
+            if (-not $seenEntryPaths.Add($entryPath)) {
+                throw "The release archive contains duplicate entry path '$entryPath'."
+            }
+            $destinationPath = [IO.Path]::GetFullPath((Join-Path $CandidatePath $entryPath))
+            if (-not $destinationPath.StartsWith($candidatePrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "The release archive entry escapes the staging directory: '$entryPath'."
+            }
+            Write-ShaderCoreArchiveEntry -Entry $entry -DestinationPath $destinationPath
+        }
+    }
+    finally { $archive.Dispose() }
+}
+
+function Get-ShaderCoreInstallationInput {
+    param([string]$Uri, [string]$ExpectedSha256, [string]$ExpectedVersion)
+
+    if (-not $Uri -or -not $ExpectedSha256 -or -not $ExpectedVersion) {
+        . (Join-Path $PSScriptRoot '../../Tests/Tooling/PureBaseValidationInputs.ps1')
+        $inputs = Get-PureBaseValidationInputs -PackageRoot (Join-Path $PSScriptRoot '../..')
+        if ($Uri -or $ExpectedSha256 -or $ExpectedVersion) { throw 'Supply all resolved Shader-Core inputs or none.' }
+        $Uri = $inputs.ShaderCoreUri
+        $ExpectedSha256 = $inputs.ShaderCoreSha256
+        $ExpectedVersion = $inputs.ShaderCoreVersion
+    }
+    return [pscustomobject]@{ Uri = $Uri; Sha256 = $ExpectedSha256; Version = $ExpectedVersion }
 }
 
 function Install-VerifiedShaderCoreRelease {
@@ -123,15 +182,25 @@ function Install-VerifiedShaderCoreRelease {
         [string]$ProjectRoot,
 
         [ValidatePattern('^https://')]
-        [string]$Uri = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.3.0/jp.lilxyzw.shadercore-0.3.0.zip',
+        [string]$Uri,
 
         [ValidatePattern('^[0-9a-f]{64}$')]
-        [string]$ExpectedSha256 = '5fb149379441031e172128933a23a8e5acb066c76e9d942aa91ed13ad93c70b5',
+        [string]$ExpectedSha256,
+
+        [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$')]
+        [string]$ExpectedVersion,
+
+        [string]$ArchivePath,
 
         [ValidateNotNullOrEmpty()]
         [string]$TemporaryRoot = [IO.Path]::GetTempPath()
     )
 
+    $installationInput = Get-ShaderCoreInstallationInput -Uri $Uri -ExpectedSha256 $ExpectedSha256 -ExpectedVersion $ExpectedVersion
+    $Uri = $installationInput.Uri
+    $ExpectedSha256 = $installationInput.Sha256
+    $ExpectedVersion = $installationInput.Version
+    $sourceArchivePath = $ArchivePath
     $projectRootPath = [IO.Path]::GetFullPath($ProjectRoot)
     if (-not (Test-Path -LiteralPath $projectRootPath -PathType Container)) {
         throw "The CI project root does not exist: '$projectRootPath'."
@@ -155,7 +224,7 @@ function Install-VerifiedShaderCoreRelease {
 
     $operationId = [Guid]::NewGuid().ToString('N')
     $downloadDirectory = Join-Path $temporaryRootPath "ShaderCoreRelease.$operationId"
-    $archivePath = Join-Path $downloadDirectory 'jp.lilxyzw.shadercore-0.3.0.zip'
+    $archivePath = Join-Path $downloadDirectory 'shader-core.zip'
     $candidatePath = Join-Path $packagesPath ".jp.lilxyzw.shadercore.staging.$operationId"
     $backupPath = Join-Path $packagesPath ".jp.lilxyzw.shadercore.backup.$operationId"
     $targetMoved = $false
@@ -164,58 +233,21 @@ function Install-VerifiedShaderCoreRelease {
 
     try {
         New-Item -ItemType Directory -Path $downloadDirectory -ErrorAction Stop | Out-Null
-        Invoke-WebRequest -Uri $Uri -OutFile $archivePath -ErrorAction Stop
+        if ($sourceArchivePath) {
+            Copy-Item -LiteralPath $sourceArchivePath -Destination $archivePath -ErrorAction Stop
+        }
+        else {
+            Invoke-WebRequest -Uri $Uri -OutFile $archivePath -ErrorAction Stop
+        }
 
         $actualSha256 = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
         if ($actualSha256 -ne $ExpectedSha256) {
             throw "The downloaded Shader-Core release archive SHA-256 '$actualSha256' does not match the required SHA-256 '$ExpectedSha256'."
         }
 
-        Add-Type -AssemblyName System.IO.Compression
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        New-Item -ItemType Directory -Path $candidatePath -ErrorAction Stop | Out-Null
-        $candidatePrefix = $candidatePath + [IO.Path]::DirectorySeparatorChar
-        $seenEntryPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
-        try {
-            foreach ($entry in $archive.Entries) {
-                $entryPath = Get-SafeArchiveRelativePath -Entry $entry
-                if ($null -eq $entryPath) {
-                    continue
-                }
-
-                if (-not $seenEntryPaths.Add($entryPath)) {
-                    throw "The release archive contains duplicate entry path '$entryPath'."
-                }
-
-                $destinationPath = [IO.Path]::GetFullPath((Join-Path $candidatePath $entryPath))
-                if (-not $destinationPath.StartsWith($candidatePrefix, [StringComparison]::OrdinalIgnoreCase)) {
-                    throw "The release archive entry escapes the staging directory: '$entryPath'."
-                }
-
-                $destinationDirectory = Split-Path -Parent $destinationPath
-                New-Item -ItemType Directory -Path $destinationDirectory -Force -ErrorAction Stop | Out-Null
-                $entryInputStream = $entry.Open()
-                try {
-                    $output = [IO.File]::Open($destinationPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-                    try {
-                        $entryInputStream.CopyTo($output)
-                    }
-                    finally {
-                        $output.Dispose()
-                    }
-                }
-                finally {
-                    $entryInputStream.Dispose()
-                }
-            }
-        }
-        finally {
-            $archive.Dispose()
-        }
-
+        Expand-ShaderCoreArchive -ArchivePath $archivePath -CandidatePath $candidatePath
         Assert-ExtractedTreeIsSafe -RootPath $candidatePath
-        Assert-ShaderCorePackageMetadata -PackageRoot $candidatePath
+        Assert-ShaderCorePackageMetadata -PackageRoot $candidatePath -ExpectedVersion $ExpectedVersion
 
         if (Test-Path -LiteralPath $targetPath) {
             Move-Item -LiteralPath $targetPath -Destination $backupPath -ErrorAction Stop

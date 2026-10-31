@@ -102,7 +102,8 @@ Describe 'Install-VerifiedShaderCoreRelease' {
         function Invoke-Installer {
             param(
                 [string]$ArchivePath,
-                [string]$ExpectedSha256
+                [string]$ExpectedSha256,
+                [string]$ExpectedVersion = '0.3.0'
             )
 
             Mock Invoke-WebRequest {
@@ -114,6 +115,7 @@ Describe 'Install-VerifiedShaderCoreRelease' {
                 -ProjectRoot $script:projectRoot `
                 -Uri 'https://example.test/jp.lilxyzw.shadercore-0.3.0.zip' `
                 -ExpectedSha256 $ExpectedSha256 `
+                -ExpectedVersion $ExpectedVersion `
                 -TemporaryRoot $script:temporaryRoot
         }
     }
@@ -138,10 +140,12 @@ Describe 'Install-VerifiedShaderCoreRelease' {
         (Join-Path $PSScriptRoot 'Install-VerifiedShaderCoreRelease.ps1') | Should -Exist
     }
 
-    It 'installs a locally constructed verified archive' -Skip:(-not $script:installerAvailable) {
-        New-ReleaseArchive -Path $script:sourceArchivePath
+    It 'installs a locally constructed verified archive for <Version>' -ForEach @(
+        @{ Version = '0.3.0' }, @{ Version = '7.8.9' }
+    ) -Skip:(-not $script:installerAvailable) {
+        New-ReleaseArchive -Path $script:sourceArchivePath -PackageVersion $Version
 
-        Invoke-Installer -ArchivePath $script:sourceArchivePath -ExpectedSha256 (Get-ArchiveSha256 -Path $script:sourceArchivePath)
+        Invoke-Installer -ArchivePath $script:sourceArchivePath -ExpectedSha256 (Get-ArchiveSha256 -Path $script:sourceArchivePath) -ExpectedVersion $Version
 
         (Join-Path $script:targetPath 'package.json') | Should -Exist
         (Join-Path $script:targetPath 'Shaders/Core.hlsl') | Should -Exist

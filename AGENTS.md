@@ -205,6 +205,65 @@ or validation thresholds. Stop if any additional change is needed.
 This is not a general grandfathering rule or a Codacy suppression, and it
 does not authorize future evidence or profile changes.
 
+### Bounded CI simplification size exception
+
+For the CI simplification authorized by plan v1.1 and its execution brief,
+use baseline commit
+`a46257acf59f94f0ff63cb47e91da82af2c5b3e4`. This is a separate, narrow
+allowance for the specified PowerShell input/schema/identity/profile
+migration, stable artifact naming, verified CLI setup, and meaning-based
+contract-test changes. It applies independently of the historical bootstrap
+profile and rendering-mode evidence exceptions above; those exceptions remain
+limited to their original changes and neither prohibits nor expands this
+allowance.
+
+The exact baseline physical line counts for the enumerated files are:
+
+| File | Baseline physical lines |
+| --- | ---: |
+| `.github/scripts/Install-VerifiedShaderCoreRelease.ps1` | 267 |
+| `.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1` | 77 |
+| `.github/tests/HostedUnityReviewContracts.Tests.ps1` | 461 |
+| `.github/tests/HostedUnityReviewContracts.Helpers.ps1` | 230 |
+| `.github/tests/HostedReleaseReviewContracts.Tests.ps1` | 291 |
+| `Tests/Release/Build-PureBaseRelease.ps1` | 590 |
+| `Tests/Release/Build-PureBaseRelease.Tests.ps1` | 369 |
+| `Tests/Release/Run-PureBaseReleaseValidation.ps1` | 3033 |
+| `Tests/Release/Run-PureBaseReleaseValidation.Tests.ps1` | 1445 |
+| `Tests/Release/shader-core-0.3.0.sha256.json` | 802 |
+
+Only the existing overages in this table are excepted. Files already at or
+above 500 physical lines must not exceed their listed baseline counts; files
+below 500 remain subject to the usual under-500 limit. Within these exact
+files, any function that was already at or above 50 lines at baseline may
+retain that existing excess, but must not exceed its own baseline length.
+The following are confirmed examples, not an exhaustive allowlist:
+
+| File | Existing function | Baseline lines |
+| --- | --- | ---: |
+| `.github/scripts/Install-VerifiedShaderCoreRelease.ps1` | `Install-VerifiedShaderCoreRelease` | 145 |
+| `.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1` | `Install-PinnedUnityCli` | 62 |
+| `Tests/Release/Build-PureBaseRelease.ps1` | `Get-RecursiveIdentityManifest` | 63 |
+| `Tests/Release/Build-PureBaseRelease.ps1` | `Assert-ShaderCoreIdentity` | 68 |
+| `Tests/Release/Run-PureBaseReleaseValidation.ps1` | `Get-FirstBootstrapPackageProfile` | 130 |
+
+This allowance applies only to pre-existing excesses in the exact files
+listed above; it does not permit an exception for any other file or a future
+baseline. Existing functions below 50 lines, new functions, and new files
+remain subject to the usual limits: files under 500 physical lines, functions
+under 50 lines, and cyclomatic complexity below 20. No unrelated refactor is
+required solely to remove an existing permitted excess. Do not compress code
+or remove blank or comment lines to make room.
+The only moved content allowed to retain an existing file-length excess is
+the unchanged identity JSON moved from
+`Tests/Release/shader-core-0.3.0.sha256.json` to
+`Tests/Release/shader-core.sha256.json`; its content must remain unchanged.
+
+This exception authorizes no other files, future baseline changes, or
+general grandfathering, and does not suppress analyzer findings. If an
+additional file or function would need an exception, stop and obtain a
+separate decision.
+
 ## Persistent communication
 
 Do not persist temporary orchestration labels in repository artifacts.

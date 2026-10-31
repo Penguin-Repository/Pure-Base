@@ -24,6 +24,8 @@ $ErrorActionPreference = 'Stop'
 $projectRootFullPath = [System.IO.Path]::GetFullPath($ProjectRoot)
 $packageRoot = Join-Path $projectRootFullPath 'Packages/jp.penguin.purebase'
 $shaderCoreRoot = Join-Path $projectRootFullPath 'Packages/jp.lilxyzw.shadercore'
+. (Join-Path $PSScriptRoot '../../Tests/Tooling/PureBaseValidationInputs.ps1')
+$validationInputs = Get-PureBaseValidationInputs -PackageRoot $packageRoot
 
 foreach ($requiredPath in @($packageRoot, $shaderCoreRoot)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Container)) {
@@ -37,8 +39,8 @@ if ([string]$packageJson.name -ne 'jp.penguin.purebase') {
 }
 
 $shaderCoreJson = Get-Content -LiteralPath (Join-Path $shaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
-if ([string]$shaderCoreJson.name -ne 'jp.lilxyzw.shadercore' -or [string]$shaderCoreJson.version -ne '0.3.0') {
-  throw "The CI workspace requires jp.lilxyzw.shadercore exactly 0.3.0."
+if ([string]$shaderCoreJson.name -cne 'jp.lilxyzw.shadercore' -or [string]$shaderCoreJson.version -cne $validationInputs.ShaderCoreVersion) {
+  throw "The CI workspace requires jp.lilxyzw.shadercore exactly $($validationInputs.ShaderCoreVersion)."
 }
 
 $ownerLightingDataRelativePath = 'Tests/Fixtures/Scenes/PureBaseValidation/OwnerLightingData.asset'

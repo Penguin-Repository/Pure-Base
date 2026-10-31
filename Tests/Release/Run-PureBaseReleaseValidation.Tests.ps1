@@ -19,6 +19,11 @@ $ErrorActionPreference = 'Stop'
 Describe 'Release validation runner contracts' {
     BeforeAll {
         $script:runnerPath = Join-Path $PSScriptRoot 'Run-PureBaseReleaseValidation.ps1'
+        . (Join-Path $PSScriptRoot '../Tooling/PureBaseValidationInputs.ps1')
+        $validationPackageRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+        $validationInputs = [pscustomobject]@{ ShaderCoreVersion = '0.3.0' }
+        $RequiredUnityVersion = '2022.3.28f1'
+        $RequiredUnityRevision = '6bae5ce6b222'
         $runnerSource = Get-Content -LiteralPath $script:runnerPath -Raw
         $entryPointIndex = $runnerSource.IndexOf("`n`$packageRoot = Get-PackageGitRoot")
         $libraryStartIndex = $runnerSource.IndexOf('Set-StrictMode -Version Latest')
@@ -1405,41 +1410,3 @@ exit /b %PUREBASE_HARNESS_BOOTSTRAP_EXIT%
         Assert-Harness -Condition ($runnerSource -notmatch 'jp\.penguin\.purebase-0\.1\.0\.zip') -Message 'Release validation must not use a fixed 0.1.0 archive name.'
     }
 }
-
-Describe 'Release validation workflow evidence export contracts' {
-    It 'uploads runner evidence while preserving the package and repository-state export' {
-        $packageRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-        $workflowPath = Join-Path $packageRoot '.github/workflows/release-validation.yml'
-        $workflowSource = Get-Content -LiteralPath $workflowPath -Raw
-        $uploadStepMatch = [regex]::Match($workflowSource, '(?ms)^\s*- name: Upload release validation evidence\s*\r?\n.*?(?=^\s*- name:|\z)')
-        $exportStepMatch = [regex]::Match($workflowSource, '(?ms)^\s*- name: Export versioned validation ZIP\s*\r?\n.*?(?=^\s*- name:|\z)')
-        $artifactRoot = '${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}'
-        $expectedArtifactPaths = @(
-            ($artifactRoot + '\validated-package'),
-            ($artifactRoot + '\repository-state.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\bootstrap\**'),
-            ($artifactRoot + '\ReleaseConsumer-*\runs\**'),
-            ($artifactRoot + '\ReleaseConsumer-*\archive\*.zip'),
-            ($artifactRoot + '\ReleaseConsumer-*\archive\*.sha256'),
-            ($artifactRoot + '\ReleaseConsumer-*\shader-core-0.3.0.sha256.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\run-summary.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\cleanup-summary.json'),
-            ($artifactRoot + '\ReleaseConsumer-*\cleanup-failure.json'),
-            ($artifactRoot + '\*.log'),
-            ($artifactRoot + '\runtime-prerequisites\report.json')
-        )
-
-        $exportStepMatch.Success | Should -BeTrue -Because 'the Release workflow must export the versioned validation ZIP'
-        $exportStepMatch.Value | Should -Match '(?m)^\s*if: success\(\)\s*$' -Because 'the validated package must only be exported on success'
-        $uploadStepMatch.Success | Should -BeTrue -Because 'the Release workflow must have a dedicated evidence upload step'
-        $uploadStep = $uploadStepMatch.Value
-        $uploadStep | Should -Match '(?m)^\s*if: always\(\)\s*$' -Because 'failed Release validation must upload evidence'
-        $uploadStep | Should -Match 'actions/upload-artifact@' -Because 'the existing evidence artifact must remain an uploaded artifact'
-        $uploadStep | Should -Match '(?m)^\s*if-no-files-found: error\s*$' -Because 'missing evidence must not be silently accepted'
-        $pathMatch = [regex]::Match($uploadStep, '(?ms)^          path: \|\r?\n(?<paths>(?:^            [^\r\n]*(?:\r?\n|$))+?)(?=^          [A-Za-z0-9_-]+:|\z)')
-        $pathMatch.Success | Should -BeTrue -Because 'the upload must declare its evidence paths'
-        $artifactPaths = @($pathMatch.Groups['paths'].Value -split "\r?\n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
-        $artifactPaths | Should -Be $expectedArtifactPaths -Because 'only the bounded external evidence paths may be uploaded'
-    }
-}
-

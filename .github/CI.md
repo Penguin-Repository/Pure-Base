@@ -45,9 +45,11 @@ come from Unity's official version-specific manifest. Accepted CLI versions matc
 
 The helper fails closed for an unsupported platform or architecture, a malformed version or hash,
 a download error, or a checksum mismatch. An existing CLI remains untouched until verification
-succeeds. The Daily and Release validation workflows pin Unity CLI `1.0.0-beta.3` and provide its
-version and checksum to the reusable helper. Updates to the version and checksum must be made
-atomically at both workflow call sites and require hosted verification.
+succeeds. The Daily and Release validation workflows read Unity CLI `1.0.0-beta.3` and its
+checksum from `Tests/Release/ci-toolchain.json` and provide them to the reusable helper. Review and
+update the version and checksum together in that file; a change requires hosted verification.
+The preparation job and upstream `setup-unity-cli` calls remain in use. The helper's verified CLI
+download does not establish the provenance of downloads performed inside the upstream action.
 
 Do not create tags or branches, or use synthetic identities, to force a production-key miss: the
 default-branch fallback for the exact key and cache version means this cannot guarantee a miss. Treat
@@ -76,8 +78,8 @@ fork-originated for these secret restrictions. This repository's policy separate
 non-draft branches in this repository: their writers may run their pull request head code with the
 Unity activation credentials.
 
-The workflows construct a temporary Unity project with Pure-Base and Shader-Core checked out as
-embedded packages. Shader-Core is pinned to the exact reviewed tag `0.3.0`, matching the exact
+The workflows construct a temporary Unity project with Pure-Base and a verified Shader-Core release
+as embedded packages. Shader-Core is pinned to the exact reviewed version `0.3.0`, matching the exact
 dependency identity required by Pure Base for both Daily and release validation. Git line-ending
 conversion is disabled, and the project is configured for Linear color space before Daily
 validation. Shader-Core releases are pinned explicitly because compatibility across `0.x` versions
@@ -85,6 +87,45 @@ is not assumed; importer, ProjectSettings, and method-shape contracts are compat
 Each version change requires explicit review and an updated pin. The version pin describes the CI
 project and tested runtime expectation; it does not modify the Unity Editor, ProjectSettings, or VPM
 configuration of a developer's existing workspace.
+
+## Validation inputs and updates
+
+The authoritative inputs for CI and release validation are:
+
+| Input | Source and role |
+| --- | --- |
+| Shader-Core requirement | `package.json` → `vpmDependencies["jp.lilxyzw.shadercore"]`, an exact version. |
+| Acquisition pins | `Tests/Release/ci-toolchain.json` → `shaderCore.archiveUrl` and `shaderCore.archiveSha256`, plus `unityCli.version` and `unityCli.sha256`. |
+| Expanded Shader-Core identity | `Tests/Release/shader-core.sha256.json`, including package metadata and all file entries. |
+| Unity version and revision | `Tests/Release/ConsumerProject/ProjectSettings/ProjectVersion.txt`. |
+| Bootstrap dependency graph | `Tests/Release/first-bootstrap-package-profile.json`, a reviewed static expectation. |
+
+For a compatible Shader-Core update, review the release and update the exact package requirement
+and the matching version-specific official archive URL and lowercase SHA-256 in the toolchain.
+Obtain that explicit archive from the reviewed source, verify its SHA-256 against the reviewed pin,
+then generate the complete identity from the package root:
+
+```powershell
+pwsh -NoProfile -File ./Tests/Release/Build-PureBaseRelease.ps1 -WriteShaderCoreManifest -ShaderCoreArchivePath '<path-to-reviewed-archive.zip>'
+```
+
+Replace the placeholder with the actual archive path. The generator verifies the archive digest,
+safely extracts it, verifies package metadata, and generates every identity entry from that same
+extracted tree. It can run when the old identity is missing or describes the previous version; it
+writes a temporary manifest before atomic replacement and preserves the existing manifest on
+failure. Hashing an arbitrary local tree is not equivalent to verifying the release archive.
+Ordinary validation instead requires the complete matching identity and fails closed for a missing
+or inconsistent input; it does not learn an identity from the installed tree. Review the resulting
+full identity and run the relevant existing checks, including Daily and, when needed, hosted Release
+validation. Normal compatible updates do not require changing workflow or script version literals.
+
+Review the bootstrap graph for compatibility when Shader-Core dependencies or Unity change; do not
+automatically accept a graph observed during a run. For Unity updates, review ProjectVersion's
+version and revision, the bootstrap profile, and the separate Daily and initializer runtime version
+constants. Those constants are explicit compatibility checks, not automatically updated by
+ProjectVersion. The `2022.3.22f1` baseline provenance and regeneration guard remain separate.
+Fixed test fixture versions and the canonical ZIP fixture are independent test inputs; do not update
+them merely to follow the production Shader-Core pin.
 
 ## VRChat SDK parity boundary
 
@@ -161,6 +202,11 @@ state, and outer logs. It excludes the whole ConsumerProject, Unity cache, secre
 crash dumps. The success exporter runs only on success; evidence upload always runs and rejects
 missing expected files. A hosted exact-head run is required to establish results for a committed and
 pushed revision.
+
+Each new consumer run copies the full identity as `shader-core.sha256.json` into its run root;
+the dependency-input index references that name and the workflow uploads it. Older run artifacts
+retain their original versioned names and must be read using their own recorded layout; they are
+not renamed or regenerated.
 
 The first-bootstrap package profile is a static expectation for Unity `2022.3.28f1` (revision
 `6bae5ce6b222`), not a profile learned from each run. Its accepted manifest has 48 direct entries

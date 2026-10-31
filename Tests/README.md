@@ -130,6 +130,23 @@ Fixed test-host module selections belong to the Initialize lane. They must not l
 
 ## Release validation
 
+### Dependency inputs
+
+The exact Shader-Core requirement comes from `package.json`'s
+`vpmDependencies["jp.lilxyzw.shadercore"]`; the reviewed archive URL and SHA-256 and the Unity CLI
+pin come from `Tests/Release/ci-toolchain.json`. The complete expanded dependency identity is
+`Tests/Release/shader-core.sha256.json`. Normal validation requires a matching complete identity
+and fails closed if it is missing or inconsistent. Unity version and revision come from
+`Tests/Release/ConsumerProject/ProjectSettings/ProjectVersion.txt`; the reviewed static bootstrap
+graph is `Tests/Release/first-bootstrap-package-profile.json`.
+
+For the safe Shader-Core update procedure, including the explicit verified-archive identity
+generator, see [Validation inputs and updates](../.github/CI.md#validation-inputs-and-updates).
+Review graph compatibility instead of learning a new graph from a run. Unity changes also require
+review of the separate Daily and initializer runtime constants; they do not change automatically.
+The fixed fixture versions and canonical ZIP are independent test inputs and do not follow the
+production pin automatically.
+
 > [!Important]
 > Do not run `Tests/Release/Run-PureBaseReleaseValidation.ps1` locally during normal
 > LLM-assisted development. Release validation is the hosted producer lane; the production
@@ -152,10 +169,14 @@ The release runner uses a static first-bootstrap package profile for Unity `2022
 `6bae5ce6b222`). It strictly checks the complete expected graph; a mismatch fails validation even if
 the failure evidence is uploaded successfully. Receipt of that evidence is not a successful Release
 run. The profile's Purchasing and `services.core` values, graph scope, and unresolved compatibility
-limits are documented in [the CI configuration](../.github/CI.md#workflows). The Pester
-export-contract test checks the ordered upload-path expectation; neither it nor a local Unity-free
-Pester harness establishes UPM resolution, hosted Release success, VRChat SDK parity, or Player
+limits are documented in [the CI configuration](../.github/CI.md#workflows). The Hosted Release
+contract test checks the upload paths; neither it nor a local Unity-free Pester harness establishes
+UPM resolution, hosted Release success, VRChat SDK parity, or Player
 stripping behavior.
+
+For each new consumer run, the full identity is copied into the run root as
+`shader-core.sha256.json`, referenced by the dependency-input index and included in the workflow
+upload. Earlier run artifacts retain their original versioned names and are not regenerated.
 
 The successful package export has this layout:
 

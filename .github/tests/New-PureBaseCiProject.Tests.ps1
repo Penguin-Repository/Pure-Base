@@ -26,6 +26,7 @@ Describe 'Pure-Base CI Unity project generation' {
         }
 
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+        . (Join-Path $repositoryRoot 'Tests/Tooling/PureBaseValidationFixtures.ps1')
         $projectBuilder = Join-Path $repositoryRoot '.github/scripts/New-PureBaseCiProject.ps1'
     }
 
@@ -41,7 +42,7 @@ Describe 'Pure-Base CI Unity project generation' {
         New-Item -ItemType Directory -Path $pureBaseRoot, $shaderCoreRoot, $consumerSettings, $ownerLightingDataDirectory -Force | Out-Null
         [IO.File]::WriteAllText(
             (Join-Path $pureBaseRoot 'package.json'),
-            '{"name":"jp.penguin.purebase","version":"0.1.0"}',
+            '{"name":"jp.penguin.purebase","version":"0.1.0","vpmDependencies":{"jp.lilxyzw.shadercore":"0.3.0"}}',
             [Text.UTF8Encoding]::new($false)
         )
         [IO.File]::WriteAllText(
@@ -89,6 +90,7 @@ QualitySettings:
             "fileFormatVersion: 2`nguid: $ownerLightingDataGuid`n",
             [Text.UTF8Encoding]::new($false)
         )
+        Initialize-PureBaseValidationFixture -PackageRoot $pureBaseRoot
     }
 
     It 'keeps the tracked VRChat-project QualitySettings source fixture under the reviewed contract' {

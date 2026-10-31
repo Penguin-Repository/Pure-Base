@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "shaderCore": {
+    "archiveUrl": "https://github.com/lilxyzw/Shader-Core/releases/download/0.3.0/jp.lilxyzw.shadercore-0.3.0.zip",
+    "archiveSha256": "5fb149379441031e172128933a23a8e5acb066c76e9d942aa91ed13ad93c70b5"
+  },
+  "unityCli": {
+    "version": "1.0.0-beta.3",
+    "sha256": "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"
+  }
+}

@@ -37,8 +37,8 @@ Describe 'Hosted Release review contracts' {
         Assert-LinesInOrder -Block $job -ExpectedLines @(
             '      - name: Capture initial repository state',
             '      - name: Provision Unity runtime prerequisites',
-            '      - name: Install verified Shader-Core 0.3.0 release',
-            '      - name: Restore Unity 2022.3.28f1',
+            '      - name: Install verified Shader-Core release',
+            '      - name: Restore Unity Editor',
             '      - name: Activate Unity Personal license',
             '      - name: Export Unity editor paths'
         )
@@ -88,25 +88,29 @@ Describe 'Hosted Release review contracts' {
     }
 
     It 'stages the same verified Shader-Core release asset in every Unity validation consumer' {
-        $expectedUrl = 'https://github.com/lilxyzw/Shader-Core/releases/download/0.3.0/jp.lilxyzw.shadercore-0.3.0.zip'
-        $expectedSha256 = '5fb149379441031e172128933a23a8e5acb066c76e9d942aa91ed13ad93c70b5'
         $consumers = @(
             [pscustomobject]@{ Workflow = $dailyWorkflow; Job = 'unity-daily' },
             [pscustomobject]@{ Workflow = $releaseWorkflow; Job = 'validate' }
         )
 
         $shaderCoreInstaller | Should -Not -BeNullOrEmpty
-        $shaderCoreInstaller | Should -Match ([regex]::Escape($expectedUrl))
-        $shaderCoreInstaller | Should -Match ([regex]::Escape($expectedSha256))
+        $shaderCoreInstaller | Should -Match 'Get-PureBaseValidationInputs'
+        $shaderCoreInstaller | Should -Match '\$inputs\.ShaderCoreUri'
+        $shaderCoreInstaller | Should -Match '\$inputs\.ShaderCoreSha256'
+        $shaderCoreInstaller | Should -Match '\$inputs\.ShaderCoreVersion'
 
         foreach ($consumer in $consumers) {
             $job = Get-NamedJobBlock -Workflow $consumer.Workflow -Name $consumer.Job
-            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core 0.3.0 release'
+            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core release'
+            $inputs = Get-NamedStepBlock -Job $job -Name 'Read validation inputs'
 
             $step | Should -Not -BeNullOrEmpty
             $step | Should -Match 'Install-VerifiedShaderCoreRelease\.ps1'
-            $step | Should -Match ([regex]::Escape($expectedUrl))
-            $step | Should -Match ([regex]::Escape($expectedSha256))
+            $step | Should -Match '(?m)^        id: shader-core$'
+            $step | Should -Not -Match '-Uri|-ExpectedSha256|-ExpectedVersion'
+            $inputs | Should -Match 'PureBaseValidationInputs\.ps1'
+            $inputs | Should -Match 'Get-PureBaseValidationInputs -PackageRoot \$env:PACKAGE_ROOT'
+            Assert-LinesInOrder -Block $job -ExpectedLines @('      - name: Checkout Pure-Base', '      - name: Read validation inputs', '      - name: Install verified Shader-Core release')
             $step | Should -Not -Match 'actions/checkout|repository:\s*lilxyzw/Shader-Core'
         }
     }
@@ -188,14 +192,14 @@ Describe 'Hosted Release review contracts' {
             "$artifactRoot\ReleaseConsumer-*\runs\**"
             "$artifactRoot\ReleaseConsumer-*\archive\*.zip"
             "$artifactRoot\ReleaseConsumer-*\archive\*.sha256"
-            "$artifactRoot\ReleaseConsumer-*\shader-core-0.3.0.sha256.json"
+            "$artifactRoot\ReleaseConsumer-*\shader-core.sha256.json"
             "$artifactRoot\ReleaseConsumer-*\run-summary.json"
             "$artifactRoot\ReleaseConsumer-*\cleanup-summary.json"
             "$artifactRoot\ReleaseConsumer-*\cleanup-failure.json"
             "$artifactRoot\*.log"
             "$artifactRoot\runtime-prerequisites\report.json"
         )
-        $pathLines | Should -Be $expectedPathLines
+        @($pathLines | Sort-Object) | Should -Be @($expectedPathLines | Sort-Object)
         ($pathLines -join "`n") | Should -Not -Match '\.\.'
     }
 

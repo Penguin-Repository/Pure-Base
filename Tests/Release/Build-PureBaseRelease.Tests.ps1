@@ -19,6 +19,8 @@ $ErrorActionPreference = 'Stop'
 Describe 'Shader-Core identity manifest generation' {
     BeforeAll {
         $builderPath = Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1'
+        . (Join-Path $PSScriptRoot '../Tooling/PureBaseValidationInputs.ps1')
+        . (Join-Path $PSScriptRoot '../Tooling/PureBaseReleaseInputs.ps1')
         $builderSource = Get-Content -LiteralPath $builderPath -Raw
         $libraryStartIndex = $builderSource.IndexOf('Set-StrictMode -Version Latest')
         $entryPointIndex = $builderSource.IndexOf("`n" + '$scriptRoot = Split-Path -Parent $PSCommandPath')
@@ -48,11 +50,11 @@ Describe 'Shader-Core identity manifest generation' {
         New-Item -ItemType Directory -Path $shaderCoreRoot -Force | Out-Null
         [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.3.0"}', [System.Text.UTF8Encoding]::new($false))
         [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'identity-probe.txt'), 'identity probe', [System.Text.UTF8Encoding]::new($false))
-        $manifestPath = Join-Path $TestDrive 'shader-core-0.3.0.sha256.json'
+        $manifestPath = Join-Path $TestDrive 'shader-core.sha256.json'
     }
 
     It 'writes a manifest with the verified 0.3.0 package metadata' {
-        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
+        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0'
 
         $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
         Assert-ManifestHarness -Condition ([string]$manifest.packageName -eq 'jp.lilxyzw.shadercore') -Message 'Generated manifest packageName is not the verified Shader-Core package ID.'
@@ -65,7 +67,7 @@ Describe 'Shader-Core identity manifest generation' {
         [System.IO.File]::WriteAllText($manifestPath, 'preserve-id-mismatch', [System.Text.UTF8Encoding]::new($false))
 
         $failure = $null
-        try { Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
+        try { Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0' }
         catch { $failure = $_ }
         Assert-ManifestHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*jp.lilxyzw.shadercore version 0.3.0*') -Message 'Mismatched Shader-Core package ID was not rejected.'
         Assert-ManifestHarness -Condition ((Get-Content -LiteralPath $manifestPath -Raw) -eq 'preserve-id-mismatch') -Message 'Mismatched Shader-Core package ID overwrote the manifest.'
@@ -76,18 +78,18 @@ Describe 'Shader-Core identity manifest generation' {
         [System.IO.File]::WriteAllText($manifestPath, 'preserve-version-mismatch', [System.Text.UTF8Encoding]::new($false))
 
         $failure = $null
-        try { Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
+        try { Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0' }
         catch { $failure = $_ }
         Assert-ManifestHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*jp.lilxyzw.shadercore version 0.3.0*') -Message 'Mismatched Shader-Core package version was not rejected.'
         Assert-ManifestHarness -Condition ((Get-Content -LiteralPath $manifestPath -Raw) -eq 'preserve-version-mismatch') -Message 'Mismatched Shader-Core package version overwrote the manifest.'
     }
 
     It 'reports aggregate identities and the first changed entry' {
-        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
+        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0'
         [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'identity-probe.txt'), 'changed identity probe', [System.Text.UTF8Encoding]::new($false))
 
         $failure = $null
-        try { Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
+        try { Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0' }
         catch { $failure = $_ }
 
         Assert-ManifestHarness -Condition ($null -ne $failure) -Message 'Changed Shader-Core identity was not rejected.'
@@ -96,11 +98,11 @@ Describe 'Shader-Core identity manifest generation' {
     }
 
     It 'reports an actual-only first entry when a file is added' {
-        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
+        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0'
         [System.IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'added-entry.txt'), 'added entry', [System.Text.UTF8Encoding]::new($false))
 
         $failure = $null
-        try { Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
+        try { Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0' }
         catch { $failure = $_ }
 
         Assert-ManifestHarness -Condition ($null -ne $failure) -Message 'Added Shader-Core identity entry was not rejected.'
@@ -109,11 +111,11 @@ Describe 'Shader-Core identity manifest generation' {
     }
 
     It 'reports an expected-only first entry when a file is removed' {
-        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
+        Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0'
         Remove-Item -LiteralPath (Join-Path $shaderCoreRoot 'identity-probe.txt') -Force
 
         $failure = $null
-        try { Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath }
+        try { Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion '0.3.0' }
         catch { $failure = $_ }
 
         Assert-ManifestHarness -Condition ($null -ne $failure) -Message 'Removed Shader-Core identity entry was not rejected.'
@@ -140,6 +142,7 @@ Describe 'Release archive version and policy contracts' {
 Describe 'Deterministic release archive contracts' {
     BeforeAll {
         $builderPath = Join-Path $PSScriptRoot 'Build-PureBaseRelease.ps1'
+        . (Join-Path $PSScriptRoot '../Tooling/PureBaseValidationFixtures.ps1')
 
         function Get-ZipHeaderEvidence {
             param([Parameter(Mandatory = $true)][string]$Path)
@@ -243,6 +246,9 @@ Describe 'Deterministic release archive contracts' {
             Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'release-content.json') -Destination (Join-Path $scriptRoot 'release-content.json') -Force
             [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'package.json'), '{"name":"jp.lilxyzw.shadercore","version":"0.3.0"}' + "`n", $utf8NoBom)
             [IO.File]::WriteAllText((Join-Path $shaderCoreRoot 'identity-probe.txt'), "fixture identity`n", $utf8NoBom)
+            Initialize-PureBaseValidationFixture -PackageRoot $packageRoot
+            $fixtureArchive = Join-Path $Root 'shader-core.zip'
+            New-PureBaseFixtureArchive -PackageRoot $packageRoot -ShaderCoreRoot $shaderCoreRoot -ArchivePath $fixtureArchive
 
             & git -C $packageRoot init --initial-branch master --quiet
             if ($LASTEXITCODE -ne 0) { throw 'git init failed for fixed release archive fixture.' }
@@ -253,7 +259,7 @@ Describe 'Deterministic release archive contracts' {
             if ($LASTEXITCODE -ne 0) { throw 'git commit failed for fixed release archive fixture.' }
 
             $fixtureBuilderPath = Join-Path $scriptRoot 'Build-PureBaseRelease.ps1'
-            & pwsh -NoProfile -File $fixtureBuilderPath -WriteShaderCoreManifest
+            & pwsh -NoProfile -File $fixtureBuilderPath -WriteShaderCoreManifest -ShaderCoreArchivePath $fixtureArchive
             if ($LASTEXITCODE -ne 0) { throw 'shader-core fixture manifest generation failed.' }
             return [pscustomobject]@{ PackageRoot = $packageRoot; BuilderPath = $fixtureBuilderPath }
         }
