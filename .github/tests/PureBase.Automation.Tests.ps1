@@ -353,9 +353,14 @@ Describe 'Production workflow integration' {
 
     It 'uses the tested authorization function before allocating the Unity runner' {
         $dailyWorkflow = Get-Content -LiteralPath (Join-Path $repositoryRoot '.github/workflows/daily.yml') -Raw
-        $dailyWorkflow | Should -Match 'Resolve-PureBaseDailySource'
-        $dailyWorkflow | Should -Match "needs: authorize\s+if: needs\.authorize\.outputs\.allowed == 'true'\s+runs-on:"
-        $dailyWorkflow | Should -Match 'ref: \$\{\{ needs\.authorize\.outputs\.checkout_ref \}\}'
+        $authorizeJob = [regex]::Match($dailyWorkflow, '(?ms)^  authorize:\r?\n.*?(?=^  [A-Za-z0-9_-]+:\r?\n|\z)').Value
+        $unityJob = [regex]::Match($dailyWorkflow, '(?ms)^  unity-daily:\r?\n.*?(?=^  [A-Za-z0-9_-]+:\r?\n|\z)').Value
+        $checkout = [regex]::Match($unityJob, '(?ms)^      - name: Checkout Pure-Base\r?\n.*?(?=^      - name:|\z)').Value
+        $authorizeJob | Should -Match 'Resolve-PureBaseDailySource'
+        $unityJob | Should -Match '(?m)^    needs:\s*\r?\n      - authorize\s*$'
+        $unityJob | Should -Match "(?m)^    if: needs\.authorize\.outputs\.allowed == 'true'\s*`$"
+        $checkout | Should -Match '(?m)^        uses: actions/checkout@[0-9a-f]{40}(?: #.*)?\r?$'
+        $checkout | Should -Match '(?m)^          ref: \$\{\{ needs\.authorize\.outputs\.checkout_ref \}\}\s*$'
     }
 
     It 'uses the pull request trigger with exactly the supported activity types' {

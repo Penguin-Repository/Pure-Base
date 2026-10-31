@@ -264,6 +264,34 @@ general grandfathering, and does not suppress analyzer findings. If an
 additional file or function would need an exception, stop and obtain a
 separate decision.
 
+### Bounded Daily authorization assertion repair
+
+For the single repair of the existing authorization assertion in
+`.github/tests/PureBase.Automation.Tests.ps1`, use baseline commit
+`c81b96bf47e378550acc9a824e96fb83e1c0b1c4`. The file has 2161 physical lines
+at that baseline. This separate exception permits that existing file-length
+overage and only the minimum additional physical assertion lines necessary
+for this repair; it does not grant a general file-length allowance.
+
+Limit the repair to the existing test
+`uses the tested authorization function before allocating the Unity runner`.
+Replace its obsolete preparation-job adjacency expectation with assertions
+that the actual `unity-daily` job depends on `authorize`, has the allowed
+job-level gate, and checks out the authorized exact ref. Preserve the existing
+authorization and checkout guarantees; do not weaken, skip, or remove them.
+Do not edit unrelated tests, functions, or sections, or add helpers, suites,
+frameworks, or unrelated assertion lines. Existing file/function/complexity
+rules continue to apply to new or changed functions; unchanged functions are
+not a reason to expand this repair. Do not compress lines, remove blanks or
+comments, or broadly split the file to make room.
+
+This allowance is specific to the stated assertion repair against the stated
+baseline. It does not authorize runtime fixture or C# changes, workflow
+changes, additional CI runs or external writes, suppress Codacy findings, or
+establish future exceptions. If the repair needs more than the minimum
+assertion-line increase or any out-of-scope change, stop and request a
+separate decision.
+
 ## Persistent communication
 
 Do not persist temporary orchestration labels in repository artifacts.
