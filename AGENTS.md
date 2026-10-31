@@ -1,3 +1,21 @@
+<!--
+Copyright 2026 Penguin
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Defines project guidance for agents working on Pure-Base.
+-->
+
 # AGENTS.md
 
 ## Project
@@ -88,6 +106,67 @@ When modifying the project:
 * Add value equality only when it is an intentional contract or the type is used by comparison or hash-based APIs.
 * When an analyzer finding is not applicable, record a concrete rationale showing that the type has no equality or hash-based use instead of disabling the rule globally.
 * Unity Roslyn Analyzers, PSScriptAnalyzer, Jackson Linter, Agentlinter, SonarC#, and markdownlint are not supported by local Codacy CLI analysis; check them through Codacy Cloud, and do not treat their absence from local output as validation.
+
+### Bounded bootstrap package profile update
+
+For the single static bootstrap package profile update, synchronization of
+the existing public-version-mismatch test mutation, and synchronization of
+the one existing workflow upload expectation described below, accept only
+the existing file-length and profile-function-length excesses relative to
+baseline commit `8b0f7155241f69dba89635eb96325ead9329b9bb`, plus the single
+test-file line permitted below:
+
+* `Tests/Release/Run-PureBaseReleaseValidation.ps1`: 3031 physical lines.
+* `Tests/Release/Run-PureBaseReleaseValidation.Tests.ps1`: 1444 physical lines.
+* `Get-FirstBootstrapPackageProfile`: 130 lines.
+
+The runner must not exceed 3031 physical lines, and
+`Get-FirstBootstrapPackageProfile` must not exceed 130 lines. The test file
+may exceed its 1444-line baseline by at most one physical line, solely for
+the upload expectation specified below, and must not exceed 1445 physical
+lines. This exception does not apply to `Assert-EditorClosed`, which is 40
+lines at the baseline, or to any other function. All other function-length
+requirements and the requirement that cyclomatic complexity remain below
+20 continue to apply.
+
+The permitted profile changes are limited to:
+
+* Change the Purchasing direct and lock versions from `4.9.3` to `4.11.0`.
+* Remove the Purchasing dependency edge to `unityanalytics` version `1.0.0`,
+  while retaining the `unityanalytics` module itself.
+* Change the Purchasing requirement for `services.core` from `1.8.1` to `1.8.2`.
+* Change the Core lock version from `1.12.4` to `1.12.5`.
+
+Synchronize the existing public-version-mismatch test mutation by replacing
+its previous `Replace('4.9.3', '4.11.0')` literal direction with
+`Replace('4.11.0', '4.9.3')`. Preserve the existing rejection behavior,
+original-byte preservation, validity detection, and Pester assertions, and
+retain the independent full-field comparison against the original JSON.
+No new assertion lines are required.
+
+In the existing `Release validation workflow evidence export contracts`
+test, append only `($artifactRoot + '\runtime-prerequisites\report.json')`
+to `$expectedArtifactPaths`, immediately after the existing `*.log` entry,
+and add the required comma to that preceding entry. This permits one new
+physical array-entry line, not a new assertion or test case. Preserve the
+ordered full-array `Should -Be` assertion and every other export and upload
+assertion. Do not change the workflow, runtime prerequisite producer, or
+any other expected path. This allowance applies only to this one-time
+synchronization with the existing schemaVersion 2 report upload contract;
+it does not authorize any future upload-path change.
+
+Do not make unrelated changes, introduce helpers or paths, move suites, or
+change unrelated control flow, capture, privacy, cleanup, or validator
+behavior. Do not compress lines or remove blank or comment lines to create
+room. Avoid unnecessary label or explanatory changes in the two files.
+Confirm the update is data-only against the complete diff.
+
+This exception is limited to the update specified above. It does not suppress
+Codacy findings, establish a general grandfathering rule, or authorize future
+profile exceptions. Adoption of the full dependency graph requires separate
+explicit approval. If additional changes are necessary to satisfy these
+conditions, stop and seek a separate decision rather than expanding this
+exception.
 
 ## Persistent communication
 

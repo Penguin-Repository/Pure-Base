@@ -442,7 +442,7 @@ m_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)
                 }
                 if ($script:HarnessBootstrapSemanticMutation -eq 'public-version-mismatch') {
                     $path = Join-Path $ProjectRoot 'Packages/manifest.json'
-                    $text = [System.IO.File]::ReadAllText($path).Replace('4.9.3', '4.11.0')
+                    $text = [System.IO.File]::ReadAllText($path).Replace('4.11.0', '4.9.3')
                     [System.IO.File]::WriteAllText($path, ("`r`n " + $text + " `r`n"), [System.Text.UTF8Encoding]::new($true))
                 }
             }
@@ -1425,7 +1425,8 @@ Describe 'Release validation workflow evidence export contracts' {
             ($artifactRoot + '\ReleaseConsumer-*\run-summary.json'),
             ($artifactRoot + '\ReleaseConsumer-*\cleanup-summary.json'),
             ($artifactRoot + '\ReleaseConsumer-*\cleanup-failure.json'),
-            ($artifactRoot + '\*.log')
+            ($artifactRoot + '\*.log'),
+            ($artifactRoot + '\runtime-prerequisites\report.json')
         )
 
         $exportStepMatch.Success | Should -BeTrue -Because 'the Release workflow must export the versioned validation ZIP'

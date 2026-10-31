@@ -162,6 +162,24 @@ crash dumps. The success exporter runs only on success; evidence upload always r
 missing expected files. A hosted exact-head run is required to establish results for a committed and
 pushed revision.
 
+The first-bootstrap package profile is a static expectation for Unity `2022.3.28f1` (revision
+`6bae5ce6b222`), not a profile learned from each run. Its accepted manifest has 48 direct entries
+and its lock has 53 entries. The full graph comparison includes versions, dependency edges and empty
+dependency maps, local package URIs, lock metadata, and the separately retained unprojected registry
+URL evidence. In particular, Purchasing is `4.11.0` in the manifest and lock; it requires
+`com.unity.services.core` `1.8.2`, while the observed lock resolves that package to `1.12.5`. The
+Purchasing lock entry no longer has a `com.unity.modules.unityanalytics` edge; the module remains in
+the graph. These values were adopted only after comparing the complete static profile with the full
+original manifest and lock evidence, not by accepting the observed graph automatically.
+
+A strict profile mismatch is a validation failure even when the workflow successfully uploads the
+complete evidence needed to inspect it. Evidence receipt is not a successful Release validation.
+The profile does not establish exact UPM solver behavior or future registry stability; their cause
+and reproducibility remain unknown. IAP4 support has been unavailable since 2026-06-08. The
+Unity `2022.3.22f1` numeric oracle, the provenance and scope of the `QualitySettings` snapshot, and
+the mandatory `WarmUp` issue remain unresolved. Unity `2022.3.28f1` is not a VRChat target-version
+guarantee; the snapshot does not prove SDK parity, and Player stripping has not been tested.
+
 Release uses the runner's existing Chocolatey CLI; it does not bootstrap or upgrade Chocolatey.
 The step requires an existing 64-bit Windows process and `System32`, resolves `choco.exe` as an
 application, and accepts only a successfully observed 2.x CLI version. It checks the Visual C++

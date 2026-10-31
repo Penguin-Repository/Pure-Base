@@ -144,7 +144,18 @@ state, outer logs, bootstrap records, per-run XML/log/contract/reset/command and
 archive ZIPs and digests, Shader-Core manifest, and run/cleanup summaries. The upload excludes the
 whole ConsumerProject, Unity cache, secrets, and arbitrary crash dumps. The success exporter runs
 only after success; evidence upload runs after failure too and rejects missing expected files.
-This is the hosted producer path, not a local Release-runner recommendation for ordinary development.
+It includes the existing `runtime-prerequisites/report.json` (schema version 2, provider
+`Chocolatey`). This is the hosted producer path, not a local Release-runner recommendation for
+ordinary development.
+
+The release runner uses a static first-bootstrap package profile for Unity `2022.3.28f1` (revision
+`6bae5ce6b222`). It strictly checks the complete expected graph; a mismatch fails validation even if
+the failure evidence is uploaded successfully. Receipt of that evidence is not a successful Release
+run. The profile's Purchasing and `services.core` values, graph scope, and unresolved compatibility
+limits are documented in [the CI configuration](../.github/CI.md#workflows). The Pester
+export-contract test checks the ordered upload-path expectation; neither it nor a local Unity-free
+Pester harness establishes UPM resolution, hosted Release success, VRChat SDK parity, or Player
+stripping behavior.
 
 The successful package export has this layout:
 

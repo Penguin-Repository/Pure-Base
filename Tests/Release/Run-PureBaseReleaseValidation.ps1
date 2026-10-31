@@ -589,7 +589,7 @@ com.unity.collab-proxy|2.3.1
 com.unity.ide.rider|3.0.28
 com.unity.ide.visualstudio|2.0.22
 com.unity.ide.vscode|1.2.5
-com.unity.purchasing|4.9.3
+com.unity.purchasing|4.11.0
 com.unity.test-framework|1.1.33
 com.unity.textmeshpro|3.0.6
 com.unity.timeline|1.7.6
@@ -678,9 +678,9 @@ com.unity.modules.vr|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.u
 com.unity.modules.wind|1.0.0|0|builtin|
 com.unity.modules.xr|1.0.0|0|builtin|com.unity.modules.jsonserialize=1.0.0,com.unity.modules.physics=1.0.0,com.unity.modules.subsystems=1.0.0
 com.unity.nuget.newtonsoft-json|3.2.1|1|registry|
-com.unity.purchasing|4.9.3|0|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.jsonserialize=1.0.0,com.unity.modules.unityanalytics=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.services.core=1.8.1,com.unity.ugui=1.0.0
+com.unity.purchasing|4.11.0|0|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.jsonserialize=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.services.core=1.8.2,com.unity.ugui=1.0.0
 com.unity.services.analytics|5.0.0|1|registry|com.unity.modules.jsonserialize=1.0.0,com.unity.services.core=1.10.1,com.unity.ugui=1.0.0
-com.unity.services.core|1.12.4|1|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.nuget.newtonsoft-json=3.2.1
+com.unity.services.core|1.12.5|1|registry|com.unity.modules.androidjni=1.0.0,com.unity.modules.unitywebrequest=1.0.0,com.unity.nuget.newtonsoft-json=3.2.1
 com.unity.test-framework|1.1.33|0|registry|com.unity.ext.nunit=1.0.6,com.unity.modules.imgui=1.0.0,com.unity.modules.jsonserialize=1.0.0
 com.unity.textmeshpro|3.0.6|0|registry|com.unity.ugui=1.0.0
 com.unity.timeline|1.7.6|0|registry|com.unity.modules.animation=1.0.0,com.unity.modules.audio=1.0.0,com.unity.modules.director=1.0.0,com.unity.modules.particlesystem=1.0.0
