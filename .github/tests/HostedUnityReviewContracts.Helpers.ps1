@@ -26,8 +26,8 @@ $shaderCoreInstaller = if (Test-Path -LiteralPath $shaderCoreInstallerPath -Path
 else {
     $null
 }
-$lookupActionPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/action.yml'
-$bootstrapScriptPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1'
+$lookupActionPath = Join-Path $repositoryRoot '.github/actions/setup-unity-editor/action.yml'
+$bootstrapScriptPath = Join-Path $repositoryRoot '.github/actions/setup-unity-editor/Install-PinnedUnityCli.ps1'
 $lookupAction = if (Test-Path -LiteralPath $lookupActionPath -PathType Leaf) {
     (Get-Content -LiteralPath $lookupActionPath -Raw) -replace "`r`n", "`n"
 }

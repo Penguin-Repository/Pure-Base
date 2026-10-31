@@ -1,0 +1,88 @@
+# Copyright 2026 Penguin
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Setup verified Unity Editor
+description: Installs the pinned CLI and restores or installs the pinned Editor.
+outputs:
+  editor-path:
+    description: Absolute path to the validated Unity Editor executable.
+    value: ${{ steps.editor.outputs.path }}
+  cache-hit:
+    description: Whether the exact Editor cache entry was restored.
+    value: ${{ steps.editor.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Read inputs and install verified CLI
+      id: inputs
+      shell: pwsh
+      env:
+        ACTION_DIR: ${{ github.action_path }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $root = [IO.Path]::GetFullPath((Join-Path $env:ACTION_DIR '../../..'))
+        . (Join-Path $root 'Tests/Tooling/PureBaseValidationInputs.ps1')
+        . (Join-Path $env:ACTION_DIR 'Install-PinnedUnityCli.ps1')
+        . (Join-Path $env:ACTION_DIR 'Resolve-InstalledUnityEditor.ps1')
+        $inputData = Get-PureBaseValidationInputs -PackageRoot $root
+        Install-PinnedUnityCli -Version $inputData.UnityCliVersion -ExpectedSha256 $inputData.UnityCliSha256
+        $cli = Join-Path $env:LOCALAPPDATA 'Unity/bin/unity.exe'
+        $roots = @('' | & $cli install-path)
+        if ($LASTEXITCODE -ne 0) { throw "Unity install-path failed: $LASTEXITCODE" }
+        $paths = @(Get-UnityEditorCachePaths -Roots $roots -Version $inputData.UnityVersion)
+        foreach ($path in $paths) {
+          if ([IO.Path]::GetFullPath($cli).StartsWith($path.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Unity CLI must not be included in the Editor cache.'
+          }
+        }
+        "cli=$cli" >> $env:GITHUB_OUTPUT
+        "version=$($inputData.UnityVersion)" >> $env:GITHUB_OUTPUT
+        "revision=$($inputData.UnityRevision)" >> $env:GITHUB_OUTPUT
+        "paths<<PURE_BASE_PATHS" >> $env:GITHUB_OUTPUT
+        $paths >> $env:GITHUB_OUTPUT
+        "PURE_BASE_PATHS" >> $env:GITHUB_OUTPUT
+
+    - name: Restore Unity Editor
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: ${{ steps.inputs.outputs.paths }}
+        key: pure-base-unity-editor-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.inputs.outputs.version }}-${{ steps.inputs.outputs.revision }}
+        enableCrossOsArchive: false
+
+    - name: Install or validate Unity Editor
+      id: editor
+      shell: pwsh
+      env:
+        ACTION_DIR: ${{ github.action_path }}
+        CLI: ${{ steps.inputs.outputs.cli }}
+        PATHS: ${{ steps.inputs.outputs.paths }}
+        VERSION: ${{ steps.inputs.outputs.version }}
+        REVISION: ${{ steps.inputs.outputs.revision }}
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        $ErrorActionPreference = 'Stop'
+        . (Join-Path $env:ACTION_DIR 'Resolve-InstalledUnityEditor.ps1')
+        $roots = @($env:PATHS -split "`n" | ForEach-Object { Split-Path -Parent $_.TrimEnd("`r") })
+        $editor = Resolve-InstalledUnityEditor -CliPath $env:CLI -Roots $roots -Version $env:VERSION -Revision $env:REVISION -CacheHit $env:CACHE_HIT
+        "path=$editor" >> $env:GITHUB_OUTPUT
+        "cache-hit=$($env:CACHE_HIT -eq 'true')".ToLowerInvariant() >> $env:GITHUB_OUTPUT
+
+    - name: Save Unity Editor
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: ${{ steps.inputs.outputs.paths }}
+        key: pure-base-unity-editor-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.inputs.outputs.version }}-${{ steps.inputs.outputs.revision }}
+        enableCrossOsArchive: false

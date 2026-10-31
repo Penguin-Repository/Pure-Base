@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Downloads and atomically installs the pinned Unity CLI for Windows X64 cache lookup.
-function Install-PinnedUnityCli {
+# Validates the pinned Unity CLI input before any network operation.
+function Assert-PinnedUnityCliInput {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -54,6 +54,28 @@ function Install-PinnedUnityCli {
     if ([string]::IsNullOrWhiteSpace($LocalApplicationDataRoot)) {
         throw 'The local application-data directory is required.'
     }
+}
+
+# Downloads and atomically installs the pinned Unity CLI for Windows X64 setup.
+function Install-PinnedUnityCli {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Version,
+
+        [Parameter(Mandatory)]
+        [string]$ExpectedSha256,
+
+        [string]$RunnerOS = $env:RUNNER_OS,
+
+        [string]$RunnerArchitecture = $env:RUNNER_ARCH,
+
+        [string]$TemporaryRoot = $env:RUNNER_TEMP,
+
+        [string]$LocalApplicationDataRoot = $env:LOCALAPPDATA
+    )
+
+    Assert-PinnedUnityCliInput @PSBoundParameters
 
     $temporaryPath = Join-Path $TemporaryRoot ("unity-windows-x64-{0}.exe" -f [guid]::NewGuid().ToString('N'))
     $downloadUri = "https://public-cdn.cloud.unity3d.com/hub/prod/cli/$Version/unity-windows-x64.exe"

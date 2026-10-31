@@ -19,47 +19,43 @@ limitations under the License.
 ## Unity runner
 
 Daily and release validation run on GitHub-hosted `windows-2022` runners with Unity
-2022.3.28f1 (revision `6bae5ce6b222`), restored through `yamachu/unity-cli-actions`. They activate
-Unity Personal through `buildalon/activate-unity-license` and export the discovered Editor path to
-the existing validation scripts. The Unity Editor installation is cached by operating system, architecture, and Unity version
-to avoid repeating the full Editor installation on every run. The cache preparation job uses
-`.github/actions/lookup-unity-editor-cache` for a metadata-only lookup. On a true hit, it does not
-download, extract, or install an Editor archive. The dependent execution job performs the one real
-`setup-unity-cli` restore and exposes the existing Editor path to validation.
+2022.3.28f1 (revision `6bae5ce6b222`). After checkout, each execution job invokes
+`.github/actions/setup-unity-editor` once, activates Unity Personal through
+`buildalon/activate-unity-license`, and passes the discovered Editor path to its validation scripts.
+Daily checks out its authorized ref; Release validation checks out the dispatched commit SHA. Both
+retain read-only contents permission and `persist-credentials: false`.
 
-On a non-true lookup result, including a cache-service warning normalized by the pinned upstream
-fallback, the preparation job conditionally runs the pinned `yamachu/unity-cli-actions` restore
-action. That fallback restores the Editor if another run saved the cache while the lookup was in
-progress, or installs it and saves it when the independent preparation job completes. Cache misses
-are therefore non-fatal fallback behavior. Malformed cache identity inputs still fail normally; the
-helper does not use step-level `continue-on-error`.
+The composite reads fixed inputs with `Tests/Tooling/PureBaseValidationInputs.ps1`: the Unity
+version and revision come from the consumer project's `ProjectVersion.txt`, and the CLI version
+and SHA-256 come from `Tests/Release/ci-toolchain.json`. For Windows X64 it downloads the versioned
+`unity-windows-x64.exe` from Unity's CLI CDN, verifies its SHA-256, and only then places it as
+`unity.exe`. The expected checksum must come from Unity's official version-specific manifest.
+Review and update the CLI version and checksum together; a change requires hosted verification.
+Accepted CLI versions match `^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$`.
+Unsupported platforms, malformed inputs, download errors and checksum mismatches fail closed;
+an existing CLI remains untouched until verification succeeds.
 
-The exact cache key is `unity-editor-${{ runner.os }}-${{ runner.arch }}-${{ inputs.unity-version }}`
-for Unity `2022.3.28f1`, with no branch, commit, pull request, run, or restore-key component and no
-cross-OS archive. GitHub cache scope can therefore let branches and pull requests reuse the
-default-branch cache when the exact key and cache version match. The lookup helper supports only
-Windows X64. It downloads the versioned `unity-windows-x64.exe` artifact directly from Unity's
-CLI CDN, verifies its SHA-256, and only then places it as `unity.exe`. The expected checksum must
-come from Unity's official version-specific manifest. Accepted CLI versions match
-`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$`.
+The same verified executable supplies `unity install-path` and, on a cache miss,
+`unity install <version> -y --accept-eula --non-interactive`. The pinned cache restore and save
+actions use the exact key
+`pure-base-unity-editor-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.inputs.outputs.version }}-${{ steps.inputs.outputs.revision }}`.
+There are no restore keys or cross-OS archives. GitHub cache scope can permit reuse of a matching
+default-branch entry. The cache contains only the version-specific paths under the discovered
+install roots, excludes the CLI, and does not contain Unity activation secrets.
 
-The helper fails closed for an unsupported platform or architecture, a malformed version or hash,
-a download error, or a checksum mismatch. An existing CLI remains untouched until verification
-succeeds. The Daily and Release validation workflows read Unity CLI `1.0.0-beta.3` and its
-checksum from `Tests/Release/ci-toolchain.json` and provide them to the reusable helper. Review and
-update the version and checksum together in that file; a change requires hosted verification.
-The preparation job and upstream `setup-unity-cli` calls remain in use. The helper's verified CLI
-download does not establish the provenance of downloads performed inside the upstream action.
+On an exact hit, setup skips installation and resolves the Editor from those roots. On a miss it
+installs the fixed version, resolves the Editor, and saves the limited paths only after successful
+installation and resolution. The action exposes `editor-path` and `cache-hit`. Invalid paths,
+native command failures, an invalid Editor candidate, or anything other than one matching candidate
+fail the setup rather than selecting another Editor. Cache-service warnings retain the cache
+action's own behavior; explicit errors are not suppressed by setup.
 
-Do not create tags or branches, or use synthetic identities, to force a production-key miss: the
-default-branch fallback for the exact key and cache version means this cannot guarantee a miss. Treat
-static Pester fallback contracts as deterministic evidence; preserve naturally occurring miss logs
-only as supplemental evidence.
-
-The preparation checkout remains constrained to Daily's exact authorized ref or Release
-validation's dispatched commit SHA. Both workflows retain read-only contents permission and
-`persist-credentials: false`; the cache contains only the discovered Editor install root and no
-Unity activation secrets.
+The cache is an optimization, not a guarantee that the Editor is compatible or authentic. The
+resolver checks the candidate's version/revision PE metadata without starting Unity, but neither
+that check, file existence, nor a cache hit verifies the Editor's checksum or provenance. Existing
+runtime version and revision validation still applies after Unity starts; CLI SHA-256 verification
+does not authenticate the Editor installation. Do not create tags or branches or use synthetic
+identities to force a production-key miss: normal cache scope can still provide an exact match.
 
 Create these Actions secrets for Unity Personal activation:
 

@@ -97,62 +97,10 @@ jobs:
           echo "Rejected source: $REASON"
           exit 1
 
-  unity-editor-cache:
-    name: Prepare Unity Editor cache
-    needs: authorize
-    if: needs.authorize.outputs.allowed == 'true'
-    runs-on: windows-2022
-    timeout-minutes: 60
-    steps:
-      - name: Checkout cache lookup helper
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.authorize.outputs.checkout_ref }}
-          persist-credentials: false
-
-      - name: Read validation inputs
-        id: validation-inputs
-        shell: pwsh
-        run: |
-          . ./Tests/Tooling/PureBaseValidationInputs.ps1
-          $inputs = Get-PureBaseValidationInputs -PackageRoot $PWD.Path
-          "unity-version=$($inputs.UnityVersion)" >> $env:GITHUB_OUTPUT
-          "cli-version=$($inputs.UnityCliVersion)" >> $env:GITHUB_OUTPUT
-          "cli-sha256=$($inputs.UnityCliSha256)" >> $env:GITHUB_OUTPUT
-
-      - name: Look up Unity Editor cache
-        id: unity-cache-lookup
-        uses: ./.github/actions/lookup-unity-editor-cache
-        with:
-          unity-version: ${{ steps.validation-inputs.outputs.unity-version }}
-          cli-version: ${{ steps.validation-inputs.outputs.cli-version }}
-          cli-sha256: ${{ steps.validation-inputs.outputs.cli-sha256 }}
-
-      - name: Restore or create Unity Editor cache
-        id: unity
-        if: steps.unity-cache-lookup.outputs.cache-hit != 'true'
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
-        with:
-          unity-version: ${{ steps.validation-inputs.outputs.unity-version }}
-          cli-version: ${{ steps.validation-inputs.outputs.cli-version }}
-          cli-channel: beta
-          cache: "true"
-
-      - name: Report Unity Editor cache status
-        shell: pwsh
-        run: |
-          if ("${{ steps.unity-cache-lookup.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache metadata lookup hit; this preparation job did not download, extract, or install the Editor." >> $env:GITHUB_STEP_SUMMARY
-          }
-          else {
-            "Unity Editor cache metadata lookup missed; setup-unity-cli ran to restore or install the Editor, and a newly installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
-          }
-
   unity-daily:
     name: Unity Editor / D3D11
     needs:
       - authorize
-      - unity-editor-cache
     if: needs.authorize.outputs.allowed == 'true'
     concurrency:
       group: pure-base-unity-personal-license
@@ -191,22 +139,7 @@ jobs:
 
       - name: Restore Unity Editor
         id: unity
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
-        with:
-          unity-version: ${{ steps.validation-inputs.outputs.unity-version }}
-          cli-version: ${{ steps.validation-inputs.outputs.cli-version }}
-          cli-channel: beta
-          cache: "true"
-
-      - name: Report Unity Editor cache handoff
-        shell: pwsh
-        run: |
-          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
-          }
-          else {
-            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue." >> $env:GITHUB_STEP_SUMMARY
-          }
+        uses: ./PureBaseCi/Packages/jp.penguin.purebase/.github/actions/setup-unity-editor
 
       - name: Activate Unity Personal license
         id: unity_license

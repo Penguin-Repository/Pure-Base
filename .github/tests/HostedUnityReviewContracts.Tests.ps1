@@ -130,89 +130,53 @@ Describe 'Hosted Unity review contracts' {
         $pesterJob | Should -Match '(?m)^      - name: Run automation tests$'
     }
 
-    It 'defines the repository-owned lookup helper cache identity' {
+    It 'uses fixed inputs and one verified executable for setup' {
         $lookupActionPath | Should -Exist
-
-        if ($null -eq $lookupAction) {
-            return
-        }
-
-        $lookupAction | Should -Match '(?m)^name: Lookup Unity Editor cache$'
-        $lookupAction | Should -Match '(?m)^inputs:\r?\n(?:.*\r?\n)*?  unity-version:'
-        $lookupAction | Should -Match '(?m)^  cli-version:'
-        $lookupAction | Should -Match '(?m)^  cli-sha256:'
-        $lookupAction | Should -Not -Match '(?m)^  cli-channel:'
-        $cliVersionInput = [regex]::Match($lookupAction, '(?ms)^  cli-version:\n.*?(?=^  [A-Za-z0-9_-]+:|\z)').Value
-        $cliSha256Input = [regex]::Match($lookupAction, '(?ms)^  cli-sha256:\n.*?(?=^  [A-Za-z0-9_-]+:|\z)').Value
-        $cliVersionInput | Should -Match '(?m)^    required: true$'
-        $cliSha256Input | Should -Match '(?m)^    required: true$'
-
-        $windowsInstallerSteps = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector name -Value 'Install Unity CLI (Windows)')
-        $installRootsSteps = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector id -Value 'install-roots')
-        $cacheSteps = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector id -Value 'cache')
-
-        $windowsInstallerSteps.Count | Should -Be 1
-        $installRootsSteps.Count | Should -Be 1
-        $cacheSteps.Count | Should -Be 1
-
-        $windowsInstallerStep = $windowsInstallerSteps[0]
-        $windowsInstallerStep | Should -Not -Match '(?m)^      if:'
-        $windowsInstallerStep | Should -Match '(?m)^      shell: pwsh$'
-        $windowsInstallerStep | Should -Match '(?m)^      run: \|$'
-        $windowsInstallerHeader = Get-StepMappingHeader -Step $windowsInstallerStep
-        $windowsInstallerHeader | Should -Match '(?m)^      env:$'
-        $windowsInstallerHeader | Should -Match '(?m)^        UNITY_CLI_VERSION: \$\{\{ inputs\.cli-version \}\}$'
-        $windowsInstallerHeader | Should -Match '(?m)^        UNITY_CLI_SHA256: \$\{\{ inputs\.cli-sha256 \}\}$'
-        $windowsInstallerHeader | Should -Match '(?m)^        UNITY_CLI_ACTION_PATH: \$\{\{ github\.action_path \}\}$'
-        $windowsInstallerRun = Get-LiteralRunBlock -Step $windowsInstallerStep
-        $windowsInstallerRun | Should -Not -Match '\$\{\{\s*inputs\.'
-        $windowsInstallerRun | Should -Not -Match 'install\.ps1'
-        $windowsInstallerRun | Should -Not -Match 'latest'
-        Assert-LiteralRunLinesInOrder -Step $windowsInstallerStep -ExpectedLines @(
-            '. "$env:UNITY_CLI_ACTION_PATH/Install-PinnedUnityCli.ps1"',
-            'Install-PinnedUnityCli `',
-            '-Version $env:UNITY_CLI_VERSION `',
-            '-ExpectedSha256 $env:UNITY_CLI_SHA256'
-        )
-
-        $installRootsStep = $installRootsSteps[0]
-        $installRootsStep | Should -Match '(?m)^      shell: bash$'
-        Assert-LiteralRunLinesInOrder -Step $installRootsStep -ExpectedLines @(
-            'export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"',
-            'unity install-path </dev/null > /tmp/install_roots.txt',
-            '{',
-            'echo "paths<<UNITY_INSTALL_ROOTS_EOF"',
-            'cat /tmp/install_roots.txt',
-            'echo "UNITY_INSTALL_ROOTS_EOF"',
-            '} >> "$GITHUB_OUTPUT"'
-        )
-        $installRootsStep | Should -Not -Match '\$HOME/\.unity/bin'
-        $installRootsStep | Should -Not -Match 'sed -n ''l'''
-
-        $cacheActionReferences = @(
-            Get-ActionReferences -Source $lookupAction |
-                Where-Object { $_ -match '^actions/cache(?:/restore)?@' }
-        )
-        $cacheActionReferences.Count | Should -Be 1
-        $cacheActionReferences[0] | Should -Be 'actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
-
-        $cacheStep = $cacheSteps[0]
-        $cacheStepReferences = @(Get-ActionReferences -Source $cacheStep)
-        $cacheStepReferences.Count | Should -Be 1
-        $cacheStepReferences[0] | Should -Be 'actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9'
-        $cachePaths = @([regex]::Matches($cacheStep, '(?m)^        path: (?<value>.+)$'))
-        $cachePaths.Count | Should -Be 1
-        $cachePaths[0].Groups['value'].Value | Should -Be '${{ steps.install-roots.outputs.paths }}'
-        $cacheStep | Should -Match '(?m)^        key: unity-editor-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-\$\{\{ inputs\.unity-version \}\}$'
-        $cacheStep | Should -Match '(?m)^        lookup-only: true$'
-        $cacheStep | Should -Match '(?m)^        enableCrossOsArchive: false$'
-
-        $outputsMatch = [regex]::Match($lookupAction, '(?ms)^outputs:\n(?<outputs>(?:^ {2,}.*(?:\n|\z))*)')
-        $cacheHitOutputs = @([regex]::Matches($outputsMatch.Groups['outputs'].Value, '(?ms)^  cache-hit:\n.*?(?=^  [A-Za-z0-9_-]+:\n|\z)'))
-        $cacheHitOutputs.Count | Should -Be 1
-        $cacheHitOutputs[0].Value | Should -Match '(?m)^    value: \$\{\{ steps\.cache\.outputs\.cache-hit \}\}$'
-        (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'restore-keys').Count | Should -Be 0
+        $inputs = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector id -Value 'inputs')
+        $editor = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector id -Value 'editor')
+        $inputs.Count | Should -Be 1
+        $editor.Count | Should -Be 1
+        $inputs[0] | Should -Not -Match '(?m)^      if:'
+        $inputs[0] | Should -Match 'Tests/Tooling/PureBaseValidationInputs\.ps1'
+        $inputs[0] | Should -Match 'Get-PureBaseValidationInputs -PackageRoot \$root'
+        ([regex]::Matches($lookupAction, '(?m)^\s*Install-PinnedUnityCli -Version')).Count | Should -Be 1
+        $inputs[0] | Should -Match 'Install-PinnedUnityCli -Version \$inputData\.UnityCliVersion -ExpectedSha256 \$inputData\.UnityCliSha256'
+        $inputs[0] | Should -Match '\$cli = Join-Path \$env:LOCALAPPDATA ''Unity/bin/unity\.exe'''
+        $inputs[0] | Should -Match '& \$cli install-path'
+        $inputs[0] | Should -Match 'if \(\$LASTEXITCODE -ne 0\) \{ throw'
+        $inputs[0] | Should -Match 'Get-UnityEditorCachePaths -Roots \$roots -Version \$inputData\.UnityVersion'
+        $inputs[0] | Should -Match 'Unity CLI must not be included in the Editor cache'
+        $inputs[0] | Should -Match '"cli=\$cli" >> \$env:GITHUB_OUTPUT'
+        $inputs[0] | Should -Match '"version=\$\(\$inputData\.UnityVersion\)" >> \$env:GITHUB_OUTPUT'
+        $inputs[0] | Should -Match '"revision=\$\(\$inputData\.UnityRevision\)" >> \$env:GITHUB_OUTPUT'
+        $editor[0] | Should -Match 'CLI: \$\{\{ steps\.inputs\.outputs\.cli \}\}'
+        $editor[0] | Should -Match 'CACHE_HIT: \$\{\{ steps\.cache\.outputs\.cache-hit \}\}'
+        $editor[0] | Should -Match 'Resolve-InstalledUnityEditor -CliPath \$env:CLI .* -CacheHit \$env:CACHE_HIT'
+        $editor[0] | Should -Not -Match '(?m)^      if:'
+        $lookupAction | Should -Not -Match '(?i)install\.ps1|\blatest\b|\blts\b|yamachu/'
         (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'continue-on-error').Count | Should -Be 0
+        $lookupAction | Should -Match '(?m)^  editor-path:\n(?:.*\n)*?    value: \$\{\{ steps\.editor\.outputs\.path \}\}$'
+        $lookupAction | Should -Match '(?m)^  cache-hit:\n(?:.*\n)*?    value: \$\{\{ steps\.editor\.outputs\.cache-hit \}\}$'
+    }
+
+    It 'restores and saves only the exact Editor cache after validation' {
+        $cache = @(Get-CompositeActionStepBlocks -Action $lookupAction -Selector id -Value 'cache')
+        $cache.Count | Should -Be 1
+        $references = @(Get-ActionReferences -Source $lookupAction)
+        $references.Count | Should -Be 2
+        $references[0] | Should -Match '^actions/cache/restore@[0-9a-f]{40}$'
+        $references[1] | Should -Match '^actions/cache/save@[0-9a-f]{40}$'
+        $key = 'key: pure-base-unity-editor-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.inputs.outputs.version }}-${{ steps.inputs.outputs.revision }}'
+        ([regex]::Matches($lookupAction, [regex]::Escape($key))).Count | Should -Be 2
+        ([regex]::Matches($lookupAction, '(?m)^        path: \$\{\{ steps\.inputs\.outputs\.paths \}\}$')).Count | Should -Be 2
+        ([regex]::Matches($lookupAction, '(?m)^        enableCrossOsArchive: false$')).Count | Should -Be 2
+        (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'restore-keys').Count | Should -Be 0
+        (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'lookup-only').Count | Should -Be 0
+        $lookupAction | Should -Match "(?m)^      if: steps\.cache\.outputs\.cache-hit != 'true'$"
+        $lookupAction | Should -Not -Match '(?i)always\(\)|failure\(\)'
+        $lookupAction.IndexOf('id: inputs') | Should -BeLessThan $lookupAction.IndexOf('id: cache')
+        $lookupAction.IndexOf('id: cache') | Should -BeLessThan $lookupAction.IndexOf('id: editor')
+        $lookupAction.IndexOf('id: editor') | Should -BeLessThan $lookupAction.IndexOf('uses: actions/cache/save@')
     }
 
     It 'defines a fail-closed pinned Windows X64 CLI bootstrap' {
@@ -247,55 +211,9 @@ Describe 'Hosted Unity review contracts' {
         $moveIndex | Should -BeGreaterThan $hashIndex
     }
 
-    It 'uses lookup-only only in the local helper' {
-        $dailyWorkflow | Should -Not -Match '(?m)^\s*lookup-only:'
-        $releaseWorkflow | Should -Not -Match '(?m)^\s*lookup-only:'
-
-        if ($null -ne $lookupAction) {
-            ([regex]::Matches($lookupAction, '(?m)^\s*lookup-only: true$')).Count | Should -Be 1
-        }
-    }
-
-    It 'uses the local helper and a conditional upstream fallback in each cache preparation job' -ForEach @(
-        @{
-            WorkflowName = 'Daily'
-            CheckoutRef  = 'ref: \$\{\{ needs\.authorize\.outputs\.checkout_ref \}\}'
-        },
-        @{
-            WorkflowName = 'Release validation'
-            CheckoutRef  = 'ref: \$\{\{ github\.sha \}\}'
-        }
-    ) {
-        $Workflow = if ($WorkflowName -eq 'Daily') { $dailyWorkflow } else { $releaseWorkflow }
-        $preparationJob = Get-NamedJobBlock -Workflow $Workflow -Name 'unity-editor-cache'
-        $checkoutStep = Get-NamedStepBlock -Job $preparationJob -Name 'Checkout cache lookup helper'
-        $lookupStep = Get-NamedStepBlock -Job $preparationJob -Name 'Look up Unity Editor cache'
-        $fallbackStep = Get-NamedStepBlock -Job $preparationJob -Name 'Restore or create Unity Editor cache'
-
-        $preparationJob | Should -Not -BeNullOrEmpty
-        $checkoutStep | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
-        $checkoutStep | Should -Match "(?m)^          $CheckoutRef$"
-        $checkoutStep | Should -Match '(?m)^          persist-credentials: false$'
-        $lookupStep | Should -Match '(?m)^        id: unity-cache-lookup$'
-        $lookupStep | Should -Match '(?m)^        uses: \./\.github/actions/lookup-unity-editor-cache$'
-        $lookupStep | Should -Match '(?m)^          unity-version: \$\{\{ steps\.validation-inputs\.outputs\.unity-version \}\}$'
-        $lookupStep | Should -Match '(?m)^          cli-version: \$\{\{ steps\.validation-inputs\.outputs\.cli-version \}\}$'
-        $lookupStep | Should -Match '(?m)^          cli-sha256: \$\{\{ steps\.validation-inputs\.outputs\.cli-sha256 \}\}$'
-        $lookupStep | Should -Not -Match '(?m)^          cli-channel:'
-        $fallbackStep | Should -Match "(?m)^        if: steps\.unity-cache-lookup\.outputs\.cache-hit != 'true'$"
-        $fallbackStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $fallbackStep | Should -Match '(?m)^          unity-version: \$\{\{ steps\.validation-inputs\.outputs\.unity-version \}\}$'
-        $fallbackStep | Should -Match '(?m)^          cli-version: \$\{\{ steps\.validation-inputs\.outputs\.cli-version \}\}$'
-        $fallbackStep | Should -Match '(?m)^          cli-channel: beta$'
-        $fallbackStep | Should -Match '(?m)^          cache: "true"$'
-        ([regex]::Matches($preparationJob, '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@')).Count | Should -Be 1
-        $dailyWorkflow.Contains('throw "Unity Editor cache was not available') | Should -BeFalse
-        $releaseWorkflow.Contains('throw "Unity Editor cache was not available') | Should -BeFalse
-    }
-
     It 'keeps exactly one unconditional pinned setup call in each Unity execution job' -ForEach @(
-        @{ WorkflowName = 'Daily'; Job = 'unity-daily' },
-        @{ WorkflowName = 'Release validation'; Job = 'validate' }
+        @{ WorkflowName = 'Daily'; Job = 'unity-daily'; CheckoutRoot = 'PureBaseCi'; Ref = 'needs.authorize.outputs.checkout_ref' },
+        @{ WorkflowName = 'Release validation'; Job = 'validate'; CheckoutRoot = 'PureBaseSource'; Ref = 'github.sha' }
     ) {
         $Workflow = switch ($WorkflowName) {
             'Daily' { $dailyWorkflow }
@@ -306,13 +224,16 @@ Describe 'Hosted Unity review contracts' {
         $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity Editor'
 
         $executionJob | Should -Not -BeNullOrEmpty
-        ([regex]::Matches($executionJob, '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@')).Count | Should -Be 1
+        $Workflow | Should -Not -Match '(?m)^  unity-editor-cache:'
+        $Workflow | Should -Not -Match 'lookup-unity-editor-cache|yamachu/unity-cli-actions'
+        $checkout = Get-NamedStepBlock -Job $executionJob -Name 'Checkout Pure-Base'
+        $checkout | Should -Match 'uses: actions/checkout@[0-9a-f]{40}'
+        $checkout | Should -Match ([regex]::Escape('ref: ${{ ' + $Ref + ' }}'))
+        $checkout | Should -Match 'persist-credentials: false'
+        ([regex]::Matches($executionJob, 'uses: \./[^\r\n]*/setup-unity-editor')).Count | Should -Be 1
         $setupStep | Should -Not -Match '(?m)^        if:'
-        $setupStep | Should -Match '(?m)^        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556$'
-        $setupStep | Should -Match '(?m)^          unity-version: \$\{\{ steps\.validation-inputs\.outputs\.unity-version \}\}$'
-        $setupStep | Should -Match '(?m)^          cli-version: \$\{\{ steps\.validation-inputs\.outputs\.cli-version \}\}$'
-        $setupStep | Should -Match '(?m)^          cli-channel: beta$'
-        $setupStep | Should -Match '(?m)^          cache: "true"$'
+        $setupStep | Should -Match ([regex]::Escape("uses: ./$CheckoutRoot/Packages/jp.penguin.purebase/.github/actions/setup-unity-editor"))
+        $executionJob.IndexOf($checkout) | Should -BeLessThan $executionJob.IndexOf($setupStep)
     }
 
     It 'preserves top-level read-only workflow permissions' {
@@ -321,15 +242,16 @@ Describe 'Hosted Unity review contracts' {
         }
     }
 
-    It 'permits only SHA-pinned external actions and the planned local helper reference' {
+    It 'permits only SHA-pinned external actions and the planned local helper references' {
         $sources = @($dailyWorkflow, $releaseWorkflow, $releasePublishingWorkflow)
         if ($null -ne $lookupAction) {
             $sources += $lookupAction
         }
 
         $references = @($sources | ForEach-Object { Get-ActionReferences -Source $_ })
-        ($references | Where-Object { $_ -eq './.github/actions/lookup-unity-editor-cache' }).Count | Should -Be 2
-        foreach ($reference in $references | Where-Object { $_ -ne './.github/actions/lookup-unity-editor-cache' }) {
+        $local = @('./PureBaseCi/Packages/jp.penguin.purebase/.github/actions/setup-unity-editor', './PureBaseSource/Packages/jp.penguin.purebase/.github/actions/setup-unity-editor')
+        foreach ($path in $local) { @($references | Where-Object { $_ -eq $path }).Count | Should -Be 1 }
+        foreach ($reference in $references | Where-Object { $_ -notin $local }) {
             $reference | Should -Match '^[^@]+@[0-9a-f]{40}$'
         }
     }
@@ -338,6 +260,9 @@ Describe 'Hosted Unity review contracts' {
         $dailyWorkflow | Should -Match 'Resolve-PureBaseDailySource'
         $dailyWorkflow | Should -Match 'ref: \$\{\{ needs\.authorize\.outputs\.checkout_ref \}\}'
         $dailyWorkflow | Should -Not -Match 'pull_request_target'
+        $dailyJob = Get-NamedJobBlock -Workflow $dailyWorkflow -Name 'unity-daily'
+        $dailyJob | Should -Match "(?m)^    if: needs\.authorize\.outputs\.allowed == 'true'$"
+        $dailyJob | Should -Match '(?m)^      - authorize$'
 
         foreach ($workflow in @($dailyWorkflow, $releaseWorkflow)) {
             $executionJobName = if ($workflow -eq $dailyWorkflow) { 'unity-daily' } else { 'validate' }

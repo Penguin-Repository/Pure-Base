@@ -118,9 +118,9 @@ Describe 'Hosted Release review contracts' {
     It 'defines Release validation producer permissions, exact SHA checkouts, and credential boundaries' -Tag ReleaseValidationProducer {
         $releaseWorkflow | Should -Match '(?m)^permissions:\n  contents: read$'
 
-        foreach ($jobName in @('unity-editor-cache', 'validate')) {
+        foreach ($jobName in @('validate')) {
             $job = Get-NamedJobBlock -Workflow $releaseWorkflow -Name $jobName
-            $checkoutName = if ($jobName -eq 'unity-editor-cache') { 'Checkout cache lookup helper' } else { 'Checkout Pure-Base' }
+            $checkoutName = 'Checkout Pure-Base'
             $checkout = Get-NamedStepBlock -Job $job -Name $checkoutName
 
             $job | Should -Not -BeNullOrEmpty
