@@ -49,7 +49,11 @@ jobs:
         shell: pwsh
         run: |
           $configuration = New-PesterConfiguration
-          $configuration.Run.Path = '.github/tests'
+          $configuration.Run.Path = @(
+            '.github/tests'
+            '.github/scripts/Install-VerifiedShaderCoreRelease.Tests.ps1'
+            'Tests/Release/ShaderCoreValidationInputs.Tests.ps1'
+          )
           $configuration.Run.Exit = $true
           $configuration.Output.Verbosity = 'Detailed'
           $configuration.Output.CIFormat = 'GithubActions'

@@ -14,14 +14,14 @@
 
 # Tests the isolated fail-closed Unity CLI bootstrap contract.
 $script:repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-$script:bootstrapScriptPath = Join-Path $script:repositoryRoot '.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1'
+$script:bootstrapScriptPath = Join-Path $script:repositoryRoot '.github/actions/setup-unity-editor/Install-PinnedUnityCli.ps1'
 $script:bootstrapAvailable = Test-Path -LiteralPath $script:bootstrapScriptPath -PathType Leaf
 $script:expectedSha256 = 'ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502'
 
 Describe 'Install-PinnedUnityCli' {
     BeforeAll {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-        $bootstrapScriptPath = Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1'
+        $bootstrapScriptPath = Join-Path $repositoryRoot '.github/actions/setup-unity-editor/Install-PinnedUnityCli.ps1'
         if (Test-Path -LiteralPath $bootstrapScriptPath -PathType Leaf) {
             . $bootstrapScriptPath
         }
@@ -70,23 +70,32 @@ Describe 'Install-PinnedUnityCli' {
 
     It 'provides the repository-owned bootstrap script' {
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-        (Join-Path $repositoryRoot '.github/actions/lookup-unity-editor-cache/Install-PinnedUnityCli.ps1') | Should -Exist
+        (Join-Path $repositoryRoot '.github/actions/setup-unity-editor/Install-PinnedUnityCli.ps1') | Should -Exist
     }
 
     It 'installs only verified bytes after download and hashing' -Skip:(-not $script:bootstrapAvailable) {
         $operations = [Collections.Generic.List[string]]::new()
         Mock Invoke-WebRequest {
             param($Uri, $OutFile)
+            $script:observedUri = $Uri
+            $script:observedDownloadPath = $OutFile
             $operations.Add('download')
             [IO.File]::WriteAllBytes($OutFile, $script:downloadBytes)
         }
         Mock Get-FileHash {
+            param($LiteralPath, $Algorithm)
+            $script:observedHashPath = $LiteralPath
+            $script:observedAlgorithm = $Algorithm
             $operations.Add('hash')
             [pscustomobject]@{ Hash = $script:actualSha256 }
         }
 
         Invoke-Bootstrap
 
+        $script:observedUri | Should -Be 'https://public-cdn.cloud.unity3d.com/hub/prod/cli/1.0.0-beta.3/unity-windows-x64.exe'
+        $script:observedAlgorithm | Should -Be 'SHA256'
+        $script:observedDownloadPath | Should -Be (Join-Path $script:temporaryRoot (Split-Path $script:observedDownloadPath -Leaf))
+        $script:observedHashPath | Should -Be $script:observedDownloadPath
         [Convert]::ToHexString([IO.File]::ReadAllBytes($script:destinationPath)) |
             Should -Be ([Convert]::ToHexString($script:downloadBytes))
         ($operations -join ',') | Should -Be 'download,hash'
@@ -183,5 +192,65 @@ Describe 'Install-PinnedUnityCli' {
 
         Assert-MockCalled Move-Item -Times 1 -Exactly
         Assert-FailurePreservesDestination -ExpectedBytes ([byte[]](9, 9))
+    }
+}
+
+Describe 'Resolve-InstalledUnityEditor' {
+    BeforeAll {
+        . (Join-Path $PSScriptRoot '../actions/setup-unity-editor/Resolve-InstalledUnityEditor.ps1')
+        $script:realGetItem = Get-Command Get-Item -CommandType Cmdlet
+    }
+    BeforeEach {
+        $script:root = Join-Path $TestDrive 'editors'
+        $script:editor = Join-Path $script:root '2022.3.28f1/Editor/Unity.exe'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $script:editor) -Force | Out-Null
+        [IO.File]::WriteAllText($script:editor, 'fixture')
+        Mock Get-Item {
+            param($LiteralPath, $Force)
+            $item = & $script:realGetItem -LiteralPath $LiteralPath -Force:$Force
+            if ($LiteralPath -eq $script:editor) {
+                return [pscustomobject]@{ Attributes = $item.Attributes; FullName = $item.FullName; VersionInfo = @{ ProductVersion = '2022.3.28f1_6bae5ce6b222' } }
+            }
+            return $item
+        }
+        Mock Invoke-PinnedUnityInstall {} -ParameterFilter { $CliPath -eq 'verified.exe' }
+    }
+    It 'skips install on hit and returns the matching executable' {
+        $result = Resolve-InstalledUnityEditor -CliPath 'verified.exe' -Roots @($script:root) -Version '2022.3.28f1' -Revision '6bae5ce6b222' -CacheHit 'true'
+        $result | Should -Be $script:editor
+        Should -Invoke Invoke-PinnedUnityInstall -Times 0 -Exactly
+    }
+    It 'installs the fixed version on miss using the verified CLI' {
+        $result = Resolve-InstalledUnityEditor -CliPath 'verified.exe' -Roots @($script:root) -Version '2022.3.28f1' -Revision '6bae5ce6b222' -CacheHit 'false'
+        $result | Should -Be $script:editor
+        Should -Invoke Invoke-PinnedUnityInstall -Times 1 -Exactly -ParameterFilter { $CliPath -eq 'verified.exe' -and $Version -eq '2022.3.28f1' }
+    }
+    It 'rejects native install failure without returning an Editor' {
+        if ($IsWindows) {
+            $fakeCli = Join-Path $TestDrive 'fake-cli.cmd'
+            [IO.File]::WriteAllText($fakeCli, "@exit /b 7`r`n")
+        }
+        else {
+            $fakeCli = Join-Path $TestDrive 'fake-cli'
+            [IO.File]::WriteAllText($fakeCli, "#!/bin/sh`nexit 7`n")
+            [IO.File]::SetUnixFileMode($fakeCli, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute)
+        }
+        $result = @()
+        { $result = @(Resolve-InstalledUnityEditor -CliPath $fakeCli -Roots @($script:root) -Version '2022.3.28f1' -Revision '6bae5ce6b222' -CacheHit 'false') } | Should -Throw '*exit code 7*'
+        $result.Count | Should -Be 0
+    }
+    It 'rejects invalid roots and missing or ambiguous Editors' {
+        { Get-UnityEditorCachePaths -Roots @('relative') -Version '2022.3.28f1' } | Should -Throw
+        { Resolve-InstalledUnityEditor -CliPath 'verified.exe' -Roots @((Join-Path $TestDrive 'missing')) -Version '2022.3.28f1' -Revision '6bae5ce6b222' -CacheHit 'true' } | Should -Throw
+        { Resolve-InstalledUnityEditor -CliPath 'verified.exe' -Roots @($script:root) -Version '2022.3.28f1' -Revision '000000000000' -CacheHit 'true' } | Should -Throw '*identity*'
+        { Resolve-InstalledUnityEditor -CliPath 'verified.exe' -Roots @($script:root, $script:root) -Version '2022.3.28f1' -Revision '6bae5ce6b222' -CacheHit 'true' } | Should -Throw
+        $otherRoot = Join-Path $TestDrive 'other'
+        $otherEditor = Join-Path $otherRoot '2022.3.28f1/Editor/Unity.exe'
+        New-Item -ItemType Directory -Path (Split-Path -Parent $otherEditor) -Force | Out-Null
+        [IO.File]::WriteAllText($otherEditor, 'fixture')
+        Mock Get-Item -ParameterFilter { $LiteralPath -eq $otherEditor } {
+            [pscustomobject]@{ Attributes = [IO.FileAttributes]::Normal; FullName = $otherEditor; VersionInfo = @{ ProductVersion = '2022.3.28f1_6bae5ce6b222' } }
+        }
+        { Resolve-InstalledUnityEditor -CliPath 'verified.exe' -Roots @($script:root, $otherRoot) -Version '2022.3.28f1' -Revision '6bae5ce6b222' -CacheHit 'true' } | Should -Throw '*found 2*'
     }
 }

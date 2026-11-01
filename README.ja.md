@@ -54,9 +54,10 @@ Pure Base には、用途の異なる4つのシェーダーが含まれていま
 
 - Unity 2022.3
 - Built-in Render Pipeline
-- Shader-Core 0.1.12
+- Shader-Core 0.3.0
+- 現在のCI/runtime検証対象: Unity 2022.3.28f1（revision 6bae5ce6b222）、Windows、D3D11、Linear色空間。
 
-URPには対応していません。Opaque、Cutout、Transparent の描画モードを利用でき、初期状態は Cutout です。
+URPには対応していません。Opaque、Cutout、Transparent の描画モードを利用でき、初期状態は Cutout です。このCI対象版は、利用者の既存workspaceにあるUnity Editorやプロジェクト設定を変更するものではありません。コミット済み数値baselineは元のUnity 2022.3.22f1での成果物です。検証範囲と既知の制限は[技術資料](Docs/technical-information.ja.md)を参照してください。
 
 ## 導入方法
 
@@ -85,7 +86,7 @@ https://lilxyzw.github.io/vpm-repos/vpm.json
 1. 使用するUnityプロジェクトを管理ソフトで開きます。
 2. パッケージ一覧から `PureBase` を探します。
 3. 追加する版を選び、プロジェクトへ導入します。
-4. Shader-Core 0.1.12 が一緒に導入されることを確認します。
+4. Shader-Core 0.3.0 が一緒に導入されることを確認します。
 
 このREADMEが対象とするパッケージ版は `0.2.0` です。
 
@@ -241,11 +242,11 @@ Pure Base に含まれるのは、用途の異なる4つのシェーダーだ！
 
 - Unity 2022.3
 - Built-in Render Pipeline
-- Shader-Core 0.1.12
+- Shader-Core 0.3.0
 
 見たか、この三本柱を！
 
-**Unity 2022.3！ Built-in Render Pipeline！ Shader-Core 0.1.12！**
+**Unity 2022.3！ Built-in Render Pipeline！ Shader-Core 0.3.0！**
 
 ここが Pure Base の勝負する舞台だ！
 
@@ -316,7 +317,7 @@ URLは長い！
 1. 使用するUnityプロジェクトを管理ソフトで開きます。
 2. パッケージ一覧から `PureBase` を探します。
 3. 追加する版を選び、プロジェクトへ導入します。
-4. Shader-Core 0.1.12 が一緒に導入されることを確認します。
+4. Shader-Core 0.3.0 が一緒に導入されることを確認します。
 
 開く！
 探す！

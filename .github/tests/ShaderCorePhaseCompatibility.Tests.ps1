@@ -59,17 +59,24 @@ Describe 'Shader-Core phase compatibility' {
         }
     }
 
-    It 'keeps postpixel as the final color mutation hook' {
+    It 'applies alpha, Shader-Core fog, and postpixel in order and keeps postpixel as the final color mutation hook' {
+        $alphaIndex = $fragmentHost.IndexOf('PureBaseApplyRenderingModeOutputAlpha(sd.col, coverage);', [StringComparison]::Ordinal)
+        $fogIndex = $fragmentHost.IndexOf('SCApplyFog(vertex, sd.col.rgb);', [StringComparison]::Ordinal)
         $postpixelIndex = $fragmentHost.IndexOf('__SC_PHASE_postpixel__', [StringComparison]::Ordinal)
-        ($postpixelIndex -ge 0) | Should -BeTrue
+        $returnIndex = $fragmentHost.IndexOf('return sd.col;', [StringComparison]::Ordinal)
 
-        $returnIndex = $fragmentHost.IndexOf('return sd.col;', $postpixelIndex, [StringComparison]::Ordinal)
+        ($alphaIndex -ge 0) | Should -BeTrue
+        ($fogIndex -gt $alphaIndex) | Should -BeTrue
+        ($postpixelIndex -gt $fogIndex) | Should -BeTrue
         ($returnIndex -gt $postpixelIndex) | Should -BeTrue
+        ($postpixelIndex -ge 0) | Should -BeTrue
 
         $tail = $fragmentHost.Substring($postpixelIndex, $returnIndex - $postpixelIndex)
         $tail | Should -Not -Match 'sd\.col\s*='
         $tail | Should -Not -Match 'sd\.col\.[rgba]{1,4}\s*='
-        $tail | Should -Not -Match 'UNITY_APPLY_FOG'
+        $tail | Should -Not -Match '\bSCApplyFog\s*\('
+        $tail | Should -Not -Match '\bUNITY_APPLY_FOG(?:_COLOR)?\s*\('
+        $tail | Should -Not -Match '\bfogCoord\b'
     }
 }
 

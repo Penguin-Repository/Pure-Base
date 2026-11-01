@@ -41,10 +41,10 @@ namespace PureBase.Tests.Regeneration
 
             try
             {
-                if (Application.unityVersion != "2022.3.22f1")
+                if (Application.unityVersion != "2022.3.28f1")
                 {
                     throw new InvalidOperationException(
-                        $"Pure-Base CI requires Unity 2022.3.22f1, received {Application.unityVersion}."
+                        $"Pure-Base CI requires Unity 2022.3.28f1, received {Application.unityVersion}."
                     );
                 }
 

@@ -49,6 +49,9 @@ namespace PureBase.Tests.Daily
         /// <summary>Defines the expected baseline Unity version.</summary>
         public const string ExpectedUnityVersion = "2022.3.22f1";
 
+        /// <summary>Defines the Unity version required to run the scene regression observations.</summary>
+        public const string ExpectedRuntimeUnityVersion = "2022.3.28f1";
+
         /// <summary>Defines the fixed readback dimension.</summary>
         public const int RenderSize = 160;
 
@@ -1395,8 +1398,8 @@ namespace PureBase.Tests.Daily
         {
             Assert.That(
                 Application.unityVersion,
-                Is.EqualTo(ExpectedUnityVersion),
-                $"The scene regression baseline requires Unity {ExpectedUnityVersion}."
+                Is.EqualTo(ExpectedRuntimeUnityVersion),
+                $"The scene regression runtime requires Unity {ExpectedRuntimeUnityVersion}."
             );
             Assert.That(
                 GraphicsSettings.currentRenderPipeline,

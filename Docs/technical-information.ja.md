@@ -24,12 +24,14 @@ Pure Base は Shader-Core を動かすための最小構成の土台です。多
 
 ## 対応環境と互換性
 
-- Unity `2022.3` が必要です。動作検証には Unity `2022.3.22f1` を使用しています。
+- Unity `2022.3` が必要です。現在のCIとランタイムの検証対象は、Windows、D3D11、BIRP、Linear色空間での Unity `2022.3.28f1`（revision `6bae5ce6b222`）です。
 - Built-in Render Pipeline のみ対応しています。URP には対応していません。
-- `jp.lilxyzw.shadercore` `0.1.12` が必要です。
-- 将来の Shader-Core `0.1.x` を自動では許可しません。Shader-Core は `0.x` 間の互換性を保証しておらず、読み込み処理、プロジェクト設定、関数の形が変わる可能性があります。
+- `jp.lilxyzw.shadercore` `0.3.0` が必要です。
+- Shader-Core の版は明示的に固定します。`0.x` 間の互換性を仮定しないでください。読み込み処理、プロジェクト設定、関数の形が変わる可能性があります。
 - 検証では D3D11 を使用します。
 - Opaque、Cutout、Transparent の描画モードに対応しています。初期状態は Cutout です。URP には対応していません。
+
+元からコミットされている数値oracleは `Tests/Baselines/birp-d3d11-2022.3.22f1.json` のままで、Unity `2022.3.22f1` の来歴と値を保持しています。Dailyのbaseline識別と再生成ガードはUnity `2022.3.22f1` に固定し、runtime期待版のUnity `2022.3.28f1` とは別に管理します。このbaselineはUnity `2022.3.28f1` で生成したものではありません。保存済み入力を使ったUnity `2022.3.28f1` 候補のDaily全体は100件成功し、canonical caseもstrictに成功しました。これはUnity `2022.3.22f1` での失敗が解消したことや、すべてのUnity 2022.3版への互換性を示すものではありません。Unity `2022.3.22f1` での先行setup失敗（100件、テスト本体0件）と、別に発生した必須 `WarmUp` のnative crashは、異なる過去の失敗として未解決です。
 
 ## シェーダー名
 
@@ -161,7 +163,9 @@ $$
 `Meta` は専用の描画処理であり、この共通順序は実行しません。
 
 - `ForwardBase` は通常の表面とライティング結果を担当します。
-- `ForwardAdd` は追加ライトの直接光だけを加算します。
+- `ForwardAdd` は追加ライトの直接光だけを加算し、Shader-Core 共通の `SCApplyFog` API を使って黒へのフォグを適用します。
+- 両フォワードパスは描画モードのアルファを確定した後、`postpixel` の前に RGB へフォグを適用します。`postpixel` は return 前の最後の色変更位置です。
+- 保存済みの視覚観察では、モジュールなしの `PureBase/Unlit`、Opaque、Perspective、`ForwardBase` で色付きFogを定性的に確認しました。RGBは赤から青いFogの方向へ変化し、観察したalpha表示は中央が白、周囲が黒のままです。これはraw RGBAの数値契約でも、全描画モード・全投影方式の証明でもありません。旧Orthographic Fog観察での距離の不一致は未解決であり、Perspectiveであることだけではこの制限は解消しません。
 - Cutout では、`ForwardBase`、`ForwardAdd`、有効な `ShadowCaster` が `base` 後のモジュール調整済み `sd.albedoAlpha.a` から被覆を決定します。Opaque は切り抜きを行わず、Transparent は深度を書き込まずにアルファブレンドし、`ShadowCaster` と `Meta` を無効にします。
 - `postpixel` は色を変更できる最後の差し込み位置です。モジュールが変更した最後のアルファは、両フォワードパスでソースアルファとして使われます。製品パスのカラーマスクは固定されています。
 - PBR と Hybrid は、Unity 標準の間接光と反射プローブを `ForwardBase` で計算します。`ForwardAdd` では間接光を重複して計算しません。
@@ -204,7 +208,7 @@ Pure Base の追加モジュールなし Toon ライティングは、lilToon 2.
 
 `package.json` が、公開名と版番号を決める唯一の情報源です。
 
-現在のパッケージ版は `0.2.0-beta.2` です。
+現在のパッケージ版は `0.2.0` です。
 
 手動の `Release` ワークフローへ渡す `version` は、すでにパッケージへ記載されている版番号と一致するかを確認するためだけに使われます。版番号の書き換えやコミットは行いません。
 
@@ -257,7 +261,9 @@ VPM受信側、VPMリポジトリ、既存の `update-vpm` 通知仕様は、公
 
 ## 検証結果
 
-最終的な使い捨てプロジェクトでの検証は、Unity `2022.3.22f1` と D3D11 の環境で `62/62` 成功しています。
+過去の使い捨てプロジェクトでの検証は、Unity `2022.3.22f1` と D3D11 の環境で `62/62` 成功しています。
+
+これはUnity `2022.3.22f1` での過去の記録であり、現在のUnity `2022.3.28f1` ランタイムが最終製品入力で必須検証を完了した証拠ではありません。保存済みのUnity `2022.3.28f1` 候補Dailyは100件とstrict canonical caseに成功しましたが、文書更新後の最終製品入力で新たなランタイム実行はしていません。9ファイルのPester suiteは、記録された入力でPester 5.9.0により完了し、75件中74件成功、失敗0件、既存のhost能力によるskip 1件でした。一方、証拠collectorはNUnit XMLの集約結果を誤判定してnative exit 1を返しました。これはsuiteの失敗ではありませんが、collectorがnative zeroで成功したことも意味しません。最終レビューは未完了で、hosted Release validationは未実施です。
 
 検証対象には、追加モジュールなしでの読み込み、10種類すべての標準差し込み位置、PBR と Hybrid の値の有限性、反射、`ForwardAdd`、鏡面反射、Unlit と Toon の再発防止確認、Meta と影を含む固定検証シーンの焼き込み、Built-in Render Pipeline の56種類の組み合わせが含まれます。
 

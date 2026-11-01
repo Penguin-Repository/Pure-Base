@@ -37,48 +37,8 @@ env:
   UNITY_SHADER_CORE_ROOT: ${{ github.workspace }}\PureBaseCi\Packages\jp.lilxyzw.shadercore
 
 jobs:
-  unity-editor-cache:
-    name: Prepare Unity 2022.3.22f1 cache
-    runs-on: windows-2022
-    timeout-minutes: 60
-    steps:
-      - name: Checkout cache lookup helper
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Look up Unity Editor cache
-        id: unity-cache-lookup
-        uses: ./.github/actions/lookup-unity-editor-cache
-        with:
-          unity-version: "2022.3.22f1"
-          cli-version: "1.0.0-beta.3"
-          cli-sha256: "ff9ef81ade1063041d25e2c549cc7ed14e96d446f4204400bf101b389f7b8502"
-
-      - name: Restore or create Unity Editor cache
-        id: unity
-        if: steps.unity-cache-lookup.outputs.cache-hit != 'true'
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
-        with:
-          unity-version: "2022.3.22f1"
-          cli-version: "1.0.0-beta.3"
-          cli-channel: beta
-          cache: "true"
-
-      - name: Report Unity Editor cache status
-        shell: pwsh
-        run: |
-          if ("${{ steps.unity-cache-lookup.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache metadata lookup hit for 2022.3.22f1; this preparation job did not download, extract, or install the Editor." >> $env:GITHUB_STEP_SUMMARY
-          }
-          else {
-            "Unity Editor cache metadata lookup missed; setup-unity-cli ran to restore or install the Editor, and a newly installed Editor will be saved when this job completes." >> $env:GITHUB_STEP_SUMMARY
-          }
-
   validate:
     name: Validate audited release package
-    needs: unity-editor-cache
     concurrency:
       group: pure-base-unity-personal-license
       cancel-in-progress: false
@@ -97,6 +57,15 @@ jobs:
           path: PureBaseSource\Packages\jp.penguin.purebase
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Read validation inputs
+        id: validation-inputs
+        shell: pwsh
+        run: |
+          . "$env:PACKAGE_ROOT/Tests/Tooling/PureBaseValidationInputs.ps1"
+          $inputs = Get-PureBaseValidationInputs -PackageRoot $env:PACKAGE_ROOT
+          "unity-version=$($inputs.UnityVersion)" >> $env:GITHUB_OUTPUT
+          "cli-version=$($inputs.UnityCliVersion)" >> $env:GITHUB_OUTPUT
 
       - name: Capture initial repository state
         shell: pwsh
@@ -131,32 +100,28 @@ jobs:
             [Text.UTF8Encoding]::new($false)
           )
 
-      - name: Install verified Shader-Core 0.1.12 release
+      - name: Provision Unity runtime prerequisites
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          $checkoutSha = (Get-Content -LiteralPath (Join-Path $env:ARTIFACT_ROOT 'repository-state.json') -Raw | ConvertFrom-Json).head
+          & "$env:PACKAGE_ROOT/.github/scripts/Install-ReleaseUnityRuntimePrerequisites.ps1" `
+            -WorkflowRunId '${{ github.run_id }}' `
+            -WorkflowRunAttempt '${{ github.run_attempt }}' `
+            -WorkflowJob '${{ github.job }}' `
+            -IntendedSha '${{ github.sha }}' `
+            -CheckoutSha $checkoutSha
+
+      - name: Install verified Shader-Core release
+        id: shader-core
         shell: pwsh
         run: |
           & "$env:PACKAGE_ROOT/.github/scripts/Install-VerifiedShaderCoreRelease.ps1" `
-            -ProjectRoot $env:SOURCE_PROJECT_ROOT `
-            -Uri 'https://github.com/lilxyzw/Shader-Core/releases/download/0.1.12/jp.lilxyzw.shadercore-0.1.12.zip' `
-            -ExpectedSha256 'bb39b6bd95d9814b15e59271365573b4d1ea23fb52f76f00a82e908c0cf65924'
+            -ProjectRoot $env:SOURCE_PROJECT_ROOT
 
-      - name: Restore Unity 2022.3.22f1
+      - name: Restore Unity Editor
         id: unity
-        uses: yamachu/unity-cli-actions/setup-unity-cli@e0f32f7e273329bbe99af5bf5809bf1056935556
-        with:
-          unity-version: "2022.3.22f1"
-          cli-version: "1.0.0-beta.3"
-          cli-channel: beta
-          cache: "true"
-
-      - name: Report Unity Editor cache handoff
-        shell: pwsh
-        run: |
-          if ("${{ steps.unity.outputs.cache-hit }}" -eq "true") {
-            "Unity Editor cache handoff succeeded." >> $env:GITHUB_STEP_SUMMARY
-          }
-          else {
-            "Unity Editor cache handoff missed; setup-unity-cli installed/restored the Editor in this job, so validation will continue." >> $env:GITHUB_STEP_SUMMARY
-          }
+        uses: ./PureBaseSource/Packages/jp.penguin.purebase/.github/actions/setup-unity-editor
 
       - name: Activate Unity Personal license
         id: unity_license
@@ -188,7 +153,8 @@ jobs:
           $realEditorPathFile = Join-Path $env:RUNNER_TEMP 'PureBase.RealUnityEditorPath.txt'
           $watchdogEditorPath = & "$env:PACKAGE_ROOT/.github/scripts/Resolve-UnityEditorPath.ps1" `
             -EditorPath '${{ steps.unity.outputs.editor-path }}' `
-            -RealEditorPathOutputFile $realEditorPathFile
+            -RealEditorPathOutputFile $realEditorPathFile `
+            -RequireExistingRuntime
           $realEditorPath = (Get-Content -LiteralPath $realEditorPathFile -Raw).Trim()
           "UNITY_EDITOR_PATH=$watchdogEditorPath" >> $env:GITHUB_ENV
           "REAL_UNITY_EDITOR_PATH=$realEditorPath" >> $env:GITHUB_ENV
@@ -296,13 +262,16 @@ jobs:
           path: |
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\validated-package
             ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\repository-state.json
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\runtime-readbacks.json
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\library-reset.json
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\*summary.json
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\*.log
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\shader-core-state-initialization-report.json
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\fixed-point-report.json
-            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\**\immutable-input-manifest-fixed-point-delta.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\bootstrap\**
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\runs\**
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\archive\*.zip
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\archive\*.sha256
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\shader-core.sha256.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\run-summary.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\cleanup-summary.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\ReleaseConsumer-*\cleanup-failure.json
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\*.log
+            ${{ runner.temp }}\PureBase-Release-Validation-${{ github.run_id }}-${{ github.run_attempt }}\runtime-prerequisites\report.json
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
@@ -311,7 +280,6 @@ jobs:
     name: Notify Discord
     if: ${{ always() }}
     needs:
-      - unity-editor-cache
       - validate
     permissions: {}
     runs-on: ubuntu-latest
@@ -323,14 +291,13 @@ jobs:
         id: workflow_status
         shell: bash
         env:
-          CACHE_RESULT: ${{ needs.unity-editor-cache.result }}
           VALIDATE_RESULT: ${{ needs.validate.result }}
         run: |
-          if [[ "$CACHE_RESULT" == "failure" || "$VALIDATE_RESULT" == "failure" ]]; then
+          if [[ "$VALIDATE_RESULT" == "failure" ]]; then
             status=Failure
-          elif [[ "$CACHE_RESULT" == "cancelled" || "$VALIDATE_RESULT" == "cancelled" ]]; then
+          elif [[ "$VALIDATE_RESULT" == "cancelled" ]]; then
             status=Cancelled
-          elif [[ "$CACHE_RESULT" == "skipped" || "$VALIDATE_RESULT" == "skipped" ]]; then
+          elif [[ "$VALIDATE_RESULT" == "skipped" ]]; then
             status=Failure
           else
             status=Success

@@ -24,6 +24,9 @@ param(
     [switch]$WriteShaderCoreManifest,
 
     [Parameter()]
+    [string]$ShaderCoreArchivePath,
+
+    [Parameter()]
     [switch]$AuditOnly
 )
 
@@ -223,36 +226,6 @@ function Test-ContractPath {
     return $false
 }
 
-function Assert-PackageMetadata {
-    param(
-        [Parameter(Mandatory = $true)][string]$PackageRoot,
-        [Parameter(Mandatory = $true)]$Contract
-    )
-
-    $packageJson = Get-Content -LiteralPath (Join-Path $PackageRoot 'package.json') -Raw | ConvertFrom-Json
-    if ($packageJson.name -ne $Contract.packageName) {
-        throw "package.json name '$($packageJson.name)' does not match release contract '$($Contract.packageName)'."
-    }
-
-    foreach ($dependency in $Contract.requiredVpmDependencies.PSObject.Properties) {
-        $actualDependency = $packageJson.vpmDependencies.PSObject.Properties[$dependency.Name]
-        if ($null -eq $actualDependency -or [string]$actualDependency.Value -ne [string]$dependency.Value) {
-            throw "package.json must require $($dependency.Name) exactly $($dependency.Value)."
-        }
-    }
-
-    foreach ($dependencySectionName in @('dependencies', 'vpmDependencies')) {
-        $dependencySection = $packageJson.PSObject.Properties[$dependencySectionName]
-        if ($null -ne $dependencySection) {
-            foreach ($dependency in $dependencySection.Value.PSObject.Properties) {
-                if ($Contract.forbiddenDependencyNames -contains $dependency.Name) {
-                    throw "package.json contains forbidden URP-related dependency '$($dependency.Name)'."
-                }
-            }
-        }
-    }
-}
-
 function Assert-ForbiddenShaderProperties {
     param(
         [Parameter(Mandatory = $true)][string]$PackageRoot,
@@ -272,13 +245,13 @@ function Assert-ForbiddenShaderProperties {
 }
 
 function Get-VerifiedShaderCorePackageIdentity {
-    param([Parameter(Mandatory = $true)][string]$ShaderCoreRoot)
+    param([Parameter(Mandatory = $true)][string]$ShaderCoreRoot, [string]$ExpectedVersion)
 
     $shaderCorePackage = Get-Content -LiteralPath (Join-Path $ShaderCoreRoot 'package.json') -Raw | ConvertFrom-Json
     $packageName = [string]$shaderCorePackage.name
     $packageVersion = [string]$shaderCorePackage.version
-    if ($packageName -ne 'jp.lilxyzw.shadercore' -or $packageVersion -ne '0.1.12') {
-        throw 'Local Shader-Core must be jp.lilxyzw.shadercore version 0.1.12.'
+    if ($packageName -cne 'jp.lilxyzw.shadercore' -or $packageVersion -cne $ExpectedVersion) {
+        throw "Local Shader-Core must be jp.lilxyzw.shadercore version $ExpectedVersion."
     }
 
     return [pscustomobject][ordered]@{
@@ -351,24 +324,14 @@ function Get-RecursiveIdentityManifest {
     }
 }
 
-function Write-ShaderCoreIdentityManifest {
-    param(
-        [Parameter(Mandatory = $true)][string]$ShaderCoreRoot,
-        [Parameter(Mandatory = $true)][string]$ManifestPath
-    )
-
-    $shaderCorePackageIdentity = Get-VerifiedShaderCorePackageIdentity -ShaderCoreRoot $ShaderCoreRoot
-    $manifest = Get-RecursiveIdentityManifest -ShaderCoreRoot $ShaderCoreRoot -ShaderCorePackageIdentity $shaderCorePackageIdentity
-    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
-}
-
 function Assert-ShaderCoreIdentity {
     param(
         [Parameter(Mandatory = $true)][string]$ShaderCoreRoot,
-        [Parameter(Mandatory = $true)][string]$ManifestPath
+        [Parameter(Mandatory = $true)][string]$ManifestPath,
+        [string]$ExpectedVersion
     )
 
-    $shaderCorePackageIdentity = Get-VerifiedShaderCorePackageIdentity -ShaderCoreRoot $ShaderCoreRoot
+    $shaderCorePackageIdentity = Get-VerifiedShaderCorePackageIdentity -ShaderCoreRoot $ShaderCoreRoot -ExpectedVersion $ExpectedVersion
     $expectedManifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
     if ($expectedManifest.packageName -ne $shaderCorePackageIdentity.packageName -or $expectedManifest.packageVersion -ne $shaderCorePackageIdentity.packageVersion) {
         throw 'Shader-Core identity manifest package metadata does not match the verified local package.'
@@ -419,19 +382,13 @@ function Assert-ShaderCoreIdentity {
             $firstDivergence = 'No divergent manifest entry was found after ordinal comparison.'
         }
 
-        throw (@(
-                'Local Shader-Core identity does not match shader-core-0.1.12.sha256.json.'
-                "Expected aggregate identity SHA-256: $($expectedManifest.identitySha256)."
-                "Actual aggregate identity SHA-256: $($actualManifest.identitySha256)."
-                "Expected entry count: $($expectedEntries.Count)."
-                "Actual entry count: $($actualEntries.Count)."
-                $firstDivergence
-                'Regenerate only after intentionally reviewing the dependency source.'
-            ) -join ' ')
+        throw (Get-PureBaseIdentityFailureMessage -Expected $expectedManifest -Actual $actualManifest -FirstDivergence $firstDivergence)
     }
 }
 
 $scriptRoot = Split-Path -Parent $PSCommandPath
+. (Join-Path $scriptRoot '../Tooling/PureBaseValidationInputs.ps1')
+. (Join-Path $scriptRoot '../Tooling/PureBaseReleaseInputs.ps1')
 $packageRoot = (& git -C $scriptRoot rev-parse --show-toplevel).Trim()
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($packageRoot)) {
     throw 'Cannot resolve the nested PureBase package Git root.'
@@ -447,7 +404,7 @@ if (Test-ReparsePoint -Item (Get-Item -LiteralPath $packageRoot -Force)) {
 $workspaceRoot = Split-Path -Parent (Split-Path -Parent $packageRoot)
 $shaderCoreRoot = Join-Path (Join-Path $workspaceRoot 'Packages') 'jp.lilxyzw.shadercore'
 $contractPath = Join-Path $scriptRoot 'release-content.json'
-$manifestPath = Join-Path $scriptRoot 'shader-core-0.1.12.sha256.json'
+$manifestPath = Get-PureBaseInputPath $packageRoot 'Tests/Release/shader-core.sha256.json'
 $contract = Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
 if ($contract.schemaVersion -ne 1) {
     throw "Unsupported release contract schema version '$($contract.schemaVersion)'."
@@ -455,11 +412,12 @@ if ($contract.schemaVersion -ne 1) {
 $packageJson = Get-Content -LiteralPath (Join-Path $packageRoot 'package.json') -Raw | ConvertFrom-Json
 
 if ($WriteShaderCoreManifest) {
-    Write-ShaderCoreIdentityManifest -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
+    Write-PureBaseShaderCoreArchiveManifest -PackageRoot $packageRoot -ArchivePath $ShaderCoreArchivePath
     Write-Output "Wrote Shader-Core identity manifest: $manifestPath"
     return
 }
 
+$validationInputs = Get-PureBaseValidationInputs -PackageRoot $packageRoot
 Assert-PackageMetadata -PackageRoot $packageRoot -Contract $contract
 $trackedFiles = Get-TrackedFiles -PackageRoot $packageRoot
 $releaseFiles = New-Object System.Collections.Generic.List[string]
@@ -478,7 +436,7 @@ foreach ($requiredEntry in $contract.requiredEntries) {
 }
 
 Assert-ForbiddenShaderProperties -PackageRoot $packageRoot -ReleaseFiles $releaseFiles.ToArray() -Contract $contract
-Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath
+Assert-ShaderCoreIdentity -ShaderCoreRoot $shaderCoreRoot -ManifestPath $manifestPath -ExpectedVersion $validationInputs.ShaderCoreVersion
 
 if ($AuditOnly) {
     Write-Output "Release source audit passed: $($releaseFiles.Count) tracked files."

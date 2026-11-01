@@ -26,6 +26,7 @@ Describe 'Pure-Base CI Unity project generation' {
         }
 
         $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+        . (Join-Path $repositoryRoot 'Tests/Tooling/PureBaseValidationFixtures.ps1')
         $projectBuilder = Join-Path $repositoryRoot '.github/scripts/New-PureBaseCiProject.ps1'
     }
 
@@ -41,17 +42,17 @@ Describe 'Pure-Base CI Unity project generation' {
         New-Item -ItemType Directory -Path $pureBaseRoot, $shaderCoreRoot, $consumerSettings, $ownerLightingDataDirectory -Force | Out-Null
         [IO.File]::WriteAllText(
             (Join-Path $pureBaseRoot 'package.json'),
-            '{"name":"jp.penguin.purebase","version":"0.1.0"}',
+            '{"name":"jp.penguin.purebase","version":"0.1.0","vpmDependencies":{"jp.lilxyzw.shadercore":"0.3.0"}}',
             [Text.UTF8Encoding]::new($false)
         )
         [IO.File]::WriteAllText(
             (Join-Path $shaderCoreRoot 'package.json'),
-            '{"name":"jp.lilxyzw.shadercore","version":"0.1.12"}',
+            '{"name":"jp.lilxyzw.shadercore","version":"0.3.0"}',
             [Text.UTF8Encoding]::new($false)
         )
         [IO.File]::WriteAllText(
             (Join-Path $consumerSettings 'ProjectVersion.txt'),
-            "m_EditorVersion: 2022.3.22f1`nm_EditorVersionWithRevision: 2022.3.22f1 (887be4894c44)`n",
+            "m_EditorVersion: 2022.3.28f1`nm_EditorVersionWithRevision: 2022.3.28f1 (6bae5ce6b222)`n",
             [Text.UTF8Encoding]::new($false)
         )
         $qualitySettingsFixture = @'
@@ -89,6 +90,7 @@ QualitySettings:
             "fileFormatVersion: 2`nguid: $ownerLightingDataGuid`n",
             [Text.UTF8Encoding]::new($false)
         )
+        Initialize-PureBaseValidationFixture -PackageRoot $pureBaseRoot
     }
 
     It 'keeps the tracked VRChat-project QualitySettings source fixture under the reviewed contract' {
@@ -108,8 +110,8 @@ QualitySettings:
         & $projectBuilder -ProjectRoot $projectRoot
 
         $projectVersion = Get-Content -LiteralPath (Join-Path $projectRoot 'ProjectSettings/ProjectVersion.txt') -Raw
-        Assert-CiProjectHarness -Condition ($projectVersion -match 'm_EditorVersion: 2022\.3\.22f1') -Message 'Generated CI ProjectVersion.txt does not pin Unity 2022.3.22f1.'
-        Assert-CiProjectHarness -Condition ($projectVersion -match '887be4894c44') -Message 'Generated CI ProjectVersion.txt does not pin the required Unity revision.'
+        Assert-CiProjectHarness -Condition ($projectVersion -match 'm_EditorVersion: 2022\.3\.28f1') -Message 'Generated CI ProjectVersion.txt does not pin Unity 2022.3.28f1.'
+        Assert-CiProjectHarness -Condition ($projectVersion -match '6bae5ce6b222') -Message 'Generated CI ProjectVersion.txt does not pin the required Unity revision.'
 
         $manifest = Get-Content -LiteralPath (Join-Path $projectRoot 'Packages/manifest.json') -Raw | ConvertFrom-Json
         Assert-CiProjectHarness -Condition ([string]$manifest.dependencies.'com.unity.test-framework' -eq '1.1.33') -Message 'Generated CI manifest does not pin the Unity Test Framework.'
@@ -153,7 +155,7 @@ QualitySettings:
         $failure = $null
         try { & $projectBuilder -ProjectRoot $projectRoot }
         catch { $failure = $_ }
-        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*exactly 0.1.12*') -Message 'The CI project builder accepted an unexpected Shader-Core version.'
+        Assert-CiProjectHarness -Condition ($null -ne $failure -and $failure.Exception.Message -like '*exactly 0.3.0*') -Message 'The CI project builder accepted an unexpected Shader-Core version.'
     }
 
     It 'rejects a missing owner LightingData fixture' {

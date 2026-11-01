@@ -24,12 +24,14 @@ Pure Base is a minimal Shader-Core host. It is not intended to become a feature-
 
 ## Supported environment and compatibility boundary
 
-- Unity `2022.3` is required. Integration validation is fixed to Unity `2022.3.22f1`.
+- Unity `2022.3` is required. The current tested CI/runtime expectation is Unity `2022.3.28f1` (revision `6bae5ce6b222`) on Windows, D3D11, BIRP, and Linear color space.
 - Only the Built-in Render Pipeline is supported. URP is not supported.
-- The package requires exactly `jp.lilxyzw.shadercore` `0.1.12`.
-- Future `0.1.x` Shader-Core releases are not accepted automatically. Shader-Core does not declare compatibility across `0.x` releases, and importer, project-setting, and method-shape contracts may change.
+- The package requires exactly `jp.lilxyzw.shadercore` `0.3.0`.
+- Shader-Core releases are pinned explicitly; do not assume compatibility across `0.x` releases. Importer, project-setting, and method-shape contracts may change.
 - The integration harness forces D3D11 during test execution.
 - Opaque, Cutout, and Transparent rendering modes are supported. Cutout is the default mode; URP is not supported.
+
+The original committed numeric oracle remains `Tests/Baselines/birp-d3d11-2022.3.22f1.json`, with its Unity `2022.3.22f1` provenance and values unchanged. Daily keeps its baseline identity and regeneration guard pinned to Unity `2022.3.22f1` while the runtime version expectation is separately pinned to Unity `2022.3.28f1`; the baseline is not a Unity `2022.3.28f1`-generated artifact. The candidate Unity `2022.3.28f1` run passed the full Daily assembly (100 tests) and the strict canonical baseline case on saved inputs. This does not establish that the older Unity `2022.3.22f1` failure is fixed or that every Unity 2022.3 release is compatible. The earlier Unity `2022.3.22f1` setup failure (100 tests, zero body tests) and the separate mandatory `WarmUp` native crash remain distinct historical failures.
 
 ## Stable shader paths
 
@@ -161,7 +163,9 @@ The shared standard phase ABI is executed in this order:
 `Meta` is a dedicated pass and does not execute the standard phase sequence.
 
 - `ForwardBase` owns the normal surface and lighting result.
-- `ForwardAdd` contributes additional direct light only and uses black fog semantics.
+- `ForwardAdd` contributes additional direct light only and uses black fog semantics through Shader-Core's shared `SCApplyFog` API.
+- Both forward passes apply fog to RGB after finalizing rendering-mode alpha and before the `postpixel` phase; `postpixel` remains the last color mutation point before return.
+- The saved visual observation verified qualitative colored Fog in Perspective with module-free `PureBase/Unlit`, Opaque mode, and `ForwardBase`: RGB changes from red toward blue Fog while the observed alpha-display result remains white at the center and black around it. This is not a numeric raw-RGBA contract or proof for every mode or projection. A known distance mismatch in the older Orthographic Fog observation remains unresolved; Perspective does not eliminate that limitation.
 - In Cutout, `ForwardBase`, `ForwardAdd`, and enabled `ShadowCaster` derive coverage from the module-adjusted `sd.albedoAlpha.a` after `base`. Opaque is uncut, while Transparent alpha-blends without depth writing and disables `ShadowCaster` and `Meta`.
 - `postpixel` is the final color mutation point. Modules may change the returned alpha there, and that final alpha is used as the source alpha by both forward passes. The product color-mask states remain fixed.
 - PBR and Hybrid evaluate Unity Standard indirect GI and reflection probes in `ForwardBase`. Their `ForwardAdd` passes do not duplicate indirect lighting.
@@ -204,7 +208,7 @@ For `LIGHTMAP_ON && LIGHTMAP_SHADOW_MIXING && !SHADOWS_SHADOWMASK && SHADOWS_SCR
 
 `package.json` is the sole release identity and version declaration.
 
-The current package release is `0.2.0-beta.2`.
+The current package release is `0.2.0`.
 
 The `version` input of the manual `Release` workflow verifies the exact version already present in the checked-out package. It does not write or commit a version.
 
@@ -257,7 +261,9 @@ The persistent validation lanes are defined under [`Tests`](../Tests).
 
 ## Validation evidence
 
-The final disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11.
+The historical final disposable-project matrix passed `62/62` under Unity `2022.3.22f1` with D3D11.
+
+That result is a historical Unity `2022.3.22f1` record and is not evidence that the current Unity `2022.3.28f1` runtime has completed the final package's required validation. The saved candidate Unity `2022.3.28f1` Daily result passed 100 tests and the strict canonical case, but no new runtime run was performed on the final package inputs after the documentation update. The nine-file Pester suite completed on its recorded inputs with Pester 5.9.0: 75 tests, 74 passed, 0 failed, and 1 existing host-capability skip. Its evidence collector nevertheless returned native exit 1 after misclassifying the NUnit XML summary; this is a collector limitation, not a suite failure or a successful native-zero collection. Final review is incomplete, and hosted Release validation has not been performed.
 
 It covers module-free imports, all ten standard external phase probes, PBR and Hybrid finite, reflection, `ForwardAdd`, and specular behavior, Unlit and Toon regressions, a fixed validation-scene bake with Meta and shadow checks, and 56 Built-in Render Pipeline variants.
 

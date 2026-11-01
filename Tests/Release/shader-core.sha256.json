@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "packageName": "jp.lilxyzw.shadercore",
-  "packageVersion": "0.1.12",
+  "packageVersion": "0.3.0",
   "scope": "All regular, non-reparse-point files below the local Packages/jp.lilxyzw.shadercore directory, excluding .git and .serena directories. Entry paths are package-relative UTF-8 paths normalized to forward slashes and sorted ordinally.",
   "algorithm": "For each entry, SHA-256 is computed over raw file bytes. The identity SHA-256 is computed over UTF-8 lines '<entry-path>\\t<lowercase-file-sha256>\\n' in ordinal path order.",
-  "identitySha256": "6ca755934cda14aca0ea6e22953943be5cf5a40ec02a7b4638586d8667d2e9e5",
+  "identitySha256": "a28da4a9c645bae78ea83eacdbf0c12b0260038f4fea60886c94c78f3fc7ca1a",
   "entries": [
     {
       "path": "Editor.meta",
@@ -84,7 +84,7 @@
     },
     {
       "path": "Editor/API/SCStyles.cs",
-      "sha256": "dcf552999b4a0a6ff9a631500f96e0cf5884f4fa8280db648e0fb928fa6fe856"
+      "sha256": "d58806a3246f5b83f6b2a7d8f878e9828335ff467e4feda85b4a2adf4c2de3af"
     },
     {
       "path": "Editor/API/SCStyles.cs.meta",
@@ -128,7 +128,7 @@
     },
     {
       "path": "Editor/Core/SCModule.cs",
-      "sha256": "02d589d928066a3c2c24cd32c41d832aa8c96950afb6a2c5aa347a292c42e147"
+      "sha256": "457899651ff096988d4fdfda7678ac933d501e8c5adc6d48bb72c3de2f75c34e"
     },
     {
       "path": "Editor/Core/SCModule.cs.meta",
@@ -283,6 +283,14 @@
       "sha256": "382a23d2d7c12d33b7549f95600ac3b83eaf1b3c7776b60190adaf5f0ea3ee17"
     },
     {
+      "path": "Editor/LegacySupport/DynamicVariantStripper.cs",
+      "sha256": "2e2cb93c283c4d4dda1cfedb94b6bea973b95a8abf612ac6d0e2e0763313cd0d"
+    },
+    {
+      "path": "Editor/LegacySupport/DynamicVariantStripper.cs.meta",
+      "sha256": "5959c17da055e825e05162143a7f5c569cf7f5178281e3bb65308e57e09b4f5f"
+    },
+    {
       "path": "Editor/LegacySupport/EntityIdSupport.cs",
       "sha256": "86e19c0ed665b30650c578cca4dca18ffe3c654564f63ae9872f123adfee62b2"
     },
@@ -312,7 +320,7 @@
     },
     {
       "path": "Editor/MaterialEditor/CustomAttributes.cs",
-      "sha256": "3c2abc2f7dfc86c66ce64501355c131ce573f2cf8545fa866de5ac91f76f3a97"
+      "sha256": "f89040e06e3e8c0e79b8806b359a07d4190c42ef4eb2ab77b0468de8d99655bb"
     },
     {
       "path": "Editor/MaterialEditor/CustomAttributes.cs.meta",
@@ -344,7 +352,7 @@
     },
     {
       "path": "Editor/MaterialEditor/SCMaterialEditor.cs",
-      "sha256": "b17fc28a7749e1aa5d305d5621a889359b29993b8166b31d3d6bae62dcf63296"
+      "sha256": "4873b70521cbd9a08e04d441d81409f2dd2f6a683c20755fd8066e3aadd0ca53"
     },
     {
       "path": "Editor/MaterialEditor/SCMaterialEditor.cs.meta",
@@ -412,7 +420,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCFoldout.cs",
-      "sha256": "a0e54bea253febfe1975ad00eaedae18c11648e7f25940a5bd6fcba9cfef02f6"
+      "sha256": "387979af6bb8e564458cab1a4476acf1f2a2a7caaababdbd0ab227a4888ba1b2"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCFoldout.cs.meta",
@@ -436,7 +444,7 @@
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCLockProperty.cs",
-      "sha256": "5a1cca21f854dccdf0cd9dab5a609998d809f3c8f99cd426f86673b5a769f619"
+      "sha256": "d95087f138637807c7211f2fc208684e3b1e570c262af5194e8d9ba00df8405f"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCLockProperty.cs.meta",
@@ -473,6 +481,14 @@
     {
       "path": "Editor/MaterialEditor/VisualElements/SCPropertyContainer.cs.meta",
       "sha256": "8e35dc622878b25fc07cea8a4899bd0cddfda73be3596413dd065e5a7910f338"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCRemap.cs",
+      "sha256": "14e362df11bdbbfb90e86929dbb623a827826c23da090c9a6cc1baea84d7aeb8"
+    },
+    {
+      "path": "Editor/MaterialEditor/VisualElements/SCRemap.cs.meta",
+      "sha256": "d75da429790de08e6008d7c991b4ffbdd4dd8d1f5cf7f64b67b788caddcf26f2"
     },
     {
       "path": "Editor/MaterialEditor/VisualElements/SCRenderQueueField.cs",
@@ -636,7 +652,7 @@
     },
     {
       "path": "ShaderLibrary/birp.hlsl",
-      "sha256": "174138657ac49927829efdfcd0c94c66a4bfbc0deb53bbdf0f46f258ecf6d106"
+      "sha256": "0daabf49ff35ef25453a3cd4ec3f6234e7d3e466e14b89746f894d1596f17f42"
     },
     {
       "path": "ShaderLibrary/birp.hlsl.meta",
@@ -644,7 +660,7 @@
     },
     {
       "path": "ShaderLibrary/birp_forward.hlsl",
-      "sha256": "b62a823790445616c52314dcc0596c7a11e3ce94892820445e73bba0155a6f65"
+      "sha256": "547452ce56f193db3a0ee11fdbffee89fdff4d13c6cb85be260fc55aaca4e5a4"
     },
     {
       "path": "ShaderLibrary/birp_forward.hlsl.meta",
@@ -652,7 +668,7 @@
     },
     {
       "path": "ShaderLibrary/birp_forwardadd.hlsl",
-      "sha256": "f4ba2f0453643f6e4f7f76013767640214fc095f77e0974c7d436a54d2db1bab"
+      "sha256": "63e4246384071f45d95a57a952f4696000453aeac75940abba74ef11dd319474"
     },
     {
       "path": "ShaderLibrary/birp_forwardadd.hlsl.meta",
@@ -660,7 +676,7 @@
     },
     {
       "path": "ShaderLibrary/birp_lighting.hlsl",
-      "sha256": "49da6b41c914aaa2814fd63ff66a3397b660c8c9ef3fcd3428eaae0980745d09"
+      "sha256": "f8ae77b447494d99825251860bb09b136569e1a10ccdf276f4247e2b765e89c6"
     },
     {
       "path": "ShaderLibrary/birp_lighting.hlsl.meta",
@@ -676,7 +692,7 @@
     },
     {
       "path": "ShaderLibrary/structs.hlsl",
-      "sha256": "ef1c2c20f1a460f076625867e7147ec19dd4542d33af349e20d0d4d4db3d5cb4"
+      "sha256": "bfe91fe82e93c37cc857cceb3842d4c848eafe84404c289c30c775c2ab1a546f"
     },
     {
       "path": "ShaderLibrary/structs.hlsl.meta",
@@ -684,7 +700,7 @@
     },
     {
       "path": "ShaderLibrary/urp.hlsl",
-      "sha256": "4e63dc983589e4f2d6f3f6c92a0cad419028247201cb9197ef2e70f221c8dca2"
+      "sha256": "59ddd98aa5603116b56aa7e2e9c3c2277d725921cb946ae541c1e8bb98f10533"
     },
     {
       "path": "ShaderLibrary/urp.hlsl.meta",
@@ -716,7 +732,7 @@
     },
     {
       "path": "ShaderLibrary/urp_lighting.hlsl",
-      "sha256": "84ac603ab9cc3e955cee1206a6718e24362a6d17592cc1086e0a6a89b9bc9ebe"
+      "sha256": "91e0541f8dc370c71ae8848899e7301f168a51fdd5f77257e821517d6b2fecf6"
     },
     {
       "path": "ShaderLibrary/urp_lighting.hlsl.meta",
@@ -760,7 +776,7 @@
     },
     {
       "path": "lang/en-US.po",
-      "sha256": "3b0f2b9421682a0abe8bcba38af33f41e7ef69408b0f448a4a2a980ead6a761f"
+      "sha256": "67470e8c0fb91c696dcc3a7a95838b62ba759b6a2887f44340799a69e2e5c6a4"
     },
     {
       "path": "lang/en-US.po.meta",
@@ -768,7 +784,7 @@
     },
     {
       "path": "lang/ja-JP.po",
-      "sha256": "b1484816d89d2203efd04c0a38c5cf2aa47fee4d1acce639d3308d9d83537c32"
+      "sha256": "795fe874374c806d5c88f46f537127fd3c61b022ded3c5cf3ac3549c263ebeb3"
     },
     {
       "path": "lang/ja-JP.po.meta",
@@ -776,7 +792,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "889430bea4b7ebec18c6031c91cc15f4a088a6ab1e8a9909a45b3a946415f68a"
+      "sha256": "4e2c5df0201168206235fcc2e283a5c024c8358fa3ec01d3fa1abc1baaa6545b"
     },
     {
       "path": "package.json.meta",

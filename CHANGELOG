@@ -1,3 +1,19 @@
+2026/10/27
+Ver. 0.2.0 (no package version change)
+
+* Updated the documented CI/runtime validation target to Unity `2022.3.28f1` (revision `6bae5ce6b222`) while retaining the original `2022.3.22f1` numeric baseline provenance and regeneration guard.
+* Documented the bounded saved colored-Fog observation and the unresolved Orthographic distance limitation without claiming numeric RGBA or universal projection coverage.
+* Clarified that final-input runtime verification, the required Pester suite, and exact-head hosted Release validation remain separate pending checks.
+
+
+2026/10/24
+Ver. 0.2.0 (no package version change)
+
+* Updated the exact Shader-Core dependency and CI validation package to `0.3.0`.
+* Routed the shared BIRP forward-pass fog handling through Shader-Core's `SCApplyFog(vertex, sd.col.rgb)` API, preserving rendering-mode alpha before fog and `postpixel` after fog.
+* Updated current dependency and fog integration documentation; existing historical release entries are retained.
+
+
 2026/09/22
 Ver. 0.2.0
 https://github.com/Penguin-Repository/Pure-Base/releases#release-0.2.0
