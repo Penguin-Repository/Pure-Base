@@ -89,6 +89,12 @@ to their recorded inputs and run; a previous success does not establish a change
 The runtime prerequisite fixture's Windows writer-share check and Linux cooperative advisory-lock
 probe observe different guarantees; see [CI configuration](../.github/CI.md#workflows). A Windows
 Pester pass does not establish Linux runner behavior.
+The collected input suite checks fixture archive and pin-update refusal with an existing or missing
+archive. The runtime suite checks refusal of internal installer-directory preparation without
+runtime evidence; this is not a resolver-wide `-WhatIf` interface or an all-I/O-zero guarantee.
+With runtime evidence enabled, initialization and failure recording can still perform I/O. The
+resolver's trust and signature scheme and the Release `RequireExistingRuntime` boundary remain
+distinct from that internal approval decision.
 
 ## Environment and baseline
 

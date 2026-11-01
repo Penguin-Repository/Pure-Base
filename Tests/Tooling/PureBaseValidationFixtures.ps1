@@ -48,13 +48,17 @@ function Initialize-PureBaseValidationFixture {
 }
 
 function New-PureBaseFixtureArchive {
+    [CmdletBinding(SupportsShouldProcess)]
     param([string]$PackageRoot, [string]$ShaderCoreRoot, [string]$ArchivePath)
 
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    if (Test-Path -LiteralPath $ArchivePath) { Remove-Item -LiteralPath $ArchivePath -Force }
-    [IO.Compression.ZipFile]::CreateFromDirectory($ShaderCoreRoot, $ArchivePath)
     $pinPath = Join-Path $PackageRoot 'Tests/Release/ci-toolchain.json'
+    if (-not $PSCmdlet.ShouldProcess($ArchivePath, 'Create fixture archive and update its pin')) {
+        throw 'Fixture archive creation and pin update were not approved.'
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (Test-Path -LiteralPath $ArchivePath) { Remove-Item -LiteralPath $ArchivePath -Force -Confirm:$false }
+    [IO.Compression.ZipFile]::CreateFromDirectory($ShaderCoreRoot, $ArchivePath)
     $toolchain = Get-Content -LiteralPath $pinPath -Raw | ConvertFrom-Json
     $toolchain.shaderCore.archiveSha256 = (Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $toolchain | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $pinPath -Encoding utf8
+    $toolchain | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $pinPath -Encoding utf8 -Confirm:$false
 }

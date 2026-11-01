@@ -165,7 +165,7 @@ Describe 'Install-VerifiedShaderCoreRelease' {
         New-ReleaseArchive -Path $script:sourceArchivePath -PackageVersion '9.9.9'
         Set-ExistingTarget
 
-        { Invoke-Installer -ArchivePath $script:sourceArchivePath -ExpectedSha256 (Get-ArchiveSha256 -Path $script:sourceArchivePath) } | Should -Throw
+        { Invoke-Installer -ArchivePath $script:sourceArchivePath -ExpectedSha256 (Get-ArchiveSha256 -Path $script:sourceArchivePath) } | Should -Throw '*must identify jp.lilxyzw.shadercore*'
 
         Assert-ExistingTargetPreserved
     }
@@ -174,7 +174,7 @@ Describe 'Install-VerifiedShaderCoreRelease' {
         New-ReleaseArchive -Path $script:sourceArchivePath -AdditionalEntries '../escape.txt'
         Set-ExistingTarget
 
-        { Invoke-Installer -ArchivePath $script:sourceArchivePath -ExpectedSha256 (Get-ArchiveSha256 -Path $script:sourceArchivePath) } | Should -Throw
+        { Invoke-Installer -ArchivePath $script:sourceArchivePath -ExpectedSha256 (Get-ArchiveSha256 -Path $script:sourceArchivePath) } | Should -Throw '*unsafe entry path*'
 
         Assert-ExistingTargetPreserved
         (Join-Path $script:projectRoot 'escape.txt') | Should -Not -Exist

@@ -51,14 +51,14 @@ function Get-NamedJobBlock {
         [string]$Name
     )
 
-    $matches = [regex]::Matches(
+    $jobMatches = [regex]::Matches(
         $Workflow,
         "(?ms)^  $([regex]::Escape($Name)):\n.*?(?=^  [A-Za-z0-9_-]+:\n|\z)"
     )
-    if ($matches.Count -ne 1) {
-        throw "Expected exactly one workflow job '$Name'; found $($matches.Count)."
+    if ($jobMatches.Count -ne 1) {
+        throw "Expected exactly one workflow job '$Name'; found $($jobMatches.Count)."
     }
-    return $matches[0].Value
+    return $jobMatches[0].Value
 }
 
 function Get-UniqueWorkflowStep {

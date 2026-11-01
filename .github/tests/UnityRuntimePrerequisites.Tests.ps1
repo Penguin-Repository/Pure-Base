@@ -72,7 +72,7 @@ Describe 'Unity runtime prerequisites' {
             $rt.output = @()
             $rt.error = $null
             try {
-                $rt.output = @(& $resolverPath @arguments 6> $rt.hostLog 3> $rt.warningLog 2> $rt.errorLog)
+                & $resolverPath @arguments 6> $rt.hostLog 3> $rt.warningLog 2> $rt.errorLog | ForEach-Object { $rt.output += $_ }
             }
             catch { $rt.error = $_ }
             $rt.console = (@($rt.hostLog, $rt.warningLog, $rt.errorLog) | ForEach-Object {
@@ -406,6 +406,26 @@ Describe 'Unity runtime prerequisites' {
         }
         $rt.downloads.Count | Should -Be 0
         $rt.signatures.Count | Should -Be 0
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+
+    It 'stops before installer preparation when ShouldProcess refuses' {
+        $previousWhatIf = $WhatIfPreference
+        try {
+            $WhatIfPreference = $true
+            Invoke-ResolverFixture -WithoutEvidence
+        }
+        finally { $WhatIfPreference = $previousWhatIf }
+        $rt.error.ToString() | Should -Be 'RuntimePrerequisiteFailed: EvidenceIncomplete; secondary=None'
+        $rt.output.Count | Should -Be 0
+        $rt.downloads.Count | Should -Be 0
+        $rt.signatures.Count | Should -Be 0
+        $rt.installs.Count | Should -Be 0
+        $rt.sleeps.Count | Should -Be 0
+        $rt.probes.Count | Should -Be 0
+        [IO.File]::Exists($rt.real) | Should -BeFalse
+        [IO.Directory]::Exists((Join-Path $env:RUNNER_TEMP 'PureBaseUnityProxy')) | Should -BeFalse
+        @(Get-ChildItem -LiteralPath $env:RUNNER_TEMP -Force).Count | Should -Be 0
         Should -Invoke Start-Process -Times 0 -Exactly
     }
 

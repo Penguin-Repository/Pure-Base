@@ -13,6 +13,39 @@
 # limitations under the License.
 
 # Exercises normal fail-closed inputs and archive-only atomic identity generation with an independent version.
+Describe 'Fixture archive approval boundary' {
+    BeforeAll {
+        . (Join-Path $PSScriptRoot '../Tooling/PureBaseValidationFixtures.ps1')
+    }
+
+    It 'preserves the pin and <State> archive when WhatIf declines the transaction' -ForEach @(
+        @{ State = 'existing' }, @{ State = 'missing' }
+    ) {
+        $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $pin = Join-Path $root 'Tests/Release/ci-toolchain.json'
+        $archive = Join-Path $root 'fixture.zip'
+        New-Item -ItemType Directory -Path (Split-Path $pin) -Force | Out-Null
+        [IO.File]::WriteAllText($pin, 'original pin bytes')
+        if ($State -eq 'existing') { [IO.File]::WriteAllText($archive, 'original zip bytes') }
+        $beforePin = [Convert]::ToBase64String([IO.File]::ReadAllBytes($pin))
+        $beforeZip = if ($State -eq 'existing') { [Convert]::ToBase64String([IO.File]::ReadAllBytes($archive)) }
+        $output = [Collections.Generic.List[object]]::new()
+        $consumerReached = $false
+        $failure = $null
+        try {
+            New-PureBaseFixtureArchive -PackageRoot $root -ShaderCoreRoot $root -ArchivePath $archive -WhatIf | ForEach-Object { $output.Add($_) }
+            $consumerReached = $true
+        }
+        catch { $failure = $_ }
+        $failure.Exception.Message | Should -BeLike '*not approved*'
+        $output.Count | Should -Be 0
+        $consumerReached | Should -BeFalse
+        [Convert]::ToBase64String([IO.File]::ReadAllBytes($pin)) | Should -BeExactly $beforePin
+        if ($State -eq 'existing') { [Convert]::ToBase64String([IO.File]::ReadAllBytes($archive)) | Should -BeExactly $beforeZip }
+        else { Test-Path -LiteralPath $archive | Should -BeFalse }
+    }
+}
+
 Describe 'Shader-Core validation input boundaries' {
     BeforeAll {
         . (Join-Path $PSScriptRoot '../Tooling/PureBaseValidationInputs.ps1')
@@ -36,7 +69,8 @@ Describe 'Shader-Core validation input boundaries' {
         $builder = Join-Path $packageRoot 'Tests/Release/Build-PureBaseRelease.ps1'
         $manifest = Join-Path $packageRoot 'Tests/Release/shader-core.sha256.json'
         $archive = Join-Path $root 'shader-core.zip'
-        New-PureBaseFixtureArchive -PackageRoot $packageRoot -ShaderCoreRoot $tree -ArchivePath $archive
+        $pinBeforeArchive = Get-Content (Join-Path $packageRoot 'Tests/Release/ci-toolchain.json') -Raw | ConvertFrom-Json
+        $archiveOutput = @(New-PureBaseFixtureArchive -PackageRoot $packageRoot -ShaderCoreRoot $tree -ArchivePath $archive)
         & git -C $packageRoot init --quiet
         if ($LASTEXITCODE -ne 0) { throw 'Fixture git init failed.' }
     }
@@ -44,6 +78,15 @@ Describe 'Shader-Core validation input boundaries' {
     It 'generates from the supplied archive with <State> identity, not from the unrelated local tree' -ForEach @(
         @{ State = 'missing' }, @{ State = 'old' }
     ) {
+        $archiveOutput.Count | Should -Be 0
+        $pinAfterArchive = Get-Content (Join-Path $packageRoot 'Tests/Release/ci-toolchain.json') -Raw | ConvertFrom-Json
+        $pinAfterArchive.shaderCore.archiveSha256 | Should -BeExactly (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+        $pinAfterArchive.schemaVersion | Should -Be $pinBeforeArchive.schemaVersion
+        $pinAfterArchive.shaderCore.archiveUrl | Should -BeExactly $pinBeforeArchive.shaderCore.archiveUrl
+        $pinAfterArchive.unityCli | ConvertTo-Json -Compress | Should -BeExactly ($pinBeforeArchive.unityCli | ConvertTo-Json -Compress)
+        $zip = [IO.Compression.ZipFile]::OpenRead($archive)
+        try { @($zip.Entries.FullName) | Should -Contain 'archive-only.txt' }
+        finally { $zip.Dispose() }
         if ($State -eq 'missing') { Remove-Item $manifest }
         else {
             $old = Get-Content $manifest -Raw | ConvertFrom-Json
@@ -130,7 +173,12 @@ Describe 'Shader-Core validation input boundaries' {
             }
         }
 
-        { & $builder -WriteShaderCoreManifest -ShaderCoreArchivePath $archive } | Should -Throw
+        $reason = switch ($Failure) {
+            'unsafe ZIP' { '*unsafe entry path*' }
+            'metadata' { '*must identify jp.lilxyzw.shadercore*' }
+        }
+        if ($reason) { { & $builder -WriteShaderCoreManifest -ShaderCoreArchivePath $archive } | Should -Throw $reason }
+        else { { & $builder -WriteShaderCoreManifest -ShaderCoreArchivePath $archive } | Should -Throw }
 
         [IO.File]::ReadAllBytes($manifest) | Should -Be $before
         @(Get-ChildItem (Split-Path $manifest) -Filter '*.tmp').Count | Should -Be 0

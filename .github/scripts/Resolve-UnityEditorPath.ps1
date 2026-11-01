@@ -293,9 +293,13 @@ function Resolve-WindowsAbsolutePath {
 }
 
 function New-RuntimeInstallerPath {
+    [CmdletBinding(SupportsShouldProcess)]
     param([string]$Root, [string]$FileName)
 
-    New-Item -ItemType Directory -Path $Root -ErrorAction Stop | Out-Null
+    if (-not $PSCmdlet.ShouldProcess($Root, 'Prepare runtime installer directory')) {
+        throw 'Runtime installer directory preparation was not approved.'
+    }
+    New-Item -ItemType Directory -Path $Root -Confirm:$false -ErrorAction Stop | Out-Null
     $path = Join-Path $Root $FileName
     Assert-PlainPath -Path $path -Root $Root
     return $path

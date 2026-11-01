@@ -247,7 +247,8 @@ does not reboot. The wrapper does not retry requests; there is no reinstall, fal
 old installer path in Release. Package-internal network retry behavior is not established here.
 The resolver is called with `RequireExistingRuntime`: if a required DLL is missing, it fails before
 creating an installer path, downloading, checking a signature or starting an installer. The switch
-defaults to false, so the existing Daily caller and its prior runtime behavior are retained.
+defaults to false, so the existing Daily caller retains the Microsoft installer trust path described
+below.
 
 These are requested Chocolatey package versions when a pair is missing, not assertions about the
 version of pre-existing DLLs. If both DLLs in a pair already exist, that pair is skipped and is not
@@ -289,12 +290,21 @@ required files. If the pair already exists, no installer signature is checked. T
 Release's pinned Chocolatey request and checksum policy above; neither a pre-existing DLL nor a
 cache hit proves authenticity or loadability.
 
+The Daily resolver's trust and signature scheme is unchanged, but its internal installer-directory
+preparation now requires approval before creating the directory. Refusal stops the downstream
+download, signature check, installation and Editor resolution with the existing
+`EvidenceIncomplete` failure classification. This is not a new resolver-wide `-WhatIf` interface.
+When `RuntimeEvidence` is enabled, evidence initialization and failure recording can still perform
+I/O before and after that decision. `RequireExistingRuntime` rejects a missing pair before this
+preparation and does not add installer behavior to Release.
+
 The runtime prerequisite fixture observes this protection differently by platform: Windows
 checks that a write open is rejected by the holder's sharing mode, while Linux probes contention
 for a cooperative advisory exclusive lock. The Linux observation does not prevent arbitrary writers
 and is not equivalent to Windows writer-share rejection. The platform-specific probe changes the
-test observation, not the runtime resolver. Windows Pester results do not establish the Linux
-runner's behavior; the existing Ubuntu Automation job must validate that platform separately.
+test observation, not the resolver's trust or signature scheme. Windows Pester results do not
+establish the Linux runner's behavior; the existing Ubuntu Automation job must validate that
+platform separately.
 
 The runner also captures the original `Packages/manifest.json` and
 `Packages/packages-lock.json` bytes at the `pre-bootstrap`, `after-scene-bootstrap`, `quiescent`,
@@ -396,6 +406,12 @@ The existing Ubuntu Pester job collects `.github/tests`, plus the portable
 `Tests/Release/ShaderCoreValidationInputs.Tests.ps1` explicitly. It does not recursively run all
 of `Tests`. The Windows-only `Tests/Release/Run-PureBaseReleaseValidation.Tests.ps1` suite uses
 a fake Unity `.cmd` and remains a separate local Windows Pester validation when relevant.
+
+The installer reads ZIP external attributes as signed 32-bit values while retaining both the
+Windows reparse-point and Unix symbolic-link checks. The input suite exercises fixture archive
+and pin-update refusal for both existing and missing archives. The runtime suite separately
+exercises an internal preparation refusal without runtime evidence; it does not establish that
+evidence-enabled refusals perform no I/O. These fixtures do not replace hosted platform validation.
 
 Hosted workflow contract tests use stable IDs or unique supported action/script selectors, and
 check required inputs, permissions, action identity and pin format, and security-relevant order;

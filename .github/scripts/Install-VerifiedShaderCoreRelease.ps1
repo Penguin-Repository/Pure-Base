@@ -65,8 +65,8 @@ function Get-SafeArchiveRelativePath {
         throw "The release archive contains an unsafe entry path: '$entryPath'."
     }
 
-    $externalAttributes = [uint32]$Entry.ExternalAttributes
-    $windowsFileAttributes = $externalAttributes -band [uint32][IO.FileAttributes]::ReparsePoint
+    $externalAttributes = $Entry.ExternalAttributes
+    $windowsFileAttributes = $externalAttributes -band [int][IO.FileAttributes]::ReparsePoint
     if ($windowsFileAttributes -ne 0) {
         throw "The release archive contains a reparse-point entry: '$entryPath'."
     }
