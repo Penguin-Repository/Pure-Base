@@ -31,10 +31,27 @@ Describe 'Unity runtime prerequisites' {
 
             $writer = $null
             try {
-                $writer = [IO.File]::Open($Path, 'Open', 'Write', 'ReadWrite')
+                if ($IsWindows) {
+                    # Windows rejects a writer when the holder denies write sharing.
+                    $writer = [IO.File]::Open($Path, 'Open', 'Write', 'ReadWrite')
+                }
+                elseif ($IsLinux) {
+                    # Unix observes cooperative advisory lock contention, not arbitrary writers.
+                    $writer = [IO.File]::Open($Path, 'Open', 'ReadWrite', 'None')
+                }
+                else { throw 'Unsupported platform for installer protection probe.' }
                 return $false
             }
-            catch [IO.IOException] { return $true }
+            catch {
+                $exception = $_.Exception
+                while ($exception -is [Management.Automation.MethodInvocationException] -and $null -ne $exception.InnerException) {
+                    $exception = $exception.InnerException
+                }
+                if ($exception -is [IO.IOException] -and
+                    (($IsWindows -and $exception.HResult -eq -2147024864) -or
+                     ($IsLinux -and $exception.HResult -eq 11))) { return $true }
+                throw
+            }
             finally { if ($null -ne $writer) { $writer.Dispose() } }
         }
 
@@ -179,6 +196,7 @@ Describe 'Unity runtime prerequisites' {
         $state.failure | Should -Be 'SignatureRejected'
         $rt.signatures.Count | Should -Be 1
         $rt.locks | Should -Be @($true)
+        Test-InstallerReadProtection $rt.downloads[0].path | Should -BeFalse
         $metadata = Get-FirstRuntimeMetadata | ConvertFrom-Json
         $metadata.http.finalUri | Should -Be 'https://example.invalid/?PRIVATE_SENTINEL'
         $metadata.http.headers.'Content-Type' | Should -Be @('PRIVATE_SENTINEL')
@@ -331,6 +349,12 @@ Describe 'Unity runtime prerequisites' {
     }
 
     It 'preserves exact bytes, protected install order, arguments and a single success path' {
+        Test-InstallerReadProtection $rt.editor | Should -BeFalse
+        $holder = [IO.File]::Open($rt.editor, 'Open', 'Read', 'Read')
+        try { Test-InstallerReadProtection $rt.editor | Should -BeTrue }
+        finally { $holder.Dispose() }
+        Test-InstallerReadProtection $rt.editor | Should -BeFalse
+        { Test-InstallerReadProtection (Join-Path $rt.root 'absent.exe') } | Should -Throw
         Invoke-ResolverFixture
         $rt.error | Should -BeNullOrEmpty -Because (Get-FirstRuntimeMetadata)
         $rt.output | Should -Be @((Join-Path $env:RUNNER_TEMP 'PureBaseUnityProxy/2022.3.28f1/Editor/Unity.cmd'))
@@ -343,6 +367,7 @@ Describe 'Unity runtime prerequisites' {
         $rt.downloads[0].uri | Should -Be 'https://download.microsoft.com/download/1/6/5/165255E7-1014-4D0A-B094-B6A430A6BFFC/vcredist_x64.exe'
         $rt.downloads[1].uri | Should -Be 'https://download.microsoft.com/download/0/5/6/056DCDA9-D667-4E27-8001-8A0C6971D6B1/vcredist_x64.exe'
         foreach ($index in @(0, 1)) {
+            Test-InstallerReadProtection $rt.downloads[$index].path | Should -BeFalse
             $rt.installs[$index].path | Should -Be $rt.signatures[$index]
             $rt.installs[$index].path | Should -Be $rt.downloads[$index].path
             $rt.installs[$index].wait | Should -BeTrue

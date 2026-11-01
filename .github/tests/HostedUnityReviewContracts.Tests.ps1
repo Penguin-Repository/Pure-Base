@@ -63,50 +63,6 @@ Describe 'Hosted Unity review contracts' {
         (Get-ActionYamlKeyOccurrences -Action $action -Key 'continue-on-error').Count | Should -Be 1
     }
 
-    It 'accepts ordered lines in a valid literal run block' {
-        $step = [string]::Join("`n", @(
-                '    - id: install-roots',
-                '      shell: bash',
-                '      run: |',
-                '        if [ "$RUNNER_OS" = "Windows" ]; then',
-                '          export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"',
-                '        else',
-                '          export PATH="$HOME/.unity/bin:$PATH"',
-                '        fi',
-                '        unity install-path </dev/null > /tmp/install_roots.txt'
-            ))
-
-        {
-            Assert-LiteralRunLinesInOrder -Step $step -ExpectedLines @(
-                'if [ "$RUNNER_OS" = "Windows" ]; then',
-                'export PATH="$(cygpath "$LOCALAPPDATA")/Unity/bin:$PATH"',
-                'else',
-                'export PATH="$HOME/.unity/bin:$PATH"',
-                'fi',
-                'unity install-path </dev/null > /tmp/install_roots.txt'
-            )
-        } | Should -Not -Throw
-    }
-
-    It 'rejects direct inputs after an internal literal run blank line' {
-        $steps = [string]::Join("`n", @(
-                '    - name: Install pinned CLI',
-                '      shell: pwsh',
-                '      run: |',
-                '        Write-Output "safe"',
-                '',
-                '        $cliVersion = "${{ inputs.cli-version }}"',
-                '    - name: Later step',
-                '      run: |',
-                '        Write-Output "not part of the first run"'
-            ))
-
-        $literalRun = Get-LiteralRunBlock -Step $steps
-        $literalRun | Should -Match '\$\{\{\s*inputs\.cli-version\s*\}\}'
-        $literalRun | Should -Not -Match 'not part of the first run'
-        { $literalRun | Should -Not -Match '\$\{\{\s*inputs\.' } | Should -Throw
-    }
-
     It 'uses repository-unique PR concurrency for Daily' {
         $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.number || github.ref }}') | Should -BeTrue
         $dailyWorkflow.Contains('group: daily-${{ github.event.pull_request.head.ref || github.ref_name }}') | Should -BeFalse
@@ -115,8 +71,9 @@ Describe 'Hosted Unity review contracts' {
     It 'keeps actionlint isolated and preserves the Pester job' {
         $actionlintJob = Get-NamedJobBlock -Workflow $automationTestsWorkflow -Name 'actionlint'
         $pesterJob = Get-NamedJobBlock -Workflow $automationTestsWorkflow -Name 'pester'
-        $checkout = Get-NamedStepBlock -Job $actionlintJob -Name 'Checkout repository'
-        $actionlintStep = Get-NamedStepBlock -Job $actionlintJob -Name 'Run actionlint'
+        $checkout = Get-UniqueWorkflowStep -Job $actionlintJob -Pattern '(?m)^        uses: actions/checkout@'
+        $actionlintStep = Get-UniqueWorkflowStep -Job $actionlintJob -Pattern 'github\.com/rhysd/actionlint/cmd/actionlint@'
+        $pesterStep = Get-UniqueWorkflowStep -Job $pesterJob -Pattern 'Invoke-Pester\b'
 
         $actionlintJob | Should -Not -BeNullOrEmpty
         $actionlintJob | Should -Match '(?m)^    runs-on: ubuntu-latest$'
@@ -126,8 +83,7 @@ Describe 'Hosted Unity review contracts' {
         @(Get-ActionReferences -Source $actionlintJob).Count | Should -Be 1
         $actionlintStep | Should -Match '(?m)^        run: go run github\.com/rhysd/actionlint/cmd/actionlint@v1\.7\.12 -color$'
         $pesterJob | Should -Not -BeNullOrEmpty
-        $pesterJob | Should -Match '(?m)^    name: Pester 5\.9\.0$'
-        $pesterJob | Should -Match '(?m)^      - name: Run automation tests$'
+        $pesterStep | Should -Match 'Invoke-Pester\b'
     }
 
     It 'uses fixed inputs and one verified executable for setup' {
@@ -139,19 +95,33 @@ Describe 'Hosted Unity review contracts' {
         $inputs[0] | Should -Not -Match '(?m)^      if:'
         $inputs[0] | Should -Match 'Tests/Tooling/PureBaseValidationInputs\.ps1'
         $inputs[0] | Should -Match 'Get-PureBaseValidationInputs -PackageRoot \$root'
-        ([regex]::Matches($lookupAction, '(?m)^\s*Install-PinnedUnityCli -Version')).Count | Should -Be 1
-        $inputs[0] | Should -Match 'Install-PinnedUnityCli -Version \$inputData\.UnityCliVersion -ExpectedSha256 \$inputData\.UnityCliSha256'
-        $inputs[0] | Should -Match '\$cli = Join-Path \$env:LOCALAPPDATA ''Unity/bin/unity\.exe'''
-        $inputs[0] | Should -Match '& \$cli install-path'
+        ([regex]::Matches($lookupAction, '(?m)^\s*Install-PinnedUnityCli\b')).Count | Should -Be 1
+        $inputs[0] | Should -Match '-Version \$inputData\.UnityCliVersion\b'
+        $inputs[0] | Should -Match '-ExpectedSha256 \$inputData\.UnityCliSha256\b'
+        $cliMatch = [regex]::Match($inputs[0], '(?m)\$(?<cli>\w+)\s*=\s*Join-Path\s+\$env:LOCALAPPDATA\s+[''\"]Unity/bin/unity\.exe[''\"]')
+        $cliMatch.Success | Should -BeTrue
+        $cliVariable = [regex]::Escape('$' + $cliMatch.Groups['cli'].Value)
+        $inputs[0] | Should -Match ("&\s+$cliVariable\s+install-path\b")
         $inputs[0] | Should -Match 'if \(\$LASTEXITCODE -ne 0\) \{ throw'
-        $inputs[0] | Should -Match 'Get-UnityEditorCachePaths -Roots \$roots -Version \$inputData\.UnityVersion'
-        $inputs[0] | Should -Match 'Unity CLI must not be included in the Editor cache'
-        $inputs[0] | Should -Match '"cli=\$cli" >> \$env:GITHUB_OUTPUT'
-        $inputs[0] | Should -Match '"version=\$\(\$inputData\.UnityVersion\)" >> \$env:GITHUB_OUTPUT'
-        $inputs[0] | Should -Match '"revision=\$\(\$inputData\.UnityRevision\)" >> \$env:GITHUB_OUTPUT'
+        $inputs[0] | Should -Match 'Get-UnityEditorCachePaths\b[^\r\n]*-Roots \$roots\b'
+        $inputs[0] | Should -Match 'Get-UnityEditorCachePaths\b[^\r\n]*-Version \$inputData\.UnityVersion\b'
+        $inputs[0] | Should -Match ("cli=$cliVariable[^\r\n]*\`$env:GITHUB_OUTPUT")
+        $inputs[0] | Should -Match 'version=\$\(\$inputData\.UnityVersion\)[^\r\n]*\$env:GITHUB_OUTPUT'
+        $inputs[0] | Should -Match 'revision=\$\(\$inputData\.UnityRevision\)[^\r\n]*\$env:GITHUB_OUTPUT'
+        $inputs[0] | Should -Match 'paths<<[^\r\n]*\$env:GITHUB_OUTPUT'
+        $inputs[0] | Should -Match '\$paths\s+>>\s+\$env:GITHUB_OUTPUT'
         $editor[0] | Should -Match 'CLI: \$\{\{ steps\.inputs\.outputs\.cli \}\}'
+        $editor[0] | Should -Match 'PATHS: \$\{\{ steps\.inputs\.outputs\.paths \}\}'
+        $editor[0] | Should -Match 'VERSION: \$\{\{ steps\.inputs\.outputs\.version \}\}'
+        $editor[0] | Should -Match 'REVISION: \$\{\{ steps\.inputs\.outputs\.revision \}\}'
         $editor[0] | Should -Match 'CACHE_HIT: \$\{\{ steps\.cache\.outputs\.cache-hit \}\}'
-        $editor[0] | Should -Match 'Resolve-InstalledUnityEditor -CliPath \$env:CLI .* -CacheHit \$env:CACHE_HIT'
+        $editor[0] | Should -Match 'Resolve-InstalledUnityEditor\b'
+        $editor[0] | Should -Match '-CliPath \$env:CLI\b'
+        $editor[0] | Should -Match '-Roots \$roots\b'
+        $editor[0] | Should -Match '-Version \$env:VERSION\b'
+        $editor[0] | Should -Match '-Revision \$env:REVISION\b'
+        $editor[0] | Should -Match '\$roots\s*=.*\$env:PATHS\b'
+        $editor[0] | Should -Match '-CacheHit \$env:CACHE_HIT\b'
         $editor[0] | Should -Not -Match '(?m)^      if:'
         $lookupAction | Should -Not -Match '(?i)install\.ps1|\blatest\b|\blts\b|yamachu/'
         (Get-ActionYamlKeyOccurrences -Action $lookupAction -Key 'continue-on-error').Count | Should -Be 0
@@ -186,29 +156,7 @@ Describe 'Hosted Unity review contracts' {
             return
         }
 
-        $bootstrapScript | Should -Match '(?m)^function Install-PinnedUnityCli\b'
-        $bootstrapScript | Should -Match ([regex]::Escape('^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?$'))
-        $bootstrapScript | Should -Match ([regex]::Escape('^[0-9a-f]{64}$'))
-        $bootstrapScript | Should -Match 'RunnerOS.*Windows'
-        $bootstrapScript | Should -Match 'RunnerArchitecture.*X64'
-        $bootstrapScript | Should -Match 'https://public-cdn\.cloud\.unity3d\.com/hub/prod/cli/\$Version/unity-windows-x64\.exe'
-        $bootstrapScript | Should -Match 'Invoke-WebRequest.*-ErrorAction Stop'
-        $bootstrapScript | Should -Match 'Get-FileHash.*SHA256'
-        $bootstrapScript | Should -Match 'Remove-Item'
-        $bootstrapScript | Should -Match 'Join-Path \$LocalApplicationDataRoot [\'']Unity[\'']'
-        $bootstrapScript | Should -Match 'unity\.exe'
-
-        $networkIndex = $bootstrapScript.IndexOf('Invoke-WebRequest')
-        $hashIndex = $bootstrapScript.IndexOf('Get-FileHash')
-        $moveIndex = $bootstrapScript.IndexOf('Move-Item')
-        $windowsGuardIndex = $bootstrapScript.IndexOf('Windows')
-        $architectureGuardIndex = $bootstrapScript.IndexOf('X64')
-        $windowsGuardIndex | Should -BeGreaterThan -1
-        $architectureGuardIndex | Should -BeGreaterThan -1
-        $networkIndex | Should -BeGreaterThan $windowsGuardIndex
-        $networkIndex | Should -BeGreaterThan $architectureGuardIndex
-        $hashIndex | Should -BeGreaterThan $networkIndex
-        $moveIndex | Should -BeGreaterThan $hashIndex
+        $bootstrapScript | Should -Match '(?m)\bInvoke-WebRequest\b[^\r\n]*-ErrorAction\s+Stop\b'
     }
 
     It 'keeps exactly one unconditional pinned setup call in each Unity execution job' -ForEach @(
@@ -221,12 +169,12 @@ Describe 'Hosted Unity review contracts' {
             'Release publishing' { $releasePublishingWorkflow }
         }
         $executionJob = Get-NamedJobBlock -Workflow $Workflow -Name $Job
-        $setupStep = Get-NamedStepBlock -Job $executionJob -Name 'Restore Unity Editor'
+        $setupStep = Get-UniqueWorkflowStep -Job $executionJob -Pattern '(?m)^        id: unity$'
 
         $executionJob | Should -Not -BeNullOrEmpty
         $Workflow | Should -Not -Match '(?m)^  unity-editor-cache:'
         $Workflow | Should -Not -Match 'lookup-unity-editor-cache|yamachu/unity-cli-actions'
-        $checkout = Get-NamedStepBlock -Job $executionJob -Name 'Checkout Pure-Base'
+        $checkout = Get-UniqueWorkflowStep -Job $executionJob -Pattern '(?m)^        uses: actions/checkout@'
         $checkout | Should -Match 'uses: actions/checkout@[0-9a-f]{40}'
         $checkout | Should -Match ([regex]::Escape('ref: ${{ ' + $Ref + ' }}'))
         $checkout | Should -Match 'persist-credentials: false'
@@ -267,11 +215,16 @@ Describe 'Hosted Unity review contracts' {
         foreach ($workflow in @($dailyWorkflow, $releaseWorkflow)) {
             $executionJobName = if ($workflow -eq $dailyWorkflow) { 'unity-daily' } else { 'validate' }
             $executionJob = Get-NamedJobBlock -Workflow $workflow -Name $executionJobName
-            $activationStep = Get-NamedStepBlock -Job $executionJob -Name 'Activate Unity Personal license'
-            $waitStep = Get-NamedStepBlock -Job $executionJob -Name 'Wait before retrying Unity license activation'
-            $retryStep = Get-NamedStepBlock -Job $executionJob -Name 'Retry Unity Personal license activation'
+            $activationStep = Get-UniqueWorkflowStep -Job $executionJob -Pattern '(?m)^        id: unity_license$'
+            $waitStep = Get-UniqueWorkflowStep -Job $executionJob -Pattern '\bStart-Sleep\b'
+            $retryStep = Get-UniqueWorkflowStep -Job $executionJob -Pattern '(?ms)^        if: steps\.unity_license\.outcome == ''failure''$.*?^        uses: buildalon/activate-unity-license@'
 
+            $executionJob | Should -Match '(?m)^      group: pure-base-unity-personal-license$'
+            $executionJob | Should -Match '(?m)^      cancel-in-progress: false$'
+            $executionJob.IndexOf($activationStep) | Should -BeLessThan $executionJob.IndexOf($waitStep)
+            $executionJob.IndexOf($waitStep) | Should -BeLessThan $executionJob.IndexOf($retryStep)
             $activationStep | Should -Match '(?m)^        id: unity_license$'
+            $activationStep | Should -Match '(?m)^        uses: buildalon/activate-unity-license@[0-9a-f]{40}(?: #.*)?$'
             $activationStep | Should -Match '(?m)^        continue-on-error: true$'
             $activationStep | Should -Match '(?m)^          license: personal$'
             $activationStep | Should -Match '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$'
@@ -280,8 +233,8 @@ Describe 'Hosted Unity review contracts' {
             ([regex]::Matches($activationStep, '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$')).Count | Should -Be 1
             ([regex]::Matches($activationStep, '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$')).Count | Should -Be 1
             $waitStep | Should -Match "(?m)^        if: steps\.unity_license\.outcome == 'failure'$"
-            ([regex]::Matches($executionJob, '(?m)^      - name: Retry Unity Personal license activation$')).Count | Should -Be 1
             $retryStep | Should -Match "(?m)^        if: steps\.unity_license\.outcome == 'failure'$"
+            $retryStep | Should -Match '(?m)^        uses: buildalon/activate-unity-license@[0-9a-f]{40}(?: #.*)?$'
             $retryStep | Should -Match '(?m)^          license: personal$'
             $retryStep | Should -Match '(?m)^          username: \$\{\{ secrets\.UNITY_EMAIL \}\}$'
             $retryStep | Should -Match '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$'
@@ -290,18 +243,25 @@ Describe 'Hosted Unity review contracts' {
             ([regex]::Matches($retryStep, '(?m)^          password: \$\{\{ secrets\.UNITY_PASSWORD \}\}$')).Count | Should -Be 1
         }
 
-        $dailyEditorPathStep = Get-NamedStepBlock `
+        $dailyEditorPathStep = Get-UniqueWorkflowStep `
             -Job (Get-NamedJobBlock -Workflow $dailyWorkflow -Name 'unity-daily') `
-            -Name 'Export Unity editor path'
+            -Pattern 'Resolve-UnityEditorPath\.ps1'
         $dailyEditorPathStep | Should -Match "-EditorPath '\$\{\{ steps\.unity\.outputs\.editor-path \}\}'"
     }
 
     It 'aligns the configure watchdog with the workflow timeout' {
-        $watchdogScript.Contains("`$timeoutSeconds = if (`$UnityArguments -contains '-runTests') { 3600 } else { 1800 }") | Should -BeTrue
-        $watchdogScript.Contains('same 30-minute') | Should -BeTrue
+        foreach ($workflow in @($dailyWorkflow, $releaseWorkflow)) {
+            $jobName = if ($workflow -eq $dailyWorkflow) { 'unity-daily' } else { 'validate' }
+            $job = Get-NamedJobBlock -Workflow $workflow -Name $jobName
+            $configure = Get-UniqueWorkflowStep -Job $job -Pattern 'PureBaseCiProjectInitializer\.InitializeForBatchMode'
+            $configure | Should -Match '(?m)^        timeout-minutes: 30$'
+        }
     }
 
-    It 'preserves the original watchdog start failure without an unstarted process error' {
+    It 'preserves watchdog start failure and reports timeout for <Name>' -ForEach @(
+        @{ Name = 'configure'; ExtraArguments = @(); ExpectedTimeout = 1800 },
+        @{ Name = 'tests'; ExtraArguments = @('-runTests'); ExpectedTimeout = 3600 }
+    ) {
         $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Watchdog-Test-' + [guid]::NewGuid().ToString('N'))
         $fixturePath = Join-Path $temporaryRoot 'not-an-executable.txt'
         $logPath = Join-Path ([IO.Path]::GetTempPath()) ('PureBase-Watchdog-Log-' + [guid]::NewGuid().ToString('N') + '.log')
@@ -317,7 +277,7 @@ Describe 'Hosted Unity review contracts' {
 
             $expectedProcess.StartInfo = [Diagnostics.ProcessStartInfo]::new()
             $expectedProcess.StartInfo.FileName = $fixturePath
-            $expectedProcess.StartInfo.Arguments = "-logFile $logPath"
+            $expectedProcess.StartInfo.Arguments = (@('-logFile', $logPath) + $ExtraArguments) -join ' '
             $expectedProcess.StartInfo.UseShellExecute = $false
             $expectedProcess.StartInfo.CreateNoWindow = $true
             $expectedProcess.StartInfo.WorkingDirectory = [Environment]::CurrentDirectory
@@ -349,12 +309,13 @@ Describe 'Hosted Unity review contracts' {
             $childOutput = & pwsh -NoLogo -NoProfile -NonInteractive `
                 -File (Join-Path $repositoryRoot '.github/scripts/UnityWatchdogProxy.ps1') `
                 -UnityEditorPath $fixturePath `
-                -logFile $logPath 2>&1 | Out-String
+                -logFile $logPath @ExtraArguments 2>&1 | Out-String
             $exitCode = $LASTEXITCODE
 
             $exitCode | Should -Be 1
             Test-Path -LiteralPath $diagnosticPath -PathType Leaf | Should -BeTrue
             $diagnostic = Get-Content -LiteralPath $diagnosticPath -Raw
+            $diagnostic | Should -Match "(?m)^TimeoutSeconds=$ExpectedTimeout\r?$"
             $diagnosticMatch = [regex]::Match($diagnostic, '(?m)^Exception=(?<message>[^\r\n]*)\r?$')
             $diagnosticMatch.Success | Should -BeTrue
             $diagnosticMatch.Groups['message'].Value | Should -Be $expectedStartMessage

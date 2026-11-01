@@ -113,12 +113,16 @@ namespace PureBase.Tests.Daily
         [Test]
         public void BirpHostPreservesModeAlphaFogPostPixelAndForwardAddSourceOrder()
         {
+            // Bound each regex evaluation to avoid unbounded test execution.
+            TimeSpan regexMatchTimeout = TimeSpan.FromSeconds(2);
             string host = File.ReadAllText(BirpHostPath);
             string renderingModeHelper = File.ReadAllText(RenderingModeHelperPath);
             int addPhase = RequireIndex(host, "__SC_PHASE_add__");
             Match modeOutputAlphaCall = Regex.Match(
                 host,
-                @"\b" + Regex.Escape(RenderingModeOutputAlphaOperation) + @"\s*\("
+                @"\b" + Regex.Escape(RenderingModeOutputAlphaOperation) + @"\s*\(",
+                RegexOptions.None,
+                regexMatchTimeout
             );
             Assert.That(
                 modeOutputAlphaCall.Success,
@@ -126,14 +130,24 @@ namespace PureBase.Tests.Daily
                 "The BIRP host must call the shared rendering-mode output-alpha operation."
             );
             int modeOutputAlpha = modeOutputAlphaCall.Index;
-            Match fogCall = Regex.Match(host, @"\bSCApplyFog\s*\(\s*vertex\s*,\s*sd\.col\.rgb\s*\)\s*;");
+            Match fogCall = Regex.Match(
+                host,
+                @"\bSCApplyFog\s*\(\s*vertex\s*,\s*sd\.col\.rgb\s*\)\s*;",
+                RegexOptions.None,
+                regexMatchTimeout
+            );
             Assert.That(
                 fogCall.Success,
                 Is.True,
                 "The BIRP host must apply Shader-Core fog to the shared vertex data and output RGB."
             );
             Assert.That(
-                Regex.Matches(host, @"\bSCApplyFog\s*\(\s*vertex\s*,\s*sd\.col\.rgb\s*\)\s*;").Count,
+                Regex.Matches(
+                    host,
+                    @"\bSCApplyFog\s*\(\s*vertex\s*,\s*sd\.col\.rgb\s*\)\s*;",
+                    RegexOptions.None,
+                    regexMatchTimeout
+                ).Count,
                 Is.EqualTo(1),
                 "The shared BIRP host must apply Shader-Core fog exactly once."
             );
@@ -165,7 +179,12 @@ namespace PureBase.Tests.Daily
             StringAssert.Contains("coverage", renderingModeHelper);
             StringAssert.Contains(".a", renderingModeHelper);
             Assert.That(
-                Regex.IsMatch(renderingModeHelper, @"\b1(?:\.0+)?\b"),
+                Regex.IsMatch(
+                    renderingModeHelper,
+                    @"\b1(?:\.0+)?\b",
+                    RegexOptions.None,
+                    regexMatchTimeout
+                ),
                 Is.True,
                 "The shared helper must distinguish Transparent coverage alpha from Opaque and Cutout alpha one."
             );
@@ -173,7 +192,9 @@ namespace PureBase.Tests.Daily
             Assert.That(
                 Regex.IsMatch(
                     generatedProductSource,
-                    @"\b" + Regex.Escape(RenderingModeOutputAlphaOperation) + @"\s*\("
+                    @"\b" + Regex.Escape(RenderingModeOutputAlphaOperation) + @"\s*\(",
+                    RegexOptions.None,
+                    regexMatchTimeout
                 ),
                 Is.True,
                 "The generated product source must retain the shared rendering-mode output-alpha operation."

@@ -292,6 +292,42 @@ establish future exceptions. If the repair needs more than the minimum
 assertion-line increase or any out-of-scope change, stop and request a
 separate decision.
 
+### Bounded rendering-mode source-contract timeout allowance
+
+For the single finite-timeout update to
+`Tests/Daily/Editor/PureBaseRenderingModeRenderingTests.SourceContracts.cs`,
+use baseline commit `7580077aaab7ae6d54ac17bbb127ee8afe9d56bb`. At that
+baseline, the file is 1143 physical lines and 55782 bytes. The existing method
+`BirpHostPreservesModeAlphaFogPostPixelAndForwardAddSourceOrder` spans 71
+physical lines, from its declaration on line 114 through its closing brace on
+line 184. Count neither attributes nor XML documentation as method lines, and
+do not count a trailing newline as an extra physical line.
+
+Only this file and method may retain their existing size excess for this
+change. Permit at most 24 added physical lines in the file and method, with
+maximum sizes of 1167 file lines and 95 method lines. The added lines are
+limited to readable expansion of the five finite-timeout regex evaluations,
+a method-local `TimeSpan.FromSeconds(2)` value, and a concise rationale
+comment. The five evaluations are the mode-alpha `Regex.Match`, fog
+`Regex.Match`, fog `Regex.Matches(...).Count`, helper alpha-one
+`Regex.IsMatch`, and generated-Toon mode-alpha `Regex.IsMatch`. This maximum
+is a limit, not a target.
+
+Pass `RegexOptions.None` and the finite timeout through the existing
+compatible overloads. Preserve every pattern, input, assertion, evaluation
+order, and `Count` meaning. `Regex.Escape` is not an evaluation and is not
+covered. Timeout exceptions must propagate, including during `Matches`
+enumeration for `Count`; do not catch, retry, or ignore them. Do not use an
+infinite timeout, change global defaults, add helpers, types, files, branches,
+or complexity exceptions, or edit another method. Do not remove blank or
+comment lines, compress code, or split unrelated code to create room.
+
+This is a one-change allowance only. It does not suppress Codacy findings,
+authorize a future baseline or general size exception, or extend any existing
+bootstrap, run-label, CI-simplification, or authorization exception. If the
+baseline, target, or required increase differs from these limits, stop and
+request a separate decision.
+
 ## Persistent communication
 
 Do not persist temporary orchestration labels in repository artifacts.

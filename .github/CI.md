@@ -123,6 +123,12 @@ ProjectVersion. The `2022.3.22f1` baseline provenance and regeneration guard rem
 Fixed test fixture versions and the canonical ZIP fixture are independent test inputs; do not update
 them merely to follow the production Shader-Core pin.
 
+If Shader-Core's internal API, generated format, or UPM dependencies change, also review the
+affected host, phase and generation checks and the bootstrap graph. Update an Action's reviewed
+commit pin in its workflow or action after dependency review; contract tests check the expected
+owner/repository and a 40-hex pin rather than requiring that same particular commit everywhere.
+Pin format checks do not replace review of the pinned dependency.
+
 ## VRChat SDK parity boundary
 
 The generated CI project intentionally does **not** install `com.vrchat.base`,
@@ -276,6 +282,20 @@ legacy path and return its single Unity watchdog proxy path. Release no longer p
 producer and uploads the one bounded report. These changes do not alter workflow discovery, add a CI
 job, or change the existing bounded Release evidence list.
 
+When a Daily runtime pair is missing, the resolver downloads the Microsoft installer and requires
+a valid Authenticode signature with a Microsoft Corporation signer. It holds a read-only handle
+against replacement while it copies, checks and runs the protected installer, then checks the
+required files. If the pair already exists, no installer signature is checked. This differs from
+Release's pinned Chocolatey request and checksum policy above; neither a pre-existing DLL nor a
+cache hit proves authenticity or loadability.
+
+The runtime prerequisite fixture observes this protection differently by platform: Windows
+checks that a write open is rejected by the holder's sharing mode, while Linux probes contention
+for a cooperative advisory exclusive lock. The Linux observation does not prevent arbitrary writers
+and is not equivalent to Windows writer-share rejection. The platform-specific probe changes the
+test observation, not the runtime resolver. Windows Pester results do not establish the Linux
+runner's behavior; the existing Ubuntu Automation job must validate that platform separately.
+
 The runner also captures the original `Packages/manifest.json` and
 `Packages/packages-lock.json` bytes at the `pre-bootstrap`, `after-scene-bootstrap`, `quiescent`,
 `second-after-scene`, and `second-quiescent` boundaries. Each stage is written below
@@ -304,6 +324,15 @@ therefore follows this hosted sequence:
   It selects the latest matching `release-validation.yml` `workflow_dispatch` run by run number and
   attempt, downloads that run's unexpired artifact, and revalidates its provenance, ZIP, manifest,
   and digest. The downloaded ZIP is the only publication payload; Release never rebuilds it.
+
+For the final committed and pushed SHA, the required hosted validation must succeed and its run
+and attempt, checkout, consumer matrix, dependency input evidence, runtime report, ZIP, digest and
+schema-1 manifest must be reviewed. In that same run, verify the actual producer's initial and final
+repository-state steps and `repository-state.json`: the exact-SHA checkout is detached, the initial
+branch is empty, and the successful final comparison confirms the branch, HEAD, clean working tree
+and local branch/tag refs remain unchanged. The JSON contains the initial snapshot; the final step
+result supplies the comparison. If either step cannot be confirmed, this guarantee is unverified.
+A publisher detached-checkout fixture is a different process and cannot substitute for this check.
 
 The selected validation run itself must be completed successfully. If the artifact is missing,
 expired, malformed, or the latest matching run is non-success, queued, cancelled, or otherwise not
@@ -361,6 +390,29 @@ version validation, fresh and resume release mode decisions, missing and mismatc
 dispatch URLs and hashes, fork and draft PR rejection, immutable-release preflight behavior, the
 VPM yank policy reader and sender workflow contracts, and the generated Unity project version,
 QualitySettings snapshot, VRChat SDK exclusion, test framework, and Shader-Core pin.
+
+The existing Ubuntu Pester job collects `.github/tests`, plus the portable
+`.github/scripts/Install-VerifiedShaderCoreRelease.Tests.ps1` and
+`Tests/Release/ShaderCoreValidationInputs.Tests.ps1` explicitly. It does not recursively run all
+of `Tests`. The Windows-only `Tests/Release/Run-PureBaseReleaseValidation.Tests.ps1` suite uses
+a fake Unity `.cmd` and remains a separate local Windows Pester validation when relevant.
+
+Hosted workflow contract tests use stable IDs or unique supported action/script selectors, and
+check required inputs, permissions, action identity and pin format, and security-relevant order;
+display names, argument order and unrelated step order are not the intended contract. The narrow
+helpers reject ambiguous selection and are not general YAML parsers. The Hosted Release suite owns
+the required upload paths and private exclusions. Existing runner and exporter checks own raw input
+capture, cleanup, privacy and the publication payload; upload alone does not establish validation
+success. Do not assume that every implementation-spelling assertion has been removed.
+
+`InstallPinnedUnityCli.Tests.ps1` exercises platform and malformed input rejection, official
+versioned URI and SHA-256 selection, hashing the downloaded temporary file, preservation of an
+existing destination on failure, placement after verification and temporary cleanup. Hosted Unity
+contracts retain static guards for terminating download errors and a nonzero `install-path` exit:
+the existing mocks do not independently prove those negative cases. Watchdog launch-failure
+diagnostics check selection of 1800 seconds for configure and 3600 seconds for `-runTests`; they do
+not demonstrate a real-time timeout kill. The configure workflow step also has a 30-minute outer
+timeout.
 
 ### リポジトリの改行検査
 

@@ -77,16 +77,25 @@ Describe 'Install-PinnedUnityCli' {
         $operations = [Collections.Generic.List[string]]::new()
         Mock Invoke-WebRequest {
             param($Uri, $OutFile)
+            $script:observedUri = $Uri
+            $script:observedDownloadPath = $OutFile
             $operations.Add('download')
             [IO.File]::WriteAllBytes($OutFile, $script:downloadBytes)
         }
         Mock Get-FileHash {
+            param($LiteralPath, $Algorithm)
+            $script:observedHashPath = $LiteralPath
+            $script:observedAlgorithm = $Algorithm
             $operations.Add('hash')
             [pscustomobject]@{ Hash = $script:actualSha256 }
         }
 
         Invoke-Bootstrap
 
+        $script:observedUri | Should -Be 'https://public-cdn.cloud.unity3d.com/hub/prod/cli/1.0.0-beta.3/unity-windows-x64.exe'
+        $script:observedAlgorithm | Should -Be 'SHA256'
+        $script:observedDownloadPath | Should -Be (Join-Path $script:temporaryRoot (Split-Path $script:observedDownloadPath -Leaf))
+        $script:observedHashPath | Should -Be $script:observedDownloadPath
         [Convert]::ToHexString([IO.File]::ReadAllBytes($script:destinationPath)) |
             Should -Be ([Convert]::ToHexString($script:downloadBytes))
         ($operations -join ',') | Should -Be 'download,hash'

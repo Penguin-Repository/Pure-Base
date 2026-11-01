@@ -51,24 +51,28 @@ function Get-NamedJobBlock {
         [string]$Name
     )
 
-    $match = [regex]::Match(
+    $matches = [regex]::Matches(
         $Workflow,
         "(?ms)^  $([regex]::Escape($Name)):\n.*?(?=^  [A-Za-z0-9_-]+:\n|\z)"
     )
-    return $match.Value
+    if ($matches.Count -ne 1) {
+        throw "Expected exactly one workflow job '$Name'; found $($matches.Count)."
+    }
+    return $matches[0].Value
 }
 
-function Get-NamedStepBlock {
+function Get-UniqueWorkflowStep {
     param(
         [string]$Job,
-        [string]$Name
+        [string]$Pattern
     )
 
-    $match = [regex]::Match(
-        $Job,
-        "(?ms)^      - name: $([regex]::Escape($Name))\n.*?(?=^      - name:|\z)"
-    )
-    return $match.Value
+    $steps = @([regex]::Matches($Job, '(?ms)^      - [^\r\n]*\n.*?(?=^      - |\z)') |
+        Where-Object { $_.Value -match $Pattern })
+    if ($steps.Count -ne 1) {
+        throw "Expected exactly one workflow step matching '$Pattern'; found $($steps.Count)."
+    }
+    return $steps[0].Value
 }
 
 function Get-CompositeRunsSteps {
@@ -123,54 +127,6 @@ function Get-CompositeActionStepBlocks {
             } |
             ForEach-Object Value
     )
-}
-
-function Assert-LinesInOrder {
-    param(
-        [string]$Block,
-        [string[]]$ExpectedLines
-    )
-
-    $actualLines = [string[]]($Block -split "\n")
-    $lastIndex = -1
-    foreach ($expectedLine in $ExpectedLines) {
-        $currentIndex = [Array]::IndexOf($actualLines, $expectedLine, $lastIndex + 1)
-        $currentIndex | Should -BeGreaterThan $lastIndex
-        $lastIndex = $currentIndex
-    }
-}
-
-function Assert-LiteralRunLinesInOrder {
-    param(
-        [string]$Step,
-        [string[]]$ExpectedLines
-    )
-
-    Assert-LinesInOrder -Block (Get-LiteralRunBlock -Step $Step) -ExpectedLines $ExpectedLines
-}
-
-function Get-LiteralRunBlock {
-    param([string]$Step)
-
-    $runMatch = [regex]::Match(
-        $Step,
-        '(?m)^ {6}(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?\r?\n(?<script>(?:(?:^ {7,}[^\r\n]*|^[ \t]*)\r?\n)*(?:^ {7,}[^\r\n]*)?)(?=^ {4}- |\z)'
-    )
-    if (-not $runMatch.Success) {
-        throw 'The composite action step does not contain a literal run block.'
-    }
-
-    return (($runMatch.Groups['script'].Value -split "\r?\n" | ForEach-Object { $_.Trim() }) -join "`n").Trim()
-}
-
-function Get-StepMappingHeader {
-    param([string]$Step)
-
-    return [regex]::Split(
-        $Step,
-        '(?m)^ {6}(?:run|"run"|''run'')[ \t]*:[ \t]*\|[-+]?[ \t]*(?:#.*)?$',
-        2
-    )[0]
 }
 
 function Get-ActionYamlKeyOccurrences {

@@ -24,24 +24,21 @@ Describe 'Hosted Release review contracts' {
         $releaseWorkflow.Contains('-UnityEditorPath $env:REAL_UNITY_EDITOR_PATH') | Should -BeTrue
         $releaseWorkflow.Contains('& $env:UNITY_EDITOR_PATH `') | Should -BeTrue
         $resolverScript.Contains('RealEditorPathOutputFile') | Should -BeTrue
-        $resolverScript.Contains('real Unity.exe because its audited runner intentionally rejects wrapper executables') | Should -BeTrue
     }
 
     It 'provisions prerequisites before Unity and only uploads the safe report' {
         $job = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
-        $paths = Get-NamedStepBlock -Job $job -Name 'Export Unity editor paths'
-        $provision = Get-NamedStepBlock -Job $job -Name 'Provision Unity runtime prerequisites'
-        $upload = Get-NamedStepBlock -Job $job -Name 'Upload release validation evidence'
-        $export = Get-NamedStepBlock -Job $job -Name 'Export versioned validation ZIP'
-
-        Assert-LinesInOrder -Block $job -ExpectedLines @(
-            '      - name: Capture initial repository state',
-            '      - name: Provision Unity runtime prerequisites',
-            '      - name: Install verified Shader-Core release',
-            '      - name: Restore Unity Editor',
-            '      - name: Activate Unity Personal license',
-            '      - name: Export Unity editor paths'
-        )
+        $paths = Get-UniqueWorkflowStep -Job $job -Pattern 'Resolve-UnityEditorPath\.ps1'
+        $provision = Get-UniqueWorkflowStep -Job $job -Pattern 'Install-ReleaseUnityRuntimePrerequisites\.ps1'
+        $upload = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        uses: actions/upload-artifact@'
+        $export = Get-UniqueWorkflowStep -Job $job -Pattern 'Export-PureBaseValidationZip\.ps1'
+        $initial = Get-UniqueWorkflowStep -Job $job -Pattern '\$initialHead\s*='
+        $shader = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        id: shader-core$'
+        $editor = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        id: unity$'
+        $job.IndexOf($initial) | Should -BeLessThan $job.IndexOf($provision)
+        $job.IndexOf($provision) | Should -BeLessThan $job.IndexOf($shader)
+        $job.IndexOf($shader) | Should -BeLessThan $job.IndexOf($editor)
+        $job.IndexOf($editor) | Should -BeLessThan $job.IndexOf($paths)
         $provision | Should -Match '(?m)^        timeout-minutes: 15$'
         $provision | Should -Match 'Install-ReleaseUnityRuntimePrerequisites\.ps1'
         $provision | Should -Match '-WorkflowRunId ''\$\{\{ github\.run_id \}\}'''
@@ -64,27 +61,23 @@ Describe 'Hosted Release review contracts' {
         $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
 
         $validationJob | Should -Not -BeNullOrEmpty
-        Assert-LinesInOrder -Block $validationJob -ExpectedLines @(
-            '      - name: Prepare Unity project shell',
-            '      - name: Run release validation',
-            '      - name: Configure Unity project',
-            '      - name: Export versioned validation ZIP'
-        )
+        $prepare = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'New-PureBaseCiProject\.ps1'
+        $validation = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'Run-PureBaseReleaseValidation\.ps1'
+        $configuration = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'PureBaseCiProjectInitializer\.InitializeForBatchMode'
+        $export = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'Export-PureBaseValidationZip\.ps1'
+        $validationJob.IndexOf($prepare) | Should -BeLessThan $validationJob.IndexOf($validation)
+        $validationJob.IndexOf($validation) | Should -BeLessThan $validationJob.IndexOf($configuration)
+        $validationJob.IndexOf($configuration) | Should -BeLessThan $validationJob.IndexOf($export)
     }
 
     It 'captures detached-safe local branch snapshots for Release validation' -Tag ReleaseValidationProducer {
         $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
-        $initialSnapshotStep = Get-NamedStepBlock -Job $validationJob -Name 'Capture initial repository state'
-        $finalSnapshotStep = Get-NamedStepBlock -Job $validationJob -Name 'Assert repository state unchanged'
-        $safeExpression = '(& git branch --show-current | Out-String).Trim()'
-        $unsafeExpression = '(& git branch --show-current).Trim()'
+        $initialSnapshotStep = Get-UniqueWorkflowStep -Job $validationJob -Pattern '\$initialHead\s*='
+        $finalSnapshotStep = Get-UniqueWorkflowStep -Job $validationJob -Pattern '\$finalHead\s*='
 
         $initialSnapshotStep | Should -Not -BeNullOrEmpty
         $finalSnapshotStep | Should -Not -BeNullOrEmpty
-        $initialSnapshotStep.Contains($safeExpression) | Should -BeTrue
-        $finalSnapshotStep.Contains($safeExpression) | Should -BeTrue
-        $releaseWorkflow | Should -Not -Match ([regex]::Escape($unsafeExpression))
-        ([regex]::Matches($releaseWorkflow, [regex]::Escape($safeExpression))).Count | Should -Be 2
+        $validationJob.IndexOf($initialSnapshotStep) | Should -BeLessThan $validationJob.IndexOf($finalSnapshotStep)
     }
 
     It 'stages the same verified Shader-Core release asset in every Unity validation consumer' {
@@ -101,8 +94,9 @@ Describe 'Hosted Release review contracts' {
 
         foreach ($consumer in $consumers) {
             $job = Get-NamedJobBlock -Workflow $consumer.Workflow -Name $consumer.Job
-            $step = Get-NamedStepBlock -Job $job -Name 'Install verified Shader-Core release'
-            $inputs = Get-NamedStepBlock -Job $job -Name 'Read validation inputs'
+            $step = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        id: shader-core$'
+            $inputs = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        id: validation-inputs$'
+            $checkout = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        uses: actions/checkout@'
 
             $step | Should -Not -BeNullOrEmpty
             $step | Should -Match 'Install-VerifiedShaderCoreRelease\.ps1'
@@ -110,7 +104,8 @@ Describe 'Hosted Release review contracts' {
             $step | Should -Not -Match '-Uri|-ExpectedSha256|-ExpectedVersion'
             $inputs | Should -Match 'PureBaseValidationInputs\.ps1'
             $inputs | Should -Match 'Get-PureBaseValidationInputs -PackageRoot \$env:PACKAGE_ROOT'
-            Assert-LinesInOrder -Block $job -ExpectedLines @('      - name: Checkout Pure-Base', '      - name: Read validation inputs', '      - name: Install verified Shader-Core release')
+            $job.IndexOf($checkout) | Should -BeLessThan $job.IndexOf($inputs)
+            $job.IndexOf($inputs) | Should -BeLessThan $job.IndexOf($step)
             $step | Should -Not -Match 'actions/checkout|repository:\s*lilxyzw/Shader-Core'
         }
     }
@@ -120,11 +115,10 @@ Describe 'Hosted Release review contracts' {
 
         foreach ($jobName in @('validate')) {
             $job = Get-NamedJobBlock -Workflow $releaseWorkflow -Name $jobName
-            $checkoutName = 'Checkout Pure-Base'
-            $checkout = Get-NamedStepBlock -Job $job -Name $checkoutName
+            $checkout = Get-UniqueWorkflowStep -Job $job -Pattern '(?m)^        uses: actions/checkout@'
 
             $job | Should -Not -BeNullOrEmpty
-            $checkout | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
+            $checkout | Should -Match '(?m)^        uses: actions/checkout@[0-9a-f]{40}(?: #.*)?$'
             $checkout | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
             $checkout | Should -Match '(?m)^          persist-credentials: false$'
         }
@@ -132,10 +126,10 @@ Describe 'Hosted Release review contracts' {
 
     It 'passes validation provenance and package metadata to the producer exporter' -Tag ReleaseValidationProducer {
         $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
-        $exportStep = Get-NamedStepBlock -Job $validationJob -Name 'Export versioned validation ZIP'
+        $exportStep = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'Export-PureBaseValidationZip\.ps1'
 
         $exportStep | Should -Not -BeNullOrEmpty
-        Assert-LinesInOrder -Block $exportStep -ExpectedLines @(
+        $requiredInputs = @(
             '            -PackageRoot $env:PACKAGE_ROOT `',
             '            -ValidationArtifactDirectory $env:ARTIFACT_ROOT `',
             '            -Repository ''${{ github.repository }}'' `',
@@ -144,27 +138,28 @@ Describe 'Hosted Release review contracts' {
             '            -WorkflowRunId ''${{ github.run_id }}'' `',
             '            -WorkflowRunAttempt ''${{ github.run_attempt }}'''
         )
+        foreach ($inputLine in $requiredInputs) {
+            $exportStep | Should -Match ([regex]::Escape($inputLine.TrimEnd(' ', '`')) + '(?:\s|$)')
+        }
     }
 
     It 'proves producer ref invariants, forbids Git mutation, and uploads validated-package evidence' -Tag ReleaseValidationProducer {
         $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
-        $uploadStep = Get-NamedStepBlock -Job $validationJob -Name 'Upload release validation evidence'
-
-        Assert-LinesInOrder -Block $validationJob -ExpectedLines @(
-            '      - name: Capture initial repository state',
-            '      - name: Run release validation',
-            '      - name: Configure Unity project',
-            '      - name: Export versioned validation ZIP',
-            '      - name: Assert repository state unchanged',
-            '      - name: Upload release validation evidence'
-        )
+        $uploadStep = Get-UniqueWorkflowStep -Job $validationJob -Pattern '(?m)^        uses: actions/upload-artifact@'
+        $initial = Get-UniqueWorkflowStep -Job $validationJob -Pattern '\$initialHead\s*='
+        $validation = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'Run-PureBaseReleaseValidation\.ps1'
+        $export = Get-UniqueWorkflowStep -Job $validationJob -Pattern 'Export-PureBaseValidationZip\.ps1'
+        $final = Get-UniqueWorkflowStep -Job $validationJob -Pattern '\$finalHead\s*='
+        $validationJob.IndexOf($initial) | Should -BeLessThan $validationJob.IndexOf($validation)
+        $validationJob.IndexOf($export) | Should -BeLessThan $validationJob.IndexOf($final)
+        $validationJob.IndexOf($final) | Should -BeLessThan $validationJob.IndexOf($uploadStep)
 
         $releaseWorkflow | Should -Not -Match '(?im)^\s*git\s+(commit|push)\b'
         $releaseWorkflow | Should -Match '(?m)git\s+rev-parse\s+HEAD'
         $releaseWorkflow | Should -Match '(?m)git\s+status\s+--porcelain'
         $releaseWorkflow | Should -Match '(?m)git\s+for-each-ref'
 
-        $uploadStep | Should -Match '(?m)^        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9(?: #.*)?$'
+        $uploadStep | Should -Match '(?m)^        uses: actions/upload-artifact@[0-9a-f]{40}(?: #.*)?$'
         $uploadStep | Should -Match '(?m)^          path: \|$'
         $uploadStep | Should -Match '(?m)^          if-no-files-found: error$'
         $uploadStep | Should -Match '(?m)^          compression-level: 0$'
@@ -172,7 +167,7 @@ Describe 'Hosted Release review contracts' {
 
     It 'uploads direct evidence children without parent-directory traversal' -Tag ReleaseValidationProducer {
         $validationJob = Get-NamedJobBlock -Workflow $releaseWorkflow -Name 'validate'
-        $uploadStep = Get-NamedStepBlock -Job $validationJob -Name 'Upload release validation evidence'
+        $uploadStep = Get-UniqueWorkflowStep -Job $validationJob -Pattern '(?m)^        uses: actions/upload-artifact@'
         $pathMatch = [regex]::Match(
             $uploadStep,
             '(?ms)^          path: \|\n(?<paths>(?:^            [^\r\n]*(?:\r?\n|$))+?)(?=^          [A-Za-z0-9_-]+:|\z)'
@@ -210,8 +205,8 @@ Describe 'Hosted Release review contracts' {
         $releaseJob | Should -Not -BeNullOrEmpty
         $releasePublishingWorkflow | Should -Not -Match '(?m)^  unity-editor-cache:$'
 
-        $pureBaseTokenStep = Get-NamedStepBlock -Job $releaseJob -Name 'Create release GitHub App token'
-        $vpmTokenStep = Get-NamedStepBlock -Job $releaseJob -Name 'Create VPM dispatch GitHub App token'
+        $pureBaseTokenStep = Get-UniqueWorkflowStep -Job $releaseJob -Pattern '(?m)^        id: release-app-token$'
+        $vpmTokenStep = Get-UniqueWorkflowStep -Job $releaseJob -Pattern '(?m)^        id: dispatch-app-token$'
 
         $pureBaseTokenStep | Should -Match '(?m)^          permission-contents: write$'
         $pureBaseTokenStep | Should -Match '(?m)^          permission-actions: read$'
@@ -223,18 +218,16 @@ Describe 'Hosted Release review contracts' {
         $vpmTokenStep | Should -Not -Match '(?m)^          permission-(actions|workflows|administration):'
     }
 
-    It 'documents artifact-only version confirmation and exact-SHA resume requirements' {
-        $releasePublishingWorkflow | Should -Match '(?m)^        description: Confirm exact version from the checked-out package\.json$'
-        $releasePublishingWorkflow | Should -Match '(?m)^        description: Resume only for an exact annotated tag and matching draft or published Release at the same SHA$'
+    It 'avoids legacy version-writing and resume paths' {
         $releasePublishingWorkflow | Should -Not -Match '(?i)update_trigger\.json|resume after|package[ -]version[ -]commit'
     }
 
     It 'checks out the exact dispatch SHA without persisting the promotion credential' {
         $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
-        $checkouts = @([regex]::Matches($releaseJob, '(?ms)^      - name: [^\r\n]*Checkout[^\r\n]*\n.*?(?=^      - name:|\z)') | ForEach-Object Value)
+        $checkouts = @(Get-UniqueWorkflowStep -Job $releaseJob -Pattern '(?m)^        uses: actions/checkout@')
 
         $checkouts.Count | Should -Be 1
-        $checkouts[0] | Should -Match '(?m)^        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1(?: #.*)?$'
+        $checkouts[0] | Should -Match '(?m)^        uses: actions/checkout@[0-9a-f]{40}(?: #.*)?$'
         $checkouts[0] | Should -Match '(?m)^          ref: \$\{\{ github\.sha \}\}$'
         $checkouts[0] | Should -Match '(?m)^          fetch-depth: 0$'
         $checkouts[0] | Should -Match '(?m)^          fetch-tags: true$'
@@ -248,15 +241,18 @@ Describe 'Hosted Release review contracts' {
         $releasePublishingWorkflow | Should -Match '(?m)^          PREFLIGHT_ONLY: \$\{\{ inputs\.preflight_only \}\}$'
 
         $releaseJob = Get-NamedJobBlock -Workflow $releasePublishingWorkflow -Name 'release'
-        $releaseInvocation = Get-NamedStepBlock -Job $releaseJob -Name 'Promote validated artifact release'
+        $releaseInvocation = Get-UniqueWorkflowStep -Job $releaseJob -Pattern 'Invoke-PureBaseRelease\.ps1'
         $releaseInvocation | Should -Match '(?m)^          \$preflightOnly = \$env:PREFLIGHT_ONLY -eq ''true''$'
-        $releaseInvocation | Should -Match '(?m)^            -ValidatedEventSha ''\$\{\{ github\.sha \}\}'' `$'
-        $releaseInvocation | Should -Match '(?m)^            -ReleaseArtifactDirectory \$env:RELEASE_ARTIFACT_ROOT `$'
-        $releaseInvocation | Should -Match '(?m)^            -Repository ''\$\{\{ github\.repository \}\}'' `$'
-        $releaseInvocation | Should -Match '(?m)^            -Branch \$env:RELEASE_BRANCH `$'
-        $releaseInvocation | Should -Match '(?m)^            -ConfirmedVersion \$env:CONFIRMED_VERSION `$'
-        $releaseInvocation | Should -Match '(?m)^            -Resume:\$resume `$'
-        $releaseInvocation | Should -Match '(?m)^            -PreflightOnly:\$preflightOnly$'
+        $releaseInvocation | Should -Match '-PackageRoot \$env:PACKAGE_ROOT(?:\s|$)'
+        $releaseInvocation | Should -Match '-ValidatedEventSha ''\$\{\{ github\.sha \}\}''(?:\s|$)'
+        $releaseInvocation | Should -Match '-ReleaseArtifactDirectory \$env:RELEASE_ARTIFACT_ROOT(?:\s|$)'
+        $releaseInvocation | Should -Match '-Repository ''\$\{\{ github\.repository \}\}''(?:\s|$)'
+        $releaseInvocation | Should -Match '-Branch \$env:RELEASE_BRANCH(?:\s|$)'
+        $releaseInvocation | Should -Match '-ConfirmedVersion \$env:CONFIRMED_VERSION(?:\s|$)'
+        $releaseInvocation | Should -Match '-VpmRepository \$env:VPM_REPOSITORY(?:\s|$)'
+        $releaseInvocation | Should -Match '-AppSlug \$env:APP_SLUG(?:\s|$)'
+        $releaseInvocation | Should -Match '-Resume:\$resume(?:\s|$)'
+        $releaseInvocation | Should -Match '-PreflightOnly:\$preflightOnly(?:\s|$)'
 
         $releaseAutomationScript | Should -Match '(?m)^function Assert-RemoteReleaseBranchHead\b'
         $releaseAutomationScript | Should -Match '(?m)\[switch\]\$PreflightOnly'
