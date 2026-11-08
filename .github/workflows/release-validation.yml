@@ -126,7 +126,7 @@ jobs:
       - name: Activate Unity Personal license
         id: unity_license
         continue-on-error: true
-        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
+        uses: buildalon/activate-unity-license@822d378246868a7bf55041ee23721a580aa38146 # v3.0.1
         with:
           license: personal
           username: ${{ secrets.UNITY_EMAIL }}
@@ -140,7 +140,7 @@ jobs:
 
       - name: Retry Unity Personal license activation
         if: steps.unity_license.outcome == 'failure'
-        uses: buildalon/activate-unity-license@e0d245d0787b7b9931b56ccbde3b508f6b70f1af # v2.2.2
+        uses: buildalon/activate-unity-license@822d378246868a7bf55041ee23721a580aa38146 # v3.0.1
         with:
           license: personal
           username: ${{ secrets.UNITY_EMAIL }}
